@@ -4,11 +4,11 @@
 
 **Goal:** Ship an evidence-backed investigation workspace usable by humans and authenticated MCP clients before 18 October 2026, 23:59 HCMC time.
 
-**Architecture:** One TypeScript domain service layer serves REST and MCP adapters. PostgreSQL holds evidence, permissions, derived artifacts and leased jobs; a separate worker calls an approved analysis provider. The website consumes the REST contracts.
+**Architecture:** A self-hosted Next.js Node modular monolith serves the human website, REST and MCP through thin Route Handlers and shared domain services. PostgreSQL stores evidence, private bounded original bytes, permissions, derived artifacts and leased jobs. A separate Node worker runs approved model calls using the same domain packages.
 
-**Tech Stack:** pnpm, TypeScript, Next.js/React, Express, official MCP TypeScript SDK, Clerk, PostgreSQL/Drizzle, private S3-compatible storage, Zod, Vitest and Playwright.
+**Tech Stack:** pnpm, TypeScript, Next.js/React Node Route Handlers, pinned Next-compatible official MCP SDK adapter, Clerk, PostgreSQL/Drizzle with private bytea originals, Zod, Vitest and Playwright.
 
-**Spec:** [SRD](../specs/2026-10-10-investigator-srd.md). **Status:** draft planning artifact; no implementation has started. Product choices await review. The requested plan is prepared alongside the SRD; implementation starts only after that review.
+**Spec:** [SRD](../specs/2026-10-10-investigator-srd.md). **Architecture rationale:** [decision record](../../architecture/2026-10-10-investigator-architecture-decision.md). **Status:** draft planning artifact; no implementation has started. Product choices await review. The requested plan is prepared alongside the SRD; implementation starts only after that review.
 
 ## Global Constraints
 
@@ -27,6 +27,10 @@
 - No MCP permission mutation, brief approval/download, source deletion, shell, arbitrary fetch or outbound messaging.
 - No claim of source authenticity from submitted URLs or content hashes.
 - All adapters use domain services; no direct adapter database queries.
+- One public Next.js Node app and one private Node worker; no apps/api, custom Express server, P0 object-store or Redis dependency.
+- Maximum 100 MiB stored content per case, counting staged/committed originals, normalized text and history.
+- Protected responses are private/no-store; browser writes use Origin/CSRF checks; model credentials exist only in the worker.
+- Database transactions end before model network calls; current permissions are rechecked before release.
 
 ## Review Focus
 
@@ -43,10 +47,14 @@ apps/
   web/src/app/                 # login, cases, imports, timeline, briefs, access/settings
   web/src/components/          # evidence cards, source viewer, forms, job status
   web/src/lib/                 # typed API client; no local authorization decisions
-  api/src/auth/                # Clerk browser/OAuth actor adapters and discovery
-  api/src/rest/                # thin REST routes, uploads, reviewed download
-  api/src/mcp/                 # transport, tool registry, schemas/result mapping
-  api/src/server.ts            # HTTP composition, validation, limits, errors
+  web/src/app/v1/              # thin Node REST Route Handlers, task-owned endpoint folders
+  web/src/app/mcp/route.ts     # Node MCP Streamable HTTP Route Handler
+  web/src/app/.well-known/     # OAuth/protected-resource discovery routes
+  web/src/server/auth/        # Clerk browser/OAuth actor adapters
+  web/src/server/rest/        # REST adapter modules, upload/download responses
+  web/src/server/mcp/         # tool registry, schemas, structured result mapping
+  web/src/server/context.ts   # composition and verified request context
+  web/src/server/http.ts      # limits, Origin/CSRF, no-store responses and errors
   worker/src/                 # leases and domain job dispatch
 packages/
   contracts/src/              # schemas and generated types
@@ -89,7 +97,7 @@ Agent packets: [copyable assignments](../../agent-tasks/investigator-agent-assig
 
 **Owner:** Foundation agent. **Dependencies:** none. **Target:** 10 October.
 
-**Files:** root package.json, pnpm-workspace.yaml, tsconfig.base.json, .env.example; packages/contracts/src/{actor,evidence,imports,investigation,briefs,jobs,errors,index}.ts; tests/fixtures/{principals,cases,evidence}.ts; apps/{api,worker,web} package scaffolds.
+**Files:** root package.json, pnpm-workspace.yaml, tsconfig.base.json, .env.example; packages/contracts/src/{actor,evidence,imports,investigation,briefs,jobs,errors,index}.ts; tests/fixtures/{principals,cases,evidence}.ts; apps/{worker,web} package scaffolds and Next.js Node Route Handler skeletons.
 
 **Consumes:** SRD and this plan. **Produces:** shared schemas/types, service interface declarations, test fixtures, pnpm scripts `typecheck`, `test`, `test:integration`, `test:e2e`, `build`, `dev`, `db:migrate`, `db:seed`.
 
@@ -97,14 +105,14 @@ Agent packets: [copyable assignments](../../agent-tasks/investigator-agent-assig
 - [ ] Run `pnpm --filter @investigator/contracts test` and confirm new assertions fail before schemas are implemented.
 - [ ] Implement Zod input/output schemas, DomainError shape and typed service interfaces; pin compatible current stable dependencies and runtime in lockfile. Avoid SDK major-version mixing.
 - [ ] Add fictional fixtures with stable IDs and known facts, not generated assertions. Include restricted secret marker, emoji, contested dates and malicious instructions.
-- [ ] Run contract tests and `pnpm typecheck`; confirm pass. Document exact verified auth/SDK versions in README.
+- [ ] Run contract tests, a Next Node health route and `pnpm typecheck`; confirm pass. Document exact verified auth/SDK/Next adapter versions in README.
 - [ ] Commit only this task's files once verification passes.
 
 ## Task 1 — Authentication, database and policy
 
 **Owner:** Security/data agent. **Dependencies:** Task 0. **Target:** 10–11 October.
 
-**Files:** packages/db/src/{schema,migrations,context,repositories}.ts; packages/domain/src/security/{policy,disclosure}.ts; packages/domain/src/cases/{service,grants,coverage}.ts; packages/domain/src/audit/service.ts; apps/api/src/auth/{browser,mcp,discovery}.ts; tests/integration/{authorization,rls,oauth}.test.ts.
+**Files:** packages/db/src/{schema,migrations,context,repositories}.ts; packages/domain/src/security/{policy,disclosure}.ts; packages/domain/src/cases/{service,grants,coverage}.ts; packages/domain/src/audit/service.ts; apps/web/src/server/auth/{browser,mcp,discovery}.ts; tests/integration/{authorization,rls,oauth}.test.ts.
 
 **Consumes:** ActorContext and contract types. **Produces:** `withActorTransaction(ctx, fn)`, `requireCaseAction(ctx, caseId, action)`, `filterEvidence(ctx, caseId, purpose)`, `authorizeArtifact(ctx, artifactId, purpose)`; cases/search/create, grant, coverage and audit services; auth adapters.
 
@@ -112,8 +120,8 @@ Purpose = human_read | server_analysis | agent_export | client_brief. All requir
 
 - [ ] Write failing authorization tests: tenant B cannot see tenant A; sibling case denied; valid scope without grant denied; restricted membership absent denied; analysis_allowed excluded from agent_export; artifact with one hidden dependency denied without revealing its ID.
 - [ ] Write `rls.test.ts`: parallel transactions alternate two tenants and never see one another's records; runtime database role cannot bypass RLS or update/delete audit events. Run tests and confirm failures.
-- [ ] Implement schema/composite tenant foreign keys, least-privilege runtime role, transaction-local actor context, policy functions and metadata-only audit insert.
-- [ ] Implement Clerk browser and remote MCP authentication/discovery; verify PKCE, current provider audience/resource semantics, expiry, issuer, client ID and scopes. Day-1 spike must connect an actual chosen MCP client. Document account configuration and sanitized setup steps.
+- [ ] Implement schema/composite tenant foreign keys, private evidence_files bytea rows, least-privilege runtime role, transaction-local actor context, policy functions and metadata-only audit insert. Define a separate queue-claimer function/role that can lease metadata but cannot read evidence.
+- [ ] Implement Clerk browser and remote MCP authentication/discovery through Node Route Handlers under app/mcp and app/.well-known; verify PKCE, current provider audience/resource semantics, expiry, issuer, client ID and scopes. Day-1 spike must connect an actual chosen MCP client. Document account configuration and sanitized setup steps.
 - [ ] Implement cases, memberships, explicit client grants and source coverage services/browser endpoints. All permission changes increment policyRevision and invalidate brief approvals. Only tenant admins can assign restricted access, including explicit audited self-assignment; other members cannot self-elevate. The SRD does not claim restricted evidence is hidden from administrators who explicitly grant themselves access.
 - [ ] Run `pnpm test:integration -- authorization rls oauth`; check all tests pass, including expired/wrong-resource token and revoked grant cases. Commit.
 
@@ -121,28 +129,28 @@ Purpose = human_read | server_analysis | agent_export | client_brief. All requir
 
 **Owner:** Ingestion agent. **Dependencies:** Tasks 0–1. **Target:** 12–13 October.
 
-**Files:** packages/domain/src/ingestion/{service,normalize,parse-json,parse-eml,parse-text}.ts; packages/domain/src/evidence/{service,versions,withdrawal}.ts; apps/api/src/rest/{imports,evidence,uploads}.ts; tests/integration/{imports,evidence,withdrawal}.test.ts; packages/domain/src/ingestion/parsers.test.ts.
+**Files:** packages/domain/src/ingestion/{service,normalize,parse-json,parse-eml,parse-text}.ts; packages/domain/src/evidence/{service,versions,withdrawal}.ts; apps/web/src/server/rest/{imports,evidence,uploads}.ts; tests/integration/{imports,evidence,withdrawal}.test.ts; packages/domain/src/ingestion/parsers.test.ts.
 
-**Consumes:** contracts, policy/transactions/audit. **Produces:** ingestion and evidence services in SRD §9; `parseUpload(input: {bytes, filename, mimeType}): ParsedUpload`, normalized records, duplicate-safe receipts, private original storage adapter and coverage updates.
+**Consumes:** contracts, policy/transactions/audit. **Produces:** ingestion and evidence services in SRD §9; `parseUpload(input: {bytes, filename, mimeType}): ParsedUpload`, normalized records, duplicate-safe receipts, PostgreSQL private-original repository, transactional storage quota and coverage updates. Expose through owned Next.js Route Handlers under app/v1/imports and app/v1/cases/[id]/evidence.
 
 - [ ] Write failing tests: stage is unsearchable; another principal cannot preview/commit; revoked grant at commit denies; duplicate/retried/concurrent commit returns one receipt; changed source creates immutable version; same idempotency key with changed request conflicts; same-case hidden canonical collision cannot disclose or supersede; new version retains stricter classification and resets model/sharing defaults.
 - [ ] Write parser tests: TXT/MD/JSON/EML valid input, invalid JSON/EML error, HTML rendered inertly, attachment warning, quoted email preserved, timezone/date precision, Unicode normalization/offsets. Run and confirm failures.
-- [ ] Implement parsers and staged service; server provenance overrides caller claims; source URLs are references only. Enforce byte/count limits on streaming HTTP uploads and MCP calls.
+- [ ] Implement parsers and staged service; server provenance overrides caller claims; source URLs are references only. Enforce byte/count limits on streaming HTTP uploads and MCP calls, plus the 100 MiB case stored-content quota including historical/staged bytes.
 - [ ] Implement transactional commit with expectedRevision, unique keys, row locks and stable receipts. Keep sources and deduplication case-scoped; link exact source versions with per-link policies. Superseding an active version preserves historical citations. Re-import after withdrawal returns CONFLICT. Canonical collisions require current interface visibility at preview/commit; unavailable targets return generic NOT_FOUND without old-source metadata. New versions reset to human_only/not client-shareable and preserve stricter classification; receipt retries grant no source reads.
 - [ ] Implement permitted full-text retrieval/excerpts, source version display, coverage updates and withdrawal invalidation. Add body/blob purge job required by SRD retention policy.
-- [ ] Run `pnpm test:integration -- imports evidence withdrawal` and parser tests; prove no fetch occurs for supplied URLs and raw files are private. Commit.
+- [ ] Run `pnpm test:integration -- imports evidence withdrawal` and parser tests; prove no fetch occurs for supplied URLs and raw files are private; expired batches and purge reclaim quota only after deletion. Commit.
 
 ## Task 3 — Jobs and evidence-backed investigation
 
 **Owner:** Investigation agent. **Dependencies:** Tasks 0–2. **Target:** 13–15 October.
 
-**Files:** packages/domain/src/jobs/{service,lease}.ts; packages/domain/src/investigation/{service,runner,notes}.ts; packages/analysis/src/{provider,extract,aggregate,validate,fake-provider}.ts; apps/worker/src/{main,dispatch}.ts; apps/api/src/rest/{investigations,jobs,notes}.ts; tests/integration/{investigation,jobs,disclosure}.test.ts.
+**Files:** packages/domain/src/jobs/{service,lease}.ts; packages/domain/src/investigation/{service,runner,notes}.ts; packages/analysis/src/{provider,extract,aggregate,validate,fake-provider}.ts; apps/worker/src/{main,dispatch}.ts; apps/web/src/server/rest/{investigations,jobs,notes}.ts; tests/integration/{investigation,jobs,disclosure}.test.ts.
 
 **Consumes:** authorized evidence/transactions, contracts. **Produces:** jobs, investigation and notes services; `AnalysisProvider.extract(input): Promise<ExtractionResult>` and `aggregate(input): Promise<SnapshotResult>`; `validateCitations(result, versions)`; asynchronous run/claim assessment results.
 
 - [ ] Write failing tests: fixture timeline contains source-backed commitment/change/counterevidence; unsupported claim is insufficient; date-only/undated events retain precision; invalid citations fail; restricted marker never reaches provider spy or MCP-derived output.
-- [ ] Write race/error tests: membership/grant revoked after enqueue prevents processing; policy changes during model call prevent saving a releasable artifact; lease retry creates one snapshot; malformed response/timeout yields failed job. Confirm failures.
-- [ ] Implement leased jobs, heartbeat, retries, per-tenant concurrency and current policy checks before provider call and artifact save; content-only additions yield an outdated result, while lost dependency rights prevent release. Use actor/client identities, not persisted tokens.
+- [ ] Write race/error tests: membership/grant revoked after enqueue prevents processing; policy changes during model call prevent saving a releasable artifact; lease retry creates one snapshot; an expired worker cannot heartbeat/complete/fail/save after replacement; parallel claims serialize per-tenant active-count checks and never exceed two valid leases; malformed response/timeout yields failed job. Confirm failures.
+- [ ] Implement metadata-only atomic SKIP LOCKED leases through the restricted claim function, per-claim fencing tokens checked on all transitions/artifact saves, heartbeat, retries, per-tenant concurrency serialized with a tenant scheduler row lock and current policy checks before provider call and artifact save; content-only additions yield an outdated result, while lost dependency rights prevent release. Load/recheck in short transactions and release DB connections during model calls. Use actor/client identities, not persisted tokens.
 - [ ] Implement provider adapter and deterministic fake; bounded extraction/aggregation with exact citation spans and complete input dependency union. Model has no tools or arbitrary network capability.
 - [ ] Implement snapshot/timeline/commitment/claim outputs, section-paginated snapshot retrieval, and separate private annotations excluded from all analysis/brief input. New evidence makes old snapshots outdated/viewable; access loss blocks disclosure. Claim reassessment creates a new result/snapshot; old source evidence is never overwritten.
 - [ ] Run `pnpm test:integration -- investigation jobs disclosure`; run optional live-provider evaluation on fictional fixtures and record semantic failures separately from schema checks. Commit.
@@ -151,13 +159,13 @@ Purpose = human_read | server_analysis | agent_export | client_brief. All requir
 
 **Owner:** MCP agent. **Dependencies:** Tasks 0–2; can register typed placeholders while Task 3 finishes, but do not report placeholders as implemented. **Target:** 12–16 October.
 
-**Files:** apps/api/src/mcp/{server,tools,result-mapping}.ts; tests/integration/{mcp,mcp-auth,mcp-disclosure}.test.ts; docs/mcp-client-setup.md; scripts/mcp-demo.ts.
+**Files:** apps/web/src/server/mcp/{handler,tools,result-mapping}.ts; apps/web/src/app/mcp/route.ts; tests/integration/{mcp,mcp-auth,mcp-disclosure}.test.ts; docs/mcp-client-setup.md; scripts/mcp-demo.ts.
 
 **Consumes:** verified auth adapter and shared domain services. **Produces:** authenticated Streamable HTTP /mcp, tools listed in SRD except browser-only operations, setup and reproducible agent-import demo.
 
 - [ ] Write failing SDK transport tests: discover exact schemas; create batch → submit → preview → commit → search → excerpt works; outputs carry real evidence IDs; retry is stable; unsupported fields rejected.
 - [ ] Write authentication/disclosure tests: wrong-resource token denied; forged ctx ignored; no grant denied; hidden evidence cannot be discovered via search/timeline/jobs/briefs; prohibited permission/download tools absent. Run and confirm failures.
-- [ ] Implement per-request identity binding and tool registry using domain services only. Map errors to MCP errors with sanitized codes/request IDs; structuredContent conforms to output schemas; source text explicitly untrusted.
+- [ ] Implement the pinned Node Route Handler MCP adapter with stateless per-request identity binding and tool registry using domain services only. Map errors to MCP errors with sanitized codes/request IDs; structuredContent conforms to output schemas; source text explicitly untrusted.
 - [ ] Enforce bounded pages/excerpts, Origin/host protections appropriate to deployed transport and rate limits. Tool annotations are hints only.
 - [ ] Run `pnpm test:integration -- mcp mcp-auth mcp-disclosure`; then connect one real MCP client using OAuth and import fictional upstream records. Record actual client/version and supported workflow. Commit.
 
@@ -180,7 +188,7 @@ Purpose = human_read | server_analysis | agent_export | client_brief. All requir
 
 **Owner:** Brief workflow agent. **Dependencies:** Tasks 0–3; coordinate UI ownership with Task 5. **Target:** 14–16 October.
 
-**Files:** packages/domain/src/briefs/{service,runner,review}.ts; apps/api/src/rest/briefs.ts; apps/web/src/components/{BriefEditor,BriefReview,AudiencePreview}.tsx; tests/integration/briefs.test.ts; tests/e2e/brief-review.spec.ts.
+**Files:** packages/domain/src/briefs/{service,runner,review}.ts; apps/web/src/server/rest/briefs.ts; apps/web/src/components/{BriefEditor,BriefReview,AudiencePreview}.tsx; tests/integration/briefs.test.ts; tests/e2e/brief-review.spec.ts.
 
 **Consumes:** snapshots, authorized source subsets, provider, jobs, policy. **Produces:** briefs.draft/get, browser edit/review/download methods; audience preview using real policy.
 
@@ -196,12 +204,12 @@ Browser signatures: `briefs.edit(ctx,{caseId,briefId,expectedVersion,bodyMarkdow
 
 **Owner:** Integration/release agent. **Dependencies:** Tasks 1–6. **Target:** 16–18 October.
 
-**Files:** apps/api/src/server.ts; infra/{Dockerfile.api,Dockerfile.worker,compose.yaml}; .github/workflows/ci.yml; README.md; docs/{deployment,security-model,demo-script,known-limitations}.md; tests/integration/release-security.test.ts; scripts/{seed,smoke}.ts.
+**Files:** apps/web/src/server/{context,http}.ts; apps/web/next.config.ts; infra/{Dockerfile.web,Dockerfile.worker,compose.yaml}; .github/workflows/ci.yml; README.md; docs/{deployment,security-model,demo-script,known-limitations}.md; tests/integration/release-security.test.ts; scripts/{seed,smoke}.ts.
 
 **Consumes:** all services/adapters. **Produces:** live app and MCP endpoint, public-source documentation, reproducible tests/demo, release evidence.
 
 - [ ] Write failing cross-adapter regression tests covering all SRD §12 scenarios and fixtures. Include concurrent tenant contexts and internal-source leakage through counts/cached outputs/job results.
-- [ ] Compose real services; add deployment migrations/role setup, private storage, secret configuration, request limits, metadata-only logging and cleanup jobs. Do not silently bypass authentication to make deployment work.
+- [ ] Compose real services in Next.js server modules and worker; deploy Next standalone app plus separate worker, private PostgreSQL originals/queue, secret separation, browser Origin/CSRF and no-store protections, request limits, metadata-only logging and cleanup jobs. Include monorepo output-file tracing in standalone image checks. Do not silently bypass authentication to make deployment work.
 - [ ] Run `pnpm typecheck`, `pnpm test`, `pnpm test:integration`, `pnpm test:e2e`, `pnpm build`; fix failures. Confirm migration/seed in a fresh database, not just local fixtures.
 - [ ] Deploy and execute smoke tests against live REST and MCP. Verify actual OAuth client consent, wrong-resource token denial, tenant isolation, import receipt, investigation/citations, reviewed export and policy revocation.
 - [ ] Record benchmarks and provider/client versions; inspect logs for secret/body leakage. Document tested guarantees and limitations, including unverified agent provenance and external-model retention.

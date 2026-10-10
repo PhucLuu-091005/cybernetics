@@ -4,6 +4,8 @@ Draft handoff packets, 10 October 2026. Use after the user reviews the SRD and i
 
 ## Instructions common to every agent
 
+Chosen architecture: one Next.js Node application serves UI, REST and MCP; a separate Node worker runs analysis; PostgreSQL holds evidence, private small-file originals and durable jobs. Rationale and drawings: [architecture decision](../architecture/2026-10-10-investigator-architecture-decision.md). No standalone Express API or P0 object-store/Redis deployment.
+
 Read `docs/superpowers/specs/2026-10-10-investigator-srd.md` and your task in `docs/superpowers/plans/2026-10-10-investigator-implementation.md`. Implement only the assigned scope. Use the shared contracts and domain authorization; do not redefine identity, permissions, schemas or database columns locally. Ask the integrator for contract/migration changes. Respect owned files and isolate concurrent changes in worktrees. Preserve human-entered, file-imported, agent-submitted and model-generated provenance distinctly.
 
 Acceptance: real functionality, tests for meaningful failure modes, no secret/source content in logs, no inaccessible information in responses, and no mocks in production flows. Return a changed-file list, requirement IDs covered, verification commands/results, dependencies, and unresolved limitations. Commit only your verified task files according to repository instructions. Never claim private data is authentic simply because an agent supplies a URL.
@@ -22,7 +24,7 @@ Acceptance: real functionality, tests for meaningful failure modes, no secret/so
 
 **Mission:** Make browser and MCP identities trustworthy and enforce tenant/case/disclosure boundaries.
 
-**Own:** `packages/db`, domain security/cases/audit, API auth adapters.
+**Own:** `packages/db`, domain security/cases/audit, Next.js server auth adapters/discovery routes.
 
 **Consumes:** Task 0 contracts. **Expose:** actor transactions, policy functions, cases/memberships/grants/coverage/audit services.
 
@@ -34,11 +36,11 @@ Acceptance: real functionality, tests for meaningful failure modes, no secret/so
 
 **Mission:** Accept human/file/agent evidence and preserve source history reliably.
 
-**Own:** domain ingestion/evidence, REST uploads/imports/evidence and parser tests.
+**Own:** domain ingestion/evidence, Next.js server REST modules and owned Route Handlers for uploads/imports/evidence, plus parser tests.
 
 **Consumes:** Tasks 0–1. **Expose:** staged batch, submit, preview, commit, permitted search/excerpt, withdrawal and parsers.
 
-**Requirements:** TXT/MD/JSON/EML; strict limits; server-set provenance; case-scoped canonical-source deduplication; immutable versions; commit concurrency/idempotency; default human-only evidence; canonical collisions cannot expose/replace a source hidden from that interface; new versions retain stricter classification and reset model/sharing permissions; coverage warnings; source URLs never fetched; private original files and purge.
+**Requirements:** TXT/MD/JSON/EML; strict limits; server-set provenance; case-scoped canonical-source deduplication; immutable versions; commit concurrency/idempotency; default human-only evidence; canonical collisions cannot expose/replace a source hidden from that interface; new versions retain stricter classification and reset model/sharing permissions; coverage warnings; source URLs never fetched; private PostgreSQL original-byte rows, 100 MiB case quota and purge.
 
 **Done when:** all three input paths share one pipeline; same import retried/concurrently committed yields stable IDs; edited sources yield versions; malformed/hostile files fail safely; revoked permissions prevent commit.
 
@@ -50,7 +52,7 @@ Acceptance: real functionality, tests for meaningful failure modes, no secret/so
 
 **Consumes:** authorized evidence and Tasks 0–2. **Expose:** run/assess jobs, timeline, private author notes, job status, section-paginated structured snapshot results.
 
-**Requirements:** current permission checks before provider calls and saving; complete input dependency union; exact citation spans; preserved date precision; recorded fact versus assertion/inference; notes excluded from analysis/export; outdated versus blocked snapshots distinguished; provider failures explicit; bounded inputs; leases/retries/concurrency.
+**Requirements:** current permission checks before provider calls and saving; complete input dependency union; exact citation spans; preserved date precision; recorded fact versus assertion/inference; notes excluded from analysis/export; outdated versus blocked snapshots distinguished; provider failures explicit; bounded inputs; leases/retries/concurrency using metadata-only claim privileges, fenced lease tokens and serialized tenant scheduler checks; short DB transactions outside model network calls.
 
 **Done when:** fictional contested-deadline case has evidence and counterevidence; invalid citations fail; hidden markers never reach provider/agent; revoked/grant/policy race tests pass; retries do not duplicate snapshots.
 
@@ -58,11 +60,11 @@ Acceptance: real functionality, tests for meaningful failure modes, no secret/so
 
 **Mission:** Let an authenticated agent ingest and investigate through the same domain services.
 
-**Own:** MCP adapter, protocol integration tests, client setup/demo script.
+**Own:** Next.js Node MCP Route Handler and server adapter modules, protocol integration tests, client setup/demo script.
 
 **Consumes:** contracts, verified auth and completed domain methods. **Expose:** `/mcp` with the SRD tool registry and structured schemas.
 
-**Requirements:** Streamable HTTP; user/client/case grants; stage/preview/commit flow; schema-bound results/errors; bounded excerpts/pages; current disclosure policy; no permission, approval, download, shell, arbitrary-fetch or send tools.
+**Requirements:** pinned Next-compatible stateless Streamable HTTP adapter; user/client/case grants; stage/preview/commit flow; schema-bound results/errors; bounded excerpts/pages; current disclosure policy; no permission, approval, download, shell, arbitrary-fetch or send tools.
 
 **Done when:** SDK transport tests and one real OAuth client flow work; returned IDs match the human workspace; wrong token/grant and hidden-output cases fail safely. Report tested client/version, not universal compatibility.
 
@@ -94,11 +96,11 @@ Acceptance: real functionality, tests for meaningful failure modes, no secret/so
 
 **Mission:** Deliver the integrated live application and MCP service with reproducible proof.
 
-**Own:** server composition, deployment/CI/docs, smoke/seed scripts and cross-system regression tests. Coordinate root changes with Agent A.
+**Own:** Next.js/worker composition, standalone-container deployment/CI/docs, smoke/seed scripts and cross-system regression tests. Coordinate root changes with Agent A.
 
 **Consumes:** all task outputs.
 
-**Requirements:** fresh migration/seed, private storage, secret configuration, all tests/build, live OAuth/MCP and human workflows, adversarial fixtures, logs checked for leakage, cleanup/retention, measured benchmarks and honest limitations.
+**Requirements:** fresh migration/seed, private PostgreSQL originals/queue, worker-only analysis secrets, Origin/CSRF/no-store protections, all tests/build, live OAuth/MCP and human workflows, adversarial fixtures, logs checked for leakage, cleanup/retention, measured benchmarks and honest limitations.
 
 **Done when:** live app + MCP URL + public source are usable; all P0 SRD release gates have evidence; 10-minute fictional demo rehearsed; submission buffer remains. Do not submit the contest entry or create external communications without a user request.
 

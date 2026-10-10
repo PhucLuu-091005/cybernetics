@@ -1,7 +1,7 @@
 # The Investigator — Software Requirements Document
 
 Status: Draft for product review; implementation is not yet authorized.
-Version: 0.1 | Date: 10 October 2026 | Delivery deadline: 18 October 2026, 23:59 Asia/Ho_Chi_Minh.
+Version: 0.2 | Date: 10 October 2026 | Delivery deadline: 18 October 2026, 23:59 Asia/Ho_Chi_Minh.
 
 ## 1. Intent and product decisions
 
@@ -150,36 +150,61 @@ Batch states: `staged → committed | abandoned`. Batch immutable after commit; 
 
 Commit transaction checks current actor membership/grant, batch ownership, expiry, and preview revision. Input `expectedRevision` and `idempotencyKey` required. Same key + same request returns existing receipt; same key + different request returns CONFLICT. Race-safe unique keys and row locks prevent duplicate evidence/commits. Unauthorized references use NOT_FOUND without existence details.
 
-## 7. Suggested architecture
+## 7. Chosen architecture
 
-### Recommended stack
+### Decision and rationale
 
-- pnpm TypeScript monorepo; pin supported runtime/package versions in the lockfile during foundation task.
-- `apps/web`: Next.js and React; Clerk browser authentication; a restrained evidence-first interface.
-- `apps/api`: Express with REST `/v1` and official TypeScript MCP SDK Streamable HTTP `/mcp`; Clerk OAuth verification and discovery integration. No custom OAuth authorization server.
-- `apps/worker`: PostgreSQL-backed leased job runner for analysis and brief generation; no Redis required.
-- `packages/contracts`: Zod schemas and shared types; no framework dependencies.
-- `packages/domain`: policy, ingestion, evidence, investigation, briefs, audit services.
-- `packages/db`: PostgreSQL schema/migrations, transaction helper, repositories; Drizzle suggested.
-- `packages/analysis`: provider adapter, prompts, output validator, deterministic fake provider for tests.
-- PostgreSQL full-text search with deterministic date filters. Vector search is P1; not required to demonstrate evidence reasoning.
-- Private object storage only for uploaded originals; normalized text stored in PostgreSQL. Files are never served from public buckets.
-- Docker deployments for API and worker; managed PostgreSQL and private S3-compatible storage; web can use a separate managed frontend host. Provider choice is left to the deployment agent.
+Use a **TypeScript modular monolith with a separately deployed worker**. One self-hosted Next.js Node application serves the website, REST `/v1` and MCP `/mcp`; a private Node worker handles analysis; PostgreSQL holds evidence, private small-file originals, policy, search, audit and durable jobs.
+
+The repo has planning documents but no application/framework to preserve. For the eight-day MVP, this architecture reduces deployments, identity forwarding and storage credentials while retaining independent long-job execution. Shared domain modules enforce the same policy for both interfaces; physical co-location is not itself a security guarantee. This is a fit-for-scope decision, not a throughput/cost benchmark.
+
+### Selected components and reasons
+
+| Component | Chosen implementation | Reason |
+|---|---|---|
+| Human surface and public adapters | Next.js/React, Node Route Handlers, self-hosted standalone container | Same-origin browser REST and a documented Next.js MCP integration path; one public deployment |
+| Identity and OAuth | Clerk browser/OAuth verification and MCP discovery integration | Avoid building an authorization server; prove user/client/scopes/resource binding in the early spike |
+| MCP transport | Streamable HTTP through a pinned Next-compatible adapter using official MCP SDK schemas | Purpose-built tools, structured outputs and request-scoped identity; adapter compatibility tested with a real client |
+| Business logic | Framework-free packages/domain with injected repositories/provider ports | One policy/use-case implementation for browser, MCP and worker; module ownership supports agent work |
+| Contracts | TypeScript + Zod in packages/contracts | Shared compile-time types and runtime validation; adapters cannot invent wire formats |
+| Data and migrations | PostgreSQL + Drizzle | Transactional imports/revisions/queue state and relational permission joins; tenant RLS defense in depth |
+| Originals | Private PostgreSQL evidence_files bytea rows | Bounded 5 MiB uploads fit a simple transactional path; no public buckets, orphan objects or P0 storage credentials |
+| Retrieval | PostgreSQL full-text search with authorized joins | Bounded case scope; one canonical policy-aware store; no separate index invalidation boundary |
+| Durable work | Separate Node worker using PostgreSQL job leases | Survives web restart and keeps model calls out of requests; same release/contracts/domain packages |
+| Analysis | Provider-neutral structured extraction/aggregation and deterministic test adapter | Evidence reasoning with validated citations/dependencies; provider credentials exist only in worker |
+| Deployment | One public app container, one private worker container, managed PostgreSQL | Two application deployables with clear failure and secret boundaries; TLS ingress supplied by host/proxy |
+
+No Express/custom Next server, Redis, vector database, managed workflow runner, P0 object-store dependency, or direct browser database access is required. Domain and contracts must not depend on Next.js or vendor model SDKs. Adapters call domain services rather than issuing unrestricted queries; worker composition injects the analysis provider.
+
+![Chosen architecture](../../architecture/investigator-selected-architecture.png)
 
 ```mermaid
 flowchart TD
-    W[Human website] --> R[Authenticated REST]
-    A[Agent with upstream connectors] --> M[Authenticated MCP]
-    R --> D[Shared domain services and policy]
-    M --> D
-    D --> P[PostgreSQL with tenant isolation]
-    D --> O[Private originals]
-    D --> J[Leased jobs]
-    J --> K[Worker: current authorization and disclosure checks]
-    K --> L[Approved analysis provider]
-    K --> P
-    D --> U[Metadata-only audit events]
+    H[Human browser] --> W[Next.js Node application]
+    A[Agent with its own source connectors] --> W
+    W --> R[Verified REST or MCP actor]
+    R --> D[Shared domain use cases and current policy]
+    R --> I[Clerk identity and OAuth]
+    D --> P[(PostgreSQL: private evidence, originals, policy, audit, jobs)]
+    P --> Q[Private worker: lease metadata]
+    Q --> C[Recheck actor and permitted evidence]
+    C --> P
+    C --> L[Approved analysis provider]
+    L --> V[Validate citations and recheck disclosure]
+    V --> P
 ```
+
+### Storage and execution rules
+
+- Originals live in evidence_files, separated from routine list/search tables. Download through authorized application routes only. Preserve bytes, MIME type, size and digest; there are no public/signed blob URLs in P0.
+- Maximum 100 MiB stored content per case, counting staged/committed originals, normalized text and history. Enforce the counter transactionally; reject over quota explicitly. Reclaim quota after actual deletion, including expired staged batches.
+- Business requests enqueue jobs in the same database transaction as request bookkeeping. Job metadata contains IDs, principal references, revisions and leases, not source bodies or credentials.
+- A least-privilege queue-claimer role may execute one hardened, fixed-search-path claim function to lease metadata across tenants; it cannot read evidence. Revoke public EXECUTE, forbid dynamic SQL and direct evidence privileges. Atomically lease with SKIP LOCKED, serialize the tenant concurrency check using a per-tenant scheduler row lock, and issue a unique lease generation/token. Require the current token on heartbeat, completion, failure/retry transitions and artifact-save transactions; an expired worker cannot overwrite a replacement worker or publish results. SKIP LOCKED alone does not enforce the tenant concurrency limit. Worker evidence access uses the normal non-bypass RLS role and reconstructed actor context.
+- Use short transactions to load authorized evidence and to save/recheck output. Close database transactions before model network calls; never keep a row lock/connection open throughout inference.
+- Authenticated evidence/artifact responses use private, no-store caching; no static generation or cross-user server/CDN caching for protected content. Public assets may be cached.
+- Browser cookie-authenticated mutations enforce Origin/CSRF protections. MCP uses verified bearer identity and applicable transport Origin/host checks. Neither middleware nor model instructions replace domain authorization.
+- Pin/test framework, SDK and auth adapter versions in Task 0. Node runtime only for database, upload parsing and MCP routes. All public mutations use the REST/MCP domain path; no Server Action mutation path in P0.
+- Validate live OAuth/client interoperability and durable jobs by 11 October. If a capability fails, document and review an explicit architecture change; never silently weaken authentication to finish deployment.
 
 ### Security boundary
 
@@ -204,7 +229,8 @@ All tenant-scoped tables carry tenant_id; composite foreign keys prevent cross-t
 | users, tenant_members | Provider subject mapping; local tenant membership/admin status |
 | cases, case_members | Title, description, caseRevision, policyRevision, model route; roles and restricted access |
 | client_grants | Verified OAuth client + user + case + scopes + expiry + revocation |
-| evidence_sources | Canonical identity and supplied source attribution |
+| evidence_sources | Case-scoped canonical identity and supplied source attribution |
+| evidence_files | Private original bytes, MIME type, digest, byte size and purge state; tenant/case scoped |
 | evidence_versions | Original/normalized content, digest, version, supplied timestamps, server provenance |
 | case_evidence | Case link; classification, model policy, client-shareable, active/withdrawn |
 | import_batches, import_items | Ownership, revision, expiry, staged records and validation state |
@@ -272,14 +298,14 @@ Human evidence may include malicious instructions. Treat it as data, escape HTML
 
 ## 11. Nonfunctional and operational requirements
 
-- TLS in deployed transport; encryption at rest through managed database/storage; no public originals or application credentials in fixtures.
+- TLS in deployed transport; encryption at rest through managed PostgreSQL; no public originals or application credentials in fixtures.
 - OAuth authorization-code flow with PKCE, provider discovery and protected-resource metadata; validate intended resource/audience using supported provider semantics. No token passthrough. Prove identity, scopes and client binding on day 1–2.
 - Request-scoped authorization and current grants checked every call; immediate local grant revocation. Provider token expiry/revocation handled according to provider capabilities and documented honestly.
 - Configurable rate limits: 60 read calls/minute and 20 mutation calls/minute per principal/client; maximum 2 analysis jobs concurrently per tenant. Batch caps from §6 apply.
-- Worker leases 60 seconds, heartbeats every 20 seconds, maximum 3 attempts for transient failures; validation/access errors do not retry. Job idempotency prevents duplicate artifacts.
+- Worker leases 60 seconds, heartbeats every 20 seconds, maximum 3 attempts for transient failures; validation/access errors do not retry. Job idempotency prevents duplicate artifacts; lease fencing prevents stale workers from publishing them. The job limit counts active valid leases; cancellation of an already-sent provider request is best effort and provider calls may be repeated after a crash.
 - Standard demo dataset: 200 records/case; search/timeline target p95 < 2 seconds; import commit target < 5 seconds excluding file parsing; analysis shows queued/running immediately and targets < 60 seconds depending on provider. Record benchmark results; targets are not guarantees.
 - Runtime logs exclude evidence bodies, tokens, complete prompts and sensitive query text. Audit query terms as a digest or omit them. UI provides sanitized request ID for errors.
-- Uploaded raw files/private text are retained until withdrawal or configured retention expiry. P0 withdrawal immediately blocks disclosure; a documented purge job deletes bodies/blobs/derived content within 24 hours while retaining metadata-only audit records. Provider-side retention is separately configured/disclosed, not controlled by local deletion.
+- Uploaded raw files/private text are retained until withdrawal or configured retention expiry. P0 withdrawal immediately blocks disclosure; a documented purge job deletes live-store bodies/original bytes/derived content within 24 hours while retaining metadata-only audit records. Database backup expiry follows documented provider retention; live-store purge does not promise immediate erasure from backups. Provider-side retention is separately configured/disclosed, not controlled by local deletion.
 - Accessible keyboard navigation, readable timestamps, source/provenance labels, empty states, and error/retry states.
 - Export format P0 is Markdown with citations/source labels. Client audience has a verified content preview; no PDF layout work required.
 - Three pre-provisioned isolated demo identities/cases; public visitors receive only fictional data. Hosted MCP demo needs real OAuth registration and credentials outside the repository.
@@ -321,7 +347,9 @@ If behind: cut graphical commitment trail, replay, rich text editing, and option
 - MCP authorization: https://modelcontextprotocol.io/specification/latest/basic/authorization
 - MCP security: https://modelcontextprotocol.io/specification/latest/basic/security_best_practices
 - MCP tools: https://modelcontextprotocol.io/specification/latest/server/tools
-- Clerk Express MCP integration: https://clerk.com/docs/expressjs/guides/ai/mcp/build-mcp-server
+- Clerk Next.js MCP integration: https://clerk.com/docs/nextjs/guides/ai/mcp/build-mcp-server
+- Next.js Route Handlers/self-hosting: https://nextjs.org/docs/app/api-reference/file-conventions/route and https://nextjs.org/docs/app/guides/self-hosting
+- PostgreSQL binary storage/queue locking: https://www.postgresql.org/docs/current/datatype-binary.html and https://www.postgresql.org/docs/current/sql-select.html
 - Official TypeScript SDK: https://ts.sdk.modelcontextprotocol.io/server
 
 Compatibility and provider account availability must be verified during the foundation task. Do not promise support for every model/client; test the selected client end to end. No live private Anduin data or proprietary integration is assumed.
