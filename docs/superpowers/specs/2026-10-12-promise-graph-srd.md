@@ -536,7 +536,7 @@ Records: about 120, in two Slack channels (`#larkspur-onboarding`, a shared chan
 | Subscription documents | Minh asks Sarah for the subscription documents by 10 July. Sarah promises. The documents arrive on 24 July. | `late_delivery` on the client side |
 | W-8 form logic | Lan reports the forms done on 14 August. Sarah rejects them on 18 August. Lan reports again on 28 August. Sarah accepts on 2 September. | `rejected_delivery` |
 | Dynamics CRM sync scope | On 4 August Sarah asks for the Dynamics sync in phase 1. Quang answers "we'll look into it" and nothing follows. | `ambiguous_promise` (escalation 2) |
-| Client secret renewal | On 22 September Quang asks Tom to renew the expired Azure client secret. No answer for 9 business days. | `unanswered_request` on the client side (escalation 3) |
+| Client secret renewal | On 22 September Quang asks Tom to renew the expired Azure client secret. No answer for 13 business days (empty holiday calendar). | `unanswered_request` on the client side (escalation 3) |
 | Sync incident report | On 1 October Daniel promises a root cause report by 3 October. Nothing follows by 9 October. | `silent_overdue` (escalation 3) |
 | Side-letter field mapping | Priya asks for the mapping. Minh reports it done on 29 August. Nobody confirms. | `unconfirmed_delivery` |
 | Investor portal branding | Lan moves the date from 20 to 27 August. Sarah never answers. | `unilateral_change` |
