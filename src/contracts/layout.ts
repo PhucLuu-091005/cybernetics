@@ -1,0 +1,22 @@
+import { z } from 'zod';
+import { IdSchema, RevisionSchema, SideSchema, TextSchema } from './primitives';
+import { ActTypeSchema, GraphContextSchema } from './graph';
+
+const coordinate = z.number().finite();
+export const LayoutInputSchema = z.strictObject({ context: GraphContextSchema });
+export const LayoutOptionsSchema = z.strictObject({ pxPerDay: z.number().positive(), rowHeight: z.number().positive().default(28), lanePadding: z.number().nonnegative().default(12), branchGap: z.number().nonnegative().default(16) });
+export const LaneLayoutSchema = z.strictObject({ id: IdSchema, departmentId: IdSchema, name: TextSchema, side: SideSchema, order: RevisionSchema, y: coordinate, height: z.number().nonnegative(), subRows: RevisionSchema });
+export const ActGlyphSchema = z.strictObject({ id: IdSchema, loopId: IdSchema, type: ActTypeSchema, x: coordinate, y: coordinate, glyph: TextSchema, label: TextSchema, accessibleName: TextSchema });
+export const BranchSegmentSchema = z.strictObject({ startX: coordinate, endX: coordinate, style: z.enum(['solid', 'dotted', 'dashed']), tone: z.enum(['green', 'blue', 'red', 'amber', 'gray']) });
+export const BranchLayoutSchema = z.strictObject({ id: IdSchema, loopId: IdSchema, departmentId: IdSchema, row: RevisionSchema, xStart: coordinate, xEnd: coordinate, y: coordinate, path: TextSchema, segments: z.array(BranchSegmentSchema), glyphs: z.array(ActGlyphSchema), tone: z.enum(['green', 'blue', 'red', 'amber', 'gray']), endKind: z.enum(['open', 'merge', 'cap']), breakdownMarkers: z.array(z.strictObject({ x: coordinate, y: coordinate, label: TextSchema })), title: TextSchema, accessibleName: TextSchema });
+export const MilestoneLayoutSchema = z.strictObject({ id: IdSchema, x: coordinate, y: coordinate, ghostX: coordinate.nullable(), slipPath: z.string().nullable(), label: TextSchema, accessibleName: TextSchema, openLoopCount: RevisionSchema, brokenLoopCount: RevisionSchema });
+export const GraphLayoutSchema = z.strictObject({ width: z.number().nonnegative(), height: z.number().nonnegative(), trunkY: coordinate, lanes: z.array(LaneLayoutSchema), branches: z.array(BranchLayoutSchema), milestones: z.array(MilestoneLayoutSchema), zoomLevel: z.enum(['milestones', 'branches', 'detail']), navigation: z.strictObject({ milestoneIds: z.array(IdSchema), loopIds: z.array(IdSchema) }) });
+export type LayoutInput = z.infer<typeof LayoutInputSchema>;
+export type LayoutOptions = z.input<typeof LayoutOptionsSchema>;
+export type ResolvedLayoutOptions = z.infer<typeof LayoutOptionsSchema>;
+export type LaneLayout = z.infer<typeof LaneLayoutSchema>;
+export type ActGlyph = z.infer<typeof ActGlyphSchema>;
+export type BranchSegment = z.infer<typeof BranchSegmentSchema>;
+export type BranchLayout = z.infer<typeof BranchLayoutSchema>;
+export type MilestoneLayout = z.infer<typeof MilestoneLayoutSchema>;
+export type GraphLayout = z.infer<typeof GraphLayoutSchema>;
