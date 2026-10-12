@@ -315,7 +315,7 @@ All five Review Focus failure modes have named tests in their owning tasks. No t
 - [ ] Gold deterministic metrics all 100%; measured timing included in README.
 - [ ] Live Railway sign-in, isolation, MCP import/proposal, diff/merge/conflict/revert/restore verified.
 - [ ] Real external-agent walkthrough creates a proposal; no provider key configured in app.
-- [ ] Public repository contains fictional fixtures and no secrets; demo kept awake through 22 Oct.
+- [ ] Private repository contains fictional fixtures and no secrets; demo kept awake through 22 Oct.
 - [ ] Pending evidence, unavailable quotes and stale analyses visibly labeled.
 
 This deliverable is a revised specification and implementation plan. Starting implementation is a separate action; no coding agents are dispatched by the task allocation document.
