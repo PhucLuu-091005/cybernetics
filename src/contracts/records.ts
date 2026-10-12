@@ -50,3 +50,6 @@ export type SearchRecordsInput = z.infer<typeof SearchRecordsInputSchema>;
 export type SearchRecordsResult = z.infer<typeof SearchRecordsResultSchema>;
 export type WithdrawRecordInput = z.infer<typeof WithdrawRecordInputSchema>;
 export type WithdrawRecordResult = z.infer<typeof WithdrawRecordResultSchema>;
+/** Validate the batch envelope first, then each item separately to retain invalid-item receipts. */
+export const IngestEnvelopeSchema = boundedJson(z.strictObject({ projectId: IdSchema, source: SourceKindSchema, sourceLabel: recordFields.sourceLabel, records: z.array(z.json()).min(1).max(25), idempotencyKey: IdempotencyKeySchema }), 2 * 1024 * 1024);
+export type IngestEnvelope = z.infer<typeof IngestEnvelopeSchema>;

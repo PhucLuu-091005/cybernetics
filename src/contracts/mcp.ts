@@ -12,8 +12,9 @@ export const GraphReadInputSchema = z.strictObject({ projectId: IdSchema, view: 
 export const SnapshotCollectionSchema = z.enum(['context', 'acts', 'loops', 'annotations', 'recordDecisions', 'people', 'departments', 'milestones']);
 export const GetSnapshotInputSchema = PageInputSchema.extend({ projectId: IdSchema, view: ViewSelectionSchema, collection: SnapshotCollectionSchema });
 const pageFields = { projectId: IdSchema, commitId: IdSchema.nullable(), proposalId: IdSchema.nullable(), proposalRevision: RevisionSchema.nullable(), evidenceRevision: RevisionSchema, nextCursor: z.string().nullable(), requestId: TextSchema };
+export const SnapshotContextSchema = z.strictObject({ timeZone: GraphContextSchema.shape.timeZone, windowStart: GraphContextSchema.shape.windowStart, windowEnd: GraphContextSchema.shape.windowEnd, asOfOverride: GraphContextSchema.shape.asOfOverride, holidays: GraphContextSchema.shape.holidays, replyWindowDays: GraphContextSchema.shape.replyWindowDays, acceptWindowDays: GraphContextSchema.shape.acceptWindowDays, hedgeWindowDays: GraphContextSchema.shape.hedgeWindowDays, atRiskWindowDays: GraphContextSchema.shape.atRiskWindowDays });
 export const SnapshotPageSchema = boundedJson(z.discriminatedUnion('collection', [
-  z.strictObject({ ...pageFields, collection: z.literal('context'), items: z.array(GraphContextSchema).max(1) }),
+  z.strictObject({ ...pageFields, collection: z.literal('context'), items: z.array(SnapshotContextSchema).max(1) }),
   z.strictObject({ ...pageFields, collection: z.literal('acts'), items: z.array(ActSchema).max(50) }),
   z.strictObject({ ...pageFields, collection: z.literal('loops'), items: z.array(LoopSchema).max(50) }),
   z.strictObject({ ...pageFields, collection: z.literal('annotations'), items: z.array(AnnotationSchema).max(50) }),
@@ -62,3 +63,5 @@ export type GetProposalInput = z.infer<typeof GetProposalInputSchema>;
 export type GetProposalResult = z.infer<typeof GetProposalResultSchema>;
 export type DiffProposalInput = z.infer<typeof DiffProposalInputSchema>;
 export type DiffProposalResult = z.infer<typeof DiffProposalResultSchema>;
+
+export type SnapshotContext = z.infer<typeof SnapshotContextSchema>;
