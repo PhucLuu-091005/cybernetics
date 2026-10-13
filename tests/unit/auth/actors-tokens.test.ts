@@ -142,6 +142,13 @@ describe('hashed project agent tokens', () => {
     vi.stubEnv('NODE_ENV', 'production');
     try { await expect(s.services.getTokenActor(s.request(created.secret), 'project:read')).rejects.toMatchObject({ code: 'UNAUTHENTICATED' }); } finally { vi.unstubAllEnvs(); }
   });
+  it('verifies a token without a scope check when the caller passes no scope, and still rejects revoked tokens', async () => {
+    const s = await setup(); const created = await s.tokens.createToken(s.ctx, { projectId: s.projectId, label: 'Importer', scopes: ['records:import'], idempotencyKey: 'create-1' });
+    const request = new Request(`${env.appOrigin}/mcp`, { method: 'POST', headers: { authorization: `Bearer ${created.secret}` } });
+    await expect(s.services.getTokenActor(request, null)).resolves.toMatchObject({ kind: 'agent', projectId: s.projectId, scopes: ['records:import'] });
+    await s.tokens.revokeToken(s.ctx, { projectId: s.projectId, tokenId: created.token.id, idempotencyKey: 'revoke-1' });
+    await expect(s.services.getTokenActor(request, null)).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+  });
   it('counts denied scope attempts toward the token call budget', async () => {
     const s = await setup(); const created = await s.tokens.createToken(s.ctx, { projectId: s.projectId, label: 'Agent', idempotencyKey: 'create-1' });
     for (let i = 0; i < 60; i++) await expect(s.services.getTokenActor(s.request(created.secret), 'graph:merge')).rejects.toMatchObject({ code: 'FORBIDDEN' });

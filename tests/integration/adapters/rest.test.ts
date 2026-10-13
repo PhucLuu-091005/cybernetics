@@ -176,6 +176,12 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
     expect((await call('GET', `/projects/${projectId}/proposals?status=merged`)).body.items.map((item: { id: string }) => item.id)).toEqual([proposalId]);
     expect((await call('GET', `/projects/${projectId}/graph?proposalId=${proposalId}`)).status).toBe(400);
   });
+  it('reviews a proposal at its current revisions when the diff omits expected revisions', async () => {
+    const review = await reviewedProposal('Current');
+    const diff = await call('GET', `/projects/${projectId}/proposals/${review.proposalId}/diff?T=${encodeURIComponent(T)}`);
+    expect(diff).toMatchObject({ status: 200, body: { proposalId: review.proposalId, mainCommitId: mainId, proposalRevision: 1, evidenceRevision: 1, T, digest: review.digest } });
+    expect((await call('GET', `/projects/${projectId}/proposals/${review.proposalId}/diff?expectedProposalRevision=1`)).status).toBe(400);
+  });
   it('pages the escalation list with a cursor', async () => {
     for (const complaint of ['First complaint', 'Second complaint']) await openEscalation(t.db, ctx, { projectId, complaint, idempotencyKey: complaint });
     const first = await call('GET', `/projects/${projectId}/escalations?limit=1`);

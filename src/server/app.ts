@@ -26,7 +26,7 @@ export function configureApp(app: Partial<App> & { db: Db }): App {
 export function resetApp(): void { delete state.promiseApp; }
 // Routes and adapters resolve actors here so the database identity store is installed before runtime.ts reads it.
 export function browserActor(request: Request): Promise<ActorContext> { getApp(); return getBrowserActor(request); }
-export function tokenActor(request: Request, scope: Scope): Promise<ActorContext> { getApp(); return getTokenActor(request, scope); }
+export function tokenActor(request: Request, scope: Scope | null): Promise<ActorContext> { getApp(); return getTokenActor(request, scope); }
 export function createAgentToken(...args: Parameters<typeof createToken>): ReturnType<typeof createToken> { getApp(); return createToken(...args); }
 export function revokeAgentToken(...args: Parameters<typeof revokeToken>): ReturnType<typeof revokeToken> { getApp(); return revokeToken(...args); }
 export function listAgentTokens(...args: Parameters<typeof listTokens>): ReturnType<typeof listTokens> { getApp(); return listTokens(...args); }

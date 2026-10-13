@@ -17,7 +17,7 @@ function identities() {
   return createIdentityServices({ store, env: readAuthEnvironment(), limiter: state.promiseRateLimiter });
 }
 export async function getBrowserActor(request: Request): Promise<ActorContext> { return identities().getBrowserActor(request); }
-export async function getTokenActor(request: Request, scope: Scope): Promise<ActorContext> { return identities().getTokenActor(request, scope); }
+export async function getTokenActor(request: Request, scope: Scope | null): Promise<ActorContext> { return identities().getTokenActor(request, scope); }
 export async function createToken(ctx: ActorContext, input: Omit<CreateAgentTokenInput, 'scopes'> & { scopes?: Scope[] }): Promise<TokenCreated> { return createTokenService(getHttpIdentityStore()).createToken(ctx, input); }
 export async function revokeToken(ctx: ActorContext, input: RevokeAgentTokenInput): Promise<RevokeAgentTokenResult> { return createTokenService(getHttpIdentityStore()).revokeToken(ctx, input); }
 export async function listTokens(ctx: ActorContext, input: ListTokensInput): Promise<ListAgentTokensResult> { return createTokenService(getHttpIdentityStore()).listTokens(ctx, input); }
