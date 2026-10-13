@@ -12,7 +12,7 @@ jobs:
           POSTGRES_DB: promise_graph
         ports: ['5432:5432']
         options: >-
-          --health-cmd 'pg_isready -U promise_graph -d promise_graph'
+          --health-cmd "pg_isready -U promise_graph -d promise_graph"
           --health-interval 5s --health-timeout 3s --health-retries 10
     env:
       DATABASE_URL: postgresql://promise_graph:local-development-only@localhost:5432/promise_graph
