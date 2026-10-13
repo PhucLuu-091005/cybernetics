@@ -1,0 +1,21 @@
+import type { Conflict, GraphSnapshot, InverseResult } from '../../contracts/graph';
+import { diffSnapshots } from './diff';
+import { threeWayRebase } from './rebase';
+
+/** Strict inverse: even a later edit back to the parent is a postimage mismatch. */
+export function inverseCommit(parent: GraphSnapshot, target: GraphSnapshot, main: GraphSnapshot): InverseResult {
+  const delta = diffSnapshots(parent, target).changes;
+  const laterChanges = new Map(diffSnapshots(target, main).changes
+    .map(change => [`${change.collection}/${change.id}`, change]));
+  const conflicts: Conflict[] = [];
+  for (const change of delta) {
+    const later = laterChanges.get(`${change.collection}/${change.id}`);
+    if (later) conflicts.push({ collection: change.collection, id: change.id,
+      base: change.after, main: later.after, proposed: change.before,
+      reason: 'Current entity differs from the target commit postimage; resolve the inverse explicitly.' });
+  }
+  if (conflicts.length) return { snapshot: null, conflicts };
+  // The strict check above makes this ordinary composition safe only for touched entities.
+  // Rebase also checks references created by unrelated later work before exposing a snapshot.
+  return threeWayRebase(target, parent, main);
+}
