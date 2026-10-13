@@ -56,7 +56,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
         {mode === 'google' && <a className="gbtn" href="/api/auth/google"><GoogleLogo />Continue with Google</a>}
         {mode === 'local' && <form action="/api/auth/local" method="post">{localLabel && <input type="hidden" name="label" value={localLabel} />}<button className="gbtn" type="submit">Continue (local dev{localLabel ? `, ${localLabel}` : ''})</button></form>}
         {mode === null && <p className="bad" role="alert">Sign-in is unavailable until authentication is configured.</p>}
-        <p className="muted" style={{ fontSize: 13 }}>Your first visit creates a private sandbox: a copy of the Larkspur Capital demo project with its imported records and reviewed loops.</p>
+        <p className="muted" style={{ fontSize: 13 }}>Your first visit creates a private sandbox: a copy of the Larkspur Capital demo project with its imported records and reviewed loops. Building it can take about 10 seconds on the free host.</p>
         <hr style={{ border: 0, borderTop: '1px solid var(--rule-2)', width: '100%' }} />
         <p className="faint" style={{ fontSize: 12 }}>The app never calls an AI model. Your own agent reads evidence and submits proposals through MCP. Nothing changes the graph until a person merges it.</p>
       </div>

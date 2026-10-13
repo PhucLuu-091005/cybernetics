@@ -116,7 +116,7 @@ Do these steps in this order:
 5. **Deploy and check.** The service has `autoDeploy: false`, so start each deploy with **Manual Deploy**. Then check:
    - `https://<service>.onrender.com/api/health` returns `{"status":"ok"}`.
    - The deploy log shows `{"event":"migrations_applied",…}`.
-   - **Continue with Google** signs you in and shows the seeded Larkspur graph.
+   - **Continue with Google** signs you in and shows the seeded Larkspur graph. The first sign-in of each account builds its sandbox, so on the free plan it can take about 10 seconds. If the callback page is reloaded after that, Google refuses the used code and the page shows a **Sign-in expired — start again** link.
 6. **Keep the demo awake until 22 October.** Create a free monitor at [UptimeRobot](https://uptimerobot.com) (or a similar service): type HTTP(S), URL `https://<service>.onrender.com/api/health`, interval 10 minutes. One always-on free service uses about 744 of the 750 free instance hours in a 31-day month, so do not run a second free service in the same workspace.
 7. **Run the live release walkthrough** (see [Release checks](#release-checks)) with a Google account that has never signed in. Then connect a real agent with the MCP snippet and let it create one proposal. Record the agent, the model and the date in the table under [Measured results](#measured-results).
 
@@ -139,6 +139,8 @@ BASE_URL=https://localhost:3443 RELEASE_INSECURE_TLS=1 \
   RELEASE_DATABASE_URL=<same database, host view> RELEASE_SESSION_SECRET=<same secret> \
   ./node_modules/.bin/playwright test -c playwright.release.config.ts
 ```
+
+**Timing budgets.** The walkthrough always records the first contentful paint and the graph API p50 and p95. It enforces the SRD 14 budgets (paint under 2 s, p95 under 500 ms) only when `RELEASE_TIMING_BUDGET` is set, for example `RELEASE_TIMING_BUDGET=1`. Leave it unset against the free Render plan, which does not meet these budgets (see [Measured results](#measured-results)).
 
 **Live deployment.** Sign in with Google once and save the session, then run the walkthrough. Each test waits for a new minute so that one user stays under the limit of 20 writes a minute.
 
@@ -166,6 +168,16 @@ Environment: Apple M4 (10 cores), 16 GB RAM, macOS 26.6.2, Docker Desktop 29.5.2
 | First contentful paint of the seeded graph (reload, warm server and browser cache) | under 2 s | 76 ms |
 | `GET /api/v1/projects/:id/graph` on the seed, 25 sequential calls | p95 under 500 ms | p50 22 ms, p95 40 ms |
 
+**Local approximation of Render Free.** A reviewer ran the same production image in a container limited to 0.1 CPU and 512 MB of memory, with the release walkthrough and `RELEASE_TIMING_BUDGET` unset. This is a local approximation of the free plan, not a measurement on Render:
+
+| Measure | Target (SRD 14) | Result (0.1 CPU, 512 MB, local) |
+|---|---|---|
+| Container healthy after start, empty database | none | 38 s |
+| First contentful paint of the seeded graph | under 2 s | about 7.6 s (misses the target) |
+| `GET /api/v1/projects/:id/graph` on the seed | p95 under 500 ms | p50 about 0.8 s, p95 about 3.2 s (misses the target) |
+
+On this budget the first sign-in, which seeds the sandbox, can take about 10 seconds.
+
 Offline evaluation (`pnpm eval`) on the hand-written gold fixtures:
 
 ```
@@ -189,5 +201,5 @@ Live external-agent run (to fill in after step 7 of the deploy):
 - **Coverage.** The graph covers only imported and reviewed records. Pending records are a coverage limit: the graph header shows how many records wait for review, so an empty warning list is not proof of health.
 - **Verdicts.** An escalation verdict classifies only the evidence that a person or an agent submitted with the analysis. It does not search for other evidence.
 - **No connectors.** The P1 connectors (Slack events, Slack history, Gmail fetch, scheduled collection) are not built. Records arrive through paste or MCP import only.
-- **Free hosting.** The free web service sleeps after 15 minutes without traffic, and the free database expires 30 days after creation. See [Deploy on Render](#deploy-on-render-free-plan).
+- **Free hosting.** The free web service sleeps after 15 minutes without traffic, and the free database expires 30 days after creation. On its 0.1 CPU the graph paints in several seconds and the first sign-in can take about 10 seconds, so the SRD 14 timing budgets hold only on a larger instance. See [Deploy on Render](#deploy-on-render-free-plan) and [Measured results](#measured-results).
 - **One instance.** Rate limits (60 reads and 20 writes a minute for each user, 60 calls a minute for each token) are kept in process memory.
