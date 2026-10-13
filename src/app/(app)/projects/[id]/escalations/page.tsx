@@ -5,21 +5,23 @@ import { IdSchema } from '../../../../../contracts';
 import { actorLabel } from '../../../../../components/escalations/CitationChip';
 import { ComplaintForm } from '../../../../../components/escalations/ComplaintForm';
 import { shortStamp } from '../../../../../components/graph/labels';
+import { Pager } from '../../../../../components/shell/Pager';
 import { getApp } from '../../../../../server/app';
 import { listEscalations } from '../../../../../server/domain/escalations';
 import { getProject } from '../../../../../server/domain/graph';
-import { notFoundOn, requireActor } from '../../../../../server/http/rsc';
+import { notFoundOn, notFoundOnCursor, requireActor, searchCursor } from '../../../../../server/http/rsc';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Escalations · Promise Graph' };
 const EXCERPT = 160;
 
-export default async function EscalationsPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function EscalationsPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const [{ id }, search] = await Promise.all([params, searchParams]);
+  const cursor = searchCursor(search.cursor);
   if (!IdSchema.safeParse(id).success) notFound();
   const actor = await requireActor(`/projects/${id}/escalations`);
   const db = getApp().db;
-  const [{ project, context }, page] = await Promise.all([notFoundOn(getProject(db, actor, { projectId: id })), notFoundOn(listEscalations(db, actor, { projectId: id }))]);
+  const [{ project, context }, page] = await Promise.all([notFoundOn(getProject(db, actor, { projectId: id })), notFoundOnCursor(listEscalations(db, actor, { projectId: id, cursor }), cursor)]);
 
   return (
     <>
@@ -48,7 +50,7 @@ export default async function EscalationsPage({ params }: { params: Promise<{ id
                 {page.items.length === 0 && <tr><td colSpan={4} className="faint">No complaints yet.</td></tr>}
               </tbody>
             </table>
-            {page.nextCursor && <p className="faint" style={{ fontSize: 12, padding: '6px 10px' }}>Older complaints exist; this list shows the newest page.</p>}
+            <Pager basePath={`/projects/${id}/escalations`} nextCursor={page.nextCursor} paged={cursor !== null} noun="complaints" />
           </section>
           <ComplaintForm projectId={id} />
         </div>

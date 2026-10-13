@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import type { ActorReference } from '../../contracts';
 
-/** A cited act resolved against the analysis's pinned commit; `plain` is the citation text for copy and download. */
 export type CitedAct = { actId: string; chip: string; plain: string; title: string; quote: string | null; href: string };
 
 export function CitationChip({ actId, acts }: { actId: string; acts: Readonly<Record<string, CitedAct>> }) {

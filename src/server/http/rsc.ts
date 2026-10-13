@@ -46,3 +46,11 @@ export async function notFoundOn<T>(work: Promise<T>): Promise<T> {
   try { return await work; }
   catch (error) { if (error instanceof AppError && error.code === 'NOT_FOUND') notFound(); throw error; }
 }
+
+/** A stale or edited `?cursor=` is a page that does not exist, not a server error. */
+export async function notFoundOnCursor<T>(work: Promise<T>, cursor: string | null): Promise<T> {
+  try { return await notFoundOn(work); }
+  catch (error) { if (cursor !== null && error instanceof AppError && error.code === 'VALIDATION') notFound(); throw error; }
+}
+
+export const searchCursor = (value: string | string[] | undefined): string | null => typeof value === 'string' && value ? value : null;

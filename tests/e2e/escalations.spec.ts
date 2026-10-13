@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
+import { Pool } from 'pg';
 import { uuidFromKey } from '../../scripts/build-fixtures';
+import { testDatabaseUrl } from '../support/db';
 
 const PROJECT = 'Larkspur Capital, Fund III onboarding';
 const COMPLAINT = 'You promised go-live by 30 September and never told us it slipped.';
@@ -17,6 +19,12 @@ async function signIn(page: Page, label: string): Promise<string> {
   await expect(page.getByText(PROJECT).first()).toBeVisible();
   await expect(page.getByTestId('head-commit')).toBeVisible();
   return new URL(page.url()).pathname.split('/')[2];
+}
+
+/** Lists page at 50 items and browser writes are limited to 20 a minute, so the paging test adds rows straight to the throwaway e2e database. */
+async function sql(text: string, values: unknown[]): Promise<void> {
+  const pool = new Pool({ connectionString: testDatabaseUrl(process.env.TEST_DATABASE_URL!, process.env.E2E_DATABASE_NAME!), max: 1 });
+  try { await pool.query(text, values); } finally { await pool.end(); }
 }
 
 async function saveAnalysis(page: Page, projectId: string, escalationId: string, expectedAnalysisRevision: number | null, answerText: (act: (key: string) => string) => string) {
@@ -41,10 +49,25 @@ test('an escalation analysis shows verdicts and cited acts, copies and downloads
   const projectId = await signIn(page, 'escalation');
   await page.goto(`/projects/${projectId}/escalations`);
   const form = page.getByRole('form', { name: 'Open complaint' });
+  const keys: string[] = [];
+  await page.route('**/escalations', async route => {
+    if (route.request().method() !== 'POST') return route.continue();
+    keys.push((JSON.parse(route.request().postData()!) as { idempotencyKey: string }).idempotencyKey);
+    return keys.length < 3 ? route.abort() : route.continue();
+  });
+  await form.getByLabel('Complaint').fill(COMPLAINT);
+  await form.getByRole('button', { name: 'Open complaint' }).click();
+  await expect(form.getByRole('alert')).toContainText('The complaint was not saved.');
+  await form.getByRole('button', { name: 'Open complaint' }).click();
+  await expect.poll(() => keys.length).toBe(2);
+  await form.getByLabel('Complaint').fill(`${COMPLAINT} `);
   await form.getByLabel('Complaint').fill(COMPLAINT);
   await form.getByRole('button', { name: 'Open complaint' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/escalations/[0-9a-f-]{36}$`));
   const escalationId = new URL(page.url()).pathname.split('/')[4];
+  await page.unroute('**/escalations');
+  expect(keys[1]).toBe(keys[0]);
+  expect(keys[2]).not.toBe(keys[1]);
   await expect(page.getByTestId('complaint')).toHaveText(`“${COMPLAINT}”`);
   await expect(page.getByText('No analysis yet.')).toBeVisible();
 
@@ -100,8 +123,7 @@ test('an escalation analysis shows verdicts and cited acts, copies and downloads
   await page.getByRole('link', { name: 'Retitle the Dynamics loop as a phase 1 request' }).click();
   await page.getByRole('link', { name: 'Review changes' }).click();
   await expect(page.getByRole('button', { name: 'Merge into main' })).toBeVisible();
-  const ack = page.getByRole('checkbox', { name: /still pending review/ });
-  if (await ack.count()) await ack.check();
+  await page.getByRole('checkbox', { name: /still pending review/ }).check();
   await page.getByRole('button', { name: 'Merge into main' }).click();
   await expect(page).toHaveURL(/\/history\/[0-9a-f-]{36}$/);
 
@@ -145,6 +167,9 @@ test('agent tokens: default scopes, a secret shown once, revocation, and the MCP
   await expect(row).toContainText('project:read');
   await expect(row).not.toContainText('graph:merge');
 
+  await page.getByRole('button', { name: 'I copied it, hide the secret' }).click();
+  await expect(page.getByTestId('token-secret')).toHaveCount(0);
+  expect(await page.content()).not.toContain(value);
   await page.reload();
   await expect(page.getByTestId('token-secret')).toHaveCount(0);
   expect(await page.content()).not.toContain(value);
@@ -153,4 +178,43 @@ test('agent tokens: default scopes, a secret shown once, revocation, and the MCP
   await row.getByRole('button', { name: 'Confirm revoke' }).click();
   await expect(row).toContainText('Revoked');
   await expect(row.getByRole('button', { name: 'Revoke' })).toHaveCount(0);
+});
+
+test('token and complaint lists page through every item, and a token on the second page can be revoked', async ({ page }) => {
+  const projectId = await signIn(page, 'paging');
+  await page.goto(`/projects/${projectId}/settings/tokens`);
+  const form = page.getByRole('form', { name: 'Create a token' });
+  await form.getByLabel('Label').fill('Oldest agent');
+  await form.getByRole('button', { name: 'Create token' }).click();
+  await page.getByRole('button', { name: 'I copied it, hide the secret' }).click();
+  const { items } = await (await page.request.get(`/api/v1/projects/${projectId}/agent-tokens`)).json() as { items: { id: string; label: string }[] };
+  await sql(`INSERT INTO agent_tokens (workspace_id, project_id, user_id, prefix, hash, label, scopes, idempotency_key, created_at, expires_at)
+    SELECT workspace_id, project_id, user_id, 'inv_bulk', md5(random()::text) || md5(n::text), 'Bulk token ' || n, scopes, 'bulk-' || n, created_at + n * interval '1 second', expires_at
+    FROM agent_tokens, generate_series(1, 50) AS n WHERE id = $1`, [items.find(item => item.label === 'Oldest agent')!.id]);
+  await page.reload();
+  await expect(page.getByRole('row', { name: /Bulk token 50\b/ })).toBeVisible();
+  await expect(page.getByRole('row', { name: /Oldest agent/ })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Older tokens' }).click();
+  await expect(page).toHaveURL(/[?&]cursor=/);
+  const row = page.getByRole('row', { name: /Oldest agent/ });
+  await row.getByRole('button', { name: 'Revoke' }).click();
+  await row.getByRole('button', { name: 'Confirm revoke' }).click();
+  await expect(row).toContainText('Revoked');
+  await page.getByRole('link', { name: 'Newest tokens' }).click();
+  await expect(page.getByRole('row', { name: /Bulk token 50\b/ })).toBeVisible();
+
+  await page.goto(`/projects/${projectId}/escalations`);
+  const complaintForm = page.getByRole('form', { name: 'Open complaint' });
+  await complaintForm.getByLabel('Complaint').fill('Oldest complaint on record.');
+  await complaintForm.getByRole('button', { name: 'Open complaint' }).click();
+  await expect(page).toHaveURL(/\/escalations\/[0-9a-f-]{36}$/);
+  await sql(`INSERT INTO escalations (workspace_id, project_id, complaint, author, created_at)
+    SELECT workspace_id, project_id, 'Bulk complaint ' || n, author, created_at + n * interval '1 second' FROM escalations, generate_series(1, 50) AS n WHERE id = $1`, [new URL(page.url()).pathname.split('/')[4]]);
+  await page.goto(`/projects/${projectId}/escalations`);
+  await expect(page.getByRole('link', { name: 'Bulk complaint 50' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Oldest complaint on record.' })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Older complaints' }).click();
+  await expect(page.getByRole('link', { name: 'Oldest complaint on record.' })).toBeVisible();
+  await page.getByRole('link', { name: 'Newest complaints' }).click();
+  await expect(page.getByRole('link', { name: 'Bulk complaint 50' })).toBeVisible();
 });

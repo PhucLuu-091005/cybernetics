@@ -28,10 +28,11 @@ function download(name: string, text: string) {
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
-  URL.revokeObjectURL(url);
+  // Some browsers start the download after click() returns; revoking at once can cancel it.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** SRD 9: the app copies or downloads the answer and never sends it; approval needs the latest analysis pinned to current main and evidence. */
+/** SRD 9: the app never sends the answer; a person copies or downloads it. */
 export function AnswerDraft({ projectId, escalationId, complaint, analysis, authorLabel, approvalLabel, acts, stale, basis }: Props) {
   const router = useRouter();
   const hydrated = useHydrated();

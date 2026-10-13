@@ -6,6 +6,7 @@ import { shortDay } from '../graph/labels';
 import { send, type ApiError } from '../inbox/api';
 import { ConflictBanner } from '../review/ConflictBanner';
 import { useHydrated } from '../review/hydrated';
+import { Pager } from '../shell/Pager';
 
 function TokenRow({ projectId, token, now, timeZone }: { projectId: string; token: AgentToken; now: string; timeZone: string }) {
   const router = useRouter();
@@ -42,7 +43,7 @@ function TokenRow({ projectId, token, now, timeZone }: { projectId: string; toke
   );
 }
 
-export function TokenList({ projectId, tokens, now, timeZone, more }: { projectId: string; tokens: AgentToken[]; now: string; timeZone: string; more: boolean }) {
+export function TokenList({ projectId, tokens, now, timeZone, basePath, nextCursor, paged }: { projectId: string; tokens: AgentToken[]; now: string; timeZone: string; basePath: string; nextCursor: string | null; paged: boolean }) {
   return (
     <section className="tablewrap" aria-labelledby="token-list">
       <h2 id="token-list" className="sr">Your tokens for this project</h2>
@@ -53,7 +54,7 @@ export function TokenList({ projectId, tokens, now, timeZone, more }: { projectI
           {tokens.length === 0 && <tr><td colSpan={4} className="faint">No tokens yet. Create one to connect your agent.</td></tr>}
         </tbody>
       </table>
-      {more && <p className="faint" style={{ fontSize: 12, padding: '6px 10px' }}>Older tokens exist; this list shows the newest page.</p>}
+      <Pager basePath={basePath} nextCursor={nextCursor} paged={paged} noun="tokens" />
     </section>
   );
 }
