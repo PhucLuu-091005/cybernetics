@@ -1,16 +1,23 @@
+import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import type { ActorContext, Scope } from '../contracts';
 import { createDatabase } from './db/client';
-import { DbIdentityStore } from './db/identity-store';
+import { DbIdentityStore, type UserCreatedHook } from './db/identity-store';
 import type { Db } from './db/tx';
-import type { HttpIdentityStore } from './http/identity-store';
+import { browserScopes, type HttpIdentityStore } from './http/identity-store';
 import { configureHttpIdentityStore, createToken, getBrowserActor, getTokenActor, listTokens, revokeToken } from './http/runtime';
 export type App = { db: Db; identity: HttpIdentityStore; pool: Pool };
 const state = globalThis as typeof globalThis & { promiseApp?: App };
+/** Loaded on first sign-in only, so routes do not carry the fixture JSON. */
+export const seedOnUserCreated: UserCreatedHook = async (tx, { userId, workspaceId }) => {
+  const { seedSandbox } = await import('./domain/seed');
+  await seedSandbox(tx, { kind: 'user', userId, workspaceId, projectId: null, scopes: [...browserScopes], requestId: randomUUID() });
+};
+const identityStore = (db: Db) => new DbIdentityStore(db, { onUserCreated: seedOnUserCreated });
 export function getApp(): App {
   if (!state.promiseApp) {
     const { db, pool } = createDatabase();
-    const identity = new DbIdentityStore(db);
+    const identity = identityStore(db);
     configureHttpIdentityStore(identity);
     state.promiseApp = { db, identity, pool };
   }
@@ -18,7 +25,7 @@ export function getApp(): App {
 }
 /** Points routes at another database (integration tests); the pool defaults to the one behind `db`. */
 export function configureApp(app: Partial<App> & { db: Db }): App {
-  const identity = app.identity ?? new DbIdentityStore(app.db);
+  const identity = app.identity ?? identityStore(app.db);
   configureHttpIdentityStore(identity);
   state.promiseApp = { db: app.db, identity, pool: app.pool ?? (app.db as unknown as { $client: Pool }).$client };
   return state.promiseApp;
