@@ -1,0 +1,64 @@
+import type { z } from 'zod';
+import { GraphSnapshotSchema, isUtf16Boundary, utf8Bytes, type Act, type FieldError, type GraphSnapshot, type Party } from '../../contracts';
+import type { EvidenceRecord } from '../domain/records/metadata';
+import { referenceErrors } from './references';
+
+const MAX_SNAPSHOT_BYTES = 5 * 1024 * 1024, MAX_RECORD_VERSIONS = 1000, MAX_QUOTE = 400;
+const issueError = (issue: z.core.$ZodIssue): FieldError => ({ path: issue.path.join('.'), message: issue.message });
+
+export function citedVersionIds(snapshot: GraphSnapshot): string[] {
+  return [...new Set([...snapshot.acts.map(act => act.citation.recordVersionId), ...snapshot.recordDecisions.map(decision => decision.recordVersionId)])].sort();
+}
+
+/** SRD 6.1 caps answer LIMIT_EXCEEDED, so callers check them before the VALIDATION pass. */
+export function snapshotLimitErrors(snapshot: GraphSnapshot): FieldError[] {
+  const parsed = GraphSnapshotSchema.safeParse(snapshot);
+  const errors = parsed.success ? [] : parsed.error.issues.filter(issue => issue.code === 'too_big' && issue.origin === 'array').map(issueError);
+  if (citedVersionIds(snapshot).length > MAX_RECORD_VERSIONS) errors.push({ path: 'recordDecisions', message: `Snapshot references more than ${MAX_RECORD_VERSIONS} record versions` });
+  // Measured directly because zod skips the schema's size and version refinements once an array cap fails.
+  if (utf8Bytes(JSON.stringify(snapshot)) > MAX_SNAPSHOT_BYTES) errors.push({ path: 'snapshot', message: `Snapshot JSON exceeds ${MAX_SNAPSHOT_BYTES} UTF-8 bytes` });
+  return errors;
+}
+
+function citationError(act: Act, evidence: Map<string, EvidenceRecord>): string | null {
+  const { recordVersionId, start, end } = act.citation, record = evidence.get(recordVersionId);
+  if (!record) return `Citation cites unknown record version ${recordVersionId}`;
+  if (record.withdrawn || record.bodyText === null) return `Citation cites withdrawn record version ${recordVersionId}`;
+  if (end > record.bodyText.length) return 'Citation offsets fall outside the record body';
+  if (!isUtf16Boundary(record.bodyText, start) || !isUtf16Boundary(record.bodyText, end)) return 'Citation offsets must fall on UTF-16 boundaries';
+  if (record.quotedRanges.some(range => start < range.end && end > range.start)) return 'Citation overlaps a quoted range of earlier messages';
+  return null;
+}
+
+export function validateSnapshot(snapshot: GraphSnapshot, evidence: Map<string, EvidenceRecord>): FieldError[] {
+  const parsed = GraphSnapshotSchema.safeParse(snapshot);
+  // Semantic checks assume a well-formed snapshot.
+  if (!parsed.success) return parsed.error.issues.map(issueError);
+  const errors: FieldError[] = referenceErrors(snapshot).map(error => ({ path: `${error.collection}.${error.id}`, message: error.message }));
+  const people = new Map(snapshot.context.people.map(person => [person.id, person]));
+  const party = (act: Act, field: 'actor' | 'customer' | 'performer', value: Party) => {
+    if (value.kind === 'person' && people.get(value.personId)?.side === 'unknown') errors.push({ path: `acts.${act.id}.${field}`, message: `Person ${value.personId} must be on the client or vendor side` });
+  };
+  for (const act of snapshot.acts) {
+    party(act, 'actor', act.actor); party(act, 'customer', act.customer); party(act, 'performer', act.performer);
+    const message = citationError(act, evidence);
+    if (message) errors.push({ path: `acts.${act.id}.citation`, message });
+  }
+  const visible = new Set(snapshot.acts.filter(act => !act.hidden).map(act => act.citation.recordVersionId));
+  for (const { recordVersionId: id, disposition } of snapshot.recordDecisions) {
+    const path = `recordDecisions.${id}`;
+    if (!evidence.has(id)) errors.push({ path, message: `Decision cites unknown record version ${id}` });
+    if (disposition === 'included' && !visible.has(id)) errors.push({ path, message: `Record version ${id} is included but has no visible act citing it` });
+    if (disposition === 'ignored' && visible.has(id)) errors.push({ path, message: `Record version ${id} is ignored but has a visible act citing it` });
+  }
+  return errors;
+}
+
+export function verifyQuote(act: Act, quote: string, evidence: Map<string, EvidenceRecord>): FieldError | null {
+  const path = `acts.${act.id}.quote`, { recordVersionId, start, end } = act.citation, record = evidence.get(recordVersionId);
+  if (quote.length > MAX_QUOTE) return { path, message: `Quote must be at most ${MAX_QUOTE} characters` };
+  if (!record) return { path, message: `Quote cites unknown record version ${recordVersionId}` };
+  if (record.withdrawn || record.bodyText === null) return { path, message: `Quote cites withdrawn record version ${recordVersionId}` };
+  if (record.bodyText.slice(start, end) !== quote) return { path, message: 'Quote does not match the cited text' };
+  return null;
+}
