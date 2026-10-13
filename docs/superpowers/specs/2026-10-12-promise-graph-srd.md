@@ -69,7 +69,7 @@ Exclude from P0: native connector credentials/OAuth, scheduled sync, server AI p
 
 A Clerk subject identifies a user. Workspaces hold projects and memberships; P0 members have equal browser rights. Every query and mutation derives workspace membership from the verified actor, never the request body. Cross-workspace or cross-project IDs return 404/`NOT_FOUND`.
 
-Agent tokens belong to a user and exactly one project. Store only SHA-256 hashes, display a prefix, default expiry 30 days, and support revocation. Every call checks expiry, revocation, current membership and scope.
+Agent tokens belong to a user and exactly one project. Store only SHA-256 hashes, display a prefix, default expiry 30 days, and support revocation. Every call checks expiry, revocation, current membership and scope. Token creation requires an idempotency key and shows the raw secret once; persistence holds only its hash and creation key. A repeated creation key returns CONFLICT without creating another token or replaying the raw secret. This is the explicit exception to generic mutation receipt replay; if the first response is lost, the owner revokes that token and creates another with a new key. Revocation retries return the original revocation timestamp.
 
 Scopes: `project:read`, `records:import`, `graph:propose`, `graph:merge`, `escalations:write`. Default creation grants the first three only. `graph:merge` also permits explicit revert/restore, with reviewed expected revisions; it is an optional capability the owner must grant in token settings. Tokens cannot manage connections, settings, members or tokens. Record text and tool outputs cannot authorize scope changes.
 
