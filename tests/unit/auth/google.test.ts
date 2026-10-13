@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { completeGoogleSignIn, googleClient, startGoogleSignIn, type GoogleClient } from '../../../src/server/http/google';
 import { memoryStore } from './test-store';
 import type { AuthEnvironment } from '../../../src/server/env';
@@ -19,6 +19,14 @@ const clearsFlowCookies = (response: Response) => {
   expect(cookies).toMatch(/pg_oauth_verifier=; HttpOnly; SameSite=Lax; Path=\/api\/auth; Max-Age=0; Secure/);
   expect(response.headers.get('cache-control')).toBe('private, no-store');
 };
+const restartLink = /<a class="restart" href="\/signin">Sign-in expired — start again<\/a>/;
+const isRestartPage = async (response: Response) => {
+  expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
+  const html = await response.text();
+  expect(html).toMatch(restartLink);
+  expect(html).toMatch(/<style>[^<]*\.restart\s*\{/);
+  return html;
+};
 const jwt = (payload: object) => `${Buffer.from('{"alg":"RS256"}').toString('base64url')}.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.sig`;
 
 describe('google sign-in', () => {
@@ -35,6 +43,12 @@ describe('google sign-in', () => {
     const response = await completeGoogleSignIn(callback('code=c&state=evil'), env, store, client(valid()), now);
     expect(response.status).toBe(400);
     expect(store.users.size).toBe(0);
+    clearsFlowCookies(response);
+  });
+  it('answers a reloaded callback whose flow cookies are gone with a styled restart link', async () => {
+    const response = await completeGoogleSignIn(callback(undefined, ''), env, memoryStore(), client(valid()), now);
+    expect(response.status).toBe(400);
+    expect(await isRestartPage(response)).toContain('Sign-in expired');
     clearsFlowCookies(response);
   });
   it('rejects a callback without a state cookie, a verifier cookie or a code', async () => {
@@ -85,7 +99,7 @@ describe('google sign-in', () => {
     for (const claims of [null, { ...valid(), sub: undefined }, { ...valid(), exp: 'soon' }]) {
       const response = await completeGoogleSignIn(callback(), env, store, client(claims), now);
       expect(response.status).toBe(400);
-      expect(await response.text()).toBe('Google sign-in returned an unexpected response.');
+      expect(await response.text()).toContain('Google sign-in returned an unexpected response.');
       clearsFlowCookies(response);
     }
     expect(store.users.size).toBe(0);
@@ -97,6 +111,7 @@ describe('google sign-in', () => {
 });
 
 describe('google OAuth client', () => {
+  afterEach(() => { vi.restoreAllMocks(); });
   it('builds an S256 PKCE authorization URL', () => {
     const url = googleClient(env, async () => new Response()).createAuthorizationURL('st', 'verifier-value');
     expect(url.origin + url.pathname).toBe('https://accounts.google.com/o/oauth2/v2/auth');
@@ -125,6 +140,31 @@ describe('google OAuth client', () => {
     expect(response.status).toBe(401);
     expect(store.users.size).toBe(0);
     clearsFlowCookies(response);
+  });
+  it('answers an already-used code with a 401 page that links back to sign-in', async () => {
+    const used = googleClient(env, async () => Response.json({ error: 'invalid_grant' }, { status: 400 }));
+    const response = await completeGoogleSignIn(callback(), env, memoryStore(), used, now);
+    expect(response.status).toBe(401);
+    await isRestartPage(response);
+  });
+  it('bounds the token request with a 10-second abort signal', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
+    let signal: AbortSignal | null | undefined;
+    await googleClient(env, async (_url, init) => { signal = init.signal; return Response.json({ id_token: jwt(valid()) }); }).exchange('c', 'v');
+    expect(timeout).toHaveBeenCalledWith(10_000);
+    expect(signal).toBeInstanceOf(AbortSignal);
+  });
+  it.each([
+    ['a network failure', () => Promise.reject(new TypeError('fetch failed'))],
+    ['a timeout', () => Promise.reject(new DOMException('The operation was aborted due to timeout', 'TimeoutError'))],
+    ['an abort', () => Promise.reject(new DOMException('This operation was aborted', 'AbortError'))],
+  ])('maps %s of the token request to the 401 restart page and clears the flow cookies', async (_label, failure) => {
+    const store = memoryStore();
+    const response = await completeGoogleSignIn(callback(), env, store, googleClient(env, failure), now);
+    expect(response.status).toBe(401);
+    expect(store.users.size).toBe(0);
+    clearsFlowCookies(response);
+    await isRestartPage(response);
   });
   it('treats a token response without a decodable ID token as malformed', async () => {
     for (const body of [{}, { id_token: 'not-a-jwt' }]) {
