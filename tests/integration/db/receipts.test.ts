@@ -45,7 +45,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('mutation receipts', () => {
     expect(first).toEqual({ n: 1 });
     expect(second).toEqual(first);
   });
-  it('returns the JSON form on the first call and rejects an undefined result', async () => {
+  it('returns the JSON form on the first call and rejects an undefined or null result', async () => {
     const ctx = await testActor(t.db);
     const project = await createProject(t.db, ctx, { title: 'J', clientName: 'J' });
     const call = (idempotencyKey: string, result: unknown) => withTransaction(t.db, tx => withReceipt(tx, { projectId: project.id, actorKey: actorKey(ctx), operation: 'json', idempotencyKey, input: {} }, async () => result));
@@ -53,5 +53,6 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('mutation receipts', () => {
     expect(first).toStrictEqual({ a: 1 });
     expect(await call('j1', { a: 1, dropped: undefined })).toStrictEqual(first);
     await expect(call('j2', undefined)).rejects.toMatchObject({ code: 'INTERNAL' });
+    await expect(call('j3', null)).rejects.toMatchObject({ code: 'INTERNAL' });
   });
 });

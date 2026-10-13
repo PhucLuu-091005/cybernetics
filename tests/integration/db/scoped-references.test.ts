@@ -25,7 +25,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project-scoped references', () 
     return { ctx, a, b };
   };
   const version = (workspaceId: string, projectId: string, recordId: string, userId: string) => ({
-    workspaceId, projectId, recordId, versionNo: 1, digest: 'a'.repeat(64), source: 'paste' as const, sourceLabel: 'Paste', title: 'T', bodyText: 'Body',
+    workspaceId, projectId, recordId, versionNo: 1, digest: 'a'.repeat(64), source: 'paste' as const, sourceLabel: 'Paste', title: 'T', bodyText: 'Body', searchText: 't\nbody', searchTitle: 't',
     occurredAt: '2026-10-13T00:00:00.000Z', timePrecision: 'instant' as const, author: { name: 'Ada' }, recipients: [], quotedRanges: [], attachmentNames: [],
     provenance: { actor: { kind: 'user' as const, userId }, importedAt: '2026-10-13T00:00:00.000Z' }, evidenceRevision: 1,
   });

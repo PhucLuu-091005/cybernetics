@@ -18,7 +18,7 @@ export async function withReceipt<T>(tx: Tx, key: ReceiptKey, run: () => Promise
     return existing.result as T;
   }
   const raw = await run();
-  if (raw === undefined) throw new AppError('INTERNAL', 'Receipt result must be a JSON value');
+  if (raw === undefined || raw === null) throw new AppError('INTERNAL', 'Receipt result must be a non-null JSON value');
   // The first response must match what a replay will return from jsonb.
   const result = JSON.parse(JSON.stringify(raw)) as T;
   const inserted = await tx.insert(mutationReceipts).values({ ...identity, requestHash, result }).onConflictDoNothing().returning({ projectId: mutationReceipts.projectId });

@@ -62,6 +62,9 @@ export const recordVersions = pgTable('record_versions', {
   parentExternalId: text('parent_external_id'),
   title: text('title').notNull(),
   bodyText: text('body_text').notNull(),
+  // Accent-folded copies filled at insert because the database has no unaccent extension; the title copy lets withdrawn records match without exposing their body.
+  searchText: text('search_text').notNull(),
+  searchTitle: text('search_title').notNull(),
   occurredAt: tz('occurred_at').notNull(),
   occurredDate: date('occurred_date', { mode: 'string' }),
   occurredTimeZone: text('occurred_time_zone'),
@@ -74,7 +77,7 @@ export const recordVersions = pgTable('record_versions', {
   provenance: jsonb('provenance').$type<RecordVersion['provenance']>().notNull(),
   evidenceRevision: integer('evidence_revision').notNull(),
   createdAt: createdAt(),
-}, table => [unique('record_versions_record_version_unique').on(table.recordId, table.versionNo), index('record_versions_project_occurred_idx').on(table.projectId, table.occurredAt), unique('record_versions_project_id_unique').on(table.projectId, table.id), inProject('record_versions', table), sameProject('record_versions_record_fk', [table.projectId, table.recordId], (): Pair => [records.projectId, records.id])]);
+}, table => [unique('record_versions_record_version_unique').on(table.recordId, table.versionNo), index('record_versions_project_occurred_idx').on(table.projectId, table.occurredAt), index('record_versions_project_source_digest_idx').on(table.projectId, table.source, table.digest), unique('record_versions_project_id_unique').on(table.projectId, table.id), inProject('record_versions', table), sameProject('record_versions_record_fk', [table.projectId, table.recordId], (): Pair => [records.projectId, records.id])]);
 export const mutationReceipts = pgTable('mutation_receipts', {
   projectId: uuid('project_id').notNull().references(() => projects.id),
   actorKey: text('actor_key').notNull(),
