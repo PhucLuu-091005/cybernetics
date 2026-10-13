@@ -8,20 +8,21 @@ import { lockProject, withTransaction, type Db, type Tx } from '../../db/tx';
 import { applyOperations } from '../../graph/apply-operations';
 import { citedVersionIds, snapshotLimitErrors, validateSnapshot, verifyQuote } from '../../graph/validate';
 import { requireScope } from '../../http/scopes';
+import { loadCommit } from '../commits/store';
 import { invalid, loadRecordMetadata } from '../records/metadata';
 import { findProposal, toProposal } from './read';
 
-/** Quotes are checked against the act as it stands after the whole batch. */
-export async function assertValidCandidate(tx: Tx, projectId: string, snapshot: GraphSnapshot, quotes: Map<string, string>): Promise<void> {
+/** Quotes are checked against the act as it stands after the whole batch; the baseline decides which withdrawn citations are carried, not new. */
+export async function assertValidCandidate(tx: Tx, projectId: string, snapshot: GraphSnapshot, quotes: Map<string, string>, baseline: GraphSnapshot): Promise<void> {
   const limits = snapshotLimitErrors(snapshot);
   if (limits.length) throw new AppError('LIMIT_EXCEEDED', 'Snapshot exceeds a P0 limit', { errors: limits });
   const evidence = await loadRecordMetadata(tx, projectId, citedVersionIds(snapshot));
   const acts = new Map(snapshot.acts.map(act => [act.id, act]));
   const errors = [...quotes].flatMap(([actId, quote]) => {
-    const act = acts.get(actId), error = act ? verifyQuote(act, quote, evidence) : null;
+    const act = acts.get(actId), error = act ? verifyQuote(act, quote, evidence, baseline) : null;
     return error ? [error] : [];
   });
-  errors.push(...validateSnapshot(snapshot, evidence));
+  errors.push(...validateSnapshot(snapshot, evidence, baseline));
   if (errors.length) throw new AppError('VALIDATION', 'Proposal snapshot is invalid', { errors });
 }
 
@@ -38,7 +39,7 @@ export async function updateProposal(db: Db, ctx: ActorContext, raw: z.input<typ
       if (row.status !== 'draft') throw new AppError('CONFLICT', `Proposal is ${row.status}, not a draft`, { details });
       if (row.revision !== input.expectedProposalRevision || project.evidenceRevision !== input.expectedEvidenceRevision) throw new AppError('CONFLICT', 'Proposal or evidence changed since the expected revision', { details });
       const { snapshot, quotes } = applyOperations(row.candidate, input.operations);
-      await assertValidCandidate(tx, project.id, snapshot, quotes);
+      await assertValidCandidate(tx, project.id, snapshot, quotes, (await loadCommit(tx, project.id, row.baseCommitId)).snapshot);
       const [updated] = await tx.update(graphProposals).set({ candidate: snapshot, revision: row.revision + 1, evidenceRevision: project.evidenceRevision, updatedAt: sql`now()` })
         .where(and(eq(graphProposals.projectId, project.id), eq(graphProposals.id, row.id))).returning();
       return toProposal(updated);

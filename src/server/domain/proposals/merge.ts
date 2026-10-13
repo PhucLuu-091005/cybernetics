@@ -30,8 +30,8 @@ export async function mergeProposal(db: Db, ctx: ActorContext, raw: z.input<type
       const snapshotHash = canonicalHash(row.candidate);
       const digest = reviewDigest({ baseCommitId: row.baseCommitId, proposalRevision: row.revision, mainCommitId: project.mainCommitId, evidenceRevision: project.evidenceRevision, snapshotHash, T: input.T });
       if (digest !== input.reviewDigest) throw new AppError('CONFLICT', 'Review digest does not match the current review inputs; refresh the review', { details: { actualMainCommitId: project.mainCommitId, actualProposalRevision: row.revision, actualEvidenceRevision: project.evidenceRevision } });
-      await assertValidCandidate(tx, project.id, row.candidate, new Map());
       const parent = await loadCommit(tx, project.id, project.mainCommitId);
+      await assertValidCandidate(tx, project.id, row.candidate, new Map(), parent.snapshot);
       const commit = await insertCommit(tx, {
         workspaceId: projectRow.workspaceId, projectId: project.id, sequence: parent.sequence + 1, parentId: parent.id, snapshot: row.candidate, snapshotHash, actor: actorReference(ctx),
         message: input.message, kind: 'merge', proposalId: row.id, targetCommitId: null, reviewedEvidenceRevision: project.evidenceRevision,

@@ -4,7 +4,8 @@ import { agentActor, createTestDatabase, testActor, type TestDb } from '../../su
 import { projectRow } from '../../support/evidence';
 import { T, ingestText, putAct, putLoop, quote, seedProject } from '../../support/proposals';
 import { createProposal, getProposal, mergeProposal, reviewProposal, updateProposal } from '../../../src/server/domain/proposals';
-import { graphCommits } from '../../../src/server/db/schema';
+import { withdrawRecord } from '../../../src/server/domain/records';
+import { graphCommits, recordVersions } from '../../../src/server/db/schema';
 import { CommitReceiptSchema, type ActorContext, type MergeProposalInput, type ProposalReview } from '../../../src/contracts';
 
 describe.skipIf(!process.env.TEST_DATABASE_URL)('proposal merge', () => {
@@ -80,5 +81,21 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('proposal merge', () => {
     expect(again.conflicts.length).toBeGreaterThan(0);
     await expect(merge(again, 'm-i')).rejects.toMatchObject({ code: 'CONFLICT', message: expect.stringMatching(/Rebase required/) });
     await expect(merge(first, 'm-h2')).rejects.toMatchObject({ code: 'CONFLICT' });
+  });
+  it('a proposal edited after review conflicts with the actual revision', async () => {
+    const review = await reviewed('J');
+    await updateProposal(t.db, ctx, { projectId, proposalId: review.proposalId, expectedProposalRevision: 1, expectedEvidenceRevision: 1, operations: [putLoop('J2')], idempotencyKey: 'edit-j' });
+    await expect(merge(review, 'm-j')).rejects.toMatchObject({ code: 'CONFLICT', extras: { details: { actualProposalRevision: 2 } } });
+  });
+  it('a withdrawn citation on main does not block acknowledging, hiding, reviewing or merging', async () => {
+    const merged = await merge(await reviewed('W'), 'm-w');
+    const [version] = await t.db.select({ recordId: recordVersions.recordId }).from(recordVersions).where(eq(recordVersions.id, versionId));
+    await withdrawRecord(t.db, ctx, { projectId, recordId: version.recordId, expectedEvidenceRevision: 1, reason: 'Client asked to remove it', idempotencyKey: 'w-1' });
+    const proposal = await createProposal(t.db, ctx, { projectId, baseCommitId: merged.commitId, title: 'Hide withdrawn', expectedEvidenceRevision: 2, idempotencyKey: 'c-hide' });
+    await updateProposal(t.db, ctx, { projectId, proposalId: proposal.id, expectedProposalRevision: 0, expectedEvidenceRevision: 2, operations: [], idempotencyKey: 'ack-w' });
+    const hidden = await updateProposal(t.db, ctx, { projectId, proposalId: proposal.id, expectedProposalRevision: 1, expectedEvidenceRevision: 2, operations: [putAct(versionId, quote, { hidden: true })], idempotencyKey: 'hide-w' });
+    expect(hidden.candidate.acts[0].hidden).toBe(true);
+    const review = await reviewProposal(t.db, ctx, { projectId, proposalId: proposal.id, expectedMainCommitId: merged.commitId, expectedProposalRevision: 2, expectedEvidenceRevision: 2, T });
+    expect((await merge(review, 'm-hide')).kind).toBe('merge');
   });
 });

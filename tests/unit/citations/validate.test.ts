@@ -50,6 +50,29 @@ describe('citation validation', () => {
     expect(verifyQuote(cited().acts[0], 'x'.repeat(401), evidence())?.message).toMatch(/400/);
     expect(verifyQuote(cited().acts[0], quote, evidence({ withdrawn: true, bodyText: null }))?.message).toMatch(/withdrawn/);
   });
+  describe('withdrawn citations against a baseline', () => {
+    const withdrawn = () => evidence({ withdrawn: true, bodyText: null });
+    it('accepts an unchanged act on a withdrawn version, also when it is hidden or edited', () => {
+      const baseline = cited(), edited = cited();
+      edited.acts[0].hidden = true; edited.acts[0].action = 'Edited'; edited.recordDecisions = [];
+      expect(validateSnapshot(cited(), withdrawn(), baseline)).toEqual([]);
+      expect(validateSnapshot(edited, withdrawn(), baseline)).toEqual([]);
+      expect(verifyQuote(edited.acts[0], 'any submitted text', withdrawn(), baseline)).toBeNull();
+    });
+    it('rejects a new act on a withdrawn version', () => {
+      const baseline = cited(); baseline.acts = []; baseline.annotations = [];
+      expect(validateSnapshot(cited(), withdrawn(), baseline).map(error => error.message).join()).toMatch(/withdrawn/);
+      expect(verifyQuote(cited().acts[0], quote, withdrawn(), baseline)?.message).toMatch(/withdrawn/);
+    });
+    it('rejects a changed citation with the same act id on a withdrawn version', () => {
+      const moved = cited(); moved.acts[0].citation = { recordVersionId: ids.record, start: start + 1, end };
+      expect(validateSnapshot(moved, withdrawn(), cited()).map(error => error.message).join()).toMatch(/withdrawn/);
+      expect(verifyQuote(moved.acts[0], quote.slice(1), withdrawn(), cited())?.message).toMatch(/withdrawn/);
+    });
+    it('keeps strict checks for an unchanged act whose version is still available', () => {
+      expect(verifyQuote(cited().acts[0], quote.replace('30', '31'), evidence(), cited())?.message).toMatch(/does not match/);
+    });
+  });
   it('separates cap and size failures from ordinary schema errors', () => {
     const many = cited();
     many.loops = Array.from({ length: 301 }, (_, index) => ({ ...many.loops[0], id: `20000000-0000-4000-8000-${String(index).padStart(12, '0')}` }));

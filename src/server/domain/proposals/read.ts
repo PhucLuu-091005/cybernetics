@@ -1,6 +1,6 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { GetProposalInputSchema, IdSchema, PageInputSchema, ProposalSchema, type ActorContext, type Proposal } from '../../../contracts';
+import { GetProposalInputSchema, IdSchema, PageInputSchema, ProposalSchema, utf8Bytes, type ActorContext, type Proposal } from '../../../contracts';
 import { canonicalHash } from '../../../lib/canonical-json';
 import { AppError } from '../../errors';
 import { graphProposals } from '../../db/schema';
@@ -15,6 +15,7 @@ const ListProposalsInputSchema = PageInputSchema.extend({ projectId: IdSchema, s
 export type ListProposalsInput = z.input<typeof ListProposalsInputSchema>;
 const p = graphProposals;
 const summaryColumns = { id: p.id, workspaceId: p.workspaceId, projectId: p.projectId, baseCommitId: p.baseCommitId, revision: p.revision, author: p.author, title: p.title, rationale: p.rationale, evidenceRevision: p.evidenceRevision, status: p.status, mergedCommitId: p.mergedCommitId, createdAt: p.createdAt, updatedAt: p.updatedAt };
+const MAX_PAGE_BYTES = 50_000;
 const CursorSchema = z.strictObject({ f: z.string(), o: z.number().int().nonnegative() });
 
 function toSummary(row: Omit<ProposalRow, 'candidate'>): ProposalSummary {
@@ -54,5 +55,14 @@ export async function listProposals(db: Db, ctx: ActorContext, raw: ListProposal
   const rows = await db.select(summaryColumns).from(graphProposals)
     .where(and(eq(graphProposals.projectId, project.id), input.status ? eq(graphProposals.status, input.status) : undefined))
     .orderBy(desc(graphProposals.createdAt), desc(graphProposals.id)).limit(input.limit + 1).offset(offset);
-  return { items: rows.slice(0, input.limit).map(toSummary), nextCursor: rows.length > input.limit ? Buffer.from(JSON.stringify({ f: filters, o: offset + input.limit })).toString('base64url') : null };
+  const encodeCursor = (next: number) => Buffer.from(JSON.stringify({ f: filters, o: next })).toString('base64url');
+  const page: { items: ProposalSummary[]; nextCursor: string | null } = { items: [], nextCursor: null };
+  for (const row of rows.slice(0, input.limit)) {
+    const item = toSummary(row);
+    // Measure with a cursor present so adding it afterwards cannot push the page over the limit.
+    if (page.items.length && utf8Bytes(JSON.stringify({ items: [...page.items, item], nextCursor: encodeCursor(offset + page.items.length + 1) })) > MAX_PAGE_BYTES) break;
+    page.items.push(item);
+  }
+  if (page.items.length < rows.length) page.nextCursor = encodeCursor(offset + page.items.length);
+  return page;
 }

@@ -3,7 +3,7 @@ import { agentActor, createTestDatabase, testActor, type TestDb } from '../../su
 import { T, ingestText, putAct, putLoop, quote, seedProject } from '../../support/proposals';
 import { createProject } from '../../../src/server/domain/projects';
 import { closeProposal, createProposal, getProposal, listProposals, reviewDigest, reviewProposal, updateProposal } from '../../../src/server/domain/proposals';
-import { ProposalReviewSchema, ProposalSchema, type ActorContext } from '../../../src/contracts';
+import { ProposalReviewSchema, ProposalSchema, utf8Bytes, type ActorContext } from '../../../src/contracts';
 
 describe.skipIf(!process.env.TEST_DATABASE_URL)('proposal lifecycle', () => {
   let t: TestDb, ctx: ActorContext, projectId: string, mainId: string, versionId: string, proposalId: string, otherProjectId: string;
@@ -94,5 +94,30 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('proposal lifecycle', () => {
     expect(rest.nextCursor).toBeNull();
     expect([drafts.items[0].title, rest.items[0].title].sort()).toEqual(['Second', 'Third']);
     expect((await listProposals(t.db, ctx, { projectId, status: 'closed' })).items.map(item => item.id)).toEqual([proposalId]);
+  });
+  it('an update over the loop cap is LIMIT_EXCEEDED and writes nothing', async () => {
+    const loops = (from: number) => Array.from({ length: 100 }, (_, index) => putLoop(`Loop ${from + index}`, `50000000-0000-4000-8000-${String(from + index).padStart(12, '0')}`));
+    await updateProposal(t.db, ctx, { projectId, proposalId, expectedProposalRevision: 1, expectedEvidenceRevision: 1, operations: loops(0), idempotencyKey: 'cap-1' });
+    await updateProposal(t.db, ctx, { projectId, proposalId, expectedProposalRevision: 2, expectedEvidenceRevision: 1, operations: loops(100), idempotencyKey: 'cap-2' });
+    await expect(updateProposal(t.db, ctx, { projectId, proposalId, expectedProposalRevision: 3, expectedEvidenceRevision: 1, operations: loops(200), idempotencyKey: 'cap-3' }))
+      .rejects.toMatchObject({ code: 'LIMIT_EXCEEDED', extras: { errors: [expect.objectContaining({ path: 'loops' })] } });
+    const stored = await getProposal(t.db, ctx, { projectId, proposalId });
+    expect(stored.revision).toBe(3);
+    expect(stored.candidate.loops).toHaveLength(201);
+  });
+  it('list pages stay within 50,000 bytes and return every proposal exactly once', async () => {
+    for (let index = 0; index < 50; index++) await createProposal(t.db, ctx, { projectId, baseCommitId: mainId, title: `Long ${index}`, rationale: 'x'.repeat(10000), expectedEvidenceRevision: 1, idempotencyKey: `long-${index}` });
+    const seen: string[] = [];
+    let cursor: string | null = null, pages = 0;
+    do {
+      const page: Awaited<ReturnType<typeof listProposals>> = await listProposals(t.db, ctx, { projectId, cursor });
+      expect(utf8Bytes(JSON.stringify(page))).toBeLessThanOrEqual(50_000);
+      expect(page.items.length).toBeGreaterThan(0);
+      seen.push(...page.items.map(item => item.id));
+      cursor = page.nextCursor; pages++;
+    } while (cursor !== null);
+    expect(pages).toBeGreaterThan(1);
+    expect(seen).toHaveLength(51);
+    expect(new Set(seen).size).toBe(51);
   });
 });
