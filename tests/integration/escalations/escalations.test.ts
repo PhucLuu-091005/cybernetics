@@ -125,6 +125,36 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('escalations', () => {
     const other = await openEscalation(t.db, ctx, { projectId, complaint: 'Another complaint', idempotencyKey: randomUUID() });
     await expect(getEscalation(t.db, ctx, { projectId, escalationId: other.id, cursor: (await getEscalation(t.db, ctx, { projectId, escalationId })).nextCursor })).rejects.toMatchObject({ code: 'VALIDATION' });
   });
+  it('rejects duplicate claim ids, an act cited twice in one set, and an act on both sides of one claim, without writing', async () => {
+    const first = claimCiting(citedActId);
+    const invalidClaims: ClaimInput[][] = [
+      [first, { ...claimCiting(uncitedActId), id: first.id }],
+      [{ ...claimCiting(citedActId), supportingActIds: [citedActId, citedActId] }],
+      [claimCiting(citedActId, [citedActId])],
+    ];
+    for (const claims of invalidClaims) await expect(save({ claims })).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(await analysisCount()).toBe(0);
+  });
+  it('refuses an analysis that cannot fit one escalation page and saves one just under the budget', async () => {
+    const complaint = 'c'.repeat(20_000);
+    const padded = (answerText: string): Partial<SaveEscalationAnalysisInput> => ({ claims: [{ ...claimCiting(citedActId), openQuestions: Array.from({ length: 5 }, () => 'q'.repeat(2_000)) }], answerText });
+    const probeId = (await openEscalation(t.db, ctx, { projectId, complaint, idempotencyKey: randomUUID() })).id;
+    await save({ escalationId: probeId, ...padded('') });
+    const emptyAnswerPage = utf8Bytes(JSON.stringify(await getEscalation(t.db, ctx, { projectId, escalationId: probeId })));
+    const targetId = (await openEscalation(t.db, ctx, { projectId, complaint, idempotencyKey: randomUUID() })).id;
+    // One byte more than a read result with no cursor could ever hold.
+    const overLength = 50_000 - emptyAnswerPage + 1;
+    await expect(save({ escalationId: targetId, ...padded('x'.repeat(overLength)) })).rejects.toMatchObject({ code: 'LIMIT_EXCEEDED' });
+    expect((await t.db.select({ id: escalationAnalyses.id }).from(escalationAnalyses).where(eq(escalationAnalyses.escalationId, targetId))).length).toBe(0);
+    // 512 bytes cover the worst-case cursor and the read slack that the save guard reserves.
+    const underLength = overLength - 1 - 512;
+    const saved = await save({ escalationId: targetId, ...padded('x'.repeat(underLength)) });
+    const page = await getEscalation(t.db, ctx, { projectId, escalationId: targetId });
+    expect(utf8Bytes(JSON.stringify(page))).toBeLessThanOrEqual(50_000);
+    expect(page.nextCursor).toBeNull();
+    expect(page.analyses).toEqual([saved]);
+    expect(page.analyses[0].answerText).toHaveLength(underLength);
+  });
   it('requires escalation scopes and hides other projects', async () => {
     await expect(openEscalation(t.db, agentActor(ctx, projectId, ['project:read']), { projectId, complaint: 'Late', idempotencyKey: randomUUID() })).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(save({}, agentActor(ctx, projectId, ['project:read']))).rejects.toMatchObject({ code: 'FORBIDDEN' });

@@ -58,7 +58,7 @@ function pageEnvelope(project: ProjectRow, escalation: Escalation, stale: boolea
   const { mainCommitId, evidenceRevision } = toProject(project);
   return { projectId: project.id, escalation, analyses: [], mainCommitId, evidenceRevision, stale, nextCursor: encodeCursor(analysesView(project.id, escalation.id), escalation.latestAnalysisRevision ?? 0), requestId };
 }
-/** Refuses at save time an analysis that no escalation page could ever return whole. */
+/** A row larger than one page would make the escalation history unreadable, because pages never split an analysis; saves refuse it. */
 export function assertFitsPage(project: ProjectRow, escalation: Escalation, analysis: EscalationAnalysis, requestId: string): void {
   const page = { ...pageEnvelope(project, escalation, true, requestId), analyses: [analysis] };
   if (utf8Bytes(JSON.stringify(page)) + READ_SLACK_BYTES > MAX_PAGE_BYTES) throw new AppError('LIMIT_EXCEEDED', 'The analysis and complaint exceed the 50,000-character escalation page limit');
