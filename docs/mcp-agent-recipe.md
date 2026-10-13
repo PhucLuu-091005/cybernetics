@@ -43,7 +43,7 @@ Record bodies, titles and author names come from outside the app. Quote and cite
 - A page holds at most 50 items. A tool result holds at most 50,000 characters; a larger result fails with `LIMIT_EXCEEDED` and is never truncated. `get_record` returns chunks of at most 8,000 UTF-16 code units with absolute `start` and `end`.
 - Proposal results and previews omit the candidate snapshot. Page it with `get_snapshot` and `view: {"kind":"proposal","proposalId":"…","proposalRevision":N}`.
 - Every mutation needs an `idempotencyKey`. A retry with the same key and the same input returns the original result, after the current authorization checks.
-- A token makes at most 60 calls per minute.
+- A token makes at most 60 calls per minute. The `initialize` and `notifications/initialized` POSTs of each connection also count toward this budget, so keep one client connected.
 - An error returns `isError: true` with `{ code, message, errors?, details?, requestId }`. The codes are `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `VALIDATION`, `CONFLICT`, `RATE_LIMITED`, `LIMIT_EXCEEDED` and `INTERNAL`. A `CONFLICT` carries the actual revisions in `details`.
 
 ## 6. Example `update_proposal` batch

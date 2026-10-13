@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { createTestDatabase, testActor, type TestDb } from '../../support/db';
@@ -17,6 +17,7 @@ type Structured = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 type ToolReply = { isError?: boolean; structuredContent?: Structured; content?: unknown };
 
 describe('MCP result envelopes', () => {
+  afterEach(() => { vi.restoreAllMocks(); });
   const ctx: ActorContext = { kind: 'agent', userId: randomUUID(), tokenId: randomUUID(), workspaceId: randomUUID(), projectId: randomUUID(), scopes: ['project:read'], requestId: 'req-1' };
   it('adds projectId and requestId and mirrors structured content as JSON text', () => {
     const result = toolResult(ctx, { items: [1] });
@@ -164,6 +165,15 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP adapter', () => {
     expect((await call(importer, 'import_records', importArgs('only-import'))).isError).toBeFalsy();
     expect(await call(importer, 'get_project', {})).toMatchObject({ isError: true, structuredContent: { code: 'FORBIDDEN' } });
     expect(await call(client, 'open_escalation', { complaint: 'Where is the mapping?', idempotencyKey: 'e1' })).toMatchObject({ isError: true, structuredContent: { code: 'FORBIDDEN' } });
+  });
+  it('marks successful responses private and uncacheable', async () => {
+    const rpc = (id: number, method: string, params: Record<string, unknown>) => POST(new Request(`${origin}/mcp`, { method: 'POST', headers: { authorization: `Bearer ${defaultToken.secret}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream' }, body: JSON.stringify({ jsonrpc: '2.0', id, method, params }) }));
+    for (const response of [await rpc(1, 'tools/list', {}), await rpc(2, 'tools/call', { name: 'get_project', arguments: {} })]) {
+      expect(response.status).toBe(200);
+      expect(response.headers.get('cache-control')).toBe('private, no-store');
+      expect(response.headers.get('vary')).toContain('Authorization');
+      expect((await response.json()).result).toBeDefined();
+    }
   });
   it('answers only POST and rejects an unknown token or foreign Host', async () => {
     expect(GET().status).toBe(405);
