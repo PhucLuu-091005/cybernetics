@@ -13,7 +13,7 @@ import { invalid, loadRecordMetadata } from '../records/metadata';
 import { findProposal, toProposal } from './read';
 
 /** Quotes are checked against the act as it stands after the whole batch; the baseline decides which withdrawn citations are carried, not new. */
-export async function assertValidCandidate(tx: Tx, projectId: string, snapshot: GraphSnapshot, quotes: Map<string, string>, baseline: GraphSnapshot): Promise<void> {
+export async function assertValidCandidate(tx: Tx, projectId: string, snapshot: GraphSnapshot, quotes: Map<string, string>, baseline: GraphSnapshot, message = 'Proposal snapshot is invalid'): Promise<void> {
   const limits = snapshotLimitErrors(snapshot);
   if (limits.length) throw new AppError('LIMIT_EXCEEDED', 'Snapshot exceeds a P0 limit', { errors: limits });
   const evidence = await loadRecordMetadata(tx, projectId, citedVersionIds(snapshot));
@@ -23,7 +23,7 @@ export async function assertValidCandidate(tx: Tx, projectId: string, snapshot: 
     return error ? [error] : [];
   });
   errors.push(...validateSnapshot(snapshot, evidence, baseline));
-  if (errors.length) throw new AppError('VALIDATION', 'Proposal snapshot is invalid', { errors });
+  if (errors.length) throw new AppError('VALIDATION', message, { errors });
 }
 
 export async function updateProposal(db: Db, ctx: ActorContext, raw: z.input<typeof UpdateProposalInputSchema>): Promise<Proposal> {
