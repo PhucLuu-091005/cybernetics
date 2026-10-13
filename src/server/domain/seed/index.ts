@@ -1,18 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
+import goldFixture from '../../../../fixtures/gold.json' with { type: 'json' };
 import historyFixture from '../../../../fixtures/history.json' with { type: 'json' };
 import mainSnapshot from '../../../../fixtures/main-snapshot.json' with { type: 'json' };
 import projectFixture from '../../../../fixtures/project.json' with { type: 'json' };
 import proposalsFixture from '../../../../fixtures/proposals.json' with { type: 'json' };
 import recordsFixture from '../../../../fixtures/records.json' with { type: 'json' };
 import { uuidFromKey } from '../../../../scripts/build-fixtures';
-import type { Act, ActorContext, CommitReceipt, GraphContext, GraphOperation, GraphSnapshot, IngestEnvelope, Project, RecordInput } from '../../../contracts';
+import type { Act, ActorContext, ClaimInput, CommitReceipt, GraphContext, GraphOperation, GraphSnapshot, IngestEnvelope, Project, RecordInput } from '../../../contracts';
 import { canonicalHash } from '../../../lib/canonical-json';
 import { graphCommits, projects } from '../../db/schema';
 import { joinTransaction, type Db, type Tx } from '../../db/tx';
 import { diffSnapshots } from '../../graph/diff';
 import { requireProject } from '../access';
 import { previewRevert, revertCommit } from '../commits';
+import { openEscalation, saveEscalationAnalysis } from '../escalations';
 import { createProject, toProject } from '../projects';
 import { createProposal, mergeProposal, reviewProposal, updateProposal } from '../proposals';
 import { ingestRecords, withdrawRecord } from '../records';
@@ -116,9 +118,26 @@ export async function seedLarkspur(db: Db, ctx: ActorContext, entityIds: 'fixtur
   return { projectId: project.id, initialCommitId: project.mainCommitId, seedCommitId: receipt.commitId, evidenceRevision: receipt.evidenceRevision, snapshot, ids, versionIds, recordIds, inputs, pendingVersionIds };
 }
 
+/** Draft answers for the gold escalations; {act:<fixture id>} becomes an [act:<sandbox id>] marker. Gold stays the single source of claims and verdicts. */
+const ESCALATION_ANSWERS: Record<string, string> = {
+  'go-live-slip': 'Fundline did commit to go-live by 30 September {act:94f5c370-711a-4039-9e20-a02d1fd5e70d}. The slip was announced before that date: on 12 September Minh asked to move go-live to 15 October {act:fe8cb040-d525-4e8b-9009-a911e6098e6b}, and Sarah agreed the next morning {act:94e84396-211b-4c56-95bb-1464890069cc}.',
+  'dynamics-scope': 'The evidence points both ways. Quang answered the phase 1 request with a hedge that the client could read as a yes {act:34ea80c9-52b5-4f2d-812d-7620d6929478}, while the statement of work schedules the Dynamics CRM sync for phase 2 {act:32ff2949-ea99-4272-94ba-9481ca5265b5}.',
+  'sync-incident': 'The sync did drop 40 investors. Quang told Larkspur IT about it on 22 September, in the same message that asked Tom to renew the client secret {act:55e19ec6-af3e-4d9e-b2e0-aa6825a7bfb9}. The root cause report Daniel promised for 3 October never arrived {act:5e5b6b44-de1f-4701-8d3c-ff4e54e77328}.',
+};
+
+async function seedEscalations(db: Db, ctx: ActorContext, projectId: string, ids: FixtureIds): Promise<void> {
+  for (const fixture of goldFixture.escalations) {
+    const { mainCommitId, evidenceRevision } = await headOf(db, projectId);
+    const escalation = await openEscalation(db, ctx, { projectId, complaint: fixture.complaint, idempotencyKey: randomUUID() });
+    const claims: ClaimInput[] = fixture.claims.map(({ id, text, type, supportingActIds, contradictingActIds }) => rekeyFixture({ id, text, type, timeWindow: null, supportingActIds, contradictingActIds, openQuestions: [] }, ids));
+    const answerText = ESCALATION_ANSWERS[fixture.key].replace(/\{act:([0-9a-f-]{36})\}/g, (_marker, id: string) => `[act:${rekeyFixture(id, ids)}]`);
+    await saveEscalationAnalysis(db, ctx, { projectId, escalationId: escalation.id, graphCommitId: mainCommitId, expectedMainCommitId: mainCommitId, expectedEvidenceRevision: evidenceRevision, expectedAnalysisRevision: null, claims, answerText, idempotencyKey: randomUUID() });
+  }
+}
+
 /**
  * SRD 3: the first sign-in copies the Larkspur demo into the new user's workspace inside the provisioning transaction.
- * History, the revert and the drafts go through the same domain paths a person uses, so the sandbox can never hold a state the app could not produce.
+ * History, the revert, the drafts and the escalation analyses go through the same domain paths a person uses, so the sandbox can never hold a state the app could not produce.
  */
 export async function seedSandbox(tx: Tx, ctx: ActorContext & { kind: 'user' }): Promise<Project> {
   const db = joinTransaction(tx);
@@ -147,5 +166,6 @@ export async function seedSandbox(tx: Tx, ctx: ActorContext & { kind: 'user' }):
     const proposal = await createProposal(db, ctx, { projectId, baseCommitId: mainCommitId, title: fixture.title, rationale: fixture.rationale, expectedEvidenceRevision: evidenceRevision, idempotencyKey: randomUUID() });
     await updateProposal(db, ctx, { projectId, proposalId: proposal.id, expectedProposalRevision: 0, expectedEvidenceRevision: evidenceRevision, operations: rekeyFixture(fixture.operations as GraphOperation[], ids), idempotencyKey: randomUUID() });
   }
+  await seedEscalations(db, ctx, projectId, ids);
   return toProject(await requireProject(db, ctx, projectId));
 }
