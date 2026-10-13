@@ -18,7 +18,8 @@ export default defineConfig({
   // Every test signs in as the same local user, and the first sign-in seeds the sandbox.
   workers: 1,
   retries: 0,
-  timeout: 60_000,
+  // CI runs one worker on a cold next dev server, so the first test of a run also pays every page's first compile.
+  timeout: process.env.CI ? 180_000 : 60_000,
   expect: { timeout: 15_000 },
   reporter: [['list']],
   globalSetup: './tests/e2e/global-setup.ts',
