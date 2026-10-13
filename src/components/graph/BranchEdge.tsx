@@ -24,6 +24,7 @@ export function BranchEdge({ data }: EdgeProps<BranchEdgeType>) {
   const width = Math.max(branch.xEnd - branch.xStart, 0);
   return (
     <g transform={`translate(${left} 0)`} className={`${ui.faded.has(branch.loopId) ? 'br-faded' : ''}${selected ? ' br-sel' : ''}`} style={{ transition: 'opacity .15s' }}>
+      {ui.halo.has(branch.loopId) && <path className="halo" d={branch.path} data-testid="halo" />}
       <path className="line" d={fork} fill="none" stroke={TONE_COLOR[first.tone]} strokeWidth={3} />
       {branch.segments.map((segment, index) => segment.endX > segment.startX && (
         <line key={index} className={segment.tone === 'amber' && segment.startX >= xT ? 'line tail' : 'line'} x1={segment.startX} y1={y} x2={segment.endX} y2={y} stroke={TONE_COLOR[segment.tone]}

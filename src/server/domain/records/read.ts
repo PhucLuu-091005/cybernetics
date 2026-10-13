@@ -1,10 +1,10 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
-import { ReadRecordChunkInputSchema, isUtf16Boundary, type ActorContext, type RecordChunk } from '../../../contracts';
+import { IdSchema, ReadRecordChunkInputSchema, isUtf16Boundary, type ActorContext, type QuotedRange, type RecordChunk, type SourceKind } from '../../../contracts';
 import { buildRecordHeader } from '../../../lib/record-header';
 import { AppError } from '../../errors';
 import { recordVersions, records } from '../../db/schema';
-import type { Db } from '../../db/tx';
+import { toIso, type Db } from '../../db/tx';
 import { requireScope } from '../../http/scopes';
 import { requireProject } from '../access';
 import { invalid, mainTimeZone, toRecordVersion } from './metadata';
@@ -57,4 +57,26 @@ export async function readRecordText(db: Db, ctx: ActorContext, raw: z.input<typ
   const { project, version, header } = await loadVersion(db, ctx, parsed.data.projectId, parsed.data.recordVersionId);
   const { bodyText: text, ...metadata } = version;
   return { projectId: project.id, recordVersionId: version.id, digest: version.digest, text, totalLength: text.length, withdrawn: version.withdrawn, header, metadata, requestId: ctx.requestId };
+}
+
+const ReadCitedRecordsInputSchema = z.strictObject({ projectId: IdSchema, recordVersionIds: z.array(IdSchema).max(1000) });
+export type CitedRecord = { recordVersionId: string; title: string; author: string; occurredAt: string; source: SourceKind; sourceLabel: string; withdrawn: boolean; bodyText: string | null; quotedRanges: QuotedRange[] };
+/** Browser review screens only: names and bodies for many cited versions in one read, masked like every other view of withdrawn evidence. */
+export async function readCitedRecords(db: Db, ctx: ActorContext, raw: z.input<typeof ReadCitedRecordsInputSchema>): Promise<Map<string, CitedRecord>> {
+  requireScope(ctx, 'project:read');
+  const parsed = ReadCitedRecordsInputSchema.safeParse(raw);
+  if (!parsed.success) throw invalid('Invalid cited record read', parsed.error);
+  const project = await requireProject(db, ctx, parsed.data.projectId);
+  const ids = [...new Set(parsed.data.recordVersionIds)];
+  if (!ids.length) return new Map();
+  const rows = await db.select({ version: recordVersions, withdrawnAt: records.withdrawnAt }).from(recordVersions)
+    .innerJoin(records, and(eq(records.projectId, recordVersions.projectId), eq(records.id, recordVersions.recordId)))
+    .where(and(eq(recordVersions.projectId, project.id), inArray(recordVersions.id, ids)));
+  return new Map(rows.map(({ version, withdrawnAt }) => {
+    const withdrawn = withdrawnAt !== null;
+    return [version.id, {
+      recordVersionId: version.id, title: withdrawn ? 'Unavailable evidence' : version.title, author: withdrawn ? 'Withdrawn by source' : version.author.name, occurredAt: toIso(version.occurredAt),
+      source: version.source, sourceLabel: version.sourceLabel, withdrawn, bodyText: withdrawn ? null : version.bodyText, quotedRanges: withdrawn ? [] : version.quotedRanges,
+    }];
+  }));
 }

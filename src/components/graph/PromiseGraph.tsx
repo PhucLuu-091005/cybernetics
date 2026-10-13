@@ -20,6 +20,7 @@ const AXIS_LABEL_Y = 18;
 const nodeTypes = { act: ActNode, milestone: MilestoneNode, laneLabel: LaneLabel };
 const edgeTypes = { branch: BranchEdge };
 type GraphNode = ActNodeType | MilestoneNodeType | LaneLabelNode;
+const NO_HALO: ReadonlySet<string> = new Set();
 
 export type PromiseGraphProps = {
   title: string;
@@ -32,6 +33,7 @@ export type PromiseGraphProps = {
   selectedLoopId: string | null;
   selectedMilestoneId: string | null;
   faded: ReadonlySet<string>;
+  halo?: ReadonlySet<string>;
   currentActId: string | null;
   revealX: number | null;
   onSelectLoop(loopId: string, actId?: string): void;
@@ -86,7 +88,7 @@ function Backdrop({ layout, context, T, clientName, contentWidth, pxPerDay }: Pi
 }
 
 function Graph(props: PromiseGraphProps) {
-  const { layout, context, T, pxPerDay, milestoneStatus, onWidth, onZoom, revealX, selectedLoopId, selectedMilestoneId, faded, currentActId, onSelectLoop, onSelectMilestone, onHoverAct } = props;
+  const { layout, context, T, pxPerDay, milestoneStatus, onWidth, onZoom, revealX, selectedLoopId, selectedMilestoneId, faded, halo = NO_HALO, currentActId, onSelectLoop, onSelectMilestone, onHoverAct } = props;
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [x, setX] = useState(0);
@@ -178,7 +180,7 @@ function Graph(props: PromiseGraphProps) {
   }, [xOfKey, width, clampX]);
 
   const ui: GraphUi = useMemo(() => ({
-    zoomLevel: layout.zoomLevel, selectedLoopId, selectedMilestoneId, faded, currentActId, activeKey: tabStop,
+    zoomLevel: layout.zoomLevel, selectedLoopId, selectedMilestoneId, faded, halo, currentActId, activeKey: tabStop,
     navFocus: (_event: FocusEvent, key: string) => { setActiveKey(key); reveal(key); },
     // SRD 7.3: Tab walks milestones in time order, then branches in start order; leaving either end returns Tab to the page.
     navKeyDown: (event: KeyboardEvent, key: string) => {
@@ -196,7 +198,7 @@ function Graph(props: PromiseGraphProps) {
       wrapRef.current?.querySelector<SVGElement>(`[data-nav-key="${next}"]`)?.focus({ preventScroll: true });
     },
     selectLoop: onSelectLoop, selectMilestone: onSelectMilestone, hoverAct: onHoverAct,
-  }), [layout.zoomLevel, selectedLoopId, selectedMilestoneId, faded, currentActId, tabStop, order, reveal, onSelectLoop, onSelectMilestone, onHoverAct]);
+  }), [layout.zoomLevel, selectedLoopId, selectedMilestoneId, faded, halo, currentActId, tabStop, order, reveal, onSelectLoop, onSelectMilestone, onHoverAct]);
 
   const xT = useMemo(() => createTimeScale(context, pxPerDay).x(T), [context, pxPerDay, T]);
   const nodes = useMemo<GraphNode[]>(() => {

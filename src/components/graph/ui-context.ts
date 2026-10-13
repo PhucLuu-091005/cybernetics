@@ -8,6 +8,8 @@ export type GraphUi = {
   selectedLoopId: string | null;
   selectedMilestoneId: string | null;
   faded: ReadonlySet<string>;
+  /** Loops a proposal changes; they carry the violet halo from the design. */
+  halo: ReadonlySet<string>;
   currentActId: string | null;
   activeKey: string | null;
   navKeyDown(event: KeyboardEvent, key: string): void;

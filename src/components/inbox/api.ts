@@ -1,6 +1,6 @@
 import type { FieldError, GraphOperation, Proposal } from '../../contracts';
 
-export type ApiError = { status: number; code: string; message: string; errors?: FieldError[] };
+export type ApiError = { status: number; code: string; message: string; errors?: FieldError[]; details?: Record<string, unknown> };
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: ApiError };
 /** What the page displayed; every mutation sends it so a concurrent change answers CONFLICT instead of overwriting. */
 export type Basis = { mainCommitId: string; evidenceRevision: number };
@@ -12,7 +12,7 @@ export async function send<T>(path: string, method: 'POST' | 'PATCH', body: unkn
   const data = await response.json().catch(() => null);
   if (response.ok) return { ok: true, data: data as T };
   const error = data && typeof data === 'object' ? data as Partial<ApiError> : {};
-  return { ok: false, error: { status: response.status, code: error.code ?? 'INTERNAL', message: error.message ?? `Request failed with status ${response.status}`, ...(error.errors ? { errors: error.errors } : {}) } };
+  return { ok: false, error: { status: response.status, code: error.code ?? 'INTERNAL', message: error.message ?? `Request failed with status ${response.status}`, ...(error.errors ? { errors: error.errors } : {}), ...(error.details && typeof error.details === 'object' ? { details: error.details } : {}) } };
 }
 
 export const createDraft = (projectId: string, basis: Basis, title: string) =>

@@ -188,6 +188,50 @@
   .phead { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 12px 16px; background: var(--draft-bg); }
   .banner { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; padding: 12px 14px; border-radius: 6px; border: 1px solid var(--danger); background: var(--danger-bg); }
   .banner b { color: var(--danger); }
+  .prationale { border-top: 1px solid var(--rule-2); font-size: 13px; }
+  .pnotice { border-top: 1px solid var(--rule-2); font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline; }
+  .notice-draft { border-color: var(--draft); background: var(--draft-bg); }
+  .lnk { color: var(--route); font-weight: 600; }
+  .lnk:hover { text-decoration: underline; }
+  .plain-list { margin: 0; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 2px; }
+  .pbody { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); border-top: 1px solid var(--rule-2); }
+  .ops { border-right: 1px solid var(--rule-2); padding: 12px; min-width: 0; }
+  .op { all: unset; box-sizing: border-box; display: block; width: 100%; cursor: pointer; padding: 9px 10px; border-radius: 4px; font-size: 13px; border: 1px solid transparent; overflow-wrap: anywhere; }
+  .op:hover { background: var(--panel); }
+  .op[aria-selected="true"] { border-color: var(--draft); background: var(--draft-bg); }
+  .op:focus-visible { outline: 2px solid var(--focus); }
+  .op small { display: block; color: var(--ink-3); }
+  .editor { padding: 14px 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: end; }
+  .editor .wide { grid-column: 1 / -1; }
+  .cite { border: 1px solid var(--rule); border-radius: 5px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .cite .off { width: 56px; padding: 2px 4px; border: 1px solid var(--rule); border-radius: 3px; background: var(--panel); }
+  .halo { stroke: var(--draft); stroke-opacity: .35; stroke-width: 12; fill: none; stroke-linecap: round; }
+  .stepedit { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; padding: 6px 8px; border: 1px dashed var(--draft); border-radius: 4px; background: var(--draft-bg); }
+  .stepedit select { font: inherit; font-size: 13px; padding: 3px 6px; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); }
+  .diff-add { color: var(--proceed); } .diff-rem { color: var(--danger); } .diff-chg { color: var(--caution); }
+  .change { font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  del { color: var(--danger); text-decoration-thickness: 1px; } ins { color: var(--proceed); text-decoration: none; font-weight: 600; }
+  .digest { font-family: var(--f-id); font-size: 12px; word-break: break-all; color: var(--ink-2); }
+  .conf { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; background: var(--surface); }
+  .conf > div { padding: 10px 12px; border-right: 1px solid var(--rule-2); font-size: 13px; min-width: 0; overflow-wrap: anywhere; }
+  .conf > div:nth-child(3) { border-right: 0; }
+  .conf h4 { margin: 0 0 6px; font-size: 12px; color: var(--ink-3); font-weight: 600; }
+  .conf .hl { background: var(--mark); padding: 0 3px; border-radius: 2px; }
+  .conf .choices { display: flex; flex-wrap: wrap; gap: 12px; padding: 10px 12px; border-top: 1px solid var(--rule-2); border-right: 0; grid-column: 1 / -1; font-size: 13px; align-items: center; }
+  .hist { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 14px; align-items: start; }
+  .commits { list-style: none; margin: 0; padding: 0; }
+  .commit { box-sizing: border-box; display: grid; grid-template-columns: 36px 1fr; gap: 0 6px; padding: 8px 10px 8px 0; width: 100%; border-radius: 4px; overflow-wrap: anywhere; }
+  .commit:hover { background: var(--panel); }
+  .commit[aria-current="page"] { background: var(--surface); box-shadow: inset 0 0 0 1px var(--rule); }
+  .commit:focus-visible { outline: 2px solid var(--focus); }
+  .rail-g { position: relative; }
+  .rail-g::before { content: ""; position: absolute; left: 17px; top: -8px; bottom: -8px; width: 2px; background: var(--ink-3); }
+  .commits li:first-child .rail-g::before { top: 12px; }
+  .commits li:last-child .rail-g::before { bottom: calc(100% - 12px); }
+  .commits li:only-child .rail-g::before { display: none; }
+  .rail-g i { position: absolute; left: 12px; top: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 2px solid var(--ink); }
+  .k-merge { color: var(--route); } .k-revert { color: var(--caution); } .k-restore { color: var(--draft); } .k-initial { color: var(--ink-2); }
+  .preview-revert { border-color: var(--caution); } .preview-restore { border-color: var(--draft); }
 
   .inbox { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 14px; align-items: start; }
   .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--rule); margin-bottom: 12px; overflow-x: auto; }
@@ -228,7 +272,9 @@
 
   @media (max-width: 1100px) { .stage.open { grid-template-columns: minmax(0, 1fr); } .drawer { max-height: none; position: static; } }
   @media (max-width: 860px) {
-    .signin, .grid2, .inbox { grid-template-columns: minmax(0, 1fr); } .signin h1 { font-size: 30px; }
+    .signin, .grid2, .inbox, .hist, .pbody { grid-template-columns: minmax(0, 1fr); } .signin h1 { font-size: 30px; }
+    .ops { border-right: 0; border-bottom: 1px solid var(--rule-2); } .editor { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .conf { grid-template-columns: minmax(0, 1fr); } .conf > div { border-right: 0; border-bottom: 1px solid var(--rule-2); }
     /* On one column the selected record comes first, so a tap on a list item shows its text without scrolling past the list. */
     .inbox > .card { order: -1; } .rlist { max-height: none; }
   }
@@ -244,5 +290,6 @@
     .rail-foot .btn { padding: 4px 8px; }
     .screen { padding: 14px 16px 40px; } .topbar { padding: 10px 16px; } .status.head { margin: 14px 16px 10px; }
     .parties { grid-template-columns: minmax(0, 1fr); }
+    .editor { grid-template-columns: minmax(0, 1fr); }
   }
 }
