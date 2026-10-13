@@ -28,7 +28,7 @@ export function memoryStore(): MemoryStore {
     },
     async listTokens({ userId, workspaceId, projectId, offset, limit }) {
       return [...tokens.values()].filter(t => t.userId === userId && t.workspaceId === workspaceId && t.projectId === projectId).reverse().slice(offset, offset + limit)
-        .map(({ id, userId, projectId, prefix, scopes, createdAt, expiresAt, revokedAt }) => ({ id, userId, projectId, prefix, scopes, createdAt, expiresAt, revokedAt }));
+        .map(({ id, userId, projectId, prefix, label, scopes, createdAt, expiresAt, revokedAt }) => ({ id, userId, projectId, prefix, label, scopes, createdAt, expiresAt, revokedAt }));
     },
     async revokeToken(input) {
       const token = [...tokens.values()].find(t => t.id === input.tokenId && t.userId === input.userId && t.workspaceId === input.workspaceId && t.projectId === input.projectId);

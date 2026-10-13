@@ -233,6 +233,25 @@
   .k-merge { color: var(--route); } .k-revert { color: var(--caution); } .k-restore { color: var(--draft); } .k-initial { color: var(--ink-2); }
   .preview-revert { border-color: var(--caution); } .preview-restore { border-color: var(--draft); }
 
+  .claims { display: flex; flex-direction: column; gap: 10px; list-style: none; margin: 0; padding: 0; }
+  .claim { border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; overflow-wrap: anywhere; }
+  .verdict { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; display: inline-flex; gap: 5px; align-items: center; white-space: nowrap; }
+  .v-supported { background: var(--proceed-bg); color: var(--proceed); } .v-contradicted { background: var(--danger-bg); color: var(--danger); }
+  .v-contested { background: var(--caution-bg); color: var(--caution); } .v-insufficient { background: var(--sunk); color: var(--ink-2); }
+  .cites { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; font-size: 13px; }
+  .cites h4 { margin: 0 0 4px; font-size: 12px; color: var(--ink-3); font-weight: 600; }
+  .actref { all: unset; cursor: pointer; display: inline; border-bottom: 1.5px solid var(--route); color: var(--route); font-weight: 600; font-size: 13px; }
+  .actref:focus-visible { outline: 2px solid var(--focus); }
+  .answer { font-family: var(--f-doc); font-size: 15px; line-height: 1.65; padding: 14px 16px; background: var(--panel); border-radius: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .answer .actref { font-family: var(--f-ui); font-size: 12px; padding: 0 5px; border: 1px solid var(--route); border-radius: 3px; margin: 0 2px; }
+  .scopes { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip.risk { color: var(--caution); border-color: var(--caution); }
+  .scope-row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--rule-2); border-radius: 4px; font-size: 13px; }
+  .scope-row.risk { border-color: var(--caution); background: var(--caution-bg); }
+  .secret { font-family: var(--f-id); font-size: 13px; padding: 10px 12px; background: var(--ink); color: var(--surface); border-radius: 4px; word-break: break-all; }
+  pre.snip { margin: 0; font-family: var(--f-id); font-size: 12px; padding: 12px; background: var(--sunk); border-radius: 4px; overflow: auto; }
+  tr.inactive { opacity: .6; }
+
   .inbox { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 14px; align-items: start; }
   .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--rule); margin-bottom: 12px; overflow-x: auto; }
   .tabs a { padding: 8px 12px; font-weight: 600; font-size: 13px; color: var(--ink-2); border-bottom: 2px solid transparent; white-space: nowrap; }
@@ -274,7 +293,7 @@
   @media (max-width: 860px) {
     .signin, .grid2, .inbox, .hist, .pbody { grid-template-columns: minmax(0, 1fr); } .signin h1 { font-size: 30px; }
     .ops { border-right: 0; border-bottom: 1px solid var(--rule-2); } .editor { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-    .conf { grid-template-columns: minmax(0, 1fr); } .conf > div { border-right: 0; border-bottom: 1px solid var(--rule-2); }
+    .conf, .cites { grid-template-columns: minmax(0, 1fr); } .conf > div { border-right: 0; border-bottom: 1px solid var(--rule-2); }
     /* On one column the selected record comes first, so a tap on a list item shows its text without scrolling past the list. */
     .inbox > .card { order: -1; } .rlist { max-height: none; }
   }

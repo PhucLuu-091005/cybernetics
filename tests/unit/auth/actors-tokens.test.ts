@@ -111,6 +111,7 @@ describe('hashed project agent tokens', () => {
     const s = await setup(); const created = await s.tokens.createToken(s.ctx, { projectId: s.projectId, label: 'Agent', idempotencyKey: 'list-1' });
     const listed = await s.tokens.listTokens(s.ctx, { projectId: s.projectId });
     expect(listed).toEqual({ projectId: s.projectId, items: [created.token], nextCursor: null, requestId: 'test' });
+    expect(listed.items[0]).toMatchObject({ label: 'Agent', prefix: created.secret.slice(0, 8) });
     expect(JSON.stringify(listed)).not.toContain(createHash('sha256').update(created.secret).digest('hex'));
     await expect(s.tokens.listTokens(s.ctx, { projectId: s.projectId, cursor: 'forged' })).rejects.toMatchObject({ code: 'VALIDATION' });
     await expect(s.tokens.listTokens(s.ctx, { projectId: randomUUID() })).rejects.toMatchObject({ code: 'NOT_FOUND' });

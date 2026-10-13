@@ -14,6 +14,10 @@ export function shortStamp(instant: string, timeZone: string): string {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone, month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(instant)).map(part => [part.type, part.value]));
   return `${Number(parts.day)} ${MONTHS[Number(parts.month) - 1]} ${parts.hour}:${parts.minute}`;
 }
+export function shortDay(instant: string, timeZone: string, withYear = false): string {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(new Date(instant)).map(part => [part.type, part.value]));
+  return `${Number(parts.day)} ${MONTHS[Number(parts.month) - 1]}${withYear ? ` ${parts.year}` : ''}`;
+}
 export function shortDate(date: string): string {
   const [year, month, day] = date.split('-').map(Number);
   return `${day} ${MONTHS[month - 1]} ${year}`;

@@ -15,7 +15,7 @@ export const ActorContextSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('agent'), userId: TextSchema, tokenId: IdSchema, ...verified }),
 ]);
 export type ActorContext = z.infer<typeof ActorContextSchema>;
-export const AgentTokenSchema = z.strictObject({ id: IdSchema, userId: TextSchema, projectId: IdSchema, prefix: TextSchema, scopes: z.array(ScopeSchema), createdAt: TimestampSchema, expiresAt: TimestampSchema, revokedAt: TimestampSchema.nullable() });
+export const AgentTokenSchema = z.strictObject({ id: IdSchema, userId: TextSchema, projectId: IdSchema, prefix: TextSchema, label: z.string().min(1).max(200), scopes: z.array(ScopeSchema), createdAt: TimestampSchema, expiresAt: TimestampSchema, revokedAt: TimestampSchema.nullable() });
 export type AgentToken = z.infer<typeof AgentTokenSchema>;
 export const CreateAgentTokenInputSchema = z.strictObject({ projectId: IdSchema, scopes: z.array(ScopeSchema).min(1).default(() => [...DEFAULT_AGENT_SCOPES]), expiresAt: TimestampSchema.optional(), label: z.string().min(1).max(200), idempotencyKey: IdempotencyKeySchema });
 export type CreateAgentTokenInput = z.infer<typeof CreateAgentTokenInputSchema>;

@@ -21,8 +21,8 @@ export function createTokenService(store: HttpIdentityStore, now: () => number =
       const createdAt = new Date(now()).toISOString(), expiresAt = input.expiresAt ?? new Date(now() + 30 * 86_400_000).toISOString();
       if (Date.parse(expiresAt) <= now()) throw new AppError('VALIDATION', 'Token expiry must be in the future');
       const secret = `inv_${randomBytes(32).toString('base64url')}`;
-      const token = { id: randomUUID(), userId: ctx.userId, projectId: input.projectId, prefix: secret.slice(0, 8), scopes: [...new Set(input.scopes)], createdAt, expiresAt, revokedAt: null };
-      await store.insertToken({ ...token, hash: createHash('sha256').update(secret).digest('hex'), workspaceId: ctx.workspaceId, label: input.label, idempotencyKey: input.idempotencyKey, requestDigest: canonicalHash(input) });
+      const token = { id: randomUUID(), userId: ctx.userId, projectId: input.projectId, prefix: secret.slice(0, 8), label: input.label, scopes: [...new Set(input.scopes)], createdAt, expiresAt, revokedAt: null };
+      await store.insertToken({ ...token, hash: createHash('sha256').update(secret).digest('hex'), workspaceId: ctx.workspaceId, idempotencyKey: input.idempotencyKey, requestDigest: canonicalHash(input) });
       return { token, secret, requestId: ctx.requestId };
     },
     async listTokens(ctx: ActorContext, raw: ListTokensInput): Promise<ListAgentTokensResult> {

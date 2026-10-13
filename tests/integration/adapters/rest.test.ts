@@ -129,7 +129,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
     const page = await call('GET', `/projects/${projectId}/agent-tokens?limit=1`);
     expect(page.status).toBe(200);
     expect(page.body).toMatchObject({ projectId, items: [expect.any(Object)], nextCursor: expect.any(String) });
-    expect(Object.keys(page.body.items[0]).sort()).toEqual(['createdAt', 'expiresAt', 'id', 'prefix', 'projectId', 'revokedAt', 'scopes', 'userId']);
+    expect(Object.keys(page.body.items[0]).sort()).toEqual(['createdAt', 'expiresAt', 'id', 'label', 'prefix', 'projectId', 'revokedAt', 'scopes', 'userId']);
     const rest = await call('GET', `/projects/${projectId}/agent-tokens?limit=1&cursor=${page.body.nextCursor}`);
     expect(rest.body.nextCursor).toBeNull();
     expect(new Set([page.body.items[0].id, rest.body.items[0].id]).size).toBe(2);

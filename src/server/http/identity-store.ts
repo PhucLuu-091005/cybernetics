@@ -1,6 +1,6 @@
 import type { AgentToken, Scope } from '../../contracts';
 export type Membership = { userId: string; workspaceId: string };
-export type StoredToken = AgentToken & { workspaceId: string; hash: string; label: string; idempotencyKey: string; requestDigest?: string };
+export type StoredToken = AgentToken & { workspaceId: string; hash: string; idempotencyKey: string; requestDigest?: string };
 /** All lookups must check ownership/current membership, never trust body-provided scope. */
 export interface HttpIdentityStore {
   /** Creates the user, a personal workspace and its membership in one transaction when the subject is new. */

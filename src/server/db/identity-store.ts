@@ -59,7 +59,7 @@ export class DbIdentityStore implements HttpIdentityStore {
   async listTokens(input: { userId: string; workspaceId: string; projectId: string; offset: number; limit: number }): Promise<AgentToken[]> {
     if (![input.userId, input.workspaceId, input.projectId].every(isId)) return [];
     const t = agentTokens;
-    const rows = await this.db.select({ id: t.id, userId: t.userId, projectId: t.projectId, prefix: t.prefix, scopes: t.scopes, createdAt: t.createdAt, expiresAt: t.expiresAt, revokedAt: t.revokedAt }).from(t)
+    const rows = await this.db.select({ id: t.id, userId: t.userId, projectId: t.projectId, prefix: t.prefix, label: t.label, scopes: t.scopes, createdAt: t.createdAt, expiresAt: t.expiresAt, revokedAt: t.revokedAt }).from(t)
       .where(and(eq(t.userId, input.userId), eq(t.workspaceId, input.workspaceId), eq(t.projectId, input.projectId))).orderBy(desc(t.createdAt), desc(t.id)).limit(input.limit).offset(input.offset);
     return rows.map(row => ({ ...row, createdAt: toIso(row.createdAt), expiresAt: toIso(row.expiresAt), revokedAt: row.revokedAt === null ? null : toIso(row.revokedAt) }));
   }
