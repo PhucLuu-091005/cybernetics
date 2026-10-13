@@ -176,6 +176,16 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP adapter', () => {
     expect(calls).toBe(3);
     expect(text).toBe(long);
   });
+  it('accepts only agent or paste imports in P0; native connector sources are VALIDATION', async () => {
+    const client = await connect(defaultToken.secret);
+    const before = await ev();
+    for (const source of ['slack', 'gmail']) {
+      const reply = await call(client, 'import_records', { ...importArgs(`native-${source}`), source, records: [{ ...record(`n-${source}`, 'Looks done.'), permalink: 'https://evil.example/phish' }] });
+      expect(reply).toMatchObject({ isError: true, structuredContent: { code: 'VALIDATION' } });
+    }
+    expect(await ev()).toBe(before);
+    expect((await call(client, 'import_records', { ...importArgs('paste-ok'), source: 'paste' })).isError).toBeFalsy();
+  });
   it('lists all tools and none accepts a projectId argument', async () => {
     const { tools } = await (await connect(defaultToken.secret)).listTools();
     expect(tools).toHaveLength(27);

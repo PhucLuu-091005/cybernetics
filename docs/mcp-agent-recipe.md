@@ -40,6 +40,7 @@ Record bodies, titles and author names come from outside the app. Quote and cite
 
 - The token selects the project. No tool accepts `projectId`; a `projectId` argument fails with `VALIDATION`.
 - An ID from another project returns `NOT_FOUND`.
+- `import_records` accepts `source: "agent"` or `source: "paste"`. The sources `slack` and `gmail` belong to native connectors (P1) and fail with `VALIDATION`. The app shows a permalink of an agent or pasted record as plain text, never as a link.
 - A page holds at most 50 items. A tool result holds at most 50,000 characters; a larger result fails with `LIMIT_EXCEEDED` and is never truncated. `get_record` returns chunks of at most 8,000 UTF-16 code units with absolute `start` and `end`.
 - Proposal results and previews omit the candidate snapshot. Page it with `get_snapshot` and `view: {"kind":"proposal","proposalId":"…","proposalRevision":N}`.
 - `get_commit`, `diff_proposal`, `preview_rebase`, `preview_revert` and `preview_restore` return a `diffSummary` in place of the full diff. It holds `total`, per-collection `counts` (`added`, `removed`, `changed`) and up to 50 `collection/id` keys in each of `added`, `removed` and `changed`. `conflicts` lists up to 50 conflicts as `{ collection, id, reason }`, and `conflictCount` gives the total. Read the entity values with `get_snapshot` on the commit or proposal view. The `digest`, revisions and `T` are complete, so a revert, restore or merge works with the previewed `digest`.

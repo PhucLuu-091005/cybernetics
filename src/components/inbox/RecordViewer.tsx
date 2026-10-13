@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Alias, InboxState, QuotedRange, SourceKind } from '../../contracts';
 import { createDraft, type Basis } from './api';
-import { SOURCE_LABEL, STATE_LABEL, STATE_TONE } from './links';
+import { activePermalink, SOURCE_LABEL, STATE_LABEL, STATE_TONE } from './links';
 import { formatCite, segmentBody, selectionToCitation } from './selection';
 
 export type ViewedRecord = {
@@ -52,7 +52,7 @@ export function RecordViewer({ projectId, record, state, decision, hints, propos
   const [pick, setPick] = useState<PickResult | null>(null);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
-  const linkable = record.permalink && (record.source === 'slack' || record.source === 'gmail');
+  const link = activePermalink(record);
 
   // Document-level, so a drag released outside the body and a keyboard selection both count.
   useEffect(() => {
@@ -92,7 +92,7 @@ export function RecordViewer({ projectId, record, state, decision, hints, propos
         <dt>From</dt><dd>{record.withdrawn ? 'Withdrawn by source' : <>{record.author.name}{record.author.email ? ` <${record.author.email}>` : ''}</>}</dd>
         {!record.withdrawn && record.recipients.length > 0 && <><dt>To</dt><dd>{record.recipients.map(alias => alias.name).join(', ')}</dd></>}
         <dt>Sent</dt><dd>{record.when}</dd>
-        <dt>Source</dt><dd>{record.sourceLabel} ({SOURCE_LABEL[record.source]}){linkable ? <> · <a href={record.permalink!} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--route)', fontWeight: 600 }}>Open in {record.source === 'slack' ? 'Slack' : 'Gmail'}</a></> : null}</dd>
+        <dt>Source</dt><dd>{record.sourceLabel} ({SOURCE_LABEL[record.source]}){link ? <> · <a href={link} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--route)', fontWeight: 600 }}>Open in {record.source === 'slack' ? 'Slack' : 'Gmail'}</a></> : record.permalink ? <> · <span className="faint" style={{ overflowWrap: 'anywhere' }}>{record.permalink}</span></> : null}</dd>
         {record.attachmentNames.length > 0 && <><dt>Attachments</dt><dd>{record.attachmentNames.join(', ')} <span className="faint">(names only, not imported)</span></dd></>}
         <dt>Thread hint</dt>
         <dd>

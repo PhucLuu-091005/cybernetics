@@ -115,7 +115,7 @@ test('list view shows the same loops as the graph with the same filters', async 
 
 const projectIdOf = (page: Page) => new URL(page.url()).pathname.split('/')[2];
 
-test('the loop panel shows each quote inside its surrounding text, with the source and an https permalink', async ({ page }) => {
+test('the loop panel shows each quote inside its surrounding text, with the source and an agent permalink as plain text', async ({ page }) => {
   await signIn(page);
   await page.getByRole('button', { name: /^Loop: Client secret renewal/ }).click();
   const panel = loopPanel(page);
@@ -125,8 +125,9 @@ test('the loop panel shows each quote inside its surrounding text, with the sour
   const block = panel.getByTestId('quote-context').first();
   await expect.poll(async () => (await block.innerText()).trim().length).toBeGreaterThan(quote.length);
   expect(await block.innerText()).toContain(quote);
-  const open = panel.getByRole('link', { name: /^Open in Slack$/ }).first();
-  await expect(open).toHaveAttribute('href', /^https:\/\//);
+  // SRD 17: the seed arrives through the agent path, so its Slack-shaped permalinks stay inactive text.
+  await expect(panel.getByText(/^https:\/\/fundline-larkspur\.slack\.example\//).first()).toBeVisible();
+  await expect(panel.getByRole('link', { name: /^Open in/ })).toHaveCount(0);
   await expect(panel.getByText('#larkspur-it').first()).toBeVisible();
 });
 

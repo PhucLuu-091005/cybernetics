@@ -5,6 +5,11 @@ export const STATE_LABEL: Record<InboxState, string> = { pending: 'Pending', inc
 export const STATE_TONE: Record<InboxState, string> = { pending: 'var(--caution)', included: 'var(--proceed)', ignored: 'var(--isolated)', superseded: 'var(--isolated)', withdrawn: 'var(--danger)' };
 export const SOURCE_LABEL: Record<SourceKind, string> = { paste: 'Paste', agent: 'Imported by agent', slack: 'Slack', gmail: 'Gmail' };
 
+/** SRD 17: only a stored https permalink from a native Slack or Gmail source becomes an active link; any other URL is shown as text. */
+export function activePermalink({ source, permalink }: { source: SourceKind; permalink: string | null }): string | null {
+  return permalink?.startsWith('https://') && (source === 'slack' || source === 'gmail') ? permalink : null;
+}
+
 export type InboxQuery = { state: InboxState; proposal: string | null; r?: string | null; cursor?: string | null };
 /** The URL holds the tab, the selected record and the selected draft, so a link reproduces the view. */
 export function inboxHref(projectId: string, query: InboxQuery): string {

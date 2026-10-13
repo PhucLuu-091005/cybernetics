@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { ActTypeSchema, type ActType, type DerivedAct, type DerivedLoop, type GraphOperation, type GraphSnapshot, type LoopAct, type Milestone, type ViewSelection } from '../../contracts';
+import { activePermalink } from '../inbox/links';
 import { ConflictBanner } from '../review/ConflictBanner';
 import { useDraftEdit, type EditTarget } from '../review/draft-edit';
 import { changeActType, hideAct, moveAct, setLoopMilestone, toAct } from '../review/operations';
@@ -153,7 +154,7 @@ export function LoopPanel({ projectId, loop, directory, milestones, timeZone, T,
           {loop.acts.length === 0 ? <p className="faint" style={{ fontSize: 13 }}>No acts yet at the evaluation time.</p> : (
             <ol className="steps" aria-label="Steps">
               {loop.acts.map((act, index) => {
-                const detail = evidence?.get(act.id), name = detail ? sourceName(detail) : null;
+                const detail = evidence?.get(act.id), name = detail ? sourceName(detail) : null, link = detail ? activePermalink(detail) : null;
                 return (
                 <li key={act.id} ref={index === currentActIndex ? current : undefined} className="step" aria-current={index === currentActIndex ? 'step' : undefined}>
                   <span className="g"><svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><Glyph type={act.type} x={11} y={11} color={tone} /></svg></span>
@@ -180,7 +181,7 @@ export function LoopPanel({ projectId, loop, directory, milestones, timeZone, T,
                     ? <div className="q"><span className="badge b-stale">Unavailable evidence</span> <span className="faint" style={{ fontSize: 12 }}>The source withdrew this record. Its text stays hidden in every view.</span></div>
                     : <div className="q quote" data-testid="quote-context">{detail?.context?.before}<mark data-testid="verified-quote">{act.quote}</mark>{detail?.context?.after}</div>}
                   <div className="links">
-                    {detail?.permalink?.startsWith('https://') && <a href={detail.permalink} target="_blank" rel="noopener noreferrer">{name ? `Open in ${name}` : 'Open source'}</a>}
+                    {link ? <a href={link} target="_blank" rel="noopener noreferrer">{name ? `Open in ${name}` : 'Open source'}</a> : detail?.permalink ? <span className="faint" style={{ overflowWrap: 'anywhere' }}>{detail.permalink}</span> : null}
                     <Link href={`/projects/${projectId}/records/${act.citation.recordVersionId}`}>View record</Link>
                     {detail && <span className="faint">{detail.sourceLabel}</span>}
                   </div>

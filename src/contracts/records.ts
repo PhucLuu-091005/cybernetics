@@ -3,6 +3,8 @@ import { DateSchema, DigestSchema, FieldErrorSchema, IdSchema, IdempotencyKeySch
 import { ActorReferenceSchema } from './identity';
 
 export const SourceKindSchema = z.enum(['paste', 'agent', 'slack', 'gmail']);
+/** Slack and Gmail records arrive only through native connectors (P1), so their permalinks can be trusted; P0 imports cannot claim those sources. */
+export const ImportSourceSchema = SourceKindSchema.extract(['paste', 'agent']);
 export const AliasSchema = z.strictObject({ name: z.string().min(1).max(200), email: z.email().nullable().optional(), slackUserId: z.string().min(1).max(256).nullable().optional() });
 export const QuotedRangeSchema = z.strictObject({ start: RevisionSchema, end: RevisionSchema }).refine(value => value.start < value.end, 'Range end must follow start');
 export const PermalinkSchema = z.url().refine(value => new URL(value).protocol === 'https:', 'Only HTTPS permalinks are supported');
@@ -20,7 +22,7 @@ export const RecordVersionSchema = RecordVersionBaseSchema.superRefine((value, c
     if (!isUtf16Boundary(value.bodyText, range.start) || !isUtf16Boundary(value.bodyText, range.end)) ctx.addIssue({ code: 'custom', path: ['quotedRanges', index], message: 'Range must use valid absolute UTF-16 boundaries within the body' });
   });
 });
-export const IngestRecordsInputSchema = boundedJson(z.strictObject({ projectId: IdSchema, source: SourceKindSchema, sourceLabel: recordFields.sourceLabel, records: z.array(RecordInputSchema).min(1).max(25), idempotencyKey: IdempotencyKeySchema }), 2 * 1024 * 1024);
+export const IngestRecordsInputSchema = boundedJson(z.strictObject({ projectId: IdSchema, source: ImportSourceSchema, sourceLabel: recordFields.sourceLabel, records: z.array(RecordInputSchema).min(1).max(25), idempotencyKey: IdempotencyKeySchema }), 2 * 1024 * 1024);
 export const IngestItemResultSchema = z.discriminatedUnion('decision', [
   z.strictObject({ index: RevisionSchema, decision: z.enum(['new', 'duplicate', 'new_version']), recordId: IdSchema, recordVersionId: IdSchema }),
   z.strictObject({ index: RevisionSchema, decision: z.literal('invalid'), errors: z.array(FieldErrorSchema).min(1) }),
@@ -57,5 +59,5 @@ export type SearchRecordsResult = z.infer<typeof SearchRecordsResultSchema>;
 export type WithdrawRecordInput = z.infer<typeof WithdrawRecordInputSchema>;
 export type WithdrawRecordResult = z.infer<typeof WithdrawRecordResultSchema>;
 /** Validate the batch envelope first, then each item separately to retain invalid-item receipts. */
-export const IngestEnvelopeSchema = boundedJson(z.strictObject({ projectId: IdSchema, source: SourceKindSchema, sourceLabel: recordFields.sourceLabel, records: z.array(z.json()).min(1).max(25), idempotencyKey: IdempotencyKeySchema }), 2 * 1024 * 1024);
+export const IngestEnvelopeSchema = boundedJson(z.strictObject({ projectId: IdSchema, source: ImportSourceSchema, sourceLabel: recordFields.sourceLabel, records: z.array(z.json()).min(1).max(25), idempotencyKey: IdempotencyKeySchema }), 2 * 1024 * 1024);
 export type IngestEnvelope = z.infer<typeof IngestEnvelopeSchema>;

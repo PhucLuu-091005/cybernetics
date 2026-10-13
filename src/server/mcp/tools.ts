@@ -49,7 +49,7 @@ function tool(name: string, scope: Scope, schema: { shape: Shape }, description:
 
 export const MCP_TOOLS: readonly McpTool[] = [
   tool('get_project', 'project:read', GetProjectInputSchema, 'Read the project context, main commit, evidence revision, pending evidence count and analysis freshness. Start here.', getProject),
-  tool('import_records', 'records:import', IngestEnvelopeSchema, 'Import up to 25 records (author, recipients, title, bodyText, occurredAt or occurredDate, optional externalId/threadExternalId/parentExternalId) with an idempotency key. Returns a decision and version ID per item. Imports never change the graph.', ingestRecords),
+  tool('import_records', 'records:import', IngestEnvelopeSchema, 'Import up to 25 records with source agent or paste (author, recipients, title, bodyText, occurredAt or occurredDate, optional externalId/threadExternalId/parentExternalId) with an idempotency key. Returns a decision and version ID per item. Imports never change the graph.', ingestRecords),
   tool('list_inbox', 'project:read', ListInboxInputSchema, `Page record versions with headers, inbox state and the selected view's proposed disposition. ${UNTRUSTED}`, listInbox),
   tool('search_records', 'project:read', SearchRecordsInputSchema, `Search record text with optional source and time filters; returns excerpts and version IDs. ${UNTRUSTED}`, searchRecords),
   tool('get_record', 'project:read', ReadRecordChunkInputSchema, `Read a record version in chunks of at most 8,000 UTF-16 code units with absolute start/end, digest and source/thread metadata. Follow nextCursor until null to read the full text. ${UNTRUSTED}`, readRecordChunk),
