@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DateSchema, DigestSchema, IdSchema, IdempotencyKeySchema, RevisionSchema, TextSchema, TimestampSchema } from './primitives';
+import { DateSchema, DigestSchema, IdSchema, IdempotencyKeySchema, PageInputSchema, RevisionSchema, TextSchema, TimestampSchema } from './primitives';
 import { ActorReferenceSchema } from './identity';
 
 export const VerdictSchema = z.enum(['supported', 'contradicted', 'contested', 'insufficient']);
@@ -11,7 +11,7 @@ export const EscalationSchema = z.strictObject({ id: IdSchema, projectId: IdSche
 export const OpenEscalationInputSchema = z.strictObject({ projectId: IdSchema, complaint: z.string().min(1).max(20000), idempotencyKey: IdempotencyKeySchema });
 export const SaveEscalationAnalysisInputSchema = z.strictObject({ projectId: IdSchema, escalationId: IdSchema, graphCommitId: IdSchema, expectedMainCommitId: IdSchema, expectedEvidenceRevision: RevisionSchema, expectedAnalysisRevision: RevisionSchema.nullable(), claims: z.array(ClaimInputSchema).min(1).max(6), answerText: z.string().max(20000), idempotencyKey: IdempotencyKeySchema });
 export const ApproveAnswerInputSchema = z.strictObject({ projectId: IdSchema, escalationId: IdSchema, analysisId: IdSchema, expectedAnalysisRevision: RevisionSchema, expectedMainCommitId: IdSchema, expectedEvidenceRevision: RevisionSchema, contentHash: DigestSchema, idempotencyKey: IdempotencyKeySchema });
-export const GetEscalationInputSchema = z.strictObject({ projectId: IdSchema, escalationId: IdSchema });
+export const GetEscalationInputSchema = PageInputSchema.extend({ projectId: IdSchema, escalationId: IdSchema });
 export const GetEscalationResultSchema = z.strictObject({ projectId: IdSchema, escalation: EscalationSchema, analyses: z.array(EscalationAnalysisSchema).max(50), mainCommitId: IdSchema, evidenceRevision: RevisionSchema, stale: z.boolean(), nextCursor: z.string().nullable(), requestId: TextSchema });
 export type Verdict = z.infer<typeof VerdictSchema>;
 export type ClaimInput = z.infer<typeof ClaimInputSchema>;

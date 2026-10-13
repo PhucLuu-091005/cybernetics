@@ -9,7 +9,7 @@ const id = '10000000-0000-4000-8000-000000000001';
 const actor = {kind:'user',userId:'user_clerk',workspaceId:id,projectId:null,scopes:['project:read'],requestId:'test'};
 
 it('defaults tokens to read/import/propose without granting merge', () => {
-  const parsed = CreateAgentTokenInputSchema.safeParse({projectId:id,label:'Desktop agent'});
+  const parsed = CreateAgentTokenInputSchema.safeParse({projectId:id,label:'Desktop agent',idempotencyKey:'default-scope-token'});
   expect(parsed.success).toBe(true);
   if (parsed.success) expect(parsed.data.scopes).toEqual(['project:read','records:import','graph:propose']);
 });
