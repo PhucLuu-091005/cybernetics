@@ -111,6 +111,17 @@ describe('breakdowns and cycle history', () => {
     expect(types(fixture([hedge], '2026-10-12T12:00:00Z'))).not.toContain('ambiguous_promise');
     for (const resolution of [{ type: 'promise' }, { type: 'report_done' }, { type: 'cancel' }] as Step[]) expect(types(fixture([hedge, resolution]))).not.toContain('ambiguous_promise');
   });
+  it('ambiguous promise sentence keeps one final punctuation mark after the quote', () => {
+    const sentence = (body: string) => {
+      const input = fixture([{ type: 'promise', hedged: true, citation: { recordVersionId: uuid('record-0'), start: 0, end: body.length } }]);
+      input.records[0].bodyText = body;
+      return loop(input).breakdowns.find(item => item.type === 'ambiguous_promise')!.sentence;
+    };
+    expect(sentence("We'll look into it.")).toBe('Ben said "We\'ll look into it." The client may read this as a commitment.');
+    expect(sentence('Maybe next week?')).toBe('Ben said "Maybe next week?" The client may read this as a commitment.');
+    expect(sentence('Sure thing!')).toBe('Ben said "Sure thing!" The client may read this as a commitment.');
+    expect(sentence("We'll look into it")).toBe('Ben said "We\'ll look into it". The client may read this as a commitment.');
+  });
   it('unconfirmed delivery clears on acceptance or rejection and uses business day threshold', () => {
     expect(types(fixture(delivered))).toContain('unconfirmed_delivery');
     expect(types(fixture(delivered, '2026-10-13T12:00:00Z'))).not.toContain('unconfirmed_delivery');
