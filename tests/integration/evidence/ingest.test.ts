@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { agentActor, createTestDatabase, testActor, type TestDb } from '../../support/db';
 import { envelopeFor, mainSnapshotJson, projectRow, record, versionCount } from '../../support/evidence';
 import { createProject } from '../../../src/server/domain/projects';
 import { ingestRecords } from '../../../src/server/domain/records';
-import { recordVersions, records } from '../../../src/server/db/schema';
+import { mutationReceipts, recordVersions, records } from '../../../src/server/db/schema';
 import { IngestReceiptSchema, type ActorContext, type Project } from '../../../src/contracts';
 
 describe.skipIf(!process.env.TEST_DATABASE_URL)('record ingest', () => {
@@ -59,8 +59,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('record ingest', () => {
     const stamped = await t.db.select({ evidenceRevision: recordVersions.evidenceRevision }).from(recordVersions).where(inArray(recordVersions.externalId, ['n1', 'n2']));
     expect(stamped.map(row => row.evidenceRevision)).toEqual([before + 1, before + 1, before + 1]);
     const [n1] = await t.db.select().from(records).where(eq(records.externalId, 'n1'));
-    const third = receipt.items[2];
-    expect(third.decision !== 'invalid' && n1.currentVersionId === third.recordVersionId && n1.id === third.recordId).toBe(true);
+    expect(receipt.items[2]).toMatchObject({ decision: 'new_version', recordId: n1.id });
+    expect(receipt.items[2]).toMatchObject({ recordVersionId: n1.currentVersionId });
   });
   it('deduplicates a record without external id by source and digest', async () => {
     const { externalId: _ignored, ...anonymous } = record('unused', 'Pasted without an id');
@@ -79,6 +79,23 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('record ingest', () => {
     const [version] = await t.db.select().from(recordVersions).where(eq(recordVersions.externalId, 'd1'));
     expect(version).toMatchObject({ timePrecision: 'day', occurredDate: '2026-10-01', occurredTimeZone: 'Asia/Ho_Chi_Minh', sourceLabel: 'Paste' });
     expect(new Date(version.occurredAt).toISOString()).toBe('2026-09-30T17:00:00.000Z');
+  });
+  it('reports a quoted range that splits a CRLF pair as an item error', async () => {
+    const receipt = await ingestRecords(t.db, ctx, envelope([{ ...record('q1', 'Line one\r\nLine two'), quotedRanges: [{ start: 0, end: 9 }] }], 'k16'));
+    expect(receipt.items[0]).toMatchObject({ decision: 'invalid', errors: [expect.objectContaining({ path: 'quotedRanges.0' })] });
+  });
+  it('rolls back every item, the evidence revision and the receipt when a later item fails', async () => {
+    const own = await createTestDatabase();
+    try {
+      const owner = await testActor(own.db), target = await createProject(own.db, owner, { title: 'Rollback', clientName: 'R' });
+      await own.db.execute(sql.raw(`CREATE FUNCTION fail_boom() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.body_text = 'boom' THEN RAISE EXCEPTION 'forced failure'; END IF; RETURN NEW; END $$;
+        CREATE TRIGGER fail_boom BEFORE INSERT ON record_versions FOR EACH ROW EXECUTE FUNCTION fail_boom();`));
+      await expect(ingestRecords(own.db, owner, envelopeFor(target.id, [record('r1', 'fine'), record('r2', 'boom')], 'k-rollback'))).rejects.toThrow();
+      expect(await own.db.select().from(recordVersions).where(eq(recordVersions.projectId, target.id))).toEqual([]);
+      expect(await own.db.select().from(records).where(eq(records.projectId, target.id))).toEqual([]);
+      expect((await projectRow(own.db, target.id)).evidenceRevision).toBe(0);
+      expect(await own.db.select().from(mutationReceipts).where(eq(mutationReceipts.projectId, target.id))).toEqual([]);
+    } finally { await own.close(); }
   });
   it('reports field errors for an invalid item and rejects another project as NOT_FOUND', async () => {
     const receipt = await ingestRecords(t.db, ctx, envelope(['not an object'], 'k14'));

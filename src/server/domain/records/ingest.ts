@@ -60,7 +60,6 @@ export async function ingestRecords(db: Db, ctx: ActorContext, input: IngestEnve
       const stored: Stored = { workspaceId: project.workspaceId, projectId: project.id, source: envelope.source, evidenceRevision: project.evidenceRevision + 1, actor: ctx.kind === 'agent' ? { kind: 'agent', userId: ctx.userId, tokenId: ctx.tokenId } : { kind: 'user', userId: ctx.userId }, importedAt: new Date().toISOString() };
       const items: IngestItemResult[] = [];
       for (const [index, raw] of envelope.records.entries()) {
-        // An item may omit its own source label and inherit the batch label.
         const item = RecordInputSchema.safeParse(raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? { sourceLabel: envelope.sourceLabel, ...raw } : raw);
         if (!item.success) { items.push({ index, decision: 'invalid', errors: fieldErrors(item.error) }); continue; }
         let normalized: NormalizedRecord;

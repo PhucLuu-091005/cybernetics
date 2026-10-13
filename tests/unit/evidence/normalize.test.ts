@@ -27,9 +27,20 @@ describe('normalizeRecord', () => {
     const omitted = normalizeRecord(base, 'UTC'), explicit = normalizeRecord({ ...base, author: { name: 'Sarah Kim', email: null, slackUserId: null } }, 'UTC');
     expect(recordDigest(omitted)).toBe(recordDigest(explicit));
   });
-  it('rejects a quoted range that no longer fits the body after CRLF normalization', () => {
-    expect(() => normalizeRecord({ ...base, quotedRanges: [{ start: 0, end: 18 }] }, 'UTC')).toThrow(expect.objectContaining({ code: 'VALIDATION' }));
-    expect(normalizeRecord({ ...base, quotedRanges: [{ start: 0, end: 17 }] }, 'UTC').quotedRanges).toEqual([{ start: 0, end: 17 }]);
+  it('remaps a quoted range after two CRLFs by -2 so it covers the same text', () => {
+    const raw = 'One\r\nTwo\r\nPlease send the CRM mapping', quoted = 'send the CRM mapping', start = raw.indexOf(quoted);
+    const n = normalizeRecord({ ...base, bodyText: raw, quotedRanges: [{ start, end: start + quoted.length }] }, 'UTC');
+    expect(n.quotedRanges).toEqual([{ start: start - 2, end: start - 2 + quoted.length }]);
+    expect(n.bodyText.slice(n.quotedRanges[0].start, n.quotedRanges[0].end)).toBe(quoted);
+  });
+  it('remaps a quoted range across NFC composition', () => {
+    const raw = 'Tra\u0300n ok', n = normalizeRecord({ ...base, bodyText: raw, quotedRanges: [{ start: 6, end: 8 }] }, 'UTC');
+    expect(n.quotedRanges).toEqual([{ start: 5, end: 7 }]);
+    expect(n.bodyText.slice(5, 7)).toBe('ok');
+  });
+  it('rejects a quoted range boundary between CR and LF or inside a combining sequence', () => {
+    expect(() => normalizeRecord({ ...base, quotedRanges: [{ start: 0, end: 9 }] }, 'UTC')).toThrow(expect.objectContaining({ code: 'VALIDATION', extras: { errors: [expect.objectContaining({ path: 'quotedRanges.0' })] } }));
+    expect(() => normalizeRecord({ ...base, bodyText: 'Tra\u0300n', quotedRanges: [{ start: 0, end: 3 }] }, 'UTC')).toThrow(expect.objectContaining({ code: 'VALIDATION', extras: { errors: [expect.objectContaining({ path: 'quotedRanges.0' })] } }));
   });
 });
 

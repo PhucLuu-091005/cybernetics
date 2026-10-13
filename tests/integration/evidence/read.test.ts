@@ -74,6 +74,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('record reads', () => {
   it('rejects a malformed cursor and lets an agent read only its own project', async () => {
     const id = await ingestOne('agent visible');
     await expect(readRecordChunk(t.db, ctx, { projectId: project.id, recordVersionId: id, cursor: 'not-a-cursor' })).rejects.toMatchObject({ code: 'VALIDATION' });
+    await expect(readRecordChunk(t.db, ctx, { projectId: project.id, recordVersionId: id, cursor: '' })).rejects.toMatchObject({ code: 'VALIDATION' });
+    await expect(searchRecords(t.db, ctx, { projectId: project.id, query: 'agent', cursor: '' })).rejects.toMatchObject({ code: 'VALIDATION' });
     const agent = agentActor(ctx, project.id, ['project:read']);
     expect((await readRecordChunk(t.db, agent, { projectId: project.id, recordVersionId: id })).text).toBe('agent visible');
     await expect(readRecordChunk(t.db, agentActor(ctx, project.id, ['records:import']), { projectId: project.id, recordVersionId: id })).rejects.toMatchObject({ code: 'FORBIDDEN' });
@@ -107,6 +109,30 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('record reads', () => {
     expect(second).toMatchObject({ nextCursor: null, items: [expect.objectContaining({ excerpt: expect.stringContaining('quokka') })] });
     expect(new Set([...first.items, ...second.items].map(item => item.recordVersionId)).size).toBe(3);
     await expect(searchRecords(t.db, ctx, { projectId: project.id, query: 'other', cursor: first.nextCursor })).rejects.toMatchObject({ code: 'VALIDATION' });
+  });
+  it('returns the title with zero offsets when only the title matches', async () => {
+    const id = await ingestOne('Body without the marker', 'Wombat schedule');
+    const result = await searchRecords(t.db, ctx, { projectId: project.id, query: 'wombat' });
+    expect(result.items).toEqual([expect.objectContaining({ recordVersionId: id, excerpt: 'Wombat schedule', start: 0, end: 0, withdrawn: false })]);
+  });
+  it('bounds a search page to 50,000 characters and continues at the next item', async () => {
+    const bodies = Array.from({ length: 50 }, (_, i) => `pagebound ${String(i).padStart(2, '0')} ` + 'ữ'.repeat(1_200));
+    for (const batch of [bodies.slice(0, 25), bodies.slice(25)]) {
+      await ingestRecords(t.db, ctx, envelopeFor(project.id, batch.map(body => record(randomUUID(), body)), randomUUID()));
+    }
+    const first = await searchRecords(t.db, ctx, { projectId: project.id, query: 'pagebound' });
+    expect(JSON.stringify(first).length).toBeLessThanOrEqual(50_000);
+    expect(first.items.length).toBeGreaterThan(0);
+    expect(first.items.length).toBeLessThan(50);
+    expect(first.nextCursor).not.toBeNull();
+    const seen = [...first.items];
+    for (let cursor = first.nextCursor; cursor;) {
+      const page = await searchRecords(t.db, ctx, { projectId: project.id, query: 'pagebound', cursor });
+      expect(JSON.stringify(page).length).toBeLessThanOrEqual(50_000);
+      seen.push(...page.items); cursor = page.nextCursor;
+    }
+    expect(seen).toHaveLength(50);
+    expect(new Set(seen.map(item => item.recordVersionId)).size).toBe(50);
   });
   it('loads metadata for current, superseded and withdrawn versions within one project only', async () => {
     const externalId = randomUUID();

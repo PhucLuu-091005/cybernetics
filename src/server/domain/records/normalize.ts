@@ -12,10 +12,20 @@ export type NormalizedRecord = {
 const text = (value: string) => value.replaceAll('\r\n', '\n').normalize('NFC');
 const alias = (value: Alias): NormalizedAlias => ({ name: value.name.normalize('NFC'), email: value.email ?? null, slackUserId: value.slackUserId ?? null });
 
+/** Callers quote the raw body; a boundary maps only when each side normalizes alone to the same text, so it never splits a CRLF pair or a combining sequence. */
+function remapOffset(raw: string, body: string, offset: number): number | null {
+  if (!isUtf16Boundary(raw, offset)) return null;
+  const before = text(raw.slice(0, offset));
+  return before + text(raw.slice(offset)) === body ? before.length : null;
+}
 export function normalizeRecord(input: RecordInput, timeZone: string): NormalizedRecord {
-  const bodyText = text(input.bodyText), quotedRanges = (input.quotedRanges ?? []).map(range => ({ start: range.start, end: range.end }));
-  const errors: FieldError[] = quotedRanges.flatMap((range, index) => isUtf16Boundary(bodyText, range.start) && isUtf16Boundary(bodyText, range.end) ? [] : [{ path: `quotedRanges.${index}`, message: 'Range must use valid absolute UTF-16 boundaries within the normalized body' }]);
-  if (errors.length) throw new AppError('VALIDATION', 'Quoted ranges do not fit the normalized body', { errors });
+  const bodyText = text(input.bodyText), quotedRanges: QuotedRange[] = [], errors: FieldError[] = [];
+  (input.quotedRanges ?? []).forEach((range, index) => {
+    const start = remapOffset(input.bodyText, bodyText, range.start), end = remapOffset(input.bodyText, bodyText, range.end);
+    if (start === null || end === null || start >= end) errors.push({ path: `quotedRanges.${index}`, message: 'Range boundary must not split a line break or a combining sequence' });
+    else quotedRanges.push({ start, end });
+  });
+  if (errors.length) throw new AppError('VALIDATION', 'Quoted ranges do not map onto the normalized body', { errors });
   const time = input.occurredDate !== undefined
     ? { occurredAt: zonedStartOfDay(input.occurredDate, timeZone), occurredDate: input.occurredDate, occurredTimeZone: timeZone, timePrecision: 'day' as const }
     : { occurredAt: new Date(input.occurredAt!).toISOString(), occurredDate: null, occurredTimeZone: null, timePrecision: 'instant' as const };

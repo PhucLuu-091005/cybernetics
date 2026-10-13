@@ -32,7 +32,7 @@ export async function readRecordChunk(db: Db, ctx: ActorContext, raw: z.input<ty
   if (!row) throw new AppError('NOT_FOUND', 'Record version not found');
   const version = toRecordVersion(row.version, row.withdrawnAt !== null);
   const { bodyText: body, ...metadata } = version;
-  const start = input.cursor ? decodeCursor(input.cursor, version.id, body) : 0;
+  const start = input.cursor == null ? 0 : decodeCursor(input.cursor, version.id, body);
   let end = Math.min(start + input.limit, body.length);
   // With limit 1 at a surrogate pair, stepping back would return nothing forever; the whole pair is the smallest valid chunk.
   if (end < body.length && !isUtf16Boundary(body, end)) end = end - 1 > start ? end - 1 : end + 1;
