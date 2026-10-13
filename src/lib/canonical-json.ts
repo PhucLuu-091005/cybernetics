@@ -25,5 +25,10 @@ function normalize(value: unknown, key?: string, ancestors = new Set<object>()):
   if (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) throw new TypeError('Canonical JSON requires plain objects');
   return Object.fromEntries(Object.keys(value).sort().map(property => [property, normalize((value as Record<string, unknown>)[property], property, seen)]));
 }
-export function canonicalJson(value: unknown): string { return JSON.stringify(normalize(value)); }
+function serialize(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(serialize).join(',')}]`;
+  return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${serialize((value as Record<string, unknown>)[key])}`).join(',')}}`;
+}
+export function canonicalJson(value: unknown): string { return serialize(normalize(value)); }
 export function canonicalHash(value: unknown): string { return bytesToHex(sha256(new TextEncoder().encode(canonicalJson(value)))); }

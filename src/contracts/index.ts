@@ -7,3 +7,4 @@ export * from './engine';
 export * from './layout';
 export * from './mcp';
 export * from './escalations';
+export * from './domain';
