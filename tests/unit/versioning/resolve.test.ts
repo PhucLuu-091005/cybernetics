@@ -52,3 +52,78 @@ describe('inverseCommit proposed inverse', () => {
     expect(result.snapshot!.loops[0].title).toBe('Later');
   });
 });
+
+describe('resolveRebase composition conflicts and replacement rules', () => {
+  const deletedAct = () => {
+    const base = snapshot(), candidate = snapshot(), main = snapshot();
+    candidate.acts = []; candidate.annotations = [];
+    main.annotations.push({ id: ids.other, text: 'Main note', actIds: [ids.act] });
+    return { base, candidate, main };
+  };
+  const key = { collection: 'annotations' as const, id: ids.other };
+  it('lists a composition conflict on an entity only main touched and resolves it by replacement', () => {
+    const { base, candidate, main } = deletedAct();
+    const preview = threeWayRebase(base, candidate, main);
+    expect(preview.snapshot).toBeNull();
+    expect(preview.conflicts.map(conflict => ({ collection: conflict.collection, id: conflict.id }))).toEqual([key]);
+    const result = resolveRebase(base, candidate, main, [{ ...key, choice: 'replacement', value: { id: ids.other, text: 'Main note', actIds: [] } }]);
+    expect(result.conflicts).toEqual([]);
+    expect(result.snapshot!.annotations).toEqual([{ id: ids.other, text: 'Main note', actIds: [] }]);
+    expect(result.snapshot!.acts).toEqual([]);
+  });
+  it('resolves a composition conflict and a divergence conflict in one call', () => {
+    const { base, candidate, main } = deletedAct();
+    candidate.loops[0].title = 'Proposal title';
+    main.loops[0].title = 'Main title';
+    const preview = threeWayRebase(base, candidate, main);
+    expect(preview.conflicts.map(conflict => conflict.collection).sort()).toEqual(['annotations', 'loops']);
+    const result = resolveRebase(base, candidate, main, [
+      { collection: 'loops', id: ids.loop, choice: 'proposal' },
+      { ...key, choice: 'replacement', value: null },
+    ]);
+    expect(result.conflicts).toEqual([]);
+    expect(result.snapshot!.loops[0].title).toBe('Proposal title');
+    expect(result.snapshot!.annotations).toEqual([]);
+  });
+  it('keeps a conflict that names the missing entity when a proposal choice recreates an orphan', () => {
+    const base = snapshot(), candidate = snapshot(), main = snapshot();
+    candidate.annotations[0].text = 'Proposal note';
+    main.annotations = []; main.acts = [];
+    const result = resolveRebase(base, candidate, main, [{ collection: 'annotations', id: ids.annotation, choice: 'proposal' }]);
+    expect(result.snapshot).toBeNull();
+    expect(result.conflicts.some(conflict => conflict.reason.includes(ids.act) && /references missing acts/.test(conflict.reason))).toBe(true);
+  });
+  it('rejects a replacement that changes the entity identity', () => {
+    const { base, candidate, main } = divergentPair();
+    const result = resolveRebase(base, candidate, main, [{ collection: 'loops', id: ids.loop, choice: 'replacement', value: { ...main.loops[0], id: ids.other } }]);
+    expect(result.snapshot).toBeNull();
+    expect(result.conflicts[0].reason).toBe("Replacement value must keep the conflict's entity identity.");
+  });
+  it('rejects a duplicate resolution for the same conflict', () => {
+    const { base, candidate, main } = divergentPair();
+    const result = resolveRebase(base, candidate, main, [{ collection: 'loops', id: ids.loop, choice: 'main' }, { collection: 'loops', id: ids.loop, choice: 'proposal' }]);
+    expect(result.snapshot).toBeNull();
+    expect(result.conflicts[0].reason).toBe('Duplicate resolution for this conflict.');
+  });
+  it('returns a conflict for a schema-invalid replacement', () => {
+    const { base, candidate, main } = divergentPair();
+    const result = resolveRebase(base, candidate, main, [{ collection: 'loops', id: ids.loop, choice: 'replacement', value: { ...main.loops[0], title: '' } }]);
+    expect(result.snapshot).toBeNull();
+    expect(result.conflicts.length).toBeGreaterThan(0);
+  });
+  it('accepts a null replacement that deletes an unreferenced entity', () => {
+    const base = snapshot(), candidate = snapshot(), main = snapshot();
+    candidate.annotations[0].text = 'Proposal note';
+    main.annotations[0].text = 'Main note';
+    const result = resolveRebase(base, candidate, main, [{ collection: 'annotations', id: ids.annotation, choice: 'replacement', value: null }]);
+    expect(result.conflicts).toEqual([]);
+    expect(result.snapshot!.annotations).toEqual([]);
+  });
+});
+
+function divergentPair() {
+  const base = snapshot(), candidate = snapshot(), main = snapshot();
+  candidate.loops[0].title = 'Proposal title';
+  main.loops[0].title = 'Main title';
+  return { base, candidate, main };
+}

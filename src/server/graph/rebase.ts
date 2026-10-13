@@ -91,8 +91,17 @@ export function threeWayRebase(base: GraphSnapshot, candidate: GraphSnapshot, ma
     conflicts.push({ collection: change.collection, id: change.id, base: change.before,
       main: current.after, proposed: change.after, reason });
   }
-  // Do not validate a partial composition: unresolved conflicts have no chosen image yet.
-  if (conflicts.length) return { snapshot: null, conflicts };
+  if (conflicts.length) {
+    // Divergent entities default to main's image so reference conflicts on other entities stay resolvable.
+    const divergent = new Set(conflicts.map(conflict => `${conflict.collection}/${conflict.id}`));
+    const defaults = structuredClone(main);
+    for (const change of proposedChanges) {
+      if (!currentChanges.has(`${change.collection}/${change.id}`)) applyChange(defaults, change);
+    }
+    const composed = compositionConflicts(defaults, base, candidate, main, [...proposedChanges, ...mainChanges])
+      .filter(conflict => !divergent.has(`${conflict.collection}/${conflict.id}`));
+    return { snapshot: null, conflicts: [...conflicts, ...composed] };
+  }
   const invalid = compositionConflicts(snapshot, base, candidate, main, [...proposedChanges, ...mainChanges]);
   return invalid.length ? { snapshot: null, conflicts: invalid } : { snapshot, conflicts: [] };
 }
