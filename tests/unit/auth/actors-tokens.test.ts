@@ -57,6 +57,20 @@ describe('multi-workspace browser actors', () => {
     const services = createIdentityServices({ store, env, now: () => 1_000 });
     await expect(services.getBrowserActor(signedRequest(userId, `/api/v1/projects/${project}/graph`))).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
+  it('returns 404 when the store yields a project whose workspace the user no longer belongs to', async () => {
+    const base = memoryStore();
+    const { userId } = await base.provisionUser({ subject: 'google:1', email: null, name: 'A' });
+    const store = { ...base, resolveProject: async (_userId: string, projectId: string) => ({ workspaceId: randomUUID(), projectId }) };
+    const services = createIdentityServices({ store, env, now: () => 1_000 });
+    await expect(services.getBrowserActor(signedRequest(userId, `/api/v1/projects/${randomUUID()}/graph`))).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+  it('returns 404 for a no-project request when the user lacks default-workspace membership', async () => {
+    const store = memoryStore();
+    const { userId } = await store.provisionUser({ subject: 'google:1', email: null, name: 'A' });
+    store.memberships.clear();
+    const services = createIdentityServices({ store, env, now: () => 1_000 });
+    await expect(services.getBrowserActor(signedRequest(userId, '/api/v1/projects'))).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
 });
 describe('hashed project agent tokens', () => {
   it('creates 30-day tokens with read/import/propose only and stores only a hash', async () => {

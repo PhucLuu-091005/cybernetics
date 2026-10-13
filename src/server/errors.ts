@@ -11,7 +11,7 @@ export function privateJson(data: unknown, status = 200): Response {
   return Response.json(data, { status, headers: { 'Cache-Control': 'private, no-store', Vary: 'Cookie, Authorization' } });
 }
 export function errorResponse(error: unknown, requestId: string): Response {
-  if (error instanceof AppError) return privateJson({ code: error.code, message: error.message, ...error.extras, requestId }, statusFor(error.code));
+  if (error instanceof AppError && error.code !== 'INTERNAL') return privateJson({ code: error.code, message: error.message, ...error.extras, requestId }, statusFor(error.code));
   console.error(JSON.stringify({ requestId, error: error instanceof Error ? error.name : 'unknown' }));
   return privateJson({ code: 'INTERNAL', message: 'Internal error', requestId }, 500);
 }

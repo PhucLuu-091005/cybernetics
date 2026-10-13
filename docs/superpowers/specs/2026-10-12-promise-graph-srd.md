@@ -28,7 +28,7 @@ Implementation defaults selected for this revision (not additional owner require
 
 Owner decisions:
 
-- Sign-in uses Google OpenID Connect directly (authorization code with PKCE through the `arctic` library) and an HMAC-signed session cookie. Clerk is removed. A local signed-session mode stays for development and tests only and fails closed in production.
+- Sign-in uses Google OpenID Connect directly (authorization code with PKCE, implemented directly against Google's OAuth endpoints) and an HMAC-signed session cookie. Clerk is removed. A local signed-session mode stays for development and tests only and fails closed in production.
 - The demo needs a live public URL. Deployment is provider-neutral: one Docker image, `DATABASE_URL`, and the environment variables in `.env.example`. The owner selects the host.
 
 Implementation defaults (the owner can override them in review):
@@ -463,7 +463,7 @@ flowchart LR
     K --> X[Optional Slack/Gmail APIs]
 ```
 
-Stack: TypeScript, supported Node LTS, Next.js App Router with Node Route Handlers/standalone output, React, Tailwind/shadcn, React Flow, arctic (Google OpenID Connect), PostgreSQL 17, Drizzle migrations, Zod, Vitest, Playwright. Verify compatibility during skeleton task and pin resolved versions in the lockfile; no speculative model/provider version requirements. Host the Docker image and PostgreSQL on an owner-selected provider; worker is optional until connector work starts. No Redis/object store/AI service is required.
+Stack: TypeScript, supported Node LTS, Next.js App Router with Node Route Handlers/standalone output, React, Tailwind/shadcn, React Flow, Google OpenID Connect (direct), PostgreSQL 17, Drizzle migrations, Zod, Vitest, Playwright. Verify compatibility during skeleton task and pin resolved versions in the lockfile; no speculative model/provider version requirements. Host the Docker image and PostgreSQL on an owner-selected provider; worker is optional until connector work starts. No Redis/object store/AI service is required.
 
 ```text
 src/contracts/                     types and Zod schemas

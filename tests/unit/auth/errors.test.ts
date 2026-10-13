@@ -17,4 +17,9 @@ describe('error mapping', () => {
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ code: 'INTERNAL', message: 'Internal error', requestId: 'req-2' });
   });
+  it('never sends a constructed INTERNAL message or extras', async () => {
+    const response = errorResponse(new AppError('INTERNAL', 'pool exhausted at db-1', { details: { host: 'db-1' } }), 'req-3');
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ code: 'INTERNAL', message: 'Internal error', requestId: 'req-3' });
+  });
 });

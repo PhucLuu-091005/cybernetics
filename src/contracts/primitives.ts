@@ -15,7 +15,7 @@ export const TimeZoneSchema = z.string().min(1).refine(value => {
 export const PageInputSchema = z.strictObject({ cursor: z.string().max(4096).nullable().optional(), limit: z.number().int().min(1).max(50).default(50) });
 export const ErrorCodeSchema = z.enum(['UNAUTHENTICATED', 'FORBIDDEN', 'NOT_FOUND', 'VALIDATION', 'CONFLICT', 'RATE_LIMITED', 'LIMIT_EXCEEDED', 'INTERNAL']);
 export const FieldErrorSchema = z.strictObject({ path: z.string(), message: TextSchema });
-export const DomainErrorSchema = z.strictObject({ code: ErrorCodeSchema, message: TextSchema, errors: z.array(FieldErrorSchema).optional(), requestId: TextSchema });
+export const DomainErrorSchema = z.strictObject({ code: ErrorCodeSchema, message: TextSchema, errors: z.array(FieldErrorSchema).optional(), details: z.unknown().optional(), requestId: TextSchema });
 export type DomainError = z.infer<typeof DomainErrorSchema>;
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 export type FieldError = z.infer<typeof FieldErrorSchema>;

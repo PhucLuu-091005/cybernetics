@@ -22,4 +22,8 @@ describe('signed session', () => {
   it('sets Secure on https and SameSite=Lax so the OAuth redirect lands signed in', () => {
     expect(sessionCookie('v', env)).toBe('pg_session=v; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800; Secure');
   });
+  it('rejects a cookie with a trailing empty segment', () => {
+    const value = signSession({ userId, expiresAt: 2_000 }, env.sessionSecret);
+    expect(() => readSession(request(`pg_session=${value}.`), env, 1_000)).toThrow(/Invalid session/);
+  });
 });

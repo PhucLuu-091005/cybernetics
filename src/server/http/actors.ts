@@ -25,7 +25,7 @@ export function createIdentityServices(options: IdentityOptions) {
       let workspaceId = user.defaultWorkspaceId;
       if (projectId) {
         const project = await store.resolveProject(user.userId, projectId);
-        if (!project) throw new AppError('NOT_FOUND', 'Project not found');
+        if (!project || !await store.resolveMembership(user.userId, project.workspaceId)) throw new AppError('NOT_FOUND', 'Project not found');
         workspaceId = project.workspaceId;
       } else if (!await store.resolveMembership(user.userId, workspaceId)) throw new AppError('NOT_FOUND', 'Workspace not found');
       const write = !['GET', 'HEAD', 'OPTIONS'].includes(request.method);
