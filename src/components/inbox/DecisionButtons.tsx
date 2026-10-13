@@ -49,7 +49,10 @@ export function DecisionButtons({ projectId, recordVersionId, state, proposal, b
     else router.refresh();
   };
 
-  const includeHint = decision === 'included' ? 'Already included in this view.' : citedByVisibleAct ? null : 'Including needs an act that cites this record. Select a span of the text and start an act.';
+  // Main cannot hold a draft act, so including always starts from a selected draft whose act cites the record.
+  const includeHint = !proposal ? 'Including needs a draft with an act that cites this record. Select a span of the text and start an act.'
+    : decision === 'included' ? 'Already included in this draft.'
+    : citedByVisibleAct ? null : 'No act in this draft cites this record yet. Select a span of the text and start an act.';
   const ignoreHint = citedByVisibleAct ? 'Visible acts cite this record. Hide or remove them in the proposal before you ignore it.' : null;
   return (
     <div className="stack">

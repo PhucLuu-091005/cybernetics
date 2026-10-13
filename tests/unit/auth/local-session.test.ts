@@ -28,6 +28,21 @@ describe('local signed-session mode', () => {
     expect(store.users.size).toBe(1);
     expect(store.memberships.size).toBe(1);
   });
+  it('provisions one identity per sign-in label from a form or JSON body and rejects a malformed label', async () => {
+    const store = memoryStore();
+    const post = (body: string, type: string) => new Request(env.appOrigin, { method: 'POST', headers: { origin: env.appOrigin, 'content-type': type }, body });
+    const form = (label: string) => post(new URLSearchParams({ label }).toString(), 'application/x-www-form-urlencoded');
+    const json = (label: string) => post(JSON.stringify({ label }), 'application/json');
+    const inbox = await startLocalSession(form('inbox'), env, store, 1000);
+    expect(await startLocalSession(json('inbox'), env, store, 1000)).toEqual(inbox);
+    await startLocalSession(form('graph-2'), env, store, 1000);
+    await startLocalSession(post('', 'application/x-www-form-urlencoded'), env, store, 1000);
+    await startLocalSession(request(), env, store, 1000);
+    expect([...store.users.values()].map(user => user.subject).sort()).toEqual(['local:dev', 'local:graph-2', 'local:inbox']);
+    for (const label of ['Bad Label', 'a'.repeat(41), '', 'ünicode']) await expect(startLocalSession(form(label), env, store, 1000)).rejects.toMatchObject({ code: 'VALIDATION' });
+    await expect(startLocalSession(post('{"label":7}', 'application/json'), env, store, 1000)).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(store.users.size).toBe(3);
+  });
   it('refuses local sessions in production', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     try {

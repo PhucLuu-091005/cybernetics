@@ -7,30 +7,42 @@ import { assertTokenTransport } from './origin';
 import { MemoryRateLimiter, type RateLimiter } from './rate-limit';
 import { readSession } from './session';
 export type IdentityOptions = { store: HttpIdentityStore; env: AuthEnvironment; now?: () => number; limiter?: RateLimiter };
-export function requestedProject(request: Request): string | null {
-  const match = new URL(request.url).pathname.match(/\/projects\/([^/]+)/);
+export type BrowserSession = { userId: string; defaultWorkspaceId: string };
+export function projectInPath(pathname: string): string | null {
+  const match = pathname.match(/\/projects\/([^/]+)/);
   if (!match) return null;
   const result = IdSchema.safeParse(match[1]);
   if (!result.success) throw new AppError('NOT_FOUND', 'Project not found');
   return result.data;
 }
+export function requestedProject(request: Request): string | null { return projectInPath(new URL(request.url).pathname); }
 export function createIdentityServices(options: IdentityOptions) {
   const { store, env } = options, now = options.now ?? Date.now, limiter = options.limiter ?? new MemoryRateLimiter();
+  /** Verifies the signed session and charges the per-user rate limit; a page render calls it once for the layout and the page together. */
+  async function resolveBrowserSession(request: Request): Promise<BrowserSession> {
+    const session = readSession(request, env, now());
+    const user = await store.resolveSessionUser(session.userId);
+    if (!user) throw new AppError('UNAUTHENTICATED', 'Unknown session');
+    const write = !['GET', 'HEAD', 'OPTIONS'].includes(request.method);
+    limiter.consume(`user:${user.userId}:${write ? 'write' : 'read'}`, write ? 20 : 60, now());
+    return user;
+  }
+  /** Current membership decides access on every call, so a cached session never carries project access. */
+  async function resolveBrowserProject(session: BrowserSession, projectId: string | null): Promise<ActorContext> {
+    let workspaceId = session.defaultWorkspaceId;
+    if (projectId) {
+      const project = await store.resolveProject(session.userId, projectId);
+      if (!project || !await store.resolveMembership(session.userId, project.workspaceId)) throw new AppError('NOT_FOUND', 'Project not found');
+      workspaceId = project.workspaceId;
+    } else if (!await store.resolveMembership(session.userId, workspaceId)) throw new AppError('NOT_FOUND', 'Workspace not found');
+    return { kind: 'user', userId: session.userId, workspaceId, projectId, scopes: [...browserScopes], requestId: newRequestId() };
+  }
   return {
+    resolveBrowserSession,
+    resolveBrowserProject,
     async getBrowserActor(request: Request): Promise<ActorContext> {
-      const session = readSession(request, env, now());
-      const user = await store.resolveSessionUser(session.userId);
-      if (!user) throw new AppError('UNAUTHENTICATED', 'Unknown session');
-      const projectId = requestedProject(request);
-      let workspaceId = user.defaultWorkspaceId;
-      if (projectId) {
-        const project = await store.resolveProject(user.userId, projectId);
-        if (!project || !await store.resolveMembership(user.userId, project.workspaceId)) throw new AppError('NOT_FOUND', 'Project not found');
-        workspaceId = project.workspaceId;
-      } else if (!await store.resolveMembership(user.userId, workspaceId)) throw new AppError('NOT_FOUND', 'Workspace not found');
-      const write = !['GET', 'HEAD', 'OPTIONS'].includes(request.method);
-      limiter.consume(`user:${user.userId}:${write ? 'write' : 'read'}`, write ? 20 : 60, now());
-      return { kind: 'user', userId: user.userId, workspaceId, projectId, scopes: [...browserScopes], requestId: newRequestId() };
+      const session = await resolveBrowserSession(request);
+      return resolveBrowserProject(session, requestedProject(request));
     },
     /** A null scope verifies the token only; the caller must then check scope per operation (the MCP route does so per tool). */
     async getTokenActor(request: Request, scope: Scope | null): Promise<ActorContext> {

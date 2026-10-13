@@ -38,8 +38,10 @@ function Hero() {
   );
 }
 
-export default async function SignInPage() {
+export default async function SignInPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const mode = authMode();
+  const { label } = await searchParams;
+  const localLabel = typeof label === 'string' && /^[a-z0-9-]{1,40}$/.test(label) ? label : null;
   if (mode && await optionalActor('/signin')) redirect('/');
   return (
     <main className="signin">
@@ -52,7 +54,7 @@ export default async function SignInPage() {
       <div className="card pad stack" style={{ maxWidth: 380 }}>
         <h2>Sign in</h2>
         {mode === 'google' && <a className="gbtn" href="/api/auth/google"><GoogleLogo />Continue with Google</a>}
-        {mode === 'local' && <form action="/api/auth/local" method="post"><button className="gbtn" type="submit">Continue (local dev)</button></form>}
+        {mode === 'local' && <form action="/api/auth/local" method="post">{localLabel && <input type="hidden" name="label" value={localLabel} />}<button className="gbtn" type="submit">Continue (local dev{localLabel ? `, ${localLabel}` : ''})</button></form>}
         {mode === null && <p className="bad" role="alert">Sign-in is unavailable until authentication is configured.</p>}
         <p className="muted" style={{ fontSize: 13 }}>Your first visit creates a private sandbox: a copy of the Larkspur Capital demo project with its imported records and reviewed loops.</p>
         <hr style={{ border: 0, borderTop: '1px solid var(--rule-2)', width: '100%' }} />

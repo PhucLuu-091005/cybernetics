@@ -1,13 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const PROJECT = 'Larkspur Capital, Fund III onboarding';
+// Each spec signs in as its own local user, so specs share neither the per-user rate limit nor sandbox state.
 const activeLabel = (page: Page) => page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? '');
 const loopPanel = (page: Page) => page.getByRole('complementary', { name: /loop panel/i });
 const branches = (page: Page) => page.getByRole('button', { name: /^Loop: / });
 const branchTitles = async (page: Page) => (await branches(page).evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label') ?? ''))).map(name => name.slice('Loop: '.length).split(', ')[0]).sort();
 
 async function signIn(page: Page) {
-  await page.goto('/signin');
+  await page.goto('/signin?label=graph');
   await page.getByRole('button', { name: /continue/i }).click();
   await expect(page.getByText(PROJECT)).toBeVisible();
   // Keyboard and wheel handlers attach on hydration; data-ready appears once the client has measured the graph.
@@ -16,7 +17,7 @@ async function signIn(page: Page) {
 }
 
 test('sign in reaches the seeded graph in at most 3 clicks and shows proof in one click', async ({ page }) => {
-  await page.goto('/signin');
+  await page.goto('/signin?label=graph');
   await page.getByRole('button', { name: /continue/i }).click();
   await expect(page.getByText('Larkspur Capital, Fund III onboarding')).toBeVisible();
   await expect(page.getByTestId('main-badge')).toHaveText(/main/i);

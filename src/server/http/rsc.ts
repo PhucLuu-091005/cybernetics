@@ -1,13 +1,15 @@
 import { cookies, headers } from 'next/headers';
+import { cache } from 'react';
 import { notFound, redirect } from 'next/navigation';
 import type { ActorContext } from '../../contracts';
-import { browserActor } from '../app';
+import { browserProjectActor, browserSession } from '../app';
 import { readAuthEnvironment } from '../env';
 import { AppError } from '../errors';
+import { projectInPath } from './actors';
 
 export const RATE_LIMITED_DIGEST = 'RATE_LIMITED';
 
-/** Server components have no Request, so this rebuilds the page GET that browserActor checks for routes. */
+/** Server components have no Request, so this rebuilds the GET that the browser session check reads for routes. */
 export async function pageRequest(path: string): Promise<Request> {
   const [headerList, cookieStore] = await Promise.all([headers(), cookies()]);
   const host = headerList.get('host');
@@ -17,8 +19,11 @@ export async function pageRequest(path: string): Promise<Request> {
   return new Request(new URL(path, `${protocol}//${host}`), { method: 'GET', headers: { host, ...(cookie ? { cookie } : {}) } });
 }
 
+// The layout and the page of one render share this, so a page view verifies the session and charges the read limit once.
+const pageSession = cache(async () => browserSession(await pageRequest('/')));
+
 export async function optionalActor(path: string): Promise<ActorContext | null> {
-  try { return await browserActor(await pageRequest(path)); }
+  try { return await browserProjectActor(await pageSession(), projectInPath(new URL(path, 'http://page.invalid').pathname)); }
   catch (error) {
     if (!(error instanceof AppError)) throw error;
     if (error.code === 'UNAUTHENTICATED') return null;

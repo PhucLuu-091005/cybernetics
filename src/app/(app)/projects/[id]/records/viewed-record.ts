@@ -17,7 +17,7 @@ export async function loadViewedRecord(actor: ActorContext, projectId: string, r
   const when = meta.timePrecision === 'day' ? `${meta.occurredDate} (date only, ${meta.occurredTimeZone ?? timeZone})` : `${shortStamp(meta.occurredAt, timeZone)} ${timeZone}`;
   const record: ViewedRecord = {
     id: meta.id, title: meta.title, header: chunk.header, author: meta.author, recipients: meta.recipients, when, source: meta.source, sourceLabel: meta.sourceLabel,
-    permalink: meta.permalink, attachmentNames: meta.attachmentNames, withdrawn: chunk.withdrawn, text: chunk.text, quotedRanges: meta.quotedRanges, truncated: chunk.nextCursor !== null,
+    permalink: meta.permalink, attachmentNames: meta.attachmentNames, withdrawn: chunk.withdrawn, text: chunk.text, quotedRanges: meta.quotedRanges,
   };
   return { record, hints: hints.map(hint => ({ reason: hint.reason, href: hintHref(hint.recordVersionId) })) };
 }

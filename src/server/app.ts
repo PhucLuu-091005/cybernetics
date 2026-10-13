@@ -5,7 +5,8 @@ import { createDatabase } from './db/client';
 import { DbIdentityStore, type UserCreatedHook } from './db/identity-store';
 import type { Db } from './db/tx';
 import { browserScopes, type HttpIdentityStore } from './http/identity-store';
-import { configureHttpIdentityStore, createToken, getBrowserActor, getTokenActor, listTokens, revokeToken } from './http/runtime';
+import type { BrowserSession } from './http/actors';
+import { configureHttpIdentityStore, createToken, getBrowserActor, getBrowserProjectActor, getBrowserSession, getTokenActor, listTokens, revokeToken } from './http/runtime';
 export type App = { db: Db; identity: HttpIdentityStore; pool: Pool };
 const state = globalThis as typeof globalThis & { promiseApp?: App };
 /** Loaded on first sign-in only, so routes do not carry the fixture JSON. */
@@ -33,6 +34,8 @@ export function configureApp(app: Partial<App> & { db: Db }): App {
 export function resetApp(): void { delete state.promiseApp; }
 // Routes and adapters resolve actors here so the database identity store is installed before runtime.ts reads it.
 export function browserActor(request: Request): Promise<ActorContext> { getApp(); return getBrowserActor(request); }
+export function browserSession(request: Request): Promise<BrowserSession> { getApp(); return getBrowserSession(request); }
+export function browserProjectActor(session: BrowserSession, projectId: string | null): Promise<ActorContext> { getApp(); return getBrowserProjectActor(session, projectId); }
 export function tokenActor(request: Request, scope: Scope | null): Promise<ActorContext> { getApp(); return getTokenActor(request, scope); }
 export function createAgentToken(...args: Parameters<typeof createToken>): ReturnType<typeof createToken> { getApp(); return createToken(...args); }
 export function revokeAgentToken(...args: Parameters<typeof revokeToken>): ReturnType<typeof revokeToken> { getApp(); return revokeToken(...args); }

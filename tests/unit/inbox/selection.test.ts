@@ -26,6 +26,15 @@ describe('selectionToCitation (record viewer, SRD 8.1)', () => {
     expect(selectionToCitation(body, 0, 401, [])).toEqual({ error: 'A quote can be at most 400 characters. This selection has 401.' });
     expect(selectionToCitation(body, 0, 400, [])).toEqual({ start: 0, end: 400, quote: 'x'.repeat(400) });
   });
+  it('keeps Vietnamese offsets and refuses a boundary between a letter and its combining mark', () => {
+    const body = 'Anh Nguyễn ơi, x\u0303 đã gửi';
+    expect(selectionToCitation(body, 4, 10, [])).toEqual({ start: 4, end: 10, quote: 'Nguyễn' });
+    const mark = body.indexOf('\u0303');
+    expect(selectionToCitation(body, mark - 1, mark, [])).toEqual({ error: 'The selection must not split a character.' });
+    expect(selectionToCitation(body, mark, mark + 1, [])).toEqual({ error: 'The selection must not split a character.' });
+    expect(selectionToCitation(body, mark - 1, mark + 1, [])).toEqual({ start: mark - 1, end: mark + 1, quote: 'x\u0303' });
+    expect(selectionToCitation(body, mark + 2, body.length, [])).toEqual({ start: mark + 2, end: body.length, quote: 'đã gửi' });
+  });
   it('refuses offsets that split a surrogate pair or fall outside the body', () => {
     expect(selectionToCitation('a🎉b', 2, 4, [])).toEqual({ error: 'The selection must not split a character.' });
     expect(selectionToCitation('abc', 1, 9, [])).toEqual({ error: 'The selection falls outside the record text.' });

@@ -6,11 +6,14 @@ export const MAX_QUOTE = 400;
 export type Citation = { recordVersionId: string; start: number; end: number; quote: string };
 export type Segment = { start: number; end: number; quoted: boolean };
 
+const COMBINING = /\p{M}/u;
+const splitsCharacter = (body: string, offset: number) => !isUtf16Boundary(body, offset) || (offset > 0 && offset < body.length && COMBINING.test(body[offset]));
+
 /** Offsets are UTF-16 code units, the same unit the server validates citations in. */
 export function selectionToCitation(body: string, domStart: number, domEnd: number, quotedRanges: QuotedRange[]): { start: number; end: number; quote: string } | { error: string } {
   let start = Math.min(domStart, domEnd), end = Math.max(domStart, domEnd);
   if (start < 0 || end > body.length) return { error: 'The selection falls outside the record text.' };
-  if (!isUtf16Boundary(body, start) || !isUtf16Boundary(body, end)) return { error: 'The selection must not split a character.' };
+  if (splitsCharacter(body, start) || splitsCharacter(body, end)) return { error: 'The selection must not split a character.' };
   while (start < end && /\s/.test(body[start])) start++;
   while (end > start && /\s/.test(body[end - 1])) end--;
   if (start === end) return { error: 'Select some text to cite.' };

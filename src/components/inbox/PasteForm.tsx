@@ -49,7 +49,7 @@ export function PasteForm({ projectId, timeZone, mainCommitId, proposalId }: { p
   };
 
   return (
-    <details className="card" open={receipt !== null || undefined}>
+    <details className="card">
       <summary className="pad" style={{ cursor: 'pointer', fontWeight: 700 }}>Paste a record</summary>
       <form className="pad stack" style={{ paddingTop: 0 }} onSubmit={submit}>
         <p className="guarantee"><CheckIcon />Importing never changes main.</p>
