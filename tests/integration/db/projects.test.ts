@@ -1,9 +1,10 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { agentActor, createTestDatabase, testActor, type TestDb } from '../../support/db';
 import { createProject, listProjects } from '../../../src/server/domain/projects';
 import { requireProject } from '../../../src/server/domain/access';
 import { lockProject, toIso, withTransaction } from '../../../src/server/db/tx';
-import { graphCommits } from '../../../src/server/db/schema';
+import { graphCommits, workspaceMembers } from '../../../src/server/db/schema';
 import { canonicalHash } from '../../../src/lib/canonical-json';
 import { CommitBaseSchema, CommitSchema, GraphSnapshotSchema, ProjectSchema } from '../../../src/contracts';
 import { eq } from 'drizzle-orm';
@@ -11,7 +12,7 @@ import { eq } from 'drizzle-orm';
 describe.skipIf(!process.env.TEST_DATABASE_URL)('projects', () => {
   let t: TestDb;
   beforeAll(async () => { t = await createTestDatabase(); });
-  afterAll(async () => { await t.close(); });
+  afterAll(async () => { await t?.close(); });
 
   it('creates a project with an initial commit as main head', async () => {
     const ctx = await testActor(t.db);
@@ -36,6 +37,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('projects', () => {
     expect(GraphSnapshotSchema.safeParse(commit.snapshot).success).toBe(true);
     expect(commit.snapshot.context.timeZone).toBe('Asia/Ho_Chi_Minh');
     expect(commit.snapshotHash).toBe(canonicalHash(commit.snapshot));
+    expect(commit.createdAt).toMatch(/\+00$/);
     const contract = Object.fromEntries(Object.entries({ ...commit, createdAt: toIso(commit.createdAt) }).filter(([key]) => key in CommitBaseSchema.shape));
     expect(CommitSchema.parse(contract)).toMatchObject({ actor: { kind: 'user', userId: ctx.userId }, reviewedEvidenceRevision: 0 });
     expect(await listProjects(t.db, ctx)).toEqual([project]);
@@ -71,5 +73,20 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('projects', () => {
     const project = await createProject(t.db, owner, { title: 'Lock', clientName: 'L' });
     expect((await withTransaction(t.db, tx => lockProject(tx, owner, project.id))).id).toBe(project.id);
     await expect(withTransaction(t.db, tx => lockProject(tx, stranger, project.id))).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+  it('lists and resolves projects across every workspace the user belongs to', async () => {
+    const owner = await testActor(t.db), guest = await testActor(t.db);
+    const shared = await createProject(t.db, owner, { title: 'Shared', clientName: 'S' });
+    const own = await createProject(t.db, guest, { title: 'Own', clientName: 'O' });
+    await t.db.insert(workspaceMembers).values({ workspaceId: owner.workspaceId, userId: guest.userId });
+    expect((await listProjects(t.db, guest)).map(item => item.id).sort()).toEqual([shared.id, own.id].sort());
+    expect(await requireProject(t.db, guest, shared.id)).toMatchObject({ id: shared.id, workspaceId: owner.workspaceId });
+    expect(await withTransaction(t.db, tx => lockProject(tx, guest, shared.id))).toMatchObject({ id: shared.id, workspaceId: owner.workspaceId });
+  });
+  it('rejects an agent whose workspace differs from the project workspace', async () => {
+    const ctx = await testActor(t.db);
+    const project = await createProject(t.db, ctx, { title: 'W', clientName: 'W' });
+    const agent = { ...agentActor(ctx, project.id, ['project:read']), workspaceId: randomUUID() };
+    await expect(requireProject(t.db, agent, project.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 });

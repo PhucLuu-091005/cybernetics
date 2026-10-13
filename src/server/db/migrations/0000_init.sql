@@ -40,7 +40,8 @@ CREATE TABLE "escalations" (
 	"project_id" uuid NOT NULL,
 	"complaint" text NOT NULL,
 	"author" jsonb NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "escalations_project_id_unique" UNIQUE("project_id","id")
 );
 --> statement-breakpoint
 CREATE TABLE "graph_commits" (
@@ -58,7 +59,8 @@ CREATE TABLE "graph_commits" (
 	"target_commit_id" uuid,
 	"reviewed_evidence_revision" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "graph_commits_project_sequence_unique" UNIQUE("project_id","sequence")
+	CONSTRAINT "graph_commits_project_sequence_unique" UNIQUE("project_id","sequence"),
+	CONSTRAINT "graph_commits_project_id_unique" UNIQUE("project_id","id")
 );
 --> statement-breakpoint
 CREATE TABLE "graph_proposals" (
@@ -75,7 +77,8 @@ CREATE TABLE "graph_proposals" (
 	"status" text NOT NULL,
 	"merged_commit_id" uuid,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "graph_proposals_project_id_unique" UNIQUE("project_id","id")
 );
 --> statement-breakpoint
 CREATE TABLE "mutation_receipts" (
@@ -97,7 +100,8 @@ CREATE TABLE "projects" (
 	"main_commit_id" uuid,
 	"evidence_revision" integer DEFAULT 0 NOT NULL,
 	"source_routing" jsonb DEFAULT '[]'::jsonb NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "projects_workspace_id_unique" UNIQUE("workspace_id","id")
 );
 --> statement-breakpoint
 CREATE TABLE "record_versions" (
@@ -126,7 +130,8 @@ CREATE TABLE "record_versions" (
 	"provenance" jsonb NOT NULL,
 	"evidence_revision" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "record_versions_record_version_unique" UNIQUE("record_id","version_no")
+	CONSTRAINT "record_versions_record_version_unique" UNIQUE("record_id","version_no"),
+	CONSTRAINT "record_versions_project_id_unique" UNIQUE("project_id","id")
 );
 --> statement-breakpoint
 CREATE TABLE "records" (
@@ -138,7 +143,8 @@ CREATE TABLE "records" (
 	"current_version_id" uuid,
 	"withdrawn_at" timestamp with time zone,
 	"withdrawn_reason" text,
-	CONSTRAINT "records_project_source_external_unique" UNIQUE("project_id","source","external_id")
+	CONSTRAINT "records_project_source_external_unique" UNIQUE("project_id","source","external_id"),
+	CONSTRAINT "records_project_id_unique" UNIQUE("project_id","id")
 );
 --> statement-breakpoint
 CREATE TABLE "users" (
@@ -163,33 +169,26 @@ CREATE TABLE "workspaces" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "agent_tokens" ADD CONSTRAINT "agent_tokens_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "agent_tokens" ADD CONSTRAINT "agent_tokens_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "agent_tokens" ADD CONSTRAINT "agent_tokens_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "escalation_analyses" ADD CONSTRAINT "escalation_analyses_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "escalation_analyses" ADD CONSTRAINT "escalation_analyses_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "escalation_analyses" ADD CONSTRAINT "escalation_analyses_escalation_id_escalations_id_fk" FOREIGN KEY ("escalation_id") REFERENCES "public"."escalations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "escalation_analyses" ADD CONSTRAINT "escalation_analyses_graph_commit_id_graph_commits_id_fk" FOREIGN KEY ("graph_commit_id") REFERENCES "public"."graph_commits"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "escalations" ADD CONSTRAINT "escalations_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "escalations" ADD CONSTRAINT "escalations_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "graph_commits" ADD CONSTRAINT "graph_commits_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "graph_commits" ADD CONSTRAINT "graph_commits_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "graph_commits" ADD CONSTRAINT "graph_commits_parent_id_graph_commits_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."graph_commits"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "graph_commits" ADD CONSTRAINT "graph_commits_proposal_id_graph_proposals_id_fk" FOREIGN KEY ("proposal_id") REFERENCES "public"."graph_proposals"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "graph_commits" ADD CONSTRAINT "graph_commits_target_commit_id_graph_commits_id_fk" FOREIGN KEY ("target_commit_id") REFERENCES "public"."graph_commits"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "graph_proposals" ADD CONSTRAINT "graph_proposals_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "graph_proposals" ADD CONSTRAINT "graph_proposals_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "graph_proposals" ADD CONSTRAINT "graph_proposals_base_commit_id_graph_commits_id_fk" FOREIGN KEY ("base_commit_id") REFERENCES "public"."graph_commits"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "graph_proposals" ADD CONSTRAINT "graph_proposals_merged_commit_id_graph_commits_id_fk" FOREIGN KEY ("merged_commit_id") REFERENCES "public"."graph_commits"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "agent_tokens" ADD CONSTRAINT "agent_tokens_project_fk" FOREIGN KEY ("workspace_id","project_id") REFERENCES "public"."projects"("workspace_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "escalation_analyses" ADD CONSTRAINT "escalation_analyses_project_fk" FOREIGN KEY ("workspace_id","project_id") REFERENCES "public"."projects"("workspace_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "escalation_analyses" ADD CONSTRAINT "escalation_analyses_escalation_fk" FOREIGN KEY ("project_id","escalation_id") REFERENCES "public"."escalations"("project_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "escalation_analyses" ADD CONSTRAINT "escalation_analyses_commit_fk" FOREIGN KEY ("project_id","graph_commit_id") REFERENCES "public"."graph_commits"("project_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "escalations" ADD CONSTRAINT "escalations_project_fk" FOREIGN KEY ("workspace_id","project_id") REFERENCES "public"."projects"("workspace_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "graph_commits" ADD CONSTRAINT "graph_commits_project_fk" FOREIGN KEY ("workspace_id","project_id") REFERENCES "public"."projects"("workspace_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "graph_commits" ADD CONSTRAINT "graph_commits_parent_fk" FOREIGN KEY ("project_id","parent_id") REFERENCES "public"."graph_commits"("project_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "graph_commits" ADD CONSTRAINT "graph_commits_proposal_fk" FOREIGN KEY ("project_id","proposal_id") REFERENCES "public"."graph_proposals"("project_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "graph_commits" ADD CONSTRAINT "graph_commits_target_fk" FOREIGN KEY ("project_id","target_commit_id") REFERENCES "public"."graph_commits"("project_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "graph_proposals" ADD CONSTRAINT "graph_proposals_project_fk" FOREIGN KEY ("workspace_id","project_id") REFERENCES "public"."projects"("workspace_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "graph_proposals" ADD CONSTRAINT "graph_proposals_base_commit_fk" FOREIGN KEY ("project_id","base_commit_id") REFERENCES "public"."graph_commits"("project_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "graph_proposals" ADD CONSTRAINT "graph_proposals_merged_commit_fk" FOREIGN KEY ("project_id","merged_commit_id") REFERENCES "public"."graph_commits"("project_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "mutation_receipts" ADD CONSTRAINT "mutation_receipts_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "projects" ADD CONSTRAINT "projects_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "projects" ADD CONSTRAINT "projects_main_commit_id_graph_commits_id_fk" FOREIGN KEY ("main_commit_id") REFERENCES "public"."graph_commits"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "record_versions" ADD CONSTRAINT "record_versions_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "record_versions" ADD CONSTRAINT "record_versions_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "record_versions" ADD CONSTRAINT "record_versions_record_id_records_id_fk" FOREIGN KEY ("record_id") REFERENCES "public"."records"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "records" ADD CONSTRAINT "records_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "records" ADD CONSTRAINT "records_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "records" ADD CONSTRAINT "records_current_version_id_record_versions_id_fk" FOREIGN KEY ("current_version_id") REFERENCES "public"."record_versions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "projects" ADD CONSTRAINT "projects_main_commit_fk" FOREIGN KEY ("id","main_commit_id") REFERENCES "public"."graph_commits"("project_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "record_versions" ADD CONSTRAINT "record_versions_project_fk" FOREIGN KEY ("workspace_id","project_id") REFERENCES "public"."projects"("workspace_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "record_versions" ADD CONSTRAINT "record_versions_record_fk" FOREIGN KEY ("project_id","record_id") REFERENCES "public"."records"("project_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "records" ADD CONSTRAINT "records_project_fk" FOREIGN KEY ("workspace_id","project_id") REFERENCES "public"."projects"("workspace_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "records" ADD CONSTRAINT "records_current_version_fk" FOREIGN KEY ("project_id","current_version_id") REFERENCES "public"."record_versions"("project_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workspace_members" ADD CONSTRAINT "workspace_members_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workspace_members" ADD CONSTRAINT "workspace_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "agent_tokens_project_idx" ON "agent_tokens" USING btree ("project_id");--> statement-breakpoint

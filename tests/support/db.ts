@@ -8,20 +8,38 @@ import { DbIdentityStore } from '../../src/server/db/identity-store';
 import { browserScopes } from '../../src/server/http/identity-store';
 import type { ActorContext, Scope } from '../../src/contracts';
 
+const utc = '-c TimeZone=UTC';
+const pgCode = (error: unknown) => (error as { code?: string } | null)?.code;
 export type TestDb = { db: Db; url: string; close(): Promise<void> };
 export async function createTestDatabase(): Promise<TestDb> {
   const admin = process.env.TEST_DATABASE_URL;
   if (!admin) throw new Error('TEST_DATABASE_URL is required for integration tests');
   const name = `pg_test_${randomUUID().replaceAll('-', '')}`;
-  const adminPool = new Pool({ connectionString: admin, max: 1 });
+  const adminPool = new Pool({ connectionString: admin, max: 1, options: utc });
   await adminPool.query(`CREATE DATABASE ${name}`);
   const url = Object.assign(new URL(admin), { pathname: `/${name}` }).toString();
-  const pool = new Pool({ connectionString: url, max: 10 });
-  // DROP ... WITH (FORCE) can terminate a socket that pool.end() is still closing; that FATAL is expected teardown noise.
-  pool.on('connect', client => { client.on('error', () => {}); });
+  const pool = new Pool({ connectionString: url, max: 10, options: utc });
+  // The FORCE fallback below can terminate a socket that pool.end() is still closing; only that FATAL is teardown noise.
+  pool.on('connect', client => { client.on('error', error => { if (pgCode(error) !== '57P01') throw error; }); });
   const db = drizzle(pool, { schema });
-  await runMigrations(db);
-  return { db, url, async close() { await pool.end(); await adminPool.query(`DROP DATABASE ${name} WITH (FORCE)`); await adminPool.end(); } };
+  // pool.end() resolves before its sockets close, so wait for sessions to leave instead of killing them mid-close.
+  const drop = async () => {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      try { await adminPool.query(`DROP DATABASE ${name}`); return; }
+      catch (error) { if (pgCode(error) !== '55006') throw error; await new Promise(resolve => setTimeout(resolve, 50)); }
+    }
+    await adminPool.query(`DROP DATABASE ${name} WITH (FORCE)`);
+  };
+  const close = async () => {
+    try { await pool.end(); }
+    finally {
+      try { await drop(); }
+      finally { await adminPool.end(); }
+    }
+  };
+  try { await runMigrations(db); }
+  catch (error) { await close(); throw error; }
+  return { db, url, close };
 }
 export async function testActor(db: Db, opts: { subject?: string; name?: string; email?: string | null } = {}): Promise<ActorContext> {
   const store = new DbIdentityStore(db);

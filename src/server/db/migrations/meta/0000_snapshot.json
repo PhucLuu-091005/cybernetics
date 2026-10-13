@@ -1,5 +1,5 @@
 {
-  "id": "f024b261-4e1b-4e0a-a140-eeac1b6c17f9",
+  "id": "73cd98a3-0eef-4e5b-941a-d10e4d03a14f",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -113,32 +113,6 @@
         }
       },
       "foreignKeys": {
-        "agent_tokens_workspace_id_workspaces_id_fk": {
-          "name": "agent_tokens_workspace_id_workspaces_id_fk",
-          "tableFrom": "agent_tokens",
-          "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "agent_tokens_project_id_projects_id_fk": {
-          "name": "agent_tokens_project_id_projects_id_fk",
-          "tableFrom": "agent_tokens",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
         "agent_tokens_user_id_users_id_fk": {
           "name": "agent_tokens_user_id_users_id_fk",
           "tableFrom": "agent_tokens",
@@ -147,6 +121,21 @@
             "user_id"
           ],
           "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "agent_tokens_project_fk": {
+          "name": "agent_tokens_project_fk",
+          "tableFrom": "agent_tokens",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "workspace_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
             "id"
           ],
           "onDelete": "no action",
@@ -263,53 +252,46 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "escalation_analyses_workspace_id_workspaces_id_fk": {
-          "name": "escalation_analyses_workspace_id_workspaces_id_fk",
-          "tableFrom": "escalation_analyses",
-          "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "escalation_analyses_project_id_projects_id_fk": {
-          "name": "escalation_analyses_project_id_projects_id_fk",
+        "escalation_analyses_project_fk": {
+          "name": "escalation_analyses_project_fk",
           "tableFrom": "escalation_analyses",
           "tableTo": "projects",
           "columnsFrom": [
+            "workspace_id",
             "project_id"
           ],
           "columnsTo": [
+            "workspace_id",
             "id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "escalation_analyses_escalation_id_escalations_id_fk": {
-          "name": "escalation_analyses_escalation_id_escalations_id_fk",
+        "escalation_analyses_escalation_fk": {
+          "name": "escalation_analyses_escalation_fk",
           "tableFrom": "escalation_analyses",
           "tableTo": "escalations",
           "columnsFrom": [
+            "project_id",
             "escalation_id"
           ],
           "columnsTo": [
+            "project_id",
             "id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "escalation_analyses_graph_commit_id_graph_commits_id_fk": {
-          "name": "escalation_analyses_graph_commit_id_graph_commits_id_fk",
+        "escalation_analyses_commit_fk": {
+          "name": "escalation_analyses_commit_fk",
           "tableFrom": "escalation_analyses",
           "tableTo": "graph_commits",
           "columnsFrom": [
+            "project_id",
             "graph_commit_id"
           ],
           "columnsTo": [
+            "project_id",
             "id"
           ],
           "onDelete": "no action",
@@ -392,27 +374,16 @@
         }
       },
       "foreignKeys": {
-        "escalations_workspace_id_workspaces_id_fk": {
-          "name": "escalations_workspace_id_workspaces_id_fk",
-          "tableFrom": "escalations",
-          "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "escalations_project_id_projects_id_fk": {
-          "name": "escalations_project_id_projects_id_fk",
+        "escalations_project_fk": {
+          "name": "escalations_project_fk",
           "tableFrom": "escalations",
           "tableTo": "projects",
           "columnsFrom": [
+            "workspace_id",
             "project_id"
           ],
           "columnsTo": [
+            "workspace_id",
             "id"
           ],
           "onDelete": "no action",
@@ -420,7 +391,16 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "escalations_project_id_unique": {
+          "name": "escalations_project_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "project_id",
+            "id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -534,66 +514,61 @@
         }
       },
       "foreignKeys": {
-        "graph_commits_workspace_id_workspaces_id_fk": {
-          "name": "graph_commits_workspace_id_workspaces_id_fk",
-          "tableFrom": "graph_commits",
-          "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "graph_commits_project_id_projects_id_fk": {
-          "name": "graph_commits_project_id_projects_id_fk",
+        "graph_commits_project_fk": {
+          "name": "graph_commits_project_fk",
           "tableFrom": "graph_commits",
           "tableTo": "projects",
           "columnsFrom": [
+            "workspace_id",
             "project_id"
           ],
           "columnsTo": [
+            "workspace_id",
             "id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "graph_commits_parent_id_graph_commits_id_fk": {
-          "name": "graph_commits_parent_id_graph_commits_id_fk",
+        "graph_commits_parent_fk": {
+          "name": "graph_commits_parent_fk",
           "tableFrom": "graph_commits",
           "tableTo": "graph_commits",
           "columnsFrom": [
+            "project_id",
             "parent_id"
           ],
           "columnsTo": [
+            "project_id",
             "id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "graph_commits_proposal_id_graph_proposals_id_fk": {
-          "name": "graph_commits_proposal_id_graph_proposals_id_fk",
+        "graph_commits_proposal_fk": {
+          "name": "graph_commits_proposal_fk",
           "tableFrom": "graph_commits",
           "tableTo": "graph_proposals",
           "columnsFrom": [
+            "project_id",
             "proposal_id"
           ],
           "columnsTo": [
+            "project_id",
             "id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "graph_commits_target_commit_id_graph_commits_id_fk": {
-          "name": "graph_commits_target_commit_id_graph_commits_id_fk",
+        "graph_commits_target_fk": {
+          "name": "graph_commits_target_fk",
           "tableFrom": "graph_commits",
           "tableTo": "graph_commits",
           "columnsFrom": [
+            "project_id",
             "target_commit_id"
           ],
           "columnsTo": [
+            "project_id",
             "id"
           ],
           "onDelete": "no action",
@@ -608,6 +583,14 @@
           "columns": [
             "project_id",
             "sequence"
+          ]
+        },
+        "graph_commits_project_id_unique": {
+          "name": "graph_commits_project_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "project_id",
+            "id"
           ]
         }
       },
@@ -731,53 +714,46 @@
         }
       },
       "foreignKeys": {
-        "graph_proposals_workspace_id_workspaces_id_fk": {
-          "name": "graph_proposals_workspace_id_workspaces_id_fk",
-          "tableFrom": "graph_proposals",
-          "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "graph_proposals_project_id_projects_id_fk": {
-          "name": "graph_proposals_project_id_projects_id_fk",
+        "graph_proposals_project_fk": {
+          "name": "graph_proposals_project_fk",
           "tableFrom": "graph_proposals",
           "tableTo": "projects",
           "columnsFrom": [
+            "workspace_id",
             "project_id"
           ],
           "columnsTo": [
+            "workspace_id",
             "id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "graph_proposals_base_commit_id_graph_commits_id_fk": {
-          "name": "graph_proposals_base_commit_id_graph_commits_id_fk",
+        "graph_proposals_base_commit_fk": {
+          "name": "graph_proposals_base_commit_fk",
           "tableFrom": "graph_proposals",
           "tableTo": "graph_commits",
           "columnsFrom": [
+            "project_id",
             "base_commit_id"
           ],
           "columnsTo": [
+            "project_id",
             "id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "graph_proposals_merged_commit_id_graph_commits_id_fk": {
-          "name": "graph_proposals_merged_commit_id_graph_commits_id_fk",
+        "graph_proposals_merged_commit_fk": {
+          "name": "graph_proposals_merged_commit_fk",
           "tableFrom": "graph_proposals",
           "tableTo": "graph_commits",
           "columnsFrom": [
+            "project_id",
             "merged_commit_id"
           ],
           "columnsTo": [
+            "project_id",
             "id"
           ],
           "onDelete": "no action",
@@ -785,7 +761,16 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "graph_proposals_project_id_unique": {
+          "name": "graph_proposals_project_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "project_id",
+            "id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -958,14 +943,16 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "projects_main_commit_id_graph_commits_id_fk": {
-          "name": "projects_main_commit_id_graph_commits_id_fk",
+        "projects_main_commit_fk": {
+          "name": "projects_main_commit_fk",
           "tableFrom": "projects",
           "tableTo": "graph_commits",
           "columnsFrom": [
+            "id",
             "main_commit_id"
           ],
           "columnsTo": [
+            "project_id",
             "id"
           ],
           "onDelete": "no action",
@@ -973,7 +960,16 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "projects_workspace_id_unique": {
+          "name": "projects_workspace_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "workspace_id",
+            "id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1159,40 +1155,31 @@
         }
       },
       "foreignKeys": {
-        "record_versions_workspace_id_workspaces_id_fk": {
-          "name": "record_versions_workspace_id_workspaces_id_fk",
-          "tableFrom": "record_versions",
-          "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "record_versions_project_id_projects_id_fk": {
-          "name": "record_versions_project_id_projects_id_fk",
+        "record_versions_project_fk": {
+          "name": "record_versions_project_fk",
           "tableFrom": "record_versions",
           "tableTo": "projects",
           "columnsFrom": [
+            "workspace_id",
             "project_id"
           ],
           "columnsTo": [
+            "workspace_id",
             "id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "record_versions_record_id_records_id_fk": {
-          "name": "record_versions_record_id_records_id_fk",
+        "record_versions_record_fk": {
+          "name": "record_versions_record_fk",
           "tableFrom": "record_versions",
           "tableTo": "records",
           "columnsFrom": [
+            "project_id",
             "record_id"
           ],
           "columnsTo": [
+            "project_id",
             "id"
           ],
           "onDelete": "no action",
@@ -1207,6 +1194,14 @@
           "columns": [
             "record_id",
             "version_no"
+          ]
+        },
+        "record_versions_project_id_unique": {
+          "name": "record_versions_project_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "project_id",
+            "id"
           ]
         }
       },
@@ -1270,40 +1265,31 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "records_workspace_id_workspaces_id_fk": {
-          "name": "records_workspace_id_workspaces_id_fk",
-          "tableFrom": "records",
-          "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "records_project_id_projects_id_fk": {
-          "name": "records_project_id_projects_id_fk",
+        "records_project_fk": {
+          "name": "records_project_fk",
           "tableFrom": "records",
           "tableTo": "projects",
           "columnsFrom": [
+            "workspace_id",
             "project_id"
           ],
           "columnsTo": [
+            "workspace_id",
             "id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "records_current_version_id_record_versions_id_fk": {
-          "name": "records_current_version_id_record_versions_id_fk",
+        "records_current_version_fk": {
+          "name": "records_current_version_fk",
           "tableFrom": "records",
           "tableTo": "record_versions",
           "columnsFrom": [
+            "project_id",
             "current_version_id"
           ],
           "columnsTo": [
+            "project_id",
             "id"
           ],
           "onDelete": "no action",
@@ -1319,6 +1305,14 @@
             "project_id",
             "source",
             "external_id"
+          ]
+        },
+        "records_project_id_unique": {
+          "name": "records_project_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "project_id",
+            "id"
           ]
         }
       },

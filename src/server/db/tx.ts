@@ -3,7 +3,7 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { IdSchema, type ActorContext } from '../../contracts';
 import { AppError } from '../errors';
 import * as schema from './schema';
-import { projects } from './schema';
+import { projects, workspaceMembers } from './schema';
 export type Db = NodePgDatabase<typeof schema>;
 export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 export type ProjectRow = typeof projects.$inferSelect;
@@ -18,9 +18,14 @@ export function isUniqueViolation(error: unknown, constraint: string): boolean {
   }
   return false;
 }
-export async function lockProject(tx: Tx, ctx: ActorContext, projectId: string): Promise<ProjectRow> {
-  if (!isId(projectId) || (ctx.kind === 'agent' && ctx.projectId !== projectId)) throw new AppError('NOT_FOUND', 'Project not found');
-  const [row] = await tx.select().from(projects).where(and(eq(projects.id, projectId), eq(projects.workspaceId, ctx.workspaceId))).for('update');
-  if (!row) throw new AppError('NOT_FOUND', 'Project not found');
-  return row;
+/** Membership decides access; callers write with the returned row's workspaceId, never ctx.workspaceId. */
+export async function findProjectForActor(db: Db | Tx, ctx: ActorContext, projectId: string, lock: boolean): Promise<ProjectRow> {
+  if (!isId(projectId) || !isId(ctx.userId)) throw new AppError('NOT_FOUND', 'Project not found');
+  const query = db.select().from(projects)
+    .innerJoin(workspaceMembers, and(eq(workspaceMembers.workspaceId, projects.workspaceId), eq(workspaceMembers.userId, ctx.userId)))
+    .where(eq(projects.id, projectId)).limit(1);
+  const rows = lock ? await query.for('update', { of: projects }) : await query;
+  if (!rows.length || (ctx.kind === 'agent' && (ctx.projectId !== projectId || ctx.workspaceId !== rows[0].projects.workspaceId))) throw new AppError('NOT_FOUND', 'Project not found');
+  return rows[0].projects;
 }
+export function lockProject(tx: Tx, ctx: ActorContext, projectId: string): Promise<ProjectRow> { return findProjectForActor(tx, ctx, projectId, true); }

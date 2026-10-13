@@ -7,7 +7,7 @@ import { actorKey, withReceipt } from '../../../src/server/db/receipts';
 describe.skipIf(!process.env.TEST_DATABASE_URL)('mutation receipts', () => {
   let t: TestDb;
   beforeAll(async () => { t = await createTestDatabase(); });
-  afterAll(async () => { await t.close(); });
+  afterAll(async () => { await t?.close(); });
 
   it('replays the stored result for the same key and input, and conflicts on different input', async () => {
     const ctx = await testActor(t.db);
@@ -32,5 +32,26 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('mutation receipts', () => {
     expect(await run(actorKey(agent), 'a')).toBe(3);
     expect(await run(actorKey(ctx), 'b')).toBe(4);
     expect(await run(actorKey(ctx), 'a')).toBe(2);
+  });
+  it('serializes concurrent requests with the same key so run executes once and both results match', async () => {
+    const ctx = await testActor(t.db);
+    const project = await createProject(t.db, ctx, { title: 'C', clientName: 'C' });
+    let runs = 0;
+    const call = () => withTransaction(t.db, tx => withReceipt(tx, { projectId: project.id, actorKey: actorKey(ctx), operation: 'race', idempotencyKey: 'same', input: { a: 1 } }, async () => {
+      runs++; await new Promise(resolve => setTimeout(resolve, 150)); return { n: runs };
+    }));
+    const [first, second] = await Promise.all([call(), call()]);
+    expect(runs).toBe(1);
+    expect(first).toEqual({ n: 1 });
+    expect(second).toEqual(first);
+  });
+  it('returns the JSON form on the first call and rejects an undefined result', async () => {
+    const ctx = await testActor(t.db);
+    const project = await createProject(t.db, ctx, { title: 'J', clientName: 'J' });
+    const call = (idempotencyKey: string, result: unknown) => withTransaction(t.db, tx => withReceipt(tx, { projectId: project.id, actorKey: actorKey(ctx), operation: 'json', idempotencyKey, input: {} }, async () => result));
+    const first = await call('j1', { a: 1, dropped: undefined });
+    expect(first).toStrictEqual({ a: 1 });
+    expect(await call('j1', { a: 1, dropped: undefined })).toStrictEqual(first);
+    await expect(call('j2', undefined)).rejects.toMatchObject({ code: 'INTERNAL' });
   });
 });

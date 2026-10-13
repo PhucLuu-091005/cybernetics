@@ -11,7 +11,7 @@ import type { StoredToken } from '../../../src/server/http/identity-store';
 describe.skipIf(!process.env.TEST_DATABASE_URL)('DbIdentityStore', () => {
   let t: TestDb, store: DbIdentityStore;
   beforeAll(async () => { t = await createTestDatabase(); store = new DbIdentityStore(t.db); });
-  afterAll(async () => { await t.close(); });
+  afterAll(async () => { await t?.close(); });
   const profile = () => ({ subject: `google:${randomUUID()}`, email: 'ada@example.com', name: 'Ada' });
   const counts = async (subject: string) => {
     const rows = await t.db.select({ userId: users.id, workspaceId: workspaceMembers.workspaceId }).from(users).innerJoin(workspaceMembers, eq(workspaceMembers.userId, users.id)).where(eq(users.subject, subject));
@@ -37,6 +37,15 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('DbIdentityStore', () => {
     const results = await Promise.all([store.provisionUser(input), store.provisionUser(input)]);
     expect(new Set(results.map(result => result.userId)).size).toBe(1);
     expect(results.map(result => result.created).sort()).toEqual([false, true]);
+    expect(await counts(input.subject)).toEqual({ users: 1, memberships: 1, workspaces: 1 });
+  });
+  it('provisions one user when a slow first sign-in overlaps a second one', async () => {
+    const calls: string[] = [];
+    const slow = new DbIdentityStore(t.db, { onUserCreated: async (_tx, ctx) => { calls.push(ctx.userId); await new Promise(resolve => setTimeout(resolve, 200)); } });
+    const input = profile();
+    const results = await Promise.all([slow.provisionUser(input), slow.provisionUser(input)]);
+    expect(results.map(result => result.created).sort()).toEqual([false, true]);
+    expect(new Set(results.map(result => result.userId))).toEqual(new Set(calls));
     expect(await counts(input.subject)).toEqual({ users: 1, memberships: 1, workspaces: 1 });
   });
   it('runs the user-created hook once inside the provisioning transaction', async () => {
