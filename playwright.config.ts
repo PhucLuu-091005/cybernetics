@@ -12,6 +12,8 @@ const baseURL = `http://localhost:${port}`;
 
 export default defineConfig({
   testDir: 'tests/e2e',
+  // The release walkthrough targets a running deployment through playwright.release.config.ts.
+  testIgnore: 'release.spec.ts',
   fullyParallel: false,
   // Every test signs in as the same local user, and the first sign-in seeds the sandbox.
   workers: 1,

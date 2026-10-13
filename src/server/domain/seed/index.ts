@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import historyFixture from '../../../../fixtures/history.json';
-import mainSnapshot from '../../../../fixtures/main-snapshot.json';
-import projectFixture from '../../../../fixtures/project.json';
-import proposalsFixture from '../../../../fixtures/proposals.json';
-import recordsFixture from '../../../../fixtures/records.json';
+import historyFixture from '../../../../fixtures/history.json' with { type: 'json' };
+import mainSnapshot from '../../../../fixtures/main-snapshot.json' with { type: 'json' };
+import projectFixture from '../../../../fixtures/project.json' with { type: 'json' };
+import proposalsFixture from '../../../../fixtures/proposals.json' with { type: 'json' };
+import recordsFixture from '../../../../fixtures/records.json' with { type: 'json' };
 import { uuidFromKey } from '../../../../scripts/build-fixtures';
 import type { Act, ActorContext, CommitReceipt, GraphContext, GraphOperation, GraphSnapshot, IngestEnvelope, Project, RecordInput } from '../../../contracts';
 import { canonicalHash } from '../../../lib/canonical-json';

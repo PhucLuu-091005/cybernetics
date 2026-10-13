@@ -1,0 +1,35 @@
+# Render Blueprint: one free Docker web service and one free PostgreSQL database in the same region.
+# The free database expires 30 days after creation; README.md says when to create it.
+services:
+  - type: web
+    name: promise-graph
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: false
+    envVars:
+      - key: AUTH_MODE
+        value: google
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: promise-graph-db
+          property: connectionString
+databases:
+  - name: promise-graph-db
+    plan: free
+    region: singapore
+    postgresMajorVersion: "17"
+    databaseName: promise_graph
+    user: promise_graph
+    # Only the web service connects, over Render's private network.
+    ipAllowList: []

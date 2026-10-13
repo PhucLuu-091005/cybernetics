@@ -1,5 +1,7 @@
 name: checks
 on: [push, pull_request]
+env:
+  POSTGRES_IMAGE: postgres:17.11-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -31,6 +33,58 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm check:providers
-      - run: pnpm test
       - run: pnpm eval
+      - run: pnpm test
       - run: pnpm build
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.11-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+        env:
+          POSTGRES_USER: promise_graph
+          POSTGRES_PASSWORD: local-development-only
+          POSTGRES_DB: promise_graph
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd 'pg_isready -U promise_graph -d promise_graph'
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://promise_graph:local-development-only@localhost:5432/promise_graph
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: pnpm/action-setup@v6.1.0
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: docker build -t promise-graph:ci .
+      # The production image must migrate an empty database and pass its health check, as on a Render deploy.
+      - name: Start the image against an empty database
+        run: |
+          docker network create ci
+          docker run -d --name db --network ci -e POSTGRES_USER=promise_graph -e POSTGRES_PASSWORD=ci-only -e POSTGRES_DB=promise_graph "$POSTGRES_IMAGE"
+          until docker exec db pg_isready -U promise_graph -d promise_graph; do sleep 1; done
+          docker run -d --name app --network ci -p 3000:3000 \
+            -e DATABASE_URL=postgresql://promise_graph:ci-only@db:5432/promise_graph \
+            -e AUTH_MODE=google -e NEXT_PUBLIC_APP_URL=https://promise-graph.example \
+            -e SESSION_SECRET=ci-only-32-byte-session-secret-not-for-production-use \
+            -e GOOGLE_CLIENT_ID=ci.apps.googleusercontent.com -e GOOGLE_CLIENT_SECRET=ci-only \
+            promise-graph:ci
+          for attempt in $(seq 1 30); do curl -fsS http://127.0.0.1:3000/api/health && break; sleep 2; done
+          curl -fsS http://127.0.0.1:3000/api/health
+          docker logs app 2>&1 | grep -F '"event":"migrations_applied"'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/auth/google)" = 302
+      - name: Container logs
+        if: always()
+        run: docker logs app || true
