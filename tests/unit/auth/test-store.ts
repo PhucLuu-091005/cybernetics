@@ -1,22 +1,35 @@
-import { HttpError } from '../../../src/server/http/errors';
+import { randomUUID } from 'node:crypto';
+import { AppError } from '../../../src/server/errors';
 import type { HttpIdentityStore, StoredToken } from '../../../src/server/http/identity-store';
-export class TestIdentityStore implements HttpIdentityStore {
-  identities = new Map<string, { userId: string; workspaceId: string }>();
-  memberships = new Set<string>();
-  projects = new Map<string, string>();
-  tokens = new Map<string, StoredToken>();
-  async resolveUser(subject: string) { return this.identities.get(subject) ?? null; }
-  async resolveMembership(userId: string, workspaceId: string) { return this.memberships.has(`${userId}:${workspaceId}`) ? { userId, workspaceId } : null; }
-  async resolveProject(userId: string, projectId: string) { const workspaceId = this.projects.get(projectId); return workspaceId && await this.resolveMembership(userId, workspaceId) ? { workspaceId, projectId } : null; }
-  async getTokenByHash(hash: string) { return this.tokens.get(hash) ?? null; }
-  async insertToken(token: StoredToken) {
-    if ([...this.tokens.values()].some(t => t.userId === token.userId && t.projectId === token.projectId && t.idempotencyKey === token.idempotencyKey)) throw new HttpError('CONFLICT', 'Creation key already used', 409);
-    this.tokens.set(token.hash, token);
-  }
-  async revokeToken(input: { userId: string; workspaceId: string; projectId: string; tokenId: string; revokedAt: string }) {
-    const token = [...this.tokens.values()].find(t => t.id === input.tokenId && t.userId === input.userId && t.workspaceId === input.workspaceId && t.projectId === input.projectId);
-    if (!token) return null;
-    token.revokedAt ??= input.revokedAt; return token.revokedAt;
-  }
-  async bootstrapLocalIdentity(identity: { userId: string; workspaceId: string; subject: string }) { this.identities.set(identity.subject, identity); this.memberships.add(`${identity.userId}:${identity.workspaceId}`); }
+export type MemoryStore = HttpIdentityStore & {
+  users: Map<string, { id: string; subject: string; defaultWorkspaceId: string }>;
+  memberships: Set<string>;
+  projects: Map<string, { workspaceId: string }>;
+  tokens: Map<string, StoredToken>;
+};
+export function memoryStore(): MemoryStore {
+  const users: MemoryStore['users'] = new Map(), memberships = new Set<string>(), projects: MemoryStore['projects'] = new Map(), tokens = new Map<string, StoredToken>();
+  const resolveMembership = async (userId: string, workspaceId: string) => memberships.has(`${userId}:${workspaceId}`) ? { userId, workspaceId } : null;
+  return {
+    users, memberships, projects, tokens, resolveMembership,
+    async provisionUser({ subject }) {
+      const existing = [...users.values()].find(user => user.subject === subject);
+      if (existing) return { userId: existing.id, created: false };
+      const id = randomUUID(), defaultWorkspaceId = randomUUID();
+      users.set(id, { id, subject, defaultWorkspaceId }); memberships.add(`${id}:${defaultWorkspaceId}`);
+      return { userId: id, created: true };
+    },
+    async resolveSessionUser(userId) { const user = users.get(userId); return user ? { userId, defaultWorkspaceId: user.defaultWorkspaceId } : null; },
+    async resolveProject(userId, projectId) { const project = projects.get(projectId); return project && await resolveMembership(userId, project.workspaceId) ? { workspaceId: project.workspaceId, projectId } : null; },
+    async getTokenByHash(hash) { return tokens.get(hash) ?? null; },
+    async insertToken(token) {
+      if ([...tokens.values()].some(t => t.userId === token.userId && t.projectId === token.projectId && t.idempotencyKey === token.idempotencyKey)) throw new AppError('CONFLICT', 'Creation key already used');
+      tokens.set(token.hash, token);
+    },
+    async revokeToken(input) {
+      const token = [...tokens.values()].find(t => t.id === input.tokenId && t.userId === input.userId && t.workspaceId === input.workspaceId && t.projectId === input.projectId);
+      if (!token) return null;
+      token.revokedAt ??= input.revokedAt; return token.revokedAt;
+    },
+  };
 }

@@ -16,26 +16,26 @@
   },
   "dependencies": {
     "@noble/hashes": "2.4.0",
-    "zod": "4.6.6",
+    "arctic": "3.7.0",
+    "drizzle-orm": "0.45.4",
     "next": "16.4.0",
+    "pg": "8.23.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "@clerk/nextjs": "7.9.14",
-    "pg": "8.23.1",
-    "drizzle-orm": "0.45.4"
+    "zod": "4.6.6"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.0",
     "@types/node": "26.0.0",
-    "eslint": "9.39.4",
-    "typescript": "5.9.3",
-    "typescript-eslint": "8.71.1",
-    "vitest": "4.1.11",
+    "@types/pg": "8.23.1",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "@types/pg": "8.23.1",
+    "drizzle-kit": "0.31.11",
+    "eslint": "9.39.4",
     "eslint-config-next": "16.4.0",
-    "@playwright/test": "1.64.0",
-    "drizzle-kit": "0.31.11"
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.1",
+    "vitest": "4.1.11"
   },
   "engines": {
     "node": ">=24 <27"

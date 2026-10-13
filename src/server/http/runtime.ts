@@ -2,14 +2,13 @@ import type { ActorContext, CreateAgentTokenInput, RevokeAgentTokenInput, Revoke
 import { readAuthEnvironment } from '../env';
 import { createTokenService } from '../domain/tokens/service';
 import { createIdentityServices } from './actors';
-import { HttpError } from './errors';
 import type { HttpIdentityStore } from './identity-store';
 import { MemoryRateLimiter } from './rate-limit';
 const state = globalThis as typeof globalThis & { promiseIdentityStore?: HttpIdentityStore; promiseRateLimiter?: MemoryRateLimiter };
 /** Application composition installs the real persistence adapter; absence fails closed. */
 export function configureHttpIdentityStore(store: HttpIdentityStore): void { state.promiseIdentityStore = store; }
 export function getHttpIdentityStore(): HttpIdentityStore {
-  if (!state.promiseIdentityStore) throw new HttpError('UNAUTHENTICATED', 'Identity persistence is unavailable', 503);
+  if (!state.promiseIdentityStore) throw new Error('Identity persistence is unavailable');
   return state.promiseIdentityStore;
 }
 function identities() {

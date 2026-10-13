@@ -2,17 +2,19 @@ import { describe, expect, it, vi } from 'vitest';
 import { createHash, randomUUID } from 'node:crypto';
 import { createIdentityServices } from '../../../src/server/http/actors';
 import { createTokenService } from '../../../src/server/domain/tokens/service';
-import { signLocalSession } from '../../../src/server/http/local-session';
-import { TestIdentityStore } from './test-store';
+import { signSession } from '../../../src/server/http/session';
+import type { AuthEnvironment } from '../../../src/server/env';
+import { memoryStore } from './test-store';
 const now = Date.parse('2026-10-13T00:00:00Z');
-const env = { mode: 'local' as const, appOrigin: 'http://localhost:3000', localSessionSecret: 'ab'.repeat(32) };
+const env: AuthEnvironment = { mode: 'local', appOrigin: 'http://localhost:3000', sessionSecret: 'ab'.repeat(32), google: null };
 async function setup() {
-  const store = new TestIdentityStore(); const userId = randomUUID(), workspaceId = randomUUID(), projectId = randomUUID();
-  await store.bootstrapLocalIdentity({ userId, workspaceId, subject: `local:${userId}` }); store.projects.set(projectId, workspaceId);
+  const store = memoryStore(); const projectId = randomUUID();
+  const { userId } = await store.provisionUser({ subject: 'local:dev', email: null, name: 'Local developer' });
+  const workspaceId = (await store.resolveSessionUser(userId))!.defaultWorkspaceId; store.projects.set(projectId, { workspaceId });
   const services = createIdentityServices({ store, env, now: () => now });
   const ctx = { kind: 'user' as const, userId, workspaceId, projectId, scopes: ['project:read' as const, 'graph:merge' as const], requestId: 'test' };
   const tokens = createTokenService(store, () => now);
-  const request = (secret?: string, method = 'GET') => new Request(`${env.appOrigin}/api/projects/${projectId}`, { method, headers: secret ? { authorization: `Bearer ${secret}` } : { cookie: `promise_local_session=${signLocalSession({ userId, workspaceId, expiresAt: now + 60_000 }, env.localSessionSecret)}`, origin: env.appOrigin } });
+  const request = (secret?: string, method = 'GET') => new Request(`${env.appOrigin}/api/projects/${projectId}`, { method, headers: secret ? { authorization: `Bearer ${secret}` } : { cookie: `pg_session=${signSession({ userId, expiresAt: now + 60_000 }, env.sessionSecret)}`, origin: env.appOrigin } });
   return { store, userId, workspaceId, projectId, services, ctx, tokens, request };
 }
 describe('browser identity and scoped authorization', () => {
@@ -26,14 +28,34 @@ describe('browser identity and scoped authorization', () => {
     await expect(s.services.getBrowserActor(new Request(env.appOrigin, { headers: s.request().headers }))).resolves.toMatchObject({ projectId: null, workspaceId: s.workspaceId });
   });
   it('rejects a signed session for an unknown persisted identity', async () => {
-    const s = await setup(); s.store.identities.clear();
+    const s = await setup(); s.store.users.clear();
     await expect(s.services.getBrowserActor(s.request())).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
   });
   it('rejects a foreign project and mutation Origin', async () => {
-    const s = await setup(); const other = randomUUID(); s.store.projects.set(other, randomUUID());
+    const s = await setup(); const other = randomUUID(); s.store.projects.set(other, { workspaceId: randomUUID() });
     await expect(s.services.getBrowserActor(new Request(`${env.appOrigin}/api/projects/${other}`, { headers: s.request().headers }))).rejects.toMatchObject({ code: 'NOT_FOUND' });
     const request = s.request(undefined, 'POST'); request.headers.set('origin', 'https://evil.example');
     await expect(s.services.getBrowserActor(request)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+});
+describe('multi-workspace browser actors', () => {
+  const env: AuthEnvironment = { mode: 'google', appOrigin: 'https://pg.example', sessionSecret: 's'.repeat(32), google: { clientId: 'id', clientSecret: 'secret' } };
+  const signedRequest = (userId: string, path: string) => new Request(`https://pg.example${path}`, { headers: { cookie: `pg_session=${signSession({ userId, expiresAt: 2_000 }, env.sessionSecret)}` } });
+  it('lets one user act in two workspaces through project membership', async () => {
+    const store = memoryStore();
+    const { userId } = await store.provisionUser({ subject: 'google:1', email: null, name: 'A' });
+    const other = randomUUID(); store.memberships.add(`${userId}:${other}`);
+    const project = randomUUID(); store.projects.set(project, { workspaceId: other });
+    const services = createIdentityServices({ store, env, now: () => 1_000 });
+    const actor = await services.getBrowserActor(signedRequest(userId, `/api/v1/projects/${project}/graph`));
+    expect(actor).toMatchObject({ kind: 'user', userId, workspaceId: other, projectId: project });
+  });
+  it('returns 404 for a project in a workspace the user does not belong to', async () => {
+    const store = memoryStore();
+    const { userId } = await store.provisionUser({ subject: 'google:1', email: null, name: 'A' });
+    const project = randomUUID(); store.projects.set(project, { workspaceId: randomUUID() });
+    const services = createIdentityServices({ store, env, now: () => 1_000 });
+    await expect(services.getBrowserActor(signedRequest(userId, `/api/v1/projects/${project}/graph`))).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 });
 describe('hashed project agent tokens', () => {
