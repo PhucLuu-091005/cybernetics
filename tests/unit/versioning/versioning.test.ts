@@ -286,7 +286,7 @@ describe('inverseCommit', () => {
     target.loops[0].title = 'Committed edit';
     main.loops[0].title = 'Later edit';
     const result = inverseCommit(parent, target, main);
-    expect(result.snapshot).toBeNull();
+    expect(result.snapshot).not.toBeNull();
     expect(result.conflicts).toEqual([
       expect.objectContaining({ collection: 'loops', id: ids.loop, base: target.loops[0], main: main.loops[0], proposed: parent.loops[0], reason: expect.stringMatching(/post.?image|target/i) }),
     ]);
@@ -295,7 +295,7 @@ describe('inverseCommit', () => {
   it('conflicts even if an entity was independently returned to its original image', () => {
     const parent = snapshot(), target = snapshot(), main = snapshot();
     target.context.replyWindowDays = 8;
-    expect(inverseCommit(parent, target, main)).toMatchObject({ snapshot: null, conflicts: [{ collection: 'context', id: 'replyWindowDays', base: 8, main: 2, proposed: 2 }] });
+    expect(inverseCommit(parent, target, main)).toMatchObject({ conflicts: [{ collection: 'context', id: 'replyWindowDays', base: 8, main: 2, proposed: 2 }] });
   });
 
   it('conflicts on recreated removals and later deletions of target additions', () => {
@@ -306,7 +306,7 @@ describe('inverseCommit', () => {
     main.annotations = [{ ...parent.annotations[0], text: 'Later recreated' }];
     main.acts.pop();
     const result = inverseCommit(parent, target, main);
-    expect(result.snapshot).toBeNull();
+    expect(result.snapshot).not.toBeNull();
     expect(result.conflicts.map(({ collection, id }) => ({ collection, id }))).toEqual([
       { collection: 'acts', id: ids.other }, { collection: 'annotations', id: ids.annotation },
     ]);

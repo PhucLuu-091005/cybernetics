@@ -68,4 +68,5 @@ export type EntityChange = z.infer<typeof EntityChangeSchema>;
 export type SnapshotDiff = z.infer<typeof SnapshotDiffSchema>;
 export type Conflict = z.infer<typeof ConflictSchema>;
 export type RebaseResult = z.infer<typeof RebaseResultSchema>;
+export type EntityCollection = z.infer<typeof EntityCollectionSchema>;
 export type InverseResult = z.infer<typeof InverseResultSchema>;
