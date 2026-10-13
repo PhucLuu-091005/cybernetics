@@ -69,7 +69,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       - run: docker build -t promise-graph:ci .
-      # The production image must migrate an empty database and pass its health check, as on a Render deploy.
       - name: Start the image against an empty database
         run: |
           docker network create ci

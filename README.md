@@ -11,6 +11,22 @@ It is for customer success and implementation managers. They must reconstruct a 
 - **Deterministic engine.** A pure function derives loop states and 7 breakdown types (for example `silent_overdue` and `unanswered_request`) from the graph at a time `T`.
 - **No AI in the app.** The app and its server call no AI model and hold no provider key. You connect your own agent (for example Claude Code) to `/mcp` with a project token. The agent reads evidence, submits a proposal and reads its diff. A person reviews the proposal and merges it. A default token cannot merge.
 
+## Screenshots
+
+The screenshots come from the local production build on 13 October 2026, with the seeded sandbox.
+
+The main graph with the loop panel open. The red branch has an `unanswered_request` breakdown, and the panel shows the cited quote in its message:
+
+![Main graph with the loop panel for the client secret renewal loop](docs/screenshots/graph-loop-panel.png)
+
+The review of a draft proposal: the structural diff, the review basis and the merge panel:
+
+![Review and merge page of a draft proposal](docs/screenshots/proposal-review.png)
+
+The agent tokens page: the default scopes, the MCP client snippet and a created token:
+
+![Agent tokens page](docs/screenshots/agent-tokens.png)
+
 The design file is [docs/design/2026-10-13-promise-graph-ui.html](docs/design/2026-10-13-promise-graph-ui.html). Open it in a browser to see every screen. The requirements are in [docs/superpowers/specs/2026-10-12-promise-graph-srd.md](docs/superpowers/specs/2026-10-12-promise-graph-srd.md).
 
 Your first sign-in creates a private sandbox: a copy of the fictional Larkspur Capital onboarding project with 121 records and 30 reviewed loops ([fixtures/README.md](fixtures/README.md)).
@@ -90,7 +106,7 @@ The free plan has two limits that affect the demo:
 Do these steps in this order:
 
 1. **Create the Google OAuth client.** In Google Cloud Console, go to **APIs & Services → Credentials → Create credentials → OAuth client ID**. Select **Web application**. Leave the redirect URI empty for now. Configure the consent screen with the scopes `openid`, `email` and `profile`, and set its publishing status to **In production**. In **Testing** status, only the listed test users can sign in. Keep the client ID and the client secret.
-2. **Apply the Blueprint on 16 or 17 October.** This date keeps the free database alive until about 15 November, after the judging period. In the Render dashboard, select **New → Blueprint**, connect this repository and select the branch to deploy. Render reads `render.yaml`.
+2. **Apply the Blueprint as soon as possible, no later than 15 October.** The free database lives 30 days, so a database created by 15 October stays alive until about 14 November. That date is after 22 October. In the Render dashboard, select **New → Blueprint**, connect this repository and select the branch to deploy. Render reads `render.yaml`.
 3. **Enter the prompted values.** Render asks for the three `sync: false` variables:
    - `NEXT_PUBLIC_APP_URL`: `https://<service>.onrender.com`. The service name in `render.yaml` is `promise-graph`. If Render adds a suffix, use the URL that the service page shows, and correct the variable after the first deploy.
    - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`: the values from step 1.
@@ -147,7 +163,7 @@ Environment: Apple M4 (10 cores), 16 GB RAM, macOS 26.6.2, Docker Desktop 29.5.2
 | Measure | Target (SRD 14) | Result |
 |---|---|---|
 | Layout of 300 loops and 3,000 acts, median of 5 runs | under 50 ms | 5.91 ms (Node 26.8.2, Apple M4) |
-| First contentful paint of the seeded graph, warm server | under 2 s | 76 ms |
+| First contentful paint of the seeded graph (reload, warm server and browser cache) | under 2 s | 76 ms |
 | `GET /api/v1/projects/:id/graph` on the seed, 25 sequential calls | p95 under 500 ms | p50 22 ms, p95 40 ms |
 
 Offline evaluation (`pnpm eval`) on the hand-written gold fixtures:

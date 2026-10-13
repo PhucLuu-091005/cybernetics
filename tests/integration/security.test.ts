@@ -194,7 +194,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
 
   it('no denied response and no log line contains a seeded record body, the confidential marker or a secret', () => {
     expect(denied.length).toBeGreaterThanOrEqual(12);
-    for (const text of denied) expect(leaksMarker(text), text.slice(0, 200)).toBe(false);
+    for (const text of denied) {
+      expect(leaksMarker(text), text.slice(0, 200)).toBe(false);
+      for (const body of seededBodies) expect(text.includes(body), `denied response holds a record body: ${text.slice(0, 120)}`).toBe(false);
+    }
     for (const line of logs) {
       expect(leaksMarker(line), line.slice(0, 200)).toBe(false);
       expect(line).not.toContain(secret);

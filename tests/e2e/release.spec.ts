@@ -81,10 +81,39 @@ async function paste(page: Page, projectId: string, fields: { source: string; ti
 
 async function merge(page: Page, message?: string) {
   await expect(page.getByRole('button', { name: 'Merge into main' })).toBeVisible();
+  // On a shared sandbox, earlier imports raise the evidence revision after the draft pinned it.
+  const acknowledge = page.getByRole('button', { name: /^Acknowledge evidence revision/ });
+  if (await acknowledge.count()) {
+    await acknowledge.click();
+    await expect(acknowledge).toHaveCount(0);
+  }
   const ack = page.getByRole('checkbox', { name: /still pending review/ });
   if (await ack.count()) await ack.check();
   if (message) await page.getByLabel('Commit message').fill(message);
   await page.getByRole('button', { name: 'Merge into main' }).click();
+}
+
+async function openProposal(page: Page, projectId: string, title: string): Promise<string> {
+  await page.goto(`/projects/${projectId}/proposals`);
+  await page.getByRole('link', { name: title }).click();
+  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/proposals/[0-9a-f-]{36}$`));
+  await expect(page.getByText('Proposal, draft')).toBeVisible();
+  return new URL(page.url()).pathname;
+}
+const isStale = async (page: Page) => await page.getByText('Main moved since this draft was based.').count() > 0;
+/** Keeps the proposal side of every conflict that the expected pattern names; any other conflict fails the walkthrough. */
+async function rebaseOntoMain(page: Page, proposalUrl: string, expectedConflict?: RegExp) {
+  await page.goto(`${proposalUrl}/rebase`);
+  await expect(page.getByRole('button', { name: 'Apply resolutions to the draft' })).toBeVisible();
+  const conflicts = page.getByRole('group', { name: /^Conflict: / });
+  if (expectedConflict) await expect(conflicts.first()).toBeVisible();
+  for (const name of await conflicts.evaluateAll(groups => groups.map(group => group.getAttribute('aria-label') ?? ''))) {
+    expect(name).toMatch(expectedConflict ?? /^$/);
+    await page.getByRole('group', { name, exact: true }).getByRole('radio', { name: 'Keep proposal' }).check();
+  }
+  await page.getByRole('button', { name: 'Apply resolutions to the draft' }).click();
+  await expect(page).toHaveURL(new RegExp(`${proposalUrl}/review\\?rebased=1$`));
+  await expect(page.getByText('Fresh review required')).toBeVisible();
 }
 
 type Rpc = { result?: { isError?: boolean; structuredContent?: any }; error?: unknown }; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -101,8 +130,8 @@ const percentile = (values: number[], p: number) => [...values].sort((a, b) => a
 
 test('production sign-in: health is live, the sign-in page offers only Google, and the Google redirect carries state and PKCE', async ({ browser }) => {
   test.skip(!minted && !stored, 'A local dev server signs in without Google');
-  // A fresh context, so a stored Google session cannot answer for an anonymous visitor.
-  const anonymous = await browser.newContext({ baseURL: test.info().project.use.baseURL, ignoreHTTPSErrors: process.env.RELEASE_INSECURE_TLS === '1' });
+  // Playwright applies the stored session to browser.newContext() too, so an anonymous visitor needs an explicit empty state.
+  const anonymous = await browser.newContext({ baseURL: test.info().project.use.baseURL, ignoreHTTPSErrors: process.env.RELEASE_INSECURE_TLS === '1', storageState: { cookies: [], origins: [] } });
   const page = await anonymous.newPage(), request = anonymous.request;
   const health = await request.get('/api/health');
   expect(health.status()).toBe(200);
@@ -182,7 +211,7 @@ test('4 and 5: a proposal cites the exact quote, a wrong link is corrected, the 
   await expect(editor.getByTestId('citation-quote')).toHaveText(QUOTE);
   await editor.getByLabel('Act type').selectOption({ label: 'Promise' });
   await editor.getByLabel('Actor').selectOption({ label: 'Tom Becker' });
-  await editor.getByLabel('Loop').selectOption({ label: 'Dynamics CRM sync scope' });
+  await editor.getByLabel('Loop').selectOption({ label: 'Investor portal branding' });
   await editor.getByLabel('Customer').selectOption({ label: 'Quang Nguyễn' });
   await editor.getByLabel('Performer').selectOption({ label: 'Tom Becker' });
   await editor.getByLabel('Action').fill('Renew the Azure client secret for the sync app');
@@ -190,7 +219,7 @@ test('4 and 5: a proposal cites the exact quote, a wrong link is corrected, the 
   await editor.getByRole('button', { name: 'Save act to draft' }).click();
   await expect(page.getByTestId('proposal-revision')).toHaveText('1');
   const operations = page.getByRole('listbox', { name: 'Changes in this proposal' });
-  await expect(operations.getByRole('option', { name: /Promise by Tom Becker/ })).toContainText('Dynamics CRM sync scope');
+  await expect(operations.getByRole('option', { name: /Promise by Tom Becker/ })).toContainText('Investor portal branding');
 
   await operations.getByRole('option', { name: /Promise by Tom Becker/ }).click();
   await editor.getByLabel('Loop').selectOption({ label: 'Client secret renewal' });
@@ -214,17 +243,15 @@ test('4 and 5: a proposal cites the exact quote, a wrong link is corrected, the 
 
 test('6: of two competing proposals the stale merge fails, an explicit rebase needs a fresh review, then it merges', async ({ page }) => {
   const projectId = await signIn(page, 'rebase');
-  await page.goto(`/projects/${projectId}/proposals`);
-  await page.getByRole('link', { name: 'Retitle the Dynamics loop with the SOW scope' }).click();
-  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/proposals/[0-9a-f-]{36}$`));
-  const sowUrl = new URL(page.url()).pathname;
-  await page.getByRole('link', { name: 'Review changes' }).click();
-  await expect(page.getByRole('region', { name: 'Structural changes' })).toContainText('Dynamics CRM sync scope (SOW phase 2)');
-
+  const sowUrl = await openProposal(page, projectId, 'Retitle the Dynamics loop with the SOW scope');
   const other = await page.context().newPage();
-  await other.goto(`/projects/${projectId}/proposals`);
-  await other.getByRole('link', { name: 'Retitle the Dynamics loop as a phase 1 request' }).click();
-  await other.getByRole('link', { name: 'Review changes' }).click();
+  const phaseOneUrl = await openProposal(other, projectId, 'Retitle the Dynamics loop as a phase 1 request');
+  // Both drafts start on the seed main; on a shared sandbox earlier merges moved main, so each draft first rebases explicitly (SRD 6.4).
+  for (const [tab, url] of [[page, sowUrl], [other, phaseOneUrl]] as const) if (await isStale(tab)) await rebaseOntoMain(tab, url);
+
+  await page.goto(`${sowUrl}/review`);
+  await expect(page.getByRole('region', { name: 'Structural changes' })).toContainText('Dynamics CRM sync scope (SOW phase 2)');
+  await other.goto(`${phaseOneUrl}/review`);
   await merge(other);
   await expect(other).toHaveURL(/\/history\/[0-9a-f-]{36}$/);
   await other.close();
@@ -232,13 +259,8 @@ test('6: of two competing proposals the stale merge fails, an explicit rebase ne
   await merge(page);
   await expect(page.getByRole('alert').filter({ hasText: 'Conflict' })).toContainText('Conflict: main moved since your review.');
   await page.goto(sowUrl);
-  await expect(page.getByText('Main moved since this draft was based.')).toBeVisible();
-  await page.getByRole('link', { name: 'Preview rebase' }).click();
-  await expect(page).toHaveURL(`${sowUrl}/rebase`);
-  const conflict = page.getByRole('group', { name: /Conflict: Loop: Dynamics CRM sync/ });
-  await conflict.getByRole('radio', { name: 'Keep proposal' }).check();
-  await page.getByRole('button', { name: 'Apply resolutions to the draft' }).click();
-  await expect(page.getByText('Fresh review required')).toBeVisible();
+  expect(await isStale(page)).toBe(true);
+  await rebaseOntoMain(page, sowUrl, /Conflict: Loop: Dynamics CRM sync/);
   await merge(page);
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/history/[0-9a-f-]{36}$`));
   await expect(commits(page).getByRole('link').first()).toContainText('Retitle the Dynamics loop with the SOW scope');
@@ -258,7 +280,7 @@ test('7: a revert keeps an unrelated later change, and a restore of an older gra
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/history/[0-9a-f-]{36}$`));
   await expect(commits(page).getByRole('link').first()).toContainText('Revert “Note the SOW phase 2 scope');
 
-  // Restoring the commit before the revert brings the reverted annotation back as a new commit; nothing is rewritten.
+  // After the revert, main can equal the seed snapshot, so restoring the seed could change nothing; the pre-revert commit always differs.
   const before = await commits(page).getByRole('link').count();
   await commits(page).getByRole('link', { name: /^Note the SOW phase 2 scope/ }).click();
   await expect(page.getByRole('heading', { level: 2, name: /^Note the SOW phase 2 scope/ })).toBeVisible();
