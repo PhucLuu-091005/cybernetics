@@ -19,7 +19,6 @@ type Props = {
   pendingEvidenceCount: number;
   view: ViewSelection;
   edit: EditTarget;
-  /** Every loop in the same view, as targets for "Move to another loop". */
   loops: readonly { id: string; title: string }[];
   snapshot: Pick<GraphSnapshot, 'acts' | 'recordDecisions'>;
   /** Acts added or changed by an agent-authored proposal; only a proposal view can derive this. */

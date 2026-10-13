@@ -12,7 +12,6 @@ type Props = {
   projectId: string;
   preview: Pick<RebasePreview, 'proposalId' | 'baseCommitId' | 'mainCommitId' | 'proposalRevision' | 'evidenceRevision' | 'T' | 'digest' | 'conflicts'>;
   names: Names;
-  /** One-sided changes the rebase keeps without asking, already labelled. */
   kept: { proposal: string[]; main: string[] };
 };
 const key = (conflict: Pick<Conflict, 'collection' | 'id'>) => `${conflict.collection}/${conflict.id}`;

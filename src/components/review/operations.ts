@@ -1,7 +1,7 @@
 import type { Act, ActType, DerivedAct, GraphOperation, GraphSnapshot, Loop, Party, QuotedRange, RecordDecision } from '../../contracts';
 import { isUtf16Boundary } from '../../contracts/primitives';
+import { MAX_QUOTE } from '../inbox/selection';
 
-export const MAX_QUOTE = 400;
 type Disposition = RecordDecision['disposition'];
 
 /** Parties travel through <select> values: a person ID, or `side:client` / `side:vendor`. */
@@ -13,6 +13,13 @@ export type ActForm = {
   decision: Disposition | null;
 };
 export type QuotedCitation = { recordVersionId: string; start: number; end: number; quote: string };
+export type Citer = { id: string; hidden: boolean; recordVersionId: string };
+
+/** An included record needs a visible citing act, so hiding or removing its last one returns the record to pending review. */
+function releaseDecision(actId: string, versionId: string, decision: Disposition | null, citers: readonly Citer[]): GraphOperation[] {
+  const stillCited = citers.some(other => other.id !== actId && !other.hidden && other.recordVersionId === versionId);
+  return decision === 'included' && !stillCited ? [{ op: 'remove', collection: 'recordDecisions', id: versionId }] : [];
+}
 
 export const partyValue = (party: Party): string => party.kind === 'side' ? `side:${party.side}` : party.personId;
 export function partyFromValue(value: string): Party {
@@ -21,7 +28,7 @@ export function partyFromValue(value: string): Party {
 }
 
 /** A visible act citing a record makes it included; an ignored record would otherwise fail validation, so it is included too. */
-export function buildActOperations(form: ActForm, citation: QuotedCitation): GraphOperation[] {
+export function buildActOperations(form: ActForm, citation: QuotedCitation, citers: readonly Citer[] = []): GraphOperation[] {
   const value: Act = {
     id: form.id, citation: { recordVersionId: citation.recordVersionId, start: citation.start, end: citation.end }, type: form.type,
     actor: partyFromValue(form.actor), customer: partyFromValue(form.customer), performer: partyFromValue(form.performer), action: form.action.trim(),
@@ -30,6 +37,7 @@ export function buildActOperations(form: ActForm, citation: QuotedCitation): Gra
   };
   const operations: GraphOperation[] = [{ op: 'put', collection: 'acts', value, quote: citation.quote }];
   if (!form.hidden && form.decision !== 'included') operations.push({ op: 'put', collection: 'recordDecisions', value: { recordVersionId: citation.recordVersionId, disposition: 'included', reason: '' } });
+  if (form.hidden) operations.push(...releaseDecision(form.id, citation.recordVersionId, form.decision, citers));
   return operations;
 }
 
@@ -60,10 +68,12 @@ export const changeActType = (act: Act, quote: string, type: ActType): GraphOper
 export const moveAct = (act: Act, quote: string, loopId: string | null): GraphOperation[] => [putAct({ ...act, loopId }, quote)];
 export const setLoopMilestone = (loop: Loop, milestoneId: string | null): GraphOperation[] => [{ op: 'put', collection: 'loops', value: { ...loop, milestoneId } }];
 
-/** An included record needs a visible citing act, so hiding its last one returns the record to pending review. */
 export function hideAct(act: Act, quote: string, snapshot: Pick<GraphSnapshot, 'acts' | 'recordDecisions'>): GraphOperation[] {
   const versionId = act.citation.recordVersionId;
-  const stillCited = snapshot.acts.some(other => other.id !== act.id && !other.hidden && other.citation.recordVersionId === versionId);
-  const included = snapshot.recordDecisions.some(decision => decision.recordVersionId === versionId && decision.disposition === 'included');
-  return [putAct({ ...act, hidden: true }, quote), ...(included && !stillCited ? [{ op: 'remove', collection: 'recordDecisions', id: versionId } as const] : [])];
+  const decision = snapshot.recordDecisions.find(item => item.recordVersionId === versionId)?.disposition ?? null;
+  const citers = snapshot.acts.map(other => ({ id: other.id, hidden: other.hidden, recordVersionId: other.citation.recordVersionId }));
+  return [putAct({ ...act, hidden: true }, quote), ...releaseDecision(act.id, versionId, decision, citers)];
+}
+export function removeAct(act: Act, decision: Disposition | null, citers: readonly Citer[]): GraphOperation[] {
+  return [{ op: 'remove', collection: 'acts', id: act.id }, ...releaseDecision(act.id, act.citation.recordVersionId, decision, citers)];
 }

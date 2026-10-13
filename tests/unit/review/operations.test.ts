@@ -44,6 +44,19 @@ describe('buildActOperations (proposal act editor, SRD 6.2)', () => {
   it('adds no decision for a hidden act, which does not count as a visible citation', () => {
     expect(buildActOperations(form({ hidden: true }), citation)).toHaveLength(1);
   });
+  it('hiding the last visible act on an included record also returns the record to pending', () => {
+    const citers = [{ id: ACT_ID, hidden: false, recordVersionId: VERSION }];
+    const operations = buildActOperations(form({ hidden: true, decision: 'included' }), citation, citers);
+    expect(operations).toHaveLength(2);
+    expect(operations[0]).toMatchObject({ op: 'put', collection: 'acts', value: { hidden: true }, quote: citation.quote });
+    expect(operations[1]).toEqual({ op: 'remove', collection: 'recordDecisions', id: VERSION });
+  });
+  it('keeps the decision when another visible act still cites the record of a hidden act', () => {
+    const citers = [{ id: ACT_ID, hidden: false, recordVersionId: VERSION }, { id: '11111111-1111-4111-8111-111111111111', hidden: false, recordVersionId: VERSION }];
+    const operations = buildActOperations(form({ hidden: true, decision: 'included' }), citation, citers);
+    expect(operations).toHaveLength(1);
+    expect(operations[0]).toMatchObject({ op: 'put', collection: 'acts', value: { hidden: true } });
+  });
   it('maps an empty due date to null, side parties to side values and an empty loop to no loop', () => {
     const [put] = buildActOperations(form({ dueDate: '', customer: 'side:client', loopId: null, hedged: true }), citation);
     expect(put).toMatchObject({ value: { due: null, customer: { kind: 'side', side: 'client' }, loopId: null, hedged: true } });

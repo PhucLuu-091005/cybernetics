@@ -9,9 +9,7 @@ type Props = {
   mainCommitId: string;
   evidenceRevision: number;
   viewerUserId: string;
-  /** The page heading lives in the frame on proposal screens; the graph and review screens pass 2. */
   level?: 1 | 2;
-  /** The rebase screen itself hides the link to it. */
   rebaseLink?: boolean;
   actions?: ReactNode;
   children?: ReactNode;

@@ -1,8 +1,8 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import type { GraphOperation, Proposal } from '../../contracts';
-import { createDraft, updateDraft, type ApiError, type Basis } from '../inbox/api';
+import type { GetProjectResult, GraphOperation, Proposal } from '../../contracts';
+import { createDraft, send, updateDraft, type ApiError, type Basis } from '../inbox/api';
 
 /** Main is read-only: an edit there first creates a draft from the displayed main, then applies the edit to that draft (SRD 7.4). */
 export type EditTarget =
@@ -22,13 +22,22 @@ export function useDraftEdit(projectId: string, target: EditTarget) {
     setBusy(true);
     setFailure(null);
     let draft = target.kind === 'proposal' ? { id: target.proposalId, revision: target.revision } : created;
+    let evidenceRevision = target.basis.evidenceRevision;
+    if (draft && target.kind === 'main') {
+      // The failed update may have lost to a concurrent edit or new evidence, so the retry sends what the server holds now.
+      const [current, project] = await Promise.all([send<Proposal>(`/api/v1/projects/${projectId}/proposals/${draft.id}`, 'GET'), send<GetProjectResult>(`/api/v1/projects/${projectId}`, 'GET')]);
+      if (!current.ok) { setFailure(current.error); setBusy(false); return false; }
+      if (!project.ok) { setFailure(project.error); setBusy(false); return false; }
+      draft = { id: draft.id, revision: current.data.revision };
+      evidenceRevision = project.data.project.evidenceRevision;
+    }
     if (!draft) {
       const made = await createDraft(projectId, target.basis, title.slice(0, 200));
       if (!made.ok) { setFailure(made.error); setBusy(false); return false; }
       draft = { id: made.data.id, revision: made.data.revision };
       setCreated(draft);
     }
-    const result = await updateDraft(projectId, draft, target.basis.evidenceRevision, operations);
+    const result = await updateDraft(projectId, draft, evidenceRevision, operations);
     setBusy(false);
     if (!result.ok) { setFailure(result.error); return false; }
     setCreated(null);

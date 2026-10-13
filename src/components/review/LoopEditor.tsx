@@ -1,7 +1,7 @@
 'use client';
 import { useState, type FormEvent } from 'react';
 import type { Department, GraphOperation, Loop, Milestone, Person } from '../../contracts';
-import { PartyOptions, SelectField } from './ActEditor';
+import { PartyOptions, SelectField } from './fields';
 import { useHydrated } from './hydrated';
 import { partyFromValue, partyValue } from './operations';
 

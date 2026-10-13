@@ -5,7 +5,6 @@ import { ChangeCells } from '../review/DiffView';
 const MAX_ROWS = 150;
 const COLLECTION = { acts: 'acts', loops: 'loops', annotations: 'annotations', recordDecisions: 'record decisions', people: 'people', departments: 'departments', milestones: 'milestones', context: 'context' } as const;
 
-/** A commit's entity delta against its parent; the initial commit lists everything it introduced. */
 export function CommitDiff({ diff, names }: { diff: SnapshotDiff; names: Names }) {
   const counts = diff.changes.reduce<Record<string, number>>((total, change) => ({ ...total, [change.kind]: (total[change.kind] ?? 0) + 1 }), {});
   return (

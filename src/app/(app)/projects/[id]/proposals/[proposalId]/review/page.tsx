@@ -4,9 +4,10 @@ import { notFound } from 'next/navigation';
 import { IdSchema, type Act, type ProposalReview } from '../../../../../../../contracts';
 import { shortStamp } from '../../../../../../../components/graph/labels';
 import { ConflictBanner } from '../../../../../../../components/review/ConflictBanner';
-import { describeEntity, namesFrom } from '../../../../../../../components/review/describe';
+import { capRecordIds, describeEntity, namesFrom } from '../../../../../../../components/review/describe';
 import { DiffView } from '../../../../../../../components/review/DiffView';
 import { EffectsTable } from '../../../../../../../components/review/EffectsTable';
+import { OmittedRecordsNote } from '../../../../../../../components/review/fields';
 import { AcknowledgeEvidence, MergePanel } from '../../../../../../../components/review/MergePanel';
 import { AuthorBadge, ProposalFrame } from '../../../../../../../components/review/ProposalFrame';
 import { quoteContext } from '../../../../../../../lib/quote-context';
@@ -66,8 +67,8 @@ export default async function ReviewPage({ params, searchParams }: { params: Pro
   const candidate = proposal.candidate;
   const base = review.baseCommitId === main.project.mainCommitId ? main : await notFoundOn(resolveView(db, actor, id, { kind: 'commit', commitId: review.baseCommitId }));
   const changedActs = review.diff.changes.filter(change => change.collection === 'acts' && change.after !== null).map(change => change.after as Act);
-  const versionIds = new Set([...changedActs.map(act => act.citation.recordVersionId), ...review.diff.changes.filter(change => change.collection === 'recordDecisions').map(change => change.id)]);
-  const cited = await readCitedRecords(db, actor, { projectId: id, recordVersionIds: [...versionIds] });
+  const wanted = capRecordIds([...changedActs.map(act => act.citation.recordVersionId), ...review.diff.changes.filter(change => change.collection === 'recordDecisions').map(change => change.id)]);
+  const cited = await readCitedRecords(db, actor, { projectId: id, recordVersionIds: wanted.ids });
   const names = namesFrom([candidate, base.snapshot, main.snapshot], Object.fromEntries([...cited].map(([versionId, record]) => [versionId, record.title])));
   const stale = review.baseCommitId !== review.mainCommitId;
   const T = `${shortStamp(review.T, timeZone)}`;
@@ -83,6 +84,7 @@ export default async function ReviewPage({ params, searchParams }: { params: Pro
       )}
       <div className="grid2">
         <div className="stack">
+          <OmittedRecordsNote omitted={wanted.omitted} />
           <DiffView changes={review.diff.changes} names={names} pendingEvidenceCount={review.pendingEvidenceCount} />
           <EffectsTable effects={review.effects} loopTitles={names.loops} T={T} />
         </div>
@@ -119,7 +121,7 @@ export default async function ReviewPage({ params, searchParams }: { params: Pro
               {changedActs.length > MAX_SOURCES && <p className="faint" style={{ fontSize: 12 }}>{changedActs.length - MAX_SOURCES} more cited acts are not shown.</p>}
             </div>
           </section>
-          <MergePanel projectId={id} proposalId={proposal.id} review={{ mainCommitId: review.mainCommitId, proposalRevision: review.proposalRevision, evidenceRevision: review.evidenceRevision, digest: review.digest, T: review.T }}
+          <MergePanel key={review.digest} projectId={id} proposalId={proposal.id} review={{ mainCommitId: review.mainCommitId, proposalRevision: review.proposalRevision, evidenceRevision: review.evidenceRevision, digest: review.digest, T: review.T }}
             pendingEvidenceCount={review.pendingEvidenceCount} defaultMessage={proposal.title} rebaseHref={`${href}/rebase`}
             blocked={stale ? 'Merge needs a rebase onto current main first.' : null} />
         </div>

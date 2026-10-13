@@ -1,7 +1,7 @@
 'use client';
 import { useState, type FormEvent } from 'react';
 import type { Department, GraphOperation, Milestone, Person } from '../../contracts';
-import { SelectField } from './ActEditor';
+import { SelectField } from './fields';
 import { useHydrated } from './hydrated';
 
 type Props = {

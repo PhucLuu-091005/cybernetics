@@ -12,9 +12,8 @@ export type LaterCommit = { id: string; message: string; keys: string[] };
 type Props = {
   projectId: string;
   target: { id: string; message: string; kind: 'initial' | 'merge' | 'revert' | 'restore' };
-  /** Entity keys (`collection/id`) the target commit changed against its parent. */
   touched: string[];
-  /** Commits after the target, oldest first. */
+  /** Oldest first, so the restore list can name the latest later commit that touched an entity. */
   later: LaterCommit[];
   basis: Basis;
   T: string;

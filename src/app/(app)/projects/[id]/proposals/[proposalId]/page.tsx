@@ -7,7 +7,8 @@ import { parseFilters } from '../../../../../../components/graph/filters';
 import { shortStamp } from '../../../../../../components/graph/labels';
 import { parseCite } from '../../../../../../components/inbox/selection';
 import type { CitedText } from '../../../../../../components/review/ActEditor';
-import { changeItems, namesFrom, proposalHighlights } from '../../../../../../components/review/describe';
+import { capRecordIds, changeItems, namesFrom, proposalHighlights } from '../../../../../../components/review/describe';
+import { OmittedRecordsNote } from '../../../../../../components/review/fields';
 import { ProposalFrame } from '../../../../../../components/review/ProposalFrame';
 import { ProposalWorkspace } from '../../../../../../components/review/ProposalWorkspace';
 import { getApp } from '../../../../../../server/app';
@@ -39,10 +40,8 @@ export default async function ProposalPage({ params, searchParams }: { params: P
   const cite = proposal.status === 'draft' ? parseCite(typeof raw.cite === 'string' ? raw.cite : null) : null;
 
   const changedActs = new Map(changes.filter(change => change.collection === 'acts' && change.after !== null).map(change => [change.id, change.after as Act]));
-  const versionIds = new Set([...changedActs.values()].map(act => act.citation.recordVersionId));
-  for (const change of changes) if (change.collection === 'recordDecisions') versionIds.add(change.id);
-  if (cite) versionIds.add(cite.recordVersionId);
-  const cited = await readCitedRecords(db, actor, { projectId: id, recordVersionIds: [...versionIds] });
+  const wanted = capRecordIds([...(cite ? [cite.recordVersionId] : []), ...[...changedActs.values()].map(act => act.citation.recordVersionId), ...changes.filter(change => change.collection === 'recordDecisions').map(change => change.id)]);
+  const cited = await readCitedRecords(db, actor, { projectId: id, recordVersionIds: wanted.ids });
   // A citation from another project or a missing version never reaches the editor.
   const usableCite = cite && cited.has(cite.recordVersionId) ? cite : null;
   const records: Record<string, CitedText> = Object.fromEntries([...cited].map(([versionId, record]) => [versionId, { title: record.title, author: record.author, when: `${shortStamp(record.occurredAt, timeZone)} ${timeZone}`, text: record.bodyText, quotedRanges: record.quotedRanges }]));
@@ -72,6 +71,7 @@ export default async function ProposalPage({ params, searchParams }: { params: P
             loops={[...candidate.loops].sort((a, b) => a.title.localeCompare(b.title))} people={candidate.context.people} departments={candidate.context.departments} milestones={candidate.context.milestones}
             cite={usableCite} citeActor={citeActor} />
         </ProposalFrame>
+        <OmittedRecordsNote omitted={wanted.omitted} />
         {cite && !usableCite && <p className="bad" style={{ fontSize: 13 }}>The citation in the link does not name a record of this project, so the editor ignores it.</p>}
         <h2 style={{ margin: '6px 0 4px', fontSize: 14 }}>Candidate graph at T = {shortStamp(view.T, timeZone)} <span className="faint" style={{ fontWeight: 400, fontSize: 12 }}>violet halo marks changed loops</span></h2>
       </div>

@@ -5,9 +5,9 @@ export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: ApiError 
 /** What the page displayed; every mutation sends it so a concurrent change answers CONFLICT instead of overwriting. */
 export type Basis = { mainCommitId: string; evidenceRevision: number };
 
-export async function send<T>(path: string, method: 'POST' | 'PATCH', body: unknown): Promise<ApiResult<T>> {
+export async function send<T>(path: string, method: 'GET' | 'POST' | 'PATCH', body?: unknown): Promise<ApiResult<T>> {
   let response: Response;
-  try { response = await fetch(path, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); }
+  try { response = await fetch(path, method === 'GET' ? { headers: { Accept: 'application/json' } } : { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); }
   catch { return { ok: false, error: { status: 0, code: 'NETWORK', message: 'The request did not reach the server. Try again.' } }; }
   const data = await response.json().catch(() => null);
   if (response.ok) return { ok: true, data: data as T };

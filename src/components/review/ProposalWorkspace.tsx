@@ -9,17 +9,16 @@ import { ContextEditor } from './ContextEditor';
 import type { ChangeKind } from './describe';
 import { useDraftEdit, type EditTarget } from './draft-edit';
 import { LoopEditor } from './LoopEditor';
-import { actToForm, type ActForm } from './operations';
+import { actToForm, removeAct, type ActForm, type Citer } from './operations';
 
 export type ChangeItem = { key: string; collection: EntityCollection; id: string; kind: ChangeKind; title: string; detail: string };
 type Props = {
   projectId: string;
   target: Extract<EditTarget, { kind: 'proposal' }>;
   changes: ChangeItem[];
-  /** Candidate acts the changes list can open, keyed by act ID. */
   acts: Record<string, Act>;
-  /** Every candidate act's citation and visibility, so removing an act can return its record to pending. */
-  citations: { id: string; hidden: boolean; recordVersionId: string }[];
+  /** Hiding or removing the last visible act on an included record must also return that record to pending. */
+  citations: Citer[];
   records: Record<string, CitedText>;
   decisions: Record<string, RecordDecision['disposition']>;
   loops: Loop[];
@@ -27,7 +26,6 @@ type Props = {
   departments: Department[];
   milestones: Milestone[];
   cite: Citation | null;
-  /** The cited record's author when the people list names them. */
   citeActor: string | null;
 };
 type Selection = 'cite' | 'new-loop' | 'context' | string;
@@ -49,18 +47,12 @@ export function ProposalWorkspace({ projectId, target, changes, acts, citations,
     else if (selected === 'new-loop' && first?.op === 'put' && first.collection === 'loops') setSelected(`loops/${first.value.id}`);
   };
 
-  const removeOperations = (act: Act): GraphOperation[] => {
-    const versionId = act.citation.recordVersionId;
-    const stillCited = citations.some(other => other.id !== act.id && !other.hidden && other.recordVersionId === versionId);
-    return [{ op: 'remove', collection: 'acts', id: act.id }, ...(decisions[versionId] === 'included' && !stillCited ? [{ op: 'remove', collection: 'recordDecisions', id: versionId } as const] : [])];
-  };
-
   let editor: React.ReactNode;
   const change = changes.find(item => item.key === selected);
   if (selected === 'cite' && cite) {
     const actor = citeActor ?? fallbackParty;
     const initial: ActForm = { id: newActId, type: 'request', actor, customer: actor, performer: actor, action: '', dueDate: '', duePrecision: 'day', hedged: false, loopId: null, hidden: false, origin: 'human', confidence: null, decision: decisions[cite.recordVersionId] ?? null };
-    editor = <ActEditor key={`cite:${saved}`} initial={initial} citation={cite} expectedQuote={cite.quote} record={records[cite.recordVersionId] ?? null} people={people} loops={loops} isNew busy={edit.busy} editable={edit.editable} removeOperations={null} onSave={save} />;
+    editor = <ActEditor key={`cite:${saved}`} initial={initial} citation={cite} expectedQuote={cite.quote} record={records[cite.recordVersionId] ?? null} people={people} loops={loops} isNew busy={edit.busy} editable={edit.editable} removeOperations={null} citers={citations} onSave={save} />;
   } else if (selected === 'new-loop') {
     editor = <LoopEditor key={`new-loop:${saved}`} loop={null} people={people} departments={departments} milestones={milestones} busy={edit.busy} editable={edit.editable} onSave={save} />;
   } else if (selected === 'context') {
@@ -68,7 +60,7 @@ export function ProposalWorkspace({ projectId, target, changes, acts, citations,
   } else if (change?.collection === 'acts' && acts[change.id]) {
     const act = acts[change.id];
     editor = <ActEditor key={`${change.key}:${saved}`} initial={actToForm(act, decisions[act.citation.recordVersionId] ?? null)} citation={act.citation} expectedQuote={null} record={records[act.citation.recordVersionId] ?? null}
-      people={people} loops={loops} isNew={false} busy={edit.busy} editable={edit.editable} removeOperations={removeOperations(act)} onSave={save} />;
+      people={people} loops={loops} isNew={false} busy={edit.busy} editable={edit.editable} removeOperations={removeAct(act, decisions[act.citation.recordVersionId] ?? null, citations)} citers={citations} onSave={save} />;
   } else if (change?.collection === 'loops' && change.kind !== 'removed') {
     const loop = loops.find(item => item.id === change.id) ?? null;
     editor = <LoopEditor key={`${change.key}:${saved}`} loop={loop} people={people} departments={departments} milestones={milestones} busy={edit.busy} editable={edit.editable} onSave={save} />;

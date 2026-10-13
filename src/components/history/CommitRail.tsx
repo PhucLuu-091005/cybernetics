@@ -6,7 +6,6 @@ type Commit = ListHistoryResult['items'][number];
 const DOT = { merge: 'var(--route)', revert: 'var(--caution)', restore: 'var(--draft)', initial: 'var(--ink-2)' } as const;
 export const actorName = (actor: ActorReference, viewerUserId: string) => actor.kind === 'agent' ? 'Agent via MCP' : actor.userId === viewerUserId ? 'you' : 'a workspace member';
 
-/** Newest first, like `git log`; the rail line links each commit to its single parent below it. */
 export function CommitRail({ projectId, commits, selectedId, mainCommitId, agentProposals, viewerUserId, timeZone }: {
   projectId: string; commits: readonly Commit[]; selectedId: string; mainCommitId: string; agentProposals: ReadonlySet<string>; viewerUserId: string; timeZone: string;
 }) {

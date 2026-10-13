@@ -4,7 +4,7 @@ import { BREAKDOWN_LABEL, stateLabel } from '../graph/labels';
 const label = (type: string) => BREAKDOWN_LABEL[type as BreakdownType] ?? type.replaceAll('_', ' ');
 const state = (value: string | null) => value === null ? 'not in graph' : stateLabel(value as LoopState);
 
-/** SRD 6.2: state and breakdown changes of the candidate against main, both evaluated at the same T. */
+/** Both graphs are evaluated at the same T, so a difference comes from the proposal and not from time passing. */
 export function EffectsTable({ effects, loopTitles, T }: { effects: ProposalReview['effects']; loopTitles: Record<string, string>; T: string }) {
   return (
     <section className="card pad" aria-labelledby="effects-heading">

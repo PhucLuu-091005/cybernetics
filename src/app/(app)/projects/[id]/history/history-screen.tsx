@@ -4,7 +4,8 @@ import { shortStamp } from '../../../../../components/graph/labels';
 import { CommitDiff } from '../../../../../components/history/CommitDiff';
 import { actorName, CommitRail } from '../../../../../components/history/CommitRail';
 import { RevertRestorePreview, type LaterCommit } from '../../../../../components/history/RevertRestorePreview';
-import { namesFrom } from '../../../../../components/review/describe';
+import { capRecordIds, namesFrom } from '../../../../../components/review/describe';
+import { OmittedRecordsNote } from '../../../../../components/review/fields';
 import { getApp } from '../../../../../server/app';
 import { getCommit, listHistory } from '../../../../../server/domain/commits';
 import { evaluationTime, resolveView } from '../../../../../server/domain/graph';
@@ -17,7 +18,6 @@ import { notFoundOn, requireActor } from '../../../../../server/http/rsc';
 const MAX_LATER = 20;
 const keyOf = (change: { collection: string; id: string }) => `${change.collection}/${change.id}`;
 
-/** SRD 7.6: parent links, authors, messages and merge, revert and restore targets, newest first. */
 export async function HistoryScreen({ projectId, commitId }: { projectId: string; commitId: string | null }) {
   const actor = await requireActor(`/projects/${projectId}/history`);
   const db = getApp().db;
@@ -39,7 +39,8 @@ export async function HistoryScreen({ projectId, commitId }: { projectId: string
     commit.parentId ? notFoundOn(resolveView(db, actor, projectId, { kind: 'commit', commitId: commit.parentId })) : null,
   ]);
   const versionIds = [...diff.changes, ...laterDiffs.flatMap(read => read.diff.changes)].filter(change => change.collection === 'recordDecisions').map(change => change.id);
-  const cited = await readCitedRecords(db, actor, { projectId, recordVersionIds: [...new Set(versionIds)].slice(0, 1000) });
+  const wanted = capRecordIds(versionIds);
+  const cited = await readCitedRecords(db, actor, { projectId, recordVersionIds: wanted.ids });
   const names = namesFrom([main.snapshot, target.snapshot, ...(parent ? [parent.snapshot] : [])], Object.fromEntries([...cited].map(([versionId, record]) => [versionId, record.title])));
   const proposals = new Map(merged.items.map(item => [item.id, item]));
   const agentProposals = new Set(merged.items.filter(item => item.author.kind === 'agent').map(item => item.id));
@@ -80,6 +81,7 @@ export async function HistoryScreen({ projectId, commitId }: { projectId: string
                 <dt>Reviewed evidence</dt><dd>revision {commit.reviewedEvidenceRevision}</dd>
               </dl>
               <CommitDiff diff={diff} names={names} />
+              <OmittedRecordsNote omitted={wanted.omitted} />
               {commit.kind === 'initial' && <p className="faint" style={{ fontSize: 12 }}>The initial commit cannot be reverted. You can restore it.</p>}
               <RevertRestorePreview key={commit.id} projectId={projectId} target={{ id: commit.id, message: commit.message, kind: commit.kind }} touched={diff.changes.map(keyOf)} later={laterCommits}
                 basis={{ mainCommitId: history.mainCommitId, evidenceRevision: history.evidenceRevision }} T={evaluationTime(main.snapshot)} names={names} />

@@ -19,7 +19,6 @@ function loopOf(change: EntityChange, names: Names): string | null {
   return act ? `loop ${act.loopId === null ? 'none' : names.loops[act.loopId] ?? 'unknown'}` : null;
 }
 
-/** SRD 6.2: entity additions, removals and changes with before and after values; record decisions get their own list. */
 export function DiffView({ changes, names, pendingEvidenceCount }: { changes: readonly EntityChange[]; names: Names; pendingEvidenceCount?: number }) {
   const structural = changes.filter(change => change.collection !== 'recordDecisions');
   const decisions = changes.filter(change => change.collection === 'recordDecisions');

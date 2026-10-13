@@ -47,7 +47,6 @@ test('create a proposal from an inbox citation, correct its loop, review the dif
   const mainBefore = await headCommit(page);
   await expect(branch(page, 'Client secret renewal')).toHaveAttribute('aria-label', /unanswered request/i);
 
-  // Import a pending record through the inbox paste form.
   await page.goto(`/projects/${projectId}/inbox`);
   const marker = randomUUID().slice(0, 8), title = `Re: Azure client secret ${marker}`;
   await expect(page.getByRole('button', { name: 'Import as pending record', includeHidden: true })).toBeEnabled();
@@ -62,7 +61,6 @@ test('create a proposal from an inbox citation, correct its loop, review the dif
   await records(page).getByRole('link', { name: new RegExp(title) }).click();
   await expect(page.getByLabel('Record text')).toContainText(`Ref ${marker}`);
 
-  // The selection starts a draft from main and hands the citation to the proposal editor.
   await selectText(page, QUOTE);
   await page.getByRole('button', { name: 'Start act from selection' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/proposals/[0-9a-f-]{36}\\?cite=`));
@@ -73,7 +71,6 @@ test('create a proposal from an inbox citation, correct its loop, review the dif
   await expect(editor.getByTestId('citation-check')).toContainText('Quote matches the record text at 42–85');
   await expect(editor.getByTestId('citation-quote')).toHaveText(QUOTE);
 
-  // First save links the act to the wrong loop.
   await editor.getByLabel('Act type').selectOption({ label: 'Promise' });
   await editor.getByLabel('Actor').selectOption({ label: 'Tom Becker' });
   await editor.getByLabel('Loop').selectOption({ label: 'Dynamics CRM sync scope' });
@@ -87,7 +84,6 @@ test('create a proposal from an inbox citation, correct its loop, review the dif
   await expect(operations.getByRole('option', { name: /Promise by Tom Becker/ })).toContainText('Dynamics CRM sync scope');
   await expect(operations.getByRole('option', { name: /Include record/ })).toBeVisible();
 
-  // Correct the loop link through the same editor.
   await operations.getByRole('option', { name: /Promise by Tom Becker/ }).click();
   await expect(editor.getByLabel('Loop')).toHaveValue(/[0-9a-f-]{36}/);
   await editor.getByLabel('Loop').selectOption({ label: 'Client secret renewal' });
@@ -96,7 +92,6 @@ test('create a proposal from an inbox citation, correct its loop, review the dif
   await expect(operations.getByRole('option', { name: /Promise by Tom Becker/ })).toContainText('Client secret renewal');
   await expect(page.getByTestId('main-badge')).toHaveCount(0);
 
-  // Review shows the structural diff, the record decision, the derived effects and the cited source.
   await page.getByRole('link', { name: 'Review changes' }).click();
   await expect(page).toHaveURL(`${proposalUrl}/review`);
   const structural = page.getByRole('region', { name: 'Structural changes' });
@@ -130,7 +125,6 @@ test('competing drafts: a stale merge shows the conflict banner and keeps the dr
   await page.getByRole('link', { name: 'Review changes' }).click();
   await expect(page.getByRole('region', { name: 'Structural changes' })).toContainText('Dynamics CRM sync scope (SOW phase 2)');
 
-  // Another tab merges the competing draft while this review is open.
   const other = await page.context().newPage();
   await other.goto(`/projects/${projectId}/proposals`);
   await other.getByRole('link', { name: 'Retitle the Dynamics loop as a phase 1 request' }).click();
@@ -194,6 +188,15 @@ test('revert preview: a conflicting inverse becomes a proposal, an unrelated lat
   const top = commits(page).getByRole('link').first();
   await expect(top).toContainText('Revert “Note the SOW phase 2 scope');
   await expect(top).toContainText('revert');
+
+  const graph = await page.request.get(`/api/v1/projects/${projectId}/graph`);
+  expect(graph.ok()).toBe(true);
+  const annotations = ((await graph.json()) as { snapshot: { annotations: { text: string }[] } }).snapshot.annotations.map(item => item.text);
+  expect(annotations.some(text => text.includes('the SOW puts the Dynamics sync'))).toBe(false);
+  expect(annotations.some(text => text.includes('Tom was out of the office'))).toBe(false);
+  await page.goto(`/projects/${projectId}/inbox?state=pending`);
+  await expect(page.getByText('Main, read-only')).toBeVisible();
+  await expect(records(page).getByRole('link', { name: /Automatic reply: out of office/ })).toBeVisible();
 });
 
 test('restore preview lists removed later changes and apply creates a new restore commit', async ({ page }) => {
@@ -214,7 +217,7 @@ test('restore preview lists removed later changes and apply creates a new restor
   await expect(top).toContainText('Seed Larkspur main snapshot');
 });
 
-test('loop panel edits on main open a proposal first, then edit that draft; main stays unchanged', async ({ page }) => {
+test('loop panel edits on main open a proposal first; change type, move and hide then edit that draft; main stays unchanged', async ({ page }) => {
   const projectId = await signIn(page, 'review-panel');
   const mainBefore = await headCommit(page);
   await expect(page.getByRole('group', { name: /promise graph for/i })).toHaveAttribute('data-ready', 'true');
@@ -226,11 +229,26 @@ test('loop panel edits on main open a proposal first, then edit that draft; main
   await expect(panel.getByLabel('Milestone')).toHaveValue(/[0-9a-f-]{36}/);
 
   await panel.getByLabel('Act actions').first().click();
-  await panel.getByRole('button', { name: 'Change type' }).first().click();
+  await panel.getByRole('button', { name: 'Change type' }).click();
   await panel.getByLabel('New act type').selectOption({ label: 'Follow-up' });
   await panel.getByRole('button', { name: 'Apply to draft' }).click();
   await expect(page).toHaveURL(/rev=2/);
   await expect(page.getByText('Proposal, draft')).toBeVisible();
+  const steps = panel.getByRole('list', { name: 'Steps' }).getByRole('listitem');
+  await expect(steps).toHaveCount(2);
+
+  await panel.getByLabel('Act actions').nth(1).click();
+  await panel.getByRole('button', { name: 'Move to another loop' }).click();
+  await panel.getByLabel('Target loop').selectOption({ label: 'Dynamics CRM sync scope' });
+  await panel.getByRole('button', { name: 'Apply to draft' }).click();
+  await expect(page).toHaveURL(/rev=3/);
+  await expect(steps).toHaveCount(1);
+
+  await panel.getByLabel('Act actions').first().click();
+  await panel.getByRole('button', { name: 'Hide this act' }).click();
+  await panel.getByRole('button', { name: 'Apply to draft' }).click();
+  await expect(page).toHaveURL(/rev=4/);
+  await expect(panel.getByText('No acts yet at the evaluation time.')).toBeVisible();
 
   await page.goto(`/projects/${projectId}/graph`);
   expect(await headCommit(page)).toBe(mainBefore);

@@ -1,16 +1,17 @@
 'use client';
-import { useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type FormEvent } from 'react';
 import { ActTypeSchema, type GraphOperation, type Loop, type Person, type QuotedRange } from '../../contracts';
 import { quoteContext } from '../../lib/quote-context';
 import { ACT_LABEL } from '../graph/labels';
+import { MAX_QUOTE } from '../inbox/selection';
+import { PartyOptions, SelectField } from './fields';
 import { useHydrated } from './hydrated';
-import { MAX_QUOTE, buildActOperations, checkCitation, partyValue, type ActForm } from './operations';
+import { buildActOperations, checkCitation, partyValue, type ActForm, type Citer } from './operations';
 
 export type CitedText = { title: string; author: string; when: string; text: string | null; quotedRanges: QuotedRange[] };
 type Props = {
   initial: ActForm;
   citation: { recordVersionId: string; start: number; end: number };
-  /** The quote the inbox selection handed over, checked against the record text before it is saved. */
   expectedQuote: string | null;
   record: CitedText | null;
   people: readonly Person[];
@@ -19,28 +20,13 @@ type Props = {
   busy: boolean;
   editable: boolean;
   removeOperations: GraphOperation[] | null;
+  /** Every candidate act's citation, so hiding this act can return its record to pending. */
+  citers: readonly Citer[];
   onSave(operations: GraphOperation[], title: string): void;
 };
 
-/** The label must not wrap the select: a wrapping label's text would include every option and make label lookups ambiguous. */
-export function SelectField({ label, children }: { label: string; children(id: string): ReactNode }) {
-  const id = useId();
-  return <div className="field"><label htmlFor={id}>{label}</label>{children(id)}</div>;
-}
-
-export function PartyOptions({ people }: { people: readonly Person[] }) {
-  const usable = people.filter(person => person.side !== 'unknown');
-  return (
-    <>
-      {usable.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}
-      <option value="side:client">Client side</option>
-      <option value="side:vendor">Vendor side</option>
-    </>
-  );
-}
-
 /** SRD 6.2: an act cites exact UTF-16 offsets of an immutable record version; the editor checks the quote the way the server will. */
-export function ActEditor({ initial, citation, expectedQuote, record, people, loops, isNew, busy, editable, removeOperations, onSave }: Props) {
+export function ActEditor({ initial, citation, expectedQuote, record, people, loops, isNew, busy, editable, removeOperations, citers, onSave }: Props) {
   const [form, setForm] = useState<ActForm>(initial);
   const [start, setStart] = useState(citation.start);
   const [end, setEnd] = useState(citation.end);
@@ -59,7 +45,7 @@ export function ActEditor({ initial, citation, expectedQuote, record, people, lo
     event.preventDefault();
     if (!valid || !check.ok) return;
     const actor = people.find(person => person.id === form.actor)?.name ?? 'a side';
-    onSave(buildActOperations(form, { recordVersionId: citation.recordVersionId, start, end, quote: check.quote }), `${ACT_LABEL[form.type]} by ${actor}`);
+    onSave(buildActOperations(form, { recordVersionId: citation.recordVersionId, start, end, quote: check.quote }, citers), `${ACT_LABEL[form.type]} by ${actor}`);
   };
   const context = check.ok && text !== null ? quoteContext(text, start, end) : null;
   const hydrated = useHydrated();

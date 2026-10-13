@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { IdSchema, type RebasePreview } from '../../../../../../../contracts';
 import { ConflictBanner } from '../../../../../../../components/review/ConflictBanner';
-import { entityTitle, namesFrom, newestImage } from '../../../../../../../components/review/describe';
+import { capRecordIds, entityTitle, namesFrom, newestImage } from '../../../../../../../components/review/describe';
+import { OmittedRecordsNote } from '../../../../../../../components/review/fields';
 import { ProposalFrame } from '../../../../../../../components/review/ProposalFrame';
 import { RebaseConflictView } from '../../../../../../../components/review/RebaseConflictView';
 import { getApp } from '../../../../../../../server/app';
@@ -45,14 +46,16 @@ export default async function RebasePage({ params }: { params: Promise<{ id: str
     const decisionIds = preview.conflicts.filter(conflict => conflict.collection === 'recordDecisions').map(conflict => conflict.id);
     const proposalChanges = diffSnapshots(base.snapshot, proposal.candidate).changes, mainChanges = diffSnapshots(base.snapshot, main.snapshot).changes;
     for (const change of [...proposalChanges, ...mainChanges]) if (change.collection === 'recordDecisions') decisionIds.push(change.id);
-    const cited = await readCitedRecords(db, actor, { projectId: id, recordVersionIds: [...new Set(decisionIds)].slice(0, 1000) });
+    const wanted = capRecordIds(decisionIds);
+    const cited = await readCitedRecords(db, actor, { projectId: id, recordVersionIds: wanted.ids });
     const names = namesFrom([proposal.candidate, main.snapshot, base.snapshot], Object.fromEntries([...cited].map(([versionId, record]) => [versionId, record.title])));
     const conflicted = new Set(preview.conflicts.map(conflict => `${conflict.collection}/${conflict.id}`));
     const label = (changes: typeof proposalChanges) => changes.filter(change => !conflicted.has(`${change.collection}/${change.id}`)).map(change => entityTitle(change.collection, change.id, newestImage(change.after, change.before), names));
     body = (
       <>
         <p style={{ fontSize: 13, color: 'var(--ink-2)', marginBottom: 12, maxWidth: '72ch' }}>Base <span className="id">{preview.baseCommitId.slice(0, 7)}</span>, main <span className="id">{preview.mainCommitId.slice(0, 7)}</span>, proposal revision {preview.proposalRevision}. One-sided changes are kept. {preview.conflicts.length ? `${preview.conflicts.length} ${preview.conflicts.length === 1 ? 'entity changed' : 'entities changed'} on both sides, so you choose.` : ''} Nothing is dropped and nothing is merged until a fresh review.</p>
-        <RebaseConflictView projectId={id} preview={preview} names={names} kept={{ proposal: label(proposalChanges), main: label(mainChanges) }} />
+        <OmittedRecordsNote omitted={wanted.omitted} />
+        <RebaseConflictView key={preview.digest} projectId={id} preview={preview} names={names} kept={{ proposal: label(proposalChanges), main: label(mainChanges) }} />
       </>
     );
   }

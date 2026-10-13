@@ -14,7 +14,6 @@ type Props = {
   review: ReviewBasis;
   pendingEvidenceCount: number;
   defaultMessage: string;
-  /** Why merge cannot start from this review, for example a stale base. */
   blocked: string | null;
   rebaseHref: string;
 };
@@ -45,9 +44,11 @@ export function MergePanel({ projectId, proposalId, review, pendingEvidenceCount
   return (
     <div className="card pad stack">
       {failure && (failure.status === 409
-        ? <ConflictBanner title={mainMoved ? 'Conflict: main moved since your review.' : 'Conflict: the draft or the evidence changed since your review.'}
-            message={<>Your draft revision {review.proposalRevision} is kept. Refresh the review to merge, or rebase if the same entities changed.</>} error={failure}
-            actions={<><button className="btn" type="button" onClick={() => { setFailure(null); router.refresh(); }}>Refresh review</button><Link className="btn btn-ink" href={rebaseHref}>Preview rebase</Link></>} />
+        ? mainMoved
+          ? <ConflictBanner title="Conflict: main moved since your review." message={<>Your draft revision {review.proposalRevision} is kept. It is no longer based on main, so a merge needs a rebase onto current main and then a fresh review.</>} error={failure}
+              actions={<Link className="btn btn-ink" href={rebaseHref}>Preview rebase</Link>} />
+          : <ConflictBanner title="Conflict: the draft or the evidence changed since your review." message={<>Your draft revision {review.proposalRevision} is kept. Refresh the review, check the changes again, then merge.</>} error={failure}
+              actions={<button className="btn" type="button" onClick={() => { setFailure(null); router.refresh(); }}>Refresh review</button>} />
         : <ConflictBanner title="The merge did not happen." error={failure} />)}
       {pendingEvidenceCount > 0 && (
         <label className="row" style={{ fontSize: 13, alignItems: 'flex-start', gap: 8, flexWrap: 'nowrap' }}>

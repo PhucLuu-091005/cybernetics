@@ -71,7 +71,6 @@ function fieldValue(collection: EntityCollection, field: string, value: unknown,
 const FIELD_LABEL: Record<string, string> = { loopId: 'loop', milestoneId: 'milestone', performerDepartmentId: 'performer department', departmentId: 'department', recordVersionId: 'record', actIds: 'cited acts', plannedDate: 'planned', currentDate: 'current date', reachedAt: 'reached' };
 export type FieldLine = { field: string; label: string; value: string };
 
-/** The fields that differ between the given images; a scalar context entry or a missing image shows as one line. */
 export function fieldLines(collection: EntityCollection, images: Image[], names: Names): FieldLine[][] {
   const objects = images.map(image => image !== null && typeof image === 'object' && !Array.isArray(image) ? image as unknown as Record<string, unknown> : null);
   if (objects.every(object => object === null)) return images.map(image => [{ field: 'value', label: collection === 'context' ? 'value' : '', value: image === null ? 'none' : fieldValue(collection, 'value', image, names) }]);
@@ -82,7 +81,6 @@ export function fieldLines(collection: EntityCollection, images: Image[], names:
 export function changeSymbol(kind: ChangeKind): string { return kind === 'added' ? '+ added' : kind === 'removed' ? '− removed' : '~ changed'; }
 export const changeClass = (kind: ChangeKind) => kind === 'added' ? 'diff-add' : kind === 'removed' ? 'diff-rem' : 'diff-chg';
 
-/** A one-line description of a whole entity, for rows where it was added or removed. */
 export function summarizeEntity(collection: EntityCollection, image: Image, names: Names): string {
   if (image === null) return 'none';
   if (typeof image !== 'object' || Array.isArray(image)) return fieldValue(collection, 'value', image, names);
@@ -117,7 +115,7 @@ export function changeItems(changes: readonly EntityChange[], names: Names): { k
   });
 }
 
-/** Loops a proposal touches directly or through an act moved into or out of them, and the acts it adds or changes. */
+/** An act moved between loops changes both of them, so both loops get the halo. */
 export function proposalHighlights(changes: readonly EntityChange[]): { loopIds: string[]; actIds: string[] } {
   const loopIds = new Set<string>(), actIds = new Set<string>();
   for (const change of changes) {
@@ -127,4 +125,11 @@ export function proposalHighlights(changes: readonly EntityChange[]): { loopIds:
     if (change.kind !== 'removed') actIds.add(change.id);
   }
   return { loopIds: [...loopIds].sort(), actIds: [...actIds].sort() };
+}
+
+export const MAX_NAMED_RECORDS = 1000;
+/** The cited-record read takes at most 1,000 IDs; callers list the IDs they need most first and show how many were left out. */
+export function capRecordIds(ids: Iterable<string>): { ids: string[]; omitted: number } {
+  const unique = [...new Set(ids)];
+  return { ids: unique.slice(0, MAX_NAMED_RECORDS), omitted: Math.max(0, unique.length - MAX_NAMED_RECORDS) };
 }
