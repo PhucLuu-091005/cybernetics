@@ -48,7 +48,7 @@ export function GraphHeader({ projectId, title, clientName, timeZone, windowStar
       </header>
       <div className="status head">
         <span className="badge b-main" data-testid="main-badge"><LockIcon />Main, read-only</span>
-        <span><span className="k">Head commit </span><span className="id v" title={head.id}>{head.id.slice(0, 7)}</span> <span className="k">{head.verb} {head.at}{head.by ? ` by ${head.by}` : ''}</span></span>
+        <span><span className="k">Head commit </span><span className="id v" title={head.id} data-testid="head-commit">{head.id.slice(0, 7)}</span> <span className="k">{head.verb} {head.at}{head.by ? ` by ${head.by}` : ''}</span></span>
         <span><span className="k">Evidence revision </span><span className="v">{evidenceRevision}</span></span>
         {pendingEvidenceCount > 0 && <Link className="pill" href={`/projects/${projectId}/inbox`}>{pendingEvidenceCount} new {pendingEvidenceCount === 1 ? 'record' : 'records'} awaiting review</Link>}
         <span style={{ flex: 1 }} />

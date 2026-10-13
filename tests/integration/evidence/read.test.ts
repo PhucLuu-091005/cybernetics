@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { agentActor, createTestDatabase, testActor, type TestDb } from '../../support/db';
 import { envelopeFor, projectRow, record } from '../../support/evidence';
 import { createProject } from '../../../src/server/domain/projects';
-import { ingestRecords, loadRecordMetadata, readRecordChunk, searchRecords, withdrawRecord } from '../../../src/server/domain/records';
+import { ingestRecords, loadRecordMetadata, readRecordChunk, readRecordText, searchRecords, withdrawRecord } from '../../../src/server/domain/records';
 import { eq } from 'drizzle-orm';
 import { projects, workspaceMembers } from '../../../src/server/db/schema';
 import { RecordChunkSchema, SearchRecordsResultSchema, type ActorContext, type Project } from '../../../src/contracts';
@@ -36,6 +36,16 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('record reads', () => {
     do { const chunk = await readRecordChunk(t.db, ctx, { projectId: project.id, recordVersionId: id, cursor }); text += chunk.text; starts.push(chunk.start); cursor = chunk.nextCursor; } while (cursor);
     expect(text).toBe(body);
     expect(starts).toEqual([0, 7_999]);
+  });
+  it('readRecordText follows every chunk cursor and returns the header of the first chunk', async () => {
+    const body = 'a'.repeat(7_999) + '😀' + 'ơ'.repeat(20_000) + ' end';
+    const id = await ingestOne(body);
+    const first = await readRecordChunk(t.db, ctx, { projectId: project.id, recordVersionId: id });
+    const read = await readRecordText(t.db, ctx, { projectId: project.id, recordVersionId: id });
+    expect(read).toEqual({ ...first, start: 0, end: body.length, text: body, nextCursor: null });
+    const withdrawn = await ingestOne('to be masked');
+    await withdrawRecord(t.db, ctx, { projectId: project.id, recordId: await recordIdOf(withdrawn), expectedEvidenceRevision: await evidenceRevision(), reason: 'Client asked', idempotencyKey: randomUUID() });
+    expect(await readRecordText(t.db, ctx, { projectId: project.id, recordVersionId: withdrawn })).toMatchObject({ withdrawn: true, text: '', end: 0, nextCursor: null });
   });
   it('withdrawal masks historical chunk reads and bumps evidence revision once', async () => {
     const id = await ingestOne('secret body');

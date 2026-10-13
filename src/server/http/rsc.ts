@@ -35,3 +35,9 @@ export async function requireActor(path: string): Promise<ActorContext> {
   if (!actor) redirect('/signin');
   return actor;
 }
+
+/** Domain reads answer NOT_FOUND for foreign or missing rows; a page shows the same 404 for both. */
+export async function notFoundOn<T>(work: Promise<T>): Promise<T> {
+  try { return await work; }
+  catch (error) { if (error instanceof AppError && error.code === 'NOT_FOUND') notFound(); throw error; }
+}

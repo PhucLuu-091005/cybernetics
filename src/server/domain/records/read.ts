@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { ReadRecordChunkInputSchema, isUtf16Boundary, type ActorContext, type RecordChunk } from '../../../contracts';
+import { ReadRecordChunkInputSchema, isUtf16Boundary, utf8Bytes, type ActorContext, type RecordChunk } from '../../../contracts';
 import { buildRecordHeader } from '../../../lib/record-header';
 import { AppError } from '../../errors';
 import { recordVersions, records } from '../../db/schema';
@@ -40,4 +40,17 @@ export async function readRecordChunk(db: Db, ctx: ActorContext, raw: z.input<ty
     projectId: project.id, recordVersionId: version.id, digest: version.digest, start, end, text: body.slice(start, end), nextCursor: end < body.length ? encodeCursor(version.id, end) : null,
     totalLength: body.length, withdrawn: version.withdrawn, header: buildRecordHeader(version, { timeZone: await mainTimeZone(db, project) }), metadata, requestId: ctx.requestId,
   };
+}
+
+const MAX_BODY_BYTES = 65_536, MAX_CHUNKS = 16;
+/** The record viewer needs the whole body to map a selection to absolute offsets; bodies are capped at 64 KiB, so a few chunk reads suffice. */
+export async function readRecordText(db: Db, ctx: ActorContext, input: { projectId: string; recordVersionId: string }): Promise<RecordChunk> {
+  const first = await readRecordChunk(db, ctx, input);
+  let text = first.text, cursor = first.nextCursor;
+  for (let reads = 1; cursor !== null && reads < MAX_CHUNKS && utf8Bytes(text) <= MAX_BODY_BYTES; reads++) {
+    const chunk = await readRecordChunk(db, ctx, { ...input, cursor });
+    text += chunk.text;
+    cursor = chunk.nextCursor;
+  }
+  return { ...first, end: text.length, text, nextCursor: cursor };
 }

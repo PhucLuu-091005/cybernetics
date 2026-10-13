@@ -11,7 +11,7 @@ import { getEscalation } from '../../../../../server/domain/escalations';
 import { getGraphView } from '../../../../../server/domain/graph';
 import { listProjects } from '../../../../../server/domain/projects';
 import { AppError } from '../../../../../server/errors';
-import { requireActor } from '../../../../../server/http/rsc';
+import { notFoundOn, requireActor } from '../../../../../server/http/rsc';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Graph · Promise Graph' };
@@ -24,10 +24,6 @@ function toSearch(raw: Search): URLSearchParams {
   return search;
 }
 const author = (actor: ActorReference, viewer: ActorContext) => actor.kind === 'agent' ? 'an agent' : actor.userId === viewer.userId ? 'you' : 'a workspace member';
-async function notFoundOn<T>(work: Promise<T>): Promise<T> {
-  try { return await work; }
-  catch (error) { if (error instanceof AppError && error.code === 'NOT_FOUND') notFound(); throw error; }
-}
 
 export default async function GraphPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Search> }) {
   const [{ id }, raw] = await Promise.all([params, searchParams]);

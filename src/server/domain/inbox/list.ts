@@ -1,6 +1,6 @@
 import { and, count, desc, eq, getTableColumns, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import type { z } from 'zod';
-import { ListInboxInputSchema, type ActorContext, type GraphSnapshot, type InboxState, type ListInboxResult, type ViewSelection } from '../../../contracts';
+import { InboxStateSchema, ListInboxInputSchema, type ActorContext, type GraphSnapshot, type InboxState, type ListInboxResult, type ViewSelection } from '../../../contracts';
 import { buildRecordHeader } from '../../../lib/record-header';
 import { AppError } from '../../errors';
 import { recordVersions, records } from '../../db/schema';
@@ -40,7 +40,7 @@ export async function countPending(db: Db | Tx, projectId: string, snapshot: Gra
   return row.n;
 }
 
-function viewOf(input: z.infer<typeof ListInboxInputSchema>): ViewSelection {
+function viewOf(input: Pick<z.infer<typeof ListInboxInputSchema>, 'commitId' | 'proposalId' | 'proposalRevision'>): ViewSelection {
   if (input.proposalId !== undefined) {
     if (input.commitId !== undefined || input.proposalRevision === undefined) throw new AppError('VALIDATION', 'Select one view: a proposal with its revision, or a commit', { errors: [{ path: 'proposalRevision', message: 'A proposal view needs proposalRevision and no commitId' }] });
     return { kind: 'proposal', proposalId: input.proposalId, proposalRevision: input.proposalRevision };
@@ -77,5 +77,27 @@ export async function listInbox(db: Db, ctx: ActorContext, raw: z.input<typeof L
     page.items = taken;
     if (taken.length < items.length) page.nextCursor = encodeCursor({ view: key, o: offset + taken.length });
     return page;
+  }, { isolationLevel: 'repeatable read', accessMode: 'read only' });
+}
+
+const CountInboxInputSchema = ListInboxInputSchema.pick({ projectId: true, commitId: true, proposalId: true, proposalRevision: true });
+export type InboxCounts = Record<InboxState, number>;
+
+export async function countInbox(db: Db, ctx: ActorContext, raw: z.input<typeof CountInboxInputSchema>): Promise<InboxCounts> {
+  requireScope(ctx, 'project:read');
+  const parsed = CountInboxInputSchema.safeParse(raw);
+  if (!parsed.success) throw invalid('Invalid inbox count', parsed.error);
+  const input = parsed.data, view = viewOf(input);
+  return db.transaction(async tx => {
+    const { project, snapshot } = await resolveView(tx, ctx, input.projectId, view);
+    const state = await inboxState(tx, project.id, snapshot);
+    const rows = await tx.select({ state, n: count() }).from(v)
+      .innerJoin(r, and(eq(r.projectId, v.projectId), eq(r.id, v.recordId)))
+      .where(eq(v.projectId, project.id))
+      // Ordinal grouping: the state expression binds its arrays as parameters, so repeating it would not match the select list.
+      .groupBy(sql`1`);
+    const counts = Object.fromEntries(InboxStateSchema.options.map(name => [name, 0])) as InboxCounts;
+    for (const row of rows) counts[row.state] = row.n;
+    return counts;
   }, { isolationLevel: 'repeatable read', accessMode: 'read only' });
 }

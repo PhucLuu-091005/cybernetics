@@ -6,7 +6,7 @@ import { headOf, ingestEnvelope, larkspurRecords, larkspurT, mergeOperations, re
 import proposals from '../../../fixtures/proposals.json';
 import { uuidFromKey } from '../../../scripts/build-fixtures';
 import { previewRevert, revertCommit } from '../../../src/server/domain/commits';
-import { getInboxHints, listInbox } from '../../../src/server/domain/inbox';
+import { countInbox, getInboxHints, listInbox } from '../../../src/server/domain/inbox';
 import { ingestRecords, withdrawRecord } from '../../../src/server/domain/records';
 import { ListInboxResultSchema, type ActorContext, type GraphOperation, type ListInboxInput, type ListInboxResult, type RecordInput } from '../../../src/contracts';
 
@@ -93,6 +93,23 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('inbox', () => {
     ], 'Reconcile withdrawn evidence');
     expect(await stateOf(versionId)).toBe('ignored');
     expect(await stateOf(versionId, { commitId: seed.seedCommitId })).toBe('withdrawn');
+  });
+  it('countInbox counts every state of the selected view and matches the paged list', async () => {
+    const counted = async (view: Partial<ListInboxInput> = {}) => {
+      const counts = { pending: 0, included: 0, ignored: 0, superseded: 0, withdrawn: 0 };
+      let cursor: string | null | undefined;
+      do { const page = await listInbox(t.db, ctx, { projectId, cursor, ...view }); for (const item of page.items) counts[item.state]++; cursor = page.nextCursor; } while (cursor);
+      return counts;
+    };
+    const [pending] = seed.pendingVersionIds;
+    await ingestOne({ ...inputOf(pending), bodyText: `${inputOf(pending).bodyText} (edited)` });
+    await withdraw(versionOfAct('go-live:0'));
+    const main = await countInbox(t.db, ctx, { projectId });
+    expect(main).toEqual(await counted());
+    expect(main).toMatchObject({ pending: 4, superseded: 1, withdrawn: 1 });
+    expect(await countInbox(t.db, ctx, { projectId, commitId: seed.seedCommitId })).toEqual(await counted({ commitId: seed.seedCommitId }));
+    await expect(countInbox(t.db, ctx, { projectId, proposalId: randomUUID() })).rejects.toMatchObject({ code: 'VALIDATION' });
+    await expect(countInbox(t.db, ctx, { projectId: randomUUID() })).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
   it('a proposal view needs its revision and pages are bounded', async () => {
     await expect(listInbox(t.db, ctx, { projectId, proposalId: randomUUID() })).rejects.toMatchObject({ code: 'VALIDATION' });
