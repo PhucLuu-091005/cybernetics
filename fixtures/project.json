@@ -1,0 +1,248 @@
+{
+  "larkspur": {
+    "id": "27e5ee3a-e6ec-40e3-8da3-99c0b11641f3",
+    "key": "larkspur",
+    "workspaceKey": "sandbox",
+    "title": "Larkspur Capital, Fund III onboarding",
+    "clientName": "Larkspur Capital",
+    "vendorName": "Fundline",
+    "sideRules": [
+      {
+        "domain": "larkspur.example",
+        "side": "client"
+      },
+      {
+        "domain": "hollis-law.example",
+        "side": "client"
+      },
+      {
+        "domain": "fundline.example",
+        "side": "vendor"
+      }
+    ],
+    "sourceLabels": [
+      "#larkspur-it",
+      "#larkspur-onboarding",
+      "gmail:aml-checklist",
+      "gmail:consent-capture",
+      "gmail:document-redaction",
+      "gmail:escalation-dynamics",
+      "gmail:escalation-go-live",
+      "gmail:escalation-sync-incident",
+      "gmail:go-live-plan",
+      "gmail:legal-review-routing",
+      "gmail:out-of-office",
+      "gmail:portal-feedback",
+      "gmail:side-letter-mapping",
+      "gmail:sow-signature",
+      "gmail:subscription-documents",
+      "notion:plan",
+      "notion:sow"
+    ],
+    "pendingRecordVersionIds": [
+      "3589e326-1630-4d21-a3eb-05dea3c44d6c",
+      "0b14ddc9-1ac7-455d-95c2-28b06edd9516",
+      "5bf2df32-749a-46b2-9600-508bd2dd7ecc",
+      "8443fa73-7a57-4497-b113-b900cd1d4991"
+    ]
+  },
+  "isolation": {
+    "id": "d817be95-3349-4dff-ab70-a9de78364408",
+    "key": "isolation",
+    "workspaceKey": "isolation",
+    "title": "Cobalt Ridge Partners, Fund I onboarding",
+    "clientName": "Cobalt Ridge Partners",
+    "vendorName": "Fundline",
+    "sideRules": [
+      {
+        "domain": "cobalt-ridge.example",
+        "side": "client"
+      },
+      {
+        "domain": "fundline.example",
+        "side": "vendor"
+      }
+    ],
+    "sourceLabels": [
+      "paste:cobalt-ridge"
+    ],
+    "snapshot": {
+      "schemaVersion": 1,
+      "context": {
+        "timeZone": "Asia/Ho_Chi_Minh",
+        "windowStart": "2026-06-15",
+        "windowEnd": "2026-11-15",
+        "asOfOverride": "2026-10-09T18:00:00+07:00",
+        "holidays": [],
+        "replyWindowDays": 2,
+        "acceptWindowDays": 5,
+        "hedgeWindowDays": 5,
+        "atRiskWindowDays": 2,
+        "people": [
+          {
+            "id": "fd84df78-9448-4a5e-ab29-dcc456e95901",
+            "name": "Ngọc Võ",
+            "side": "vendor",
+            "departmentId": "23a78057-8ea5-4aa2-a798-41244d3cd67c",
+            "role": "Implementation manager"
+          },
+          {
+            "id": "40b1792f-7457-4cd8-a788-d7e2b25b9db3",
+            "name": "Ethan Cole",
+            "side": "client",
+            "departmentId": "f1e6e373-5f8c-41ca-a8d1-fd779bfe5a07",
+            "role": "Fund controller"
+          }
+        ],
+        "departments": [
+          {
+            "id": "23a78057-8ea5-4aa2-a798-41244d3cd67c",
+            "name": "Implementation",
+            "side": "vendor",
+            "order": 0
+          },
+          {
+            "id": "f1e6e373-5f8c-41ca-a8d1-fd779bfe5a07",
+            "name": "Fund Operations",
+            "side": "client",
+            "order": 0
+          }
+        ],
+        "milestones": [
+          {
+            "id": "2a897845-a206-499b-8cef-25a108e0e570",
+            "name": "Go-live",
+            "order": 0,
+            "plannedDate": "2026-10-30",
+            "currentDate": "2026-10-30",
+            "reachedAt": null,
+            "anchorLoopId": "f8db2022-dabf-4c88-8368-d4f331dbd93f"
+          }
+        ]
+      },
+      "acts": [
+        {
+          "id": "9584c476-8388-42a1-9676-505d5b3c9a90",
+          "citation": {
+            "recordVersionId": "82937e5e-8841-4e96-a536-6096abd38df0",
+            "start": 28,
+            "end": 67
+          },
+          "type": "request",
+          "actor": {
+            "kind": "person",
+            "personId": "40b1792f-7457-4cd8-a788-d7e2b25b9db3"
+          },
+          "customer": {
+            "kind": "person",
+            "personId": "40b1792f-7457-4cd8-a788-d7e2b25b9db3"
+          },
+          "performer": {
+            "kind": "person",
+            "personId": "fd84df78-9448-4a5e-ab29-dcc456e95901"
+          },
+          "action": "import the Fund I investor list",
+          "due": null,
+          "hedged": false,
+          "loopId": "f8db2022-dabf-4c88-8368-d4f331dbd93f",
+          "hidden": false,
+          "origin": "human",
+          "confidence": null
+        },
+        {
+          "id": "03bb220f-9c47-49a5-a37d-b74ae95b0fce",
+          "citation": {
+            "recordVersionId": "c17a08d9-cd70-43af-b2fc-d83c3a8817fa",
+            "start": 14,
+            "end": 60
+          },
+          "type": "promise",
+          "actor": {
+            "kind": "person",
+            "personId": "fd84df78-9448-4a5e-ab29-dcc456e95901"
+          },
+          "customer": {
+            "kind": "person",
+            "personId": "40b1792f-7457-4cd8-a788-d7e2b25b9db3"
+          },
+          "performer": {
+            "kind": "person",
+            "personId": "fd84df78-9448-4a5e-ab29-dcc456e95901"
+          },
+          "action": "import the Fund I investor list",
+          "due": {
+            "date": "2026-10-16",
+            "precision": "day"
+          },
+          "hedged": false,
+          "loopId": "f8db2022-dabf-4c88-8368-d4f331dbd93f",
+          "hidden": false,
+          "origin": "human",
+          "confidence": null
+        },
+        {
+          "id": "cecdfca1-a7d7-47e0-aad1-c57a10804613",
+          "citation": {
+            "recordVersionId": "3aa6dbe6-e1ce-4153-85f9-b8f0fd8548be",
+            "start": 10,
+            "end": 54
+          },
+          "type": "report_done",
+          "actor": {
+            "kind": "person",
+            "personId": "fd84df78-9448-4a5e-ab29-dcc456e95901"
+          },
+          "customer": {
+            "kind": "person",
+            "personId": "40b1792f-7457-4cd8-a788-d7e2b25b9db3"
+          },
+          "performer": {
+            "kind": "person",
+            "personId": "fd84df78-9448-4a5e-ab29-dcc456e95901"
+          },
+          "action": "import the Fund I investor list",
+          "due": null,
+          "hedged": false,
+          "loopId": "f8db2022-dabf-4c88-8368-d4f331dbd93f",
+          "hidden": false,
+          "origin": "human",
+          "confidence": null
+        }
+      ],
+      "loops": [
+        {
+          "id": "f8db2022-dabf-4c88-8368-d4f331dbd93f",
+          "title": "Investor import",
+          "customer": {
+            "kind": "person",
+            "personId": "40b1792f-7457-4cd8-a788-d7e2b25b9db3"
+          },
+          "performer": {
+            "kind": "person",
+            "personId": "fd84df78-9448-4a5e-ab29-dcc456e95901"
+          },
+          "performerDepartmentId": "23a78057-8ea5-4aa2-a798-41244d3cd67c",
+          "milestoneId": "2a897845-a206-499b-8cef-25a108e0e570"
+        }
+      ],
+      "annotations": [],
+      "recordDecisions": [
+        {
+          "recordVersionId": "82937e5e-8841-4e96-a536-6096abd38df0",
+          "disposition": "included",
+          "reason": ""
+        },
+        {
+          "recordVersionId": "c17a08d9-cd70-43af-b2fc-d83c3a8817fa",
+          "disposition": "included",
+          "reason": ""
+        },
+        {
+          "recordVersionId": "3aa6dbe6-e1ce-4153-85f9-b8f0fd8548be",
+          "disposition": "included",
+          "reason": ""
+        }
+      ]
+    }
+  }
+}
