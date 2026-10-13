@@ -10,6 +10,8 @@
 
 **Spec:** [SRD v1.1](../specs/2026-10-12-promise-graph-srd.md). **Ownership:** [task packets](../../agent-tasks/2026-10-12-promise-graph-tasks.md).
 
+**Superseded on 13 October after T01:** follow [the continuation plan](2026-10-13-promise-graph-continuation.md) for all remaining work. This file stays as history.
+
 Status: plan only. No application implementation is authorized by this document itself or started in this revision.
 
 ## Global Constraints
