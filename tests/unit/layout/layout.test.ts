@@ -167,4 +167,44 @@ describe('layoutPromiseGraph design rules', () => {
     expect(xOf('2026-03-08T12:00:00-04:00', context, 10)).toBeCloseTo(10 + 10 * 11 / 23, 10);
     expect(xOf('2026-03-09T00:00:00-04:00', context, 10)).toBe(20);
   });
+
+  it('draws a zero-act loop as a zero-length "no acts yet" branch at T', () => {
+    for (const input of [fixture([]), fixture([{ type: 'request' }], '2026-10-03T00:00:00Z')]) {
+      const derived = deriveProject(input);
+      expect(derived.loops[0].acts).toEqual([]);
+      const l = layoutPromiseGraph(derived, { context: input.snapshot.context }, { pxPerDay: 20 });
+      const xT = xOf(input.T, input.snapshot.context, 20);
+      expect(GraphLayoutSchema.safeParse(l).success).toBe(true);
+      expect(l.branches).toHaveLength(1);
+      expect(l.branches[0]).toMatchObject({ xStart: xT, xEnd: xT, tone: 'blue', endKind: 'open', glyphs: [], breakdownMarkers: [], segments: [{ startX: xT, endX: xT, style: 'solid', tone: 'blue' }], accessibleName: 'Loop: Mapping, Engineering, no acts yet' });
+      expect(l.navigation.loopIds).toEqual([derived.loops[0].loop.id]);
+    }
+  });
+  it('keeps a zero-act loop in its lane and in start-order navigation beside other loops', () => {
+    const extra = { ...snapshot.loops[0], id: '00000000-0000-4000-8000-0000000000aa', title: 'Empty loop' };
+    const withEmpty = { ...snapshot, loops: [...snapshot.loops, extra] } as GraphSnapshot;
+    const derived = deriveProject(engineInputFromFixtures(withEmpty, records.filter(r => r.projectKey === 'larkspur'), gold.T));
+    const l = layoutPromiseGraph(derived, { context: snapshot.context }, { pxPerDay: 12 });
+    expect(GraphLayoutSchema.safeParse(l).success).toBe(true);
+    const b = l.branches.find(item => item.loopId === extra.id)!;
+    const lane = l.lanes.find(item => item.departmentId === extra.performerDepartmentId)!;
+    expect(b.xStart).toBe(Math.round(xOf(gold.T, snapshot.context, 12) * 100) / 100);
+    expect(b.row).toBeLessThan(lane.subRows);
+    expect(l.navigation.loopIds).toHaveLength(31);
+    expect(l.navigation.loopIds).toEqual(l.branches.map(item => item.loopId));
+    const starts = l.branches.map(item => item.xStart);
+    expect(starts).toEqual([...starts].sort((a, c) => a - c));
+  });
+  it('turns a cancelled loop with a broken breakdown red from the breakdown start', () => {
+    const input = fixture([{ type: 'promise' }, { type: 'report_done' }, { type: 'reject' }, { type: 'cancel' }]);
+    const derived = deriveProject(input);
+    expect(derived.loops[0].state).toBe('cancelled');
+    expect(derived.loops[0].breakdowns.map(item => item.severity)).toContain('broken');
+    const [b] = layoutPromiseGraph(derived, { context: input.snapshot.context }, { pxPerDay: 20 }).branches;
+    const rejectX = xOf('2026-10-07T12:00:00Z', input.snapshot.context, 20);
+    expect(b.tone).toBe('red');
+    expect(b.endKind).toBe('cap');
+    expect(b.segments.map(s => [s.tone, s.startX, s.endX])).toEqual([['gray', 90, rejectX], ['red', rejectX, 150]]);
+    expect(b.breakdownMarkers).toEqual([{ x: rejectX, y: b.y, label: 'Rejected delivery' }]);
+  });
 });

@@ -9,7 +9,12 @@ const iso = (epoch: number) => new Date(epoch).toISOString().replace('Z', '+00:0
 
 function syntheticProject(): { engine: EngineOutput; context: GraphContext } {
   let seed = 42;
-  const random = () => (seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648) / 2_147_483_648;
+  const random = () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
+  };
   const departments = Array.from({ length: 8 }, (_, i) => ({ id: id(1, i), name: `Department ${i}`, side: i < 4 ? 'vendor' as const : 'client' as const, order: i % 4 }));
   const people = departments.map((department, i) => ({ id: id(2, i), name: `Person Number ${i}`, side: department.side, departmentId: department.id, role: '' }));
   const milestones = Array.from({ length: 10 }, (_, i) => ({ id: id(3, i), name: `Milestone ${i}`, order: i, plannedDate: `2026-${String(7 + Math.floor(i / 3)).padStart(2, '0')}-1${i % 3}`, currentDate: `2026-${String(7 + Math.floor(i / 3)).padStart(2, '0')}-1${(i + 1) % 3}`, reachedAt: null, anchorLoopId: null }));

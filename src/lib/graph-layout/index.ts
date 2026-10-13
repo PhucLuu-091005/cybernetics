@@ -52,7 +52,7 @@ function segmentsOf(loop: DerivedLoop, scale: TimeScale, xStart: number, lineEnd
   const tone: Tone = broken.length ? 'red' : warnings.length || loop.dueSoon ? 'amber' : base;
   const hedges = hedgeIntervals(loop.acts, scale, lineEnd);
   const waiting = loop.state === 'requested' || ((loop.state === 'negotiating' || loop.state === 'change_pending') && loop.pendingTerms !== null);
-  const waitX = waiting ? round(scale.x(loop.acts.at(-1)!.occurredAt)) : null;
+  const waitX = waiting && loop.acts.length ? round(scale.x(loop.acts.at(-1)!.occurredAt)) : null;
   const styleAt = (x: number): Style => waitX !== null && x >= waitX ? 'dotted' : hedges.some(([a, b]) => a <= x && x < b) ? 'dashed' : 'solid';
   const toneAt = (x: number): Tone => changeX !== null && x >= changeX ? changeTone : base;
   const cuts = [...new Set([xStart, lineEnd, ...(changeX === null ? [] : [changeX]), ...hedges.flat(), ...(waitX === null ? [] : [waitX])])].filter(x => x >= xStart && x <= lineEnd).sort((a, b) => a - b);
@@ -98,12 +98,14 @@ export function layoutPromiseGraph(engine: EngineOutput, input: LayoutInput, opt
   const drafts: Draft[] = [];
   for (const loop of engine.loops) {
     const department = departments.get(loop.loop.performerDepartmentId);
-    // A loop without acts has nothing to draw, and one without a lane fails reference validation elsewhere.
-    if (!department || loop.acts.length === 0) continue;
-    const xStart = round(scale.x(loop.acts[0].occurredAt)), end = endOf(loop, engine.T);
+    // A loop without a lane fails reference validation elsewhere.
+    if (!department) continue;
+    // A loop with no acts at or before T still counts in the engine, so it stays visible as a point at T.
+    const startAt = loop.acts[0]?.occurredAt ?? engine.T;
+    const xStart = round(scale.x(startAt)), end = endOf(loop, engine.T);
     const lineEnd = Math.max(xStart, end.kind === 'open' ? xT : round(scale.x(end.at)));
     const tailEnd = end.kind === 'open' && loop.dueSoon && loop.dueAt ? Math.max(lineEnd, round(scale.x(loop.dueAt))) : lineEnd;
-    drafts.push({ loop, department, startEpoch: Date.parse(loop.acts[0].occurredAt), xStart, lineEnd, xEnd: tailEnd, endKind: end.kind, row: 0 });
+    drafts.push({ loop, department, startEpoch: Date.parse(startAt), xStart, lineEnd, xEnd: tailEnd, endKind: end.kind, row: 0 });
   }
   drafts.sort((a, b) => a.startEpoch - b.startEpoch || compareId(a.loop.loop.id, b.loop.loop.id));
   const subRows = packRows(drafts, branchGap);
@@ -140,7 +142,7 @@ export function layoutPromiseGraph(engine: EngineOutput, input: LayoutInput, opt
     const fork = `M${num(xStart - CURVE)} ${num(trunkY)} C${num(xStart - 4)} ${num(trunkY)} ${num(xStart - 12)} ${num(y)} ${num(xStart)} ${num(y)} H${num(xEnd)}`;
     const merge = endKind === 'merge' ? ` C${num(xEnd + 12)} ${num(y)} ${num(xEnd + 4)} ${num(trunkY)} ${num(xEnd + CURVE)} ${num(trunkY)}` : '';
     const labels = [...new Set(loop.breakdowns.map(item => BREAKDOWN_LABEL[item.type].toLowerCase()))];
-    const status = labels.length ? labels.join(', ') : (loop.state ?? 'no state').replace('_', ' ');
+    const status = labels.length ? labels.join(', ') : loop.acts.length === 0 ? 'no acts yet' : (loop.state ?? 'no state').replaceAll('_', ' ');
     return { id: loop.loop.id, loopId: loop.loop.id, departmentId: department.id, row, xStart, xEnd, y, path: fork + merge, segments, glyphs, tone, endKind, breakdownMarkers, title: loop.loop.title, accessibleName: `Loop: ${loop.loop.title}, ${department.name}, ${status}` };
   });
 
@@ -155,7 +157,7 @@ export function layoutPromiseGraph(engine: EngineOutput, input: LayoutInput, opt
         slipPath = `M${num(ghostX + 10 * direction)} ${num(trunkY - 14)} C${num(middle)} ${num(trunkY - 26)} ${num(middle)} ${num(trunkY - 26)} ${num(x - 10 * direction)} ${num(trunkY - 14)}`;
       }
       const when = moved ? `moved from ${milestone.plannedDate} to ${currentDate}` : currentDate;
-      return { id: milestone.id, x, y: trunkY, ghostX, slipPath, label: milestone.name, accessibleName: `Milestone: ${milestone.name}, ${when}, ${status.replace('_', ' ')}`, openLoopCount, brokenLoopCount };
+      return { id: milestone.id, x, y: trunkY, ghostX, slipPath, label: milestone.name, accessibleName: `Milestone: ${milestone.name}, ${when}, ${status.replaceAll('_', ' ')}`, openLoopCount, brokenLoopCount };
     });
 
   const width = Math.max(scale.dateEndX(context.windowEnd), ...branches.map(branch => branch.xEnd + CURVE), ...milestones.map(item => item.x + CURVE));
