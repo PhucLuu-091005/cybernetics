@@ -131,6 +131,15 @@ test('the loop panel shows each quote inside its surrounding text, with the sour
   await expect(panel.getByText('#larkspur-it').first()).toBeVisible();
 });
 
+test('a rate-limited loop read shows a short retry note and keeps the bare quotes', async ({ page }) => {
+  await signIn(page);
+  await page.route(/\/api\/v1\/projects\/[^/]+\/loops\/[^/?]+\?/, route => route.fulfill({ status: 429, contentType: 'application/json', body: JSON.stringify({ code: 'RATE_LIMITED', message: 'Rate limit exceeded', requestId: 'e2e' }) }));
+  await page.getByRole('button', { name: /^Loop: Client secret renewal/ }).click();
+  const panel = loopPanel(page);
+  await expect(panel.getByRole('status')).toHaveText('Too many requests — try again in a minute.');
+  await expect(panel.getByTestId('verified-quote').first()).toBeVisible();
+});
+
 test('a project the user cannot see returns 404 with the not-found page', async ({ page }) => {
   await signIn(page);
   const response = await page.goto('/projects/6f1c2a8e-4b1d-4c3a-9e2f-0a1b2c3d4e5f/graph');
