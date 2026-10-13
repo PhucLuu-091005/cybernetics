@@ -46,7 +46,7 @@ export function resolveRebase(base: GraphSnapshot, candidate: GraphSnapshot, mai
   const proposedChanges = diffSnapshots(base, candidate).changes;
   const proposedKeys = new Set(proposedChanges.map(key));
   for (const change of proposedChanges) {
-    if (chosen.has(key(change))) continue;
+    if (open.has(key(change))) continue;
     const current = entityAt(main, change.collection, change.id), before = entityAt(base, change.collection, change.id);
     if (canonicalJson(current) === canonicalJson(before)) applyChange(snapshot, change);
   }
@@ -72,6 +72,9 @@ export function resolveRebase(base: GraphSnapshot, candidate: GraphSnapshot, mai
   }
   const unused = [...chosen.values()].filter(resolution => !applied.has(key(resolution)))
     .map(resolution => unmatched(resolution, 'No such conflict in the current rebase preview.'));
-  if (unused.length) return { snapshot: null, conflicts: unused };
+  if (unused.length) {
+    const seen = new Set(unused.map(key));
+    return { snapshot: null, conflicts: [...unused, ...invalid.filter(conflict => !seen.has(key(conflict)))] };
+  }
   return invalid.length ? { snapshot: null, conflicts: invalid } : { snapshot, conflicts: [] };
 }

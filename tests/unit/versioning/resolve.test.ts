@@ -127,3 +127,36 @@ function divergentPair() {
   main.loops[0].title = 'Main title';
   return { base, candidate, main };
 }
+
+describe('resolveRebase late conflicts on proposal-touched entities', () => {
+  const lateScenario = () => {
+    const base = snapshot(), candidate = snapshot(), main = snapshot();
+    base.annotations = []; candidate.annotations = []; main.annotations = [];
+    candidate.acts[0].action = 'Proposal action';
+    candidate.annotations.push({ id: ids.other, text: 'Proposal note', actIds: [ids.act] });
+    main.acts[0].action = 'Main action';
+    return { base, candidate, main };
+  };
+  const actRemoval = { collection: 'acts' as const, id: ids.act, choice: 'replacement' as const, value: null };
+  const noteKey = { collection: 'annotations' as const, id: ids.other };
+  it('resolves a late conflict on a proposal-added entity in a second call', () => {
+    const { base, candidate, main } = lateScenario();
+    expect(threeWayRebase(base, candidate, main).conflicts.map(conflict => conflict.collection)).toEqual(['acts']);
+    const first = resolveRebase(base, candidate, main, [actRemoval]);
+    expect(first.snapshot).toBeNull();
+    expect(first.conflicts.map(conflict => ({ collection: conflict.collection, id: conflict.id }))).toEqual([noteKey]);
+    const second = resolveRebase(base, candidate, main, [actRemoval, { ...noteKey, choice: 'replacement', value: { id: ids.other, text: 'Proposal note', actIds: [] } }]);
+    expect(second.conflicts).toEqual([]);
+    expect(second.snapshot!.acts).toEqual([]);
+    expect(second.snapshot!.annotations).toEqual([{ id: ids.other, text: 'Proposal note', actIds: [] }]);
+  });
+  it('returns unused resolutions together with the current composition conflicts', () => {
+    const { base, candidate, main } = lateScenario();
+    const result = resolveRebase(base, candidate, main, [actRemoval, { collection: 'loops', id: ids.loop, choice: 'main' }]);
+    expect(result.snapshot).toBeNull();
+    const reasons = Object.fromEntries(result.conflicts.map(conflict => [`${conflict.collection}/${conflict.id}`, conflict.reason]));
+    expect(reasons[`loops/${ids.loop}`]).toMatch(/No such conflict/);
+    expect(reasons[`annotations/${ids.other}`]).toMatch(/references missing acts/);
+    expect(result.conflicts).toHaveLength(2);
+  });
+});
