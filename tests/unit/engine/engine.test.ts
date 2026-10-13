@@ -1,43 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { deriveProject } from '../../../src/server/loops/engine';
-import { EngineOutputSchema, type EngineInput } from '../../../src/contracts/engine';
-import type { Act, ActType, Party } from '../../../src/contracts/graph';
+import { deriveProject, EngineInputError } from '../../../src/server/loops/engine';
+import { EngineOutputSchema } from '../../../src/contracts/engine';
+import { customer, due, fixture, laterDue, loop, performer, types, uuid, type Step } from '../../support/engine-builders';
 
-const uuid = (name: string) => `00000000-0000-4000-8000-${Array.from(name).map(c => c.charCodeAt(0).toString(16)).join('').padStart(12, '0').slice(-12)}`;
-const customer: Party = { kind: 'person', personId: uuid('customer') };
-const performer: Party = { kind: 'person', personId: uuid('performer') };
-const due = { date: '2026-10-09', precision: 'day' as const };
-const laterDue = { date: '2026-10-20', precision: 'day' as const };
-type Step = { type: ActType; actor?: Party; at?: string } & Partial<Act>;
-function fixture(steps: Step[], T = '2026-10-16T12:00:00Z'): EngineInput {
-  const acts = steps.map((step, index): Act => {
-    const { at: _at, ...terms } = step;
-    void _at;
-    return ({
-    id: uuid(`act-${index.toString().padStart(2, '0')}`), citation: { recordVersionId: uuid(`record-${index}`), start: 0, end: 12 },
-    actor: ['request', 'accept', 'reject', 'cancel', 'follow_up', 'agree_change'].includes(step.type) ? customer : performer,
-    customer, performer, action: 'deliver mapping', due: null, hedged: false, loopId: uuid('loop'), hidden: false,
-    origin: 'human', confidence: null, ...terms,
-  }); });
-  return {
-    T,
-    records: acts.map((act, index) => ({ recordVersionId: act.citation.recordVersionId, occurredAt: steps[index].at ?? `2026-10-${(5 + index).toString().padStart(2, '0')}T12:00:00Z`, bodyText: 'Mapping done for review.', digest: uuid('a').repeat(64), withdrawn: false, quotedRanges: [] })),
-    snapshot: { schemaVersion: 1, acts, loops: [{ id: uuid('loop'), title: 'Mapping', customer, performer, performerDepartmentId: uuid('engineering'), milestoneId: uuid('milestone') }], annotations: [], recordDecisions: [], context: {
-      timeZone: 'UTC', windowStart: '2026-10-01', windowEnd: '2026-11-01', asOfOverride: null, holidays: [], replyWindowDays: 2, acceptWindowDays: 5, hedgeWindowDays: 5, atRiskWindowDays: 2,
-      people: [{ id: uuid('customer'), name: 'Ada', side: 'client', departmentId: uuid('implementation'), role: '' }, { id: uuid('performer'), name: 'Ben', side: 'vendor', departmentId: uuid('engineering'), role: '' }, { id: uuid('colleague'), name: 'Cam', side: 'client', departmentId: uuid('implementation'), role: '' }],
-      departments: [{ id: uuid('implementation'), name: 'Implementation', side: 'client', order: 0 }, { id: uuid('engineering'), name: 'Engineering', side: 'vendor', order: 1 }],
-      milestones: [{ id: uuid('milestone'), name: 'Launch', order: 0, plannedDate: '2026-10-20', currentDate: '2026-10-20', reachedAt: null, anchorLoopId: uuid('loop') }],
-    } },
-  };
-}
 const request: Step = { type: 'request' };
 const promise: Step = { type: 'promise', due };
 const counter: Step = { type: 'counter', due };
 const change: Step = { type: 'renegotiate', due: laterDue };
 const delivered: Step[] = [promise, { type: 'report_done' }];
 const closed: Step[] = [promise, { type: 'accept' }];
-const loop = (input: EngineInput) => deriveProject(input).loops[0];
-const types = (input: EngineInput) => loop(input).breakdowns.map(item => item.type);
 
 const transitions: [string, Step[], string][] = [
   ['new request', [request], 'requested'], ['new promise', [promise], 'promised'],
@@ -73,10 +44,10 @@ describe('transition table', () => {
     expect(loop(fixture([request, { type: state === 'declined' ? 'decline' : 'cancel' }])).terminatedAt).toBe('2026-10-06T12:00:00Z');
   });
   it('ignores wrong roles, invalid state pairs and conflicting repeated terms', () => {
-    const result = loop(fixture([promise, { type: 'promise', due: laterDue }, { type: 'promise', action: 'other scope' }, { type: 'accept', actor: performer }, request]));
+    const result = loop(fixture([promise, { type: 'promise', due: laterDue }, { type: 'accept', actor: performer }, request]));
     expect(result.state).toBe('promised');
     expect(result.due).toEqual(due);
-    expect(result.acts.slice(1).map(act => act.flags)).toEqual(Array(4).fill(['out_of_order']));
+    expect(result.acts.slice(1).map(act => act.flags)).toEqual(Array(3).fill(['out_of_order']));
   });
   it('clarifies missing due and hedging without overwriting original due', () => {
     expect(loop(fixture([{ type: 'promise', hedged: true }, promise]))).toMatchObject({ due, originalDue: null, hedged: false });
@@ -99,9 +70,9 @@ describe('transition table', () => {
   });
 });
 describe('breakdowns and cycle history', () => {
-  it('unanswered request uses last customer act and excludes timely or performer replies', () => {
+  it('unanswered request counts from the first unanswered customer act and excludes timely or performer replies', () => {
     const input = fixture([request, { type: 'follow_up', at: '2026-10-08T12:00:00Z' }]);
-    expect(loop(input).breakdowns[0]).toMatchObject({ type: 'unanswered_request', proofActIds: [uuid('act-00'), uuid('act-01')], businessDays: 6 });
+    expect(loop(input).breakdowns[0]).toMatchObject({ type: 'unanswered_request', proofActIds: [uuid('act-00'), uuid('act-01')], businessDays: 9 });
     expect(types({ ...input, T: '2026-10-12T12:00:00Z' })).not.toContain('unanswered_request');
     expect(types(fixture([request, counter]))).not.toContain('unanswered_request');
     expect(types(fixture([request, counter, { ...counter, actor: customer }]))).toContain('unanswered_request');
@@ -182,8 +153,10 @@ describe('deterministic evidence and milestones', () => {
   });
   it('does not assign unlinked acts or invent time for missing records', () => {
     const input = fixture([{ ...promise, loopId: null }, request]); input.records.pop();
-    expect(deriveProject(input).unassignedActIds).toEqual([uuid('act-00')]);
-    expect(loop(input).state).toBeNull();
+    expect(() => deriveProject(input)).toThrow(EngineInputError);
+    const unlinked = fixture([{ ...promise, loopId: null }, request]);
+    expect(deriveProject(unlinked).unassignedActIds).toEqual([uuid('act-00')]);
+    expect(loop(unlinked).state).toBe('requested');
   });
   it('derives reached, blocked, at risk and on track without mutating milestone dates', () => {
     expect(deriveProject(fixture(closed)).milestones[0].status).toBe('reached');

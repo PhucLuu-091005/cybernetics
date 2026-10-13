@@ -3,6 +3,7 @@ import type { Due, GraphContext, Loop, Party } from '../../../contracts/graph';
 import { businessDaysBetween, localDate, resolveDueInstant } from '../../../lib/calendar';
 import { isUtf16Boundary } from '../../../contracts/primitives';
 
+export class EngineInputError extends Error {}
 const compareId = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
 const time = (instant: string) => Date.parse(instant);
 const terminal = (state: LoopState | null) => state === 'closed' || state === 'declined' || state === 'cancelled';
@@ -45,7 +46,7 @@ function deriveLoop(loop: Loop, acts: DerivedAct[], context: GraphContext, T: st
   const departmentName = context.departments.find(department => department.id === loop.performerDepartmentId)?.name ?? performerName;
   let commitment = null as DerivedAct | null, effectiveProof: string[] = [], cycleRejection = null as DerivedAct | null;
   let currentAction = '', delivery = null as DerivedAct | null, hedge = null as DerivedAct | null;
-  let lastCustomer = null as DerivedAct | null, performerReplied = false, agreedDue: Due | undefined;
+  let lastCustomer = null as DerivedAct | null, performerReplied = false, agreedDue: Due | undefined, waitStart = null as DerivedAct | null;
   const notices: DerivedAct[] = [], requestProof: string[] = [], rejectionProof: string[] = [];
   const late: Breakdown[] = [], unilateral: Breakdown[] = [];
   const activeProof = () => [...effectiveProof, ...(cycleRejection ? [cycleRejection.id] : [])];
@@ -73,6 +74,7 @@ function deriveLoop(loop: Loop, acts: DerivedAct[], context: GraphContext, T: st
       late.push(breakdown('late_delivery', [...activeProof(), act.id], `Delivered ${n} business days after the promised date.`, result.dueAt, act.occurredAt, n));
     }
     if (result.pendingTerms?.kind === 'renegotiate') unilateral.push(unilateralFact(result.pendingTerms, act.occurredAt));
+    result.pendingTerms = null;
     result.state = implicit ? 'closed' : 'delivered';
     if (implicit) result.closedAt = act.occurredAt;
   }
@@ -102,14 +104,14 @@ function deriveLoop(loop: Loop, acts: DerivedAct[], context: GraphContext, T: st
       if (act.type === 'accept' && customer) { deliver(act, true); valid = true; }
       if (act.type === 'follow_up' && customer) { result.nudges++; valid = true; }
       if (act.type === 'cancel' && customer) { result.state = 'cancelled'; valid = true; }
-      if (act.type === 'promise' && performer && currentAction === act.action && (result.due === null || act.due === null || sameDue(result.due, act.due))) {
+      if (act.type === 'promise' && performer && (result.due === null || act.due === null || sameDue(result.due, act.due))) {
         if (result.due === null && act.due !== null) { result.due = structuredClone(act.due); result.dueAt = resolveDueInstant(result.due, context.timeZone); effectiveProof.push(act.id); }
         if (!act.hedged) { result.hedged = false; hedge = null; }
         valid = true;
       }
     } else if (state === 'change_pending') {
       if ((act.type === 'agree_change' || act.type === 'decline') && result.pendingTerms && otherParty(act.actor, result.pendingTerms.proposer, loop, context)) {
-        if (act.type === 'agree_change') { promise(act, true); agreedDue = structuredClone(result.due); }
+        if (act.type === 'agree_change') { promise(act, true); notices.length = 0; agreedDue = structuredClone(result.due); }
         else { result.pendingTerms = null; result.state = 'promised'; }
         valid = true;
       }
@@ -123,13 +125,14 @@ function deriveLoop(loop: Loop, acts: DerivedAct[], context: GraphContext, T: st
     }
     if (!valid) { act.flags.push('out_of_order'); continue; }
     if (act.type === 'counter' || act.type === 'renegotiate') result.pendingTerms = { action: act.action, due: structuredClone(act.due), proposer: structuredClone(act.actor), actId: act.id, proposedAt: act.occurredAt, kind: act.type };
-    if (customer) { lastCustomer = act; performerReplied = false; }
-    else if (performer) performerReplied = true;
+    if (customer) { lastCustomer = act; performerReplied = false; if ((act.type === 'request' || act.type === 'counter') && !waitStart) waitStart = act; }
+    else if (performer) { performerReplied = true; waitStart = null; }
+    if (result.state !== 'requested' && result.state !== 'negotiating') waitStart = null;
     if (result.state === 'declined' || result.state === 'cancelled') { result.terminatedAt = act.occurredAt; result.pendingTerms = null; hedge = null; result.hedged = false; }
   }
   if ((result.state === 'requested' || (result.state === 'negotiating' && result.pendingTerms && role(result.pendingTerms.proposer, loop.customer, loop, context))) && lastCustomer && !performerReplied && days(lastCustomer.occurredAt) > context.replyWindowDays) {
-    const n = days(lastCustomer.occurredAt);
-    result.breakdowns.push(breakdown('unanswered_request', [...requestProof, lastCustomer.id], `${customerName} waited ${n} business days for a reply from ${departmentName}.`, lastCustomer.occurredAt, null, n));
+    const n = days((waitStart ?? lastCustomer).occurredAt);
+    result.breakdowns.push(breakdown('unanswered_request', [...requestProof, lastCustomer.id], `${customerName} waited ${n} business days for a reply from ${departmentName}.`, (waitStart ?? lastCustomer).occurredAt, null, n));
   }
   if ((result.state === 'promised' || result.state === 'change_pending') && result.dueAt && time(result.dueAt) < time(T) && !delivery && !notices.some(notice => time(notice.occurredAt) <= time(result.dueAt!))) result.breakdowns.push(breakdown('silent_overdue', activeProof(), `${performerName} promised ${currentAction} by ${result.due!.date}. No delivery or change notice by that date.`, result.dueAt, null, Math.max(0, days(result.dueAt))));
   result.breakdowns.push(...late);
@@ -150,7 +153,7 @@ export function deriveProject(input: EngineInput): EngineOutput {
   for (const act of snapshot.acts) {
     if (act.hidden) continue;
     const record = records.get(act.citation.recordVersionId);
-    if (!record) { unavailable.add(act.citation.recordVersionId); continue; }
+    if (!record) throw new EngineInputError(`Act ${act.id} cites record version ${act.citation.recordVersionId} without metadata`);
     if (time(record.occurredAt) > time(T)) continue;
     const { start, end } = act.citation;
     const available = !record.withdrawn && record.bodyText !== null && isUtf16Boundary(record.bodyText, start) && isUtf16Boundary(record.bodyText, end) && !record.quotedRanges.some(range => start < range.end && end > range.start);
