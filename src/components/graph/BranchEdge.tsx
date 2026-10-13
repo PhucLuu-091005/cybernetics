@@ -26,7 +26,7 @@ export function BranchEdge({ data }: EdgeProps<BranchEdgeType>) {
     <g transform={`translate(${left} 0)`} className={`${ui.faded.has(branch.loopId) ? 'br-faded' : ''}${selected ? ' br-sel' : ''}`} style={{ transition: 'opacity .15s' }}>
       <path className="line" d={fork} fill="none" stroke={TONE_COLOR[first.tone]} strokeWidth={3} />
       {branch.segments.map((segment, index) => segment.endX > segment.startX && (
-        <line key={index} className="line" x1={segment.startX} y1={y} x2={segment.endX} y2={y} stroke={TONE_COLOR[segment.tone]}
+        <line key={index} className={segment.tone === 'amber' && segment.startX >= xT ? 'line tail' : 'line'} x1={segment.startX} y1={y} x2={segment.endX} y2={y} stroke={TONE_COLOR[segment.tone]}
           strokeWidth={segment.tone === 'amber' && segment.startX >= xT ? 5 : 3} strokeDasharray={DASH[segment.style]} strokeLinecap={segment.style === 'dotted' || segment.startX >= xT ? 'round' : 'butt'} />
       ))}
       {merge && <path className="line" d={merge} fill="none" stroke={TONE_COLOR[last.tone]} strokeWidth={3} />}

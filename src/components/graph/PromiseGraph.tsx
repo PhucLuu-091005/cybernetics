@@ -133,6 +133,40 @@ function Graph(props: PromiseGraphProps) {
     element.addEventListener('wheel', onWheel, { passive: false });
     return () => element.removeEventListener('wheel', onWheel);
   }, [pxPerDay, x, clampX, onZoom]);
+  // Two-finger pinch scales pxPerDay around the midpoint, like the wheel around the pointer (SRD 7.2).
+  const pinch = useRef<{ distance: number; pxPerDay: number; day: number } | null>(null);
+  useEffect(() => {
+    const element = wrapRef.current;
+    if (!element) return;
+    const measure = (event: TouchEvent) => {
+      const [a, b] = [event.touches[0], event.touches[1]], left = element.getBoundingClientRect().left;
+      return { distance: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), mid: (a.clientX + b.clientX) / 2 - left };
+    };
+    const onStart = (event: TouchEvent) => {
+      if (event.touches.length !== 2) return;
+      const { distance, mid } = measure(event);
+      pinch.current = { distance, pxPerDay, day: (mid - x - GRAPH_LEFT) / pxPerDay };
+    };
+    const onMove = (event: TouchEvent) => {
+      if (event.touches.length !== 2 || !pinch.current) return;
+      event.preventDefault();
+      const { distance, mid } = measure(event), start = pinch.current;
+      const next = Math.min(120, Math.max(2, start.pxPerDay * distance / Math.max(1, start.distance)));
+      pendingX.current = mid - GRAPH_LEFT - start.day * next;
+      onZoom(next);
+    };
+    const onEnd = (event: TouchEvent) => { if (event.touches.length < 2) pinch.current = null; };
+    element.addEventListener('touchstart', onStart, { passive: true });
+    element.addEventListener('touchmove', onMove, { passive: false });
+    element.addEventListener('touchend', onEnd);
+    element.addEventListener('touchcancel', onEnd);
+    return () => {
+      element.removeEventListener('touchstart', onStart);
+      element.removeEventListener('touchmove', onMove);
+      element.removeEventListener('touchend', onEnd);
+      element.removeEventListener('touchcancel', onEnd);
+    };
+  }, [pxPerDay, x, onZoom]);
 
   const order = useMemo(() => [...layout.navigation.milestoneIds.map(milestoneKey), ...(layout.zoomLevel === 'milestones' ? [] : layout.navigation.loopIds.map(loopKey))], [layout]);
   const tabStop = activeKey !== null && order.includes(activeKey) ? activeKey : order[0] ?? null;
@@ -186,7 +220,7 @@ function Graph(props: PromiseGraphProps) {
   const viewport: Viewport = { x, y: 0, zoom: 1 };
   return (
     <GraphUiContext.Provider value={ui}>
-      <div ref={wrapRef} className="gwrap" role="group" aria-label={`Promise graph for ${props.title}`} style={{ height: layout.height + 2 }}>
+      <div ref={wrapRef} className="gwrap" role="group" aria-label={`Promise graph for ${props.title}`} data-px-per-day={pxPerDay.toFixed(2)} data-ready={width > 0 ? 'true' : undefined} style={{ height: layout.height + 2, touchAction: 'pan-y' }}>
         <ReactFlow<GraphNode, BranchEdgeType> nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
           viewport={viewport} onViewportChange={next => setX(clampX(next.x))} minZoom={1} maxZoom={1} translateExtent={[[0, 0], [Math.max(contentWidth, width), layout.height]]}
           nodesDraggable={false} nodesConnectable={false} nodesFocusable={false} edgesFocusable={false} elementsSelectable={false} disableKeyboardA11y

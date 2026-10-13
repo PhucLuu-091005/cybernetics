@@ -22,16 +22,17 @@ export type GraphScreenProps = {
   engine: EngineOutput;
   pendingEvidenceCount: number;
   initialFilters: GraphFilters;
-  /** Loops an escalation cites; null when no escalation is in focus. */
-  escalationLoopIds: string[] | null;
+  escalation: EscalationFocus | null;
 };
+export type EscalationFocus = { state: 'cited'; loopIds: string[] } | { state: 'no-analysis' } | { state: 'missing' };
 
 const ZOOM_PX: Record<Exclude<ZoomChoice, 'branches'>, number> = { milestones: 4, detail: 44 };
 const zoomLevelOf = (pxPerDay: number): GraphLayout['zoomLevel'] => pxPerDay < 6 ? 'milestones' : pxPerDay > 40 ? 'detail' : 'branches';
 type Tip = { x: number; y: number; glyph: ActGlyph };
 const isTyping = (target: EventTarget | null) => target instanceof HTMLElement && (/^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName) || target.isContentEditable);
 
-export function GraphScreen({ projectId, title, clientName, context, engine, pendingEvidenceCount, initialFilters, escalationLoopIds }: GraphScreenProps) {
+export function GraphScreen({ projectId, title, clientName, context, engine, pendingEvidenceCount, initialFilters, escalation }: GraphScreenProps) {
+  const escalationLoopIds = escalation?.state === 'cited' ? escalation.loopIds : null;
   // Selection and view live outside the filter state so opening a loop never re-runs the filters or the layout.
   const [filters, setFilters] = useState<GraphFilters>({ ...initialFilters, loopId: null, view: 'graph' });
   const [view, setView] = useState(initialFilters.view);
@@ -99,8 +100,14 @@ export function GraphScreen({ projectId, title, clientName, context, engine, pen
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (view !== 'graph' || isTyping(event.target)) return;
+      const menu = event.target instanceof Element ? event.target.closest('details[open]') : null;
+      if (menu) {
+        if (event.key === 'Escape') { event.preventDefault(); menu.removeAttribute('open'); menu.querySelector('summary')?.focus(); }
+        return;
+      }
       if (event.key === 'Escape' && (selectedLoop || selectedMilestone)) { event.preventDefault(); close(); return; }
-      if (!selectedLoop || isTyping(event.target) || (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft')) return;
+      if (!selectedLoop || (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft')) return;
       const count = selectedLoop.acts.length;
       if (!count) return;
       event.preventDefault();
@@ -109,7 +116,7 @@ export function GraphScreen({ projectId, title, clientName, context, engine, pen
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [selectedLoop, selectedMilestone, actIndex, close]);
+  }, [selectedLoop, selectedMilestone, actIndex, close, view]);
 
   const onZoomChoice = (level: ZoomChoice) => setPxPerDay(level === 'branches' ? fit(width ?? 1000) : ZOOM_PX[level]);
   const onHoverAct = useCallback((glyph: ActGlyph | null, event?: MouseEvent) => setTip(glyph && event ? { glyph, x: event.clientX, y: event.clientY } : null), []);
@@ -134,6 +141,8 @@ export function GraphScreen({ projectId, title, clientName, context, engine, pen
         {pendingEvidenceCount > 0 && <span>{pendingEvidenceCount} {pendingEvidenceCount === 1 ? 'record waits' : 'records wait'} for review, so an empty warning list is not proof of health.</span>}
         {engine.unavailableEvidenceCount > 0 && <span>{engine.unavailableEvidenceCount} {engine.unavailableEvidenceCount === 1 ? 'act cites' : 'acts cite'} withdrawn evidence.</span>}
         {escalationLoopIds && <span>Escalation focus: {escalationLoopIds.length} cited {escalationLoopIds.length === 1 ? 'loop' : 'loops'} at full strength.</span>}
+        {escalation?.state === 'no-analysis' && <span>Escalation focus: no analysis yet, so no loop is faded.</span>}
+        {escalation?.state === 'missing' && <span>Escalation focus: this escalation was not found.</span>}
       </p>
       {view === 'list' ? (
         <LoopList loops={visibleLoops} directory={directory} milestones={context.milestones} timeZone={context.timeZone} onOpen={selectLoop} />
@@ -143,7 +152,7 @@ export function GraphScreen({ projectId, title, clientName, context, engine, pen
             <PromiseGraph title={title} clientName={clientName} context={context} layout={layout} pxPerDay={scalePx} T={engine.T} milestoneStatus={milestoneStatus}
               selectedLoopId={selectedLoop?.loop.id ?? null} selectedMilestoneId={selectedMilestone?.milestone.id ?? null} faded={faded} currentActId={actIndex >= 0 ? actId : null} revealX={revealX}
               onSelectLoop={selectLoop} onSelectMilestone={selectMilestone} onHoverAct={onHoverAct} onWidth={onWidth} onZoom={setPxPerDay} />
-            {selectedLoop && <LoopPanel projectId={projectId} loop={selectedLoop} directory={directory} milestones={context.milestones} timeZone={context.timeZone} currentActIndex={actIndex} pendingEvidenceCount={pendingEvidenceCount} onClose={close} />}
+            {selectedLoop && <LoopPanel projectId={projectId} loop={selectedLoop} directory={directory} milestones={context.milestones} timeZone={context.timeZone} T={engine.T} currentActIndex={actIndex} pendingEvidenceCount={pendingEvidenceCount} onClose={close} />}
             {selectedMilestone && <MilestonePanel milestone={selectedMilestone} loops={engine.loops} onOpenLoop={selectLoop} onClose={close} />}
           </div>
           <Legend />

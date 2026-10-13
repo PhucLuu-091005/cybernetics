@@ -10,7 +10,6 @@ export const MILESTONE_STATUS_LABEL: Record<MilestoneStatus, string> = { reached
 export const stateLabel = (state: LoopState | null) => state === null ? 'no acts yet' : state.replaceAll('_', ' ');
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-/** "9 Oct 16:42" in the project time zone, the format of the approved design. */
 export function shortStamp(instant: string, timeZone: string): string {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone, month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(instant)).map(part => [part.type, part.value]));
   return `${Number(parts.day)} ${MONTHS[Number(parts.month) - 1]} ${parts.hour}:${parts.minute}`;

@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { DomainErrorSchema, IdSchema, PageInputSchema, RevisionSchema, TextSchema, TimestampSchema, boundedJson } from './primitives';
 import { ActSchema, AnnotationSchema, DepartmentSchema, GraphContextSchema, LoopSchema, MilestoneSchema, PersonSchema, RecordDecisionSchema } from './graph';
-import { DerivedLoopSchema, DerivedMilestoneSchema, EngineOutputSchema } from './engine';
+import { DerivedActSchema, DerivedLoopSchema, DerivedMilestoneSchema, EngineOutputSchema } from './engine';
+import { PermalinkSchema, RecordVersionBaseSchema, SourceKindSchema } from './records';
 import { CommitBaseSchema, ProposalSchema, ProposalReviewSchema } from './proposals';
 
 export const ProjectSchema = z.strictObject({ id: IdSchema, workspaceId: IdSchema, title: z.string().min(1).max(200), clientName: z.string().min(1).max(200), mainCommitId: IdSchema, evidenceRevision: RevisionSchema, sourceRouting: z.array(z.strictObject({ sourceLabel: TextSchema, source: z.enum(['paste', 'agent', 'slack', 'gmail']), externalScope: z.string().nullable() })) });
@@ -27,7 +28,9 @@ export const GetGraphInputSchema = GraphReadInputSchema.extend({ cursor: z.strin
 export const GetGraphResultSchema = boundedJson(z.strictObject({ ...pageFields, T: TimestampSchema, loops: z.array(DerivedLoopSchema).max(50), milestones: z.array(DerivedMilestoneSchema).max(50), counts: EngineOutputSchema.shape.counts }), 50000);
 export const ListLoopsInputSchema = GetGraphInputSchema.extend({ states: z.array(z.enum(['requested', 'negotiating', 'promised', 'change_pending', 'delivered', 'closed', 'declined', 'cancelled'])).optional(), departmentIds: z.array(IdSchema).optional(), milestoneId: IdSchema.optional(), query: z.string().max(200).optional() });
 export const GetLoopInputSchema = GraphReadInputSchema.extend({ loopId: IdSchema });
-export const GetLoopResultSchema = z.strictObject({ ...pageFields, T: TimestampSchema, loop: DerivedLoopSchema });
+/** Withdrawn versions keep their source but lose context and permalink, like every other view of their text. */
+export const LoopActSchema = DerivedActSchema.extend({ context: z.strictObject({ before: z.string().max(300), after: z.string().max(300) }).nullable(), permalink: PermalinkSchema.nullable(), source: SourceKindSchema, sourceLabel: RecordVersionBaseSchema.shape.sourceLabel });
+export const GetLoopResultSchema = z.strictObject({ ...pageFields, T: TimestampSchema, loop: DerivedLoopSchema.extend({ acts: z.array(LoopActSchema) }) });
 export const ListMilestonesInputSchema = GetGraphInputSchema;
 export const ListMilestonesResultSchema = z.strictObject({ ...pageFields, T: TimestampSchema, items: z.array(DerivedMilestoneSchema).max(50) });
 export const ListHistoryInputSchema = PageInputSchema.extend({ projectId: IdSchema });
@@ -53,6 +56,7 @@ export type ListLoopsInput = z.infer<typeof ListLoopsInputSchema>;
 export type ListLoopsResult = GetGraphResult;
 export type GetLoopInput = z.infer<typeof GetLoopInputSchema>;
 export type GetLoopResult = z.infer<typeof GetLoopResultSchema>;
+export type LoopAct = z.infer<typeof LoopActSchema>;
 export type ListMilestonesInput = z.infer<typeof ListMilestonesInputSchema>;
 export type ListMilestonesResult = z.infer<typeof ListMilestonesResultSchema>;
 export type ListHistoryInput = z.infer<typeof ListHistoryInputSchema>;

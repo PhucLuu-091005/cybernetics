@@ -47,7 +47,7 @@ export function filtersToSearch(filters: GraphFilters, base: URLSearchParams = n
 }
 
 /** Visible loop IDs. Escalation focus never hides a loop; `citedLoops` gives the set the graph keeps at full opacity. */
-export function applyFilters(engine: EngineOutput, filters: GraphFilters, departments: readonly Department[] = []): Set<string> {
+export function applyFilters(engine: EngineOutput, filters: GraphFilters, departments: readonly Department[]): Set<string> {
   const sideOf = new Map(departments.map(department => [department.id, department.side]));
   const departmentIds = filters.departmentIds.length ? new Set(filters.departmentIds) : null;
   const q = filters.q ? foldForSearch(filters.q) : null;

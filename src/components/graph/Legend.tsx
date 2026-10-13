@@ -2,7 +2,7 @@ const LINES = [['var(--proceed)', undefined, 'Closed'], ['var(--route)', undefin
 
 export function Legend() {
   return (
-    <div className="legend" aria-label="Line legend">
+    <div className="legend" role="group" aria-label="Line legend">
       {LINES.map(([color, dash, text]) => (
         <span key={text}><svg width="28" height="8" aria-hidden="true"><line x1="1" y1="4" x2="27" y2="4" stroke={color} strokeWidth="3" strokeDasharray={dash} strokeLinecap={dash ? 'round' : undefined} /></svg>{text}</span>
       ))}

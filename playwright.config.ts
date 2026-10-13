@@ -7,7 +7,7 @@ if (!admin) throw new Error('TEST_DATABASE_URL is required: e2e runs against a t
 // Workers re-read this config; the env var pins one database name and secret for the whole run.
 process.env.E2E_DATABASE_NAME ??= `pg_e2e_${randomUUID().replaceAll('-', '')}`;
 process.env.E2E_SESSION_SECRET ??= process.env.SESSION_SECRET ?? randomBytes(32).toString('hex');
-const port = Number(process.env.E2E_PORT ?? 3000);
+const port = Number(process.env.E2E_PORT ?? 3100);
 const baseURL = `http://localhost:${port}`;
 
 export default defineConfig({
@@ -22,7 +22,8 @@ export default defineConfig({
   globalSetup: './tests/e2e/global-setup.ts',
   use: { baseURL, trace: 'retain-on-failure', ...devices['Desktop Chrome'] },
   webServer: {
-    command: `./node_modules/.bin/next dev --hostname localhost --port ${port}`,
+    // Webpack, not Turbopack: Turbopack dev sometimes reloads every page on an "HMR hash mismatch" loop, which aborts the sign-in POST.
+    command: `./node_modules/.bin/next dev --webpack --hostname localhost --port ${port}`,
     url: `${baseURL}/api/health`,
     // Reusing a running server could point the suite at the shared database.
     reuseExistingServer: false,

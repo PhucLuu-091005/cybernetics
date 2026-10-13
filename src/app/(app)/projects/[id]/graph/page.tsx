@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { IdSchema, TimestampSchema, type ActorContext, type ActorReference } from '../../../../../contracts';
 import { GraphHeader, type HeadCommit } from '../../../../../components/graph/GraphHeader';
-import { GraphScreen } from '../../../../../components/graph/GraphScreen';
+import { GraphScreen, type EscalationFocus } from '../../../../../components/graph/GraphScreen';
 import { citedLoops, parseFilters } from '../../../../../components/graph/filters';
 import { shortStamp } from '../../../../../components/graph/labels';
 import { getApp } from '../../../../../server/app';
@@ -48,13 +48,16 @@ export default async function GraphPage({ params, searchParams }: { params: Prom
     ? { id: latest.id, verb: VERB[latest.kind], at: shortStamp(latest.createdAt, timeZone), by: author(latest.actor, actor) }
     : { id: view.mainCommitId, verb: 'current', at: '', by: null };
 
-  let escalationLoopIds: string[] | null = null;
+  let escalation: EscalationFocus | null = null;
   if (filters.escalationId) {
     try {
-      const escalation = await getEscalation(db, actor, { projectId: id, escalationId: filters.escalationId, limit: 1 });
-      const claims = escalation.analyses[0]?.claims ?? [];
-      escalationLoopIds = [...citedLoops(view.engine, claims.flatMap(claim => [...claim.supportingActIds, ...claim.contradictingActIds]))];
-    } catch (error) { if (!(error instanceof AppError && error.code === 'NOT_FOUND')) throw error; }
+      const read = await getEscalation(db, actor, { projectId: id, escalationId: filters.escalationId, limit: 1 });
+      const claims = read.analyses[0]?.claims;
+      escalation = claims ? { state: 'cited', loopIds: [...citedLoops(view.engine, claims.flatMap(claim => [...claim.supportingActIds, ...claim.contradictingActIds]))] } : { state: 'no-analysis' };
+    } catch (error) {
+      if (!(error instanceof AppError && error.code === 'NOT_FOUND')) throw error;
+      escalation = { state: 'missing' };
+    }
   }
 
   return (
@@ -62,7 +65,7 @@ export default async function GraphPage({ params, searchParams }: { params: Prom
       <GraphHeader key={`header-${view.T}`} projectId={id} title={project.title} clientName={project.clientName} timeZone={timeZone} windowStart={view.snapshot.context.windowStart} T={view.T} explicitT={T !== undefined}
         head={head} evidenceRevision={view.evidenceRevision} pendingEvidenceCount={view.pendingEvidenceCount} />
       <GraphScreen key={`screen-${view.T}`} projectId={id} title={project.title} clientName={project.clientName} context={view.snapshot.context} engine={view.engine}
-        pendingEvidenceCount={view.pendingEvidenceCount} initialFilters={filters} escalationLoopIds={escalationLoopIds} />
+        pendingEvidenceCount={view.pendingEvidenceCount} initialFilters={filters} escalation={escalation} />
     </>
   );
 }

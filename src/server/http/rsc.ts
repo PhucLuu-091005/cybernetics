@@ -1,9 +1,11 @@
 import { cookies, headers } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import type { ActorContext } from '../../contracts';
 import { browserActor } from '../app';
 import { readAuthEnvironment } from '../env';
 import { AppError } from '../errors';
+
+export const RATE_LIMITED_DIGEST = 'RATE_LIMITED';
 
 /** Server components have no Request, so this rebuilds the page GET that browserActor checks for routes. */
 export async function pageRequest(path: string): Promise<Request> {
@@ -18,7 +20,12 @@ export async function pageRequest(path: string): Promise<Request> {
 export async function optionalActor(path: string): Promise<ActorContext | null> {
   try { return await browserActor(await pageRequest(path)); }
   catch (error) {
-    if (error instanceof AppError && error.code === 'UNAUTHENTICATED') return null;
+    if (!(error instanceof AppError)) throw error;
+    if (error.code === 'UNAUTHENTICATED') return null;
+    // A project outside the user's workspaces must look the same as one that does not exist.
+    if (error.code === 'NOT_FOUND') notFound();
+    // The digest survives production error masking, so the error page can name the cause.
+    if (error.code === 'RATE_LIMITED') throw Object.assign(new Error('Too many requests'), { digest: RATE_LIMITED_DIGEST });
     throw error;
   }
 }

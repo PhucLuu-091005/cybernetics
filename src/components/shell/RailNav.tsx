@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { Fragment } from 'react';
 import { usePathname } from 'next/navigation';
 
 export type RailProject = { id: string; clientName: string };
@@ -10,13 +11,13 @@ export function RailNav({ projects }: { projects: RailProject[] }) {
   return (
     <nav className="nav" aria-label="Project">
       {projects.map(project => (
-        <div key={project.id} className="contents">
+        <Fragment key={project.id}>
           <span className="group">{project.clientName}</span>
           {SECTIONS.map(([path, label]) => {
             const href = `/projects/${project.id}/${path}`;
             return <Link key={path} href={href} aria-current={pathname === href || pathname.startsWith(`${href}/`) ? 'page' : undefined}>{label}</Link>;
           })}
-        </div>
+        </Fragment>
       ))}
     </nav>
   );

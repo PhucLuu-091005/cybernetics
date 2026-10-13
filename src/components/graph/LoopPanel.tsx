@@ -1,7 +1,8 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { DerivedLoop } from '../../contracts/engine';
+import type { LoopAct } from '../../contracts/mcp';
 import type { Milestone } from '../../contracts/graph';
 import { Glyph } from './Glyph';
 import { ACT_LABEL, BREAKDOWN_LABEL, STATE_COLOR, TONE_COLOR, dueLabel, partyDetail, partyName, shortStamp, stateLabel, type Directory } from './labels';
@@ -12,11 +13,33 @@ type Props = {
   directory: Directory;
   milestones: readonly Milestone[];
   timeZone: string;
+  T: string;
   currentActIndex: number;
   pendingEvidenceCount: number;
   onClose(): void;
 };
 const EDIT_HINT = 'Create a proposal to edit';
+type Evidence = Pick<LoopAct, 'context' | 'permalink' | 'source' | 'sourceLabel'>;
+
+/** The graph view carries quotes only; the loop read adds surrounding text and permalinks for the open loop. */
+function useEvidence(projectId: string, loopId: string, T: string): ReadonlyMap<string, Evidence> | null {
+  const [evidence, setEvidence] = useState<{ key: string; acts: ReadonlyMap<string, Evidence> } | null>(null);
+  const key = `${loopId}@${T}`;
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`/api/v1/projects/${projectId}/loops/${loopId}?${new URLSearchParams({ T })}`, { signal: controller.signal, headers: { Accept: 'application/json' } })
+      .then(response => response.ok ? response.json() as Promise<{ loop: { acts: LoopAct[] } }> : null)
+      .then(result => { if (result) setEvidence({ key, acts: new Map(result.loop.acts.map(act => [act.id, act])) }); })
+      .catch(() => { /* the panel keeps the bare quote when the loop read fails */ });
+    return () => controller.abort();
+  }, [projectId, loopId, T, key]);
+  return evidence?.key === key ? evidence.acts : null;
+}
+function sourceName(evidence: Evidence): string | null {
+  if (evidence.source === 'slack' || evidence.sourceLabel.startsWith('#')) return 'Slack';
+  if (evidence.source === 'gmail' || evidence.sourceLabel.startsWith('gmail:')) return 'Gmail';
+  return null;
+}
 
 function loopTone(loop: DerivedLoop): string {
   if (loop.breakdowns.some(item => item.severity === 'broken')) return TONE_COLOR.red;
@@ -24,7 +47,8 @@ function loopTone(loop: DerivedLoop): string {
   return loop.state === 'closed' ? TONE_COLOR.green : loop.state === 'declined' || loop.state === 'cancelled' ? TONE_COLOR.gray : TONE_COLOR.blue;
 }
 
-export function LoopPanel({ projectId, loop, directory, milestones, timeZone, currentActIndex, pendingEvidenceCount, onClose }: Props) {
+export function LoopPanel({ projectId, loop, directory, milestones, timeZone, T, currentActIndex, pendingEvidenceCount, onClose }: Props) {
+  const evidence = useEvidence(projectId, loop.loop.id, T);
   const body = useRef<HTMLDivElement>(null), current = useRef<HTMLLIElement>(null);
   // Scrolls the panel body only; scrollIntoView would also scroll the page.
   useEffect(() => {
@@ -77,7 +101,9 @@ export function LoopPanel({ projectId, loop, directory, milestones, timeZone, cu
           <h3 style={{ marginBottom: 8 }}>Steps</h3>
           {loop.acts.length === 0 ? <p className="faint" style={{ fontSize: 13 }}>No acts yet at the evaluation time.</p> : (
             <ol className="steps" aria-label="Steps">
-              {loop.acts.map((act, index) => (
+              {loop.acts.map((act, index) => {
+                const detail = evidence?.get(act.id), name = detail ? sourceName(detail) : null;
+                return (
                 <li key={act.id} ref={index === currentActIndex ? current : undefined} className="step" aria-current={index === currentActIndex ? 'step' : undefined}>
                   <span className="g"><svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><Glyph type={act.type} x={11} y={11} color={tone} /></svg></span>
                   <div className="step-h">
@@ -97,12 +123,15 @@ export function LoopPanel({ projectId, loop, directory, milestones, timeZone, cu
                   </div>
                   {act.quote === null
                     ? <div className="q"><span className="badge b-stale">Unavailable evidence</span> <span className="faint" style={{ fontSize: 12 }}>The source withdrew this record. Its text stays hidden in every view.</span></div>
-                    : <div className="q quote" data-testid="verified-quote"><mark>{act.quote}</mark></div>}
+                    : <div className="q quote" data-testid="quote-context">{detail?.context?.before}<mark data-testid="verified-quote">{act.quote}</mark>{detail?.context?.after}</div>}
                   <div className="links">
+                    {detail?.permalink?.startsWith('https://') && <a href={detail.permalink} target="_blank" rel="noopener noreferrer">{name ? `Open in ${name}` : 'Open source'}</a>}
                     <Link href={`/projects/${projectId}/records/${act.citation.recordVersionId}`}>View record</Link>
+                    {detail && <span className="faint">{detail.sourceLabel}</span>}
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ol>
           )}
         </div>

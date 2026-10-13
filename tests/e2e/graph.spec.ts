@@ -10,6 +10,9 @@ async function signIn(page: Page) {
   await page.goto('/signin');
   await page.getByRole('button', { name: /continue/i }).click();
   await expect(page.getByText(PROJECT)).toBeVisible();
+  // Keyboard and wheel handlers attach on hydration; data-ready appears once the client has measured the graph.
+  await expect(page.getByRole('group', { name: /promise graph for/i })).toHaveAttribute('data-ready', 'true');
+  await expect(branches(page).first()).toBeVisible();
 }
 
 test('sign in reaches the seeded graph in at most 3 clicks and shows proof in one click', async ({ page }) => {
@@ -107,4 +110,104 @@ test('list view shows the same loops as the graph with the same filters', async 
 
   await page.getByRole('group', { name: /^view$/i }).getByRole('button', { name: 'Graph' }).click();
   await expect.poll(() => branchTitles(page)).toEqual(graphTitles);
+});
+
+const projectIdOf = (page: Page) => new URL(page.url()).pathname.split('/')[2];
+
+test('the loop panel shows each quote inside its surrounding text, with the source and an https permalink', async ({ page }) => {
+  await signIn(page);
+  await page.getByRole('button', { name: /^Loop: Client secret renewal/ }).click();
+  const panel = loopPanel(page);
+  const first = panel.getByTestId('verified-quote').first();
+  await expect(first).toBeVisible();
+  const quote = (await first.innerText()).trim();
+  const block = panel.getByTestId('quote-context').first();
+  await expect.poll(async () => (await block.innerText()).trim().length).toBeGreaterThan(quote.length);
+  expect(await block.innerText()).toContain(quote);
+  const open = panel.getByRole('link', { name: /^Open in Slack$/ }).first();
+  await expect(open).toHaveAttribute('href', /^https:\/\//);
+  await expect(panel.getByText('#larkspur-it').first()).toBeVisible();
+});
+
+test('a project the user cannot see returns 404 with the not-found page', async ({ page }) => {
+  await signIn(page);
+  const response = await page.goto('/projects/6f1c2a8e-4b1d-4c3a-9e2f-0a1b2c3d4e5f/graph');
+  expect(response?.status()).toBe(404);
+  await expect(page.getByRole('heading', { name: /not found/i })).toBeVisible();
+  expect((await page.goto('/projects/not-a-uuid/graph'))?.status()).toBe(404);
+});
+
+test('keys do not act while typing, inside an open menu, or while the list view hides the panel', async ({ page }) => {
+  await signIn(page);
+  await page.getByRole('button', { name: /^Loop: Go-live date/ }).click();
+  const panel = loopPanel(page);
+  await expect(panel).toBeVisible();
+  const search = page.getByRole('searchbox', { name: /search loop titles and quotes/i });
+  await search.focus();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeVisible();
+  await expect(panel.locator('[aria-current="step"]')).toHaveCount(0);
+  await panel.locator('summary[aria-label="Act actions"]').first().click();
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeVisible();
+  await page.getByRole('group', { name: /^view$/i }).getByRole('button', { name: 'List' }).click();
+  await page.locator('body').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('ArrowRight');
+  await page.getByRole('group', { name: /^view$/i }).getByRole('button', { name: 'Graph' }).click();
+  await expect(panel).toBeVisible();
+  await expect(panel.locator('[aria-current="step"]')).toHaveCount(0);
+});
+
+test('an escalation without analysis fades no loop and says so', async ({ page }) => {
+  await signIn(page);
+  const projectId = projectIdOf(page);
+  const created = await page.request.post(`/api/v1/projects/${projectId}/escalations`, { headers: { Origin: new URL(page.url()).origin }, data: { complaint: 'The incident report is late.', idempotencyKey: `e2e-${Date.now()}` } });
+  expect(created.status()).toBe(201);
+  const { id } = await created.json() as { id: string };
+  await page.goto(`/projects/${projectId}/graph?escalation=${id}`);
+  await expect(page.getByText(/no analysis yet/i)).toBeVisible();
+  await expect.poll(() => branches(page).count()).toBeGreaterThanOrEqual(30);
+  await expect(page.locator('.br-faded')).toHaveCount(0);
+});
+
+test('wheel and pinch both zoom the time axis', async ({ page }) => {
+  await signIn(page);
+  const graph = page.getByRole('group', { name: /promise graph for/i });
+  await expect.poll(() => graph.getAttribute('data-px-per-day')).not.toBeNull();
+  const start = Number(await graph.getAttribute('data-px-per-day'));
+  const box = (await graph.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.keyboard.down('Control');
+  await page.mouse.wheel(0, -300);
+  await page.keyboard.up('Control');
+  await expect.poll(async () => Number(await graph.getAttribute('data-px-per-day'))).toBeGreaterThan(start);
+  const wheeled = Number(await graph.getAttribute('data-px-per-day'));
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
+  const y = box.y + box.height / 2, x = box.x + box.width / 2;
+  const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', spread: number) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: x - spread, y, id: 1 }, { x: x + spread, y, id: 2 }] });
+  await touch('touchStart', 40);
+  for (const spread of [60, 90, 120]) await touch('touchMove', spread);
+  await touch('touchEnd', 0);
+  await expect.poll(async () => Number(await graph.getAttribute('data-px-per-day'))).toBeGreaterThan(wheeled);
+});
+
+test('phone width: no horizontal page scroll on graph, open panel and list; sign out is reachable', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await signIn(page);
+  const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await expect.poll(() => branches(page).count()).toBeGreaterThanOrEqual(30);
+  expect(await overflow()).toBeLessThanOrEqual(0);
+  await page.screenshot({ path: test.info().outputPath('phone-graph.png'), fullPage: true });
+  await branches(page).first().click();
+  await expect(loopPanel(page)).toBeVisible();
+  expect(await overflow()).toBeLessThanOrEqual(0);
+  await page.screenshot({ path: test.info().outputPath('phone-panel.png'), fullPage: true });
+  await page.keyboard.press('Escape');
+  await page.getByRole('group', { name: /^view$/i }).getByRole('button', { name: 'List' }).click();
+  await expect(page.getByRole('table', { name: /loops/i })).toBeVisible();
+  expect(await overflow()).toBeLessThanOrEqual(0);
+  await page.screenshot({ path: test.info().outputPath('phone-list.png'), fullPage: true });
 });
