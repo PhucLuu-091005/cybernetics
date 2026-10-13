@@ -38,6 +38,4 @@ export function normalizeRecord(input: RecordInput, timeZone: string): Normalize
 export function recordDigest(n: NormalizedRecord): string {
   return canonicalHash({ bodyText: n.bodyText, author: n.author, recipients: n.recipients, title: n.title, occurredAt: n.occurredAt, occurredDate: n.occurredDate, occurredTimeZone: n.occurredTimeZone, timePrecision: n.timePrecision, threadExternalId: n.threadExternalId, parentExternalId: n.parentExternalId, quotedRanges: n.quotedRanges, attachmentNames: n.attachmentNames, permalink: n.permalink });
 }
-export function foldForSearch(value: string): string {
-  return value.normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
-}
+export { foldForSearch } from '../../../lib/search';
