@@ -87,7 +87,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('escalations', () => {
     expect(GetEscalationResultSchema.parse(view)).toEqual(view);
     expect(view).toMatchObject({ stale: false, mainCommitId: mainId, evidenceRevision, escalation: { id: escalationId, latestAnalysisRevision: 2 } });
     expect(view.analyses.map(analysis => analysis.revision)).toEqual([2, 1]);
-    expect(await listEscalations(t.db, ctx, { projectId })).toEqual([view.escalation]);
+    expect(await listEscalations(t.db, ctx, { projectId })).toMatchObject({ projectId, items: [view.escalation], nextCursor: null });
   });
   it('rejects hidden, withdrawn and missing acts, malformed markers and stale expected revisions without writing', async () => {
     await withdrawRecord(t.db, ctx, { projectId, recordId: withdrawnRecordId, expectedEvidenceRevision: (await mainState(t.db, projectId)).evidenceRevision, reason: 'Source asked to withdraw', idempotencyKey: randomUUID() });

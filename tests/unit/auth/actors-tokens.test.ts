@@ -105,6 +105,15 @@ describe('hashed project agent tokens', () => {
     const actor = await s.services.getTokenActor(s.request(created.secret), 'graph:merge');
     await expect(s.tokens.createToken(actor, { projectId: s.projectId, label: 'Elevate', idempotencyKey: 'elevate' })).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(s.tokens.revokeToken(actor, { projectId: s.projectId, tokenId: created.token.id, idempotencyKey: 'revoke' })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(s.tokens.listTokens(actor, { projectId: s.projectId })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+  it('lists the owner project tokens without hashes or secrets and rejects a foreign project', async () => {
+    const s = await setup(); const created = await s.tokens.createToken(s.ctx, { projectId: s.projectId, label: 'Agent', idempotencyKey: 'list-1' });
+    const listed = await s.tokens.listTokens(s.ctx, { projectId: s.projectId });
+    expect(listed).toEqual({ projectId: s.projectId, items: [created.token], nextCursor: null, requestId: 'test' });
+    expect(JSON.stringify(listed)).not.toContain(createHash('sha256').update(created.secret).digest('hex'));
+    await expect(s.tokens.listTokens(s.ctx, { projectId: s.projectId, cursor: 'forged' })).rejects.toMatchObject({ code: 'VALIDATION' });
+    await expect(s.tokens.listTokens(s.ctx, { projectId: randomUUID() })).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
   it('rejects revoked, expired, removed-member and wrong-project tokens on every call', async () => {
     const s = await setup(); const created = await s.tokens.createToken(s.ctx, { projectId: s.projectId, label: 'Agent', idempotencyKey: 'create-1' });

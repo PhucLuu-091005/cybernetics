@@ -1,4 +1,5 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import type { AgentToken } from '../../contracts';
 import { AppError } from '../errors';
 import type { HttpIdentityStore, Membership, StoredToken } from '../http/identity-store';
 import { agentTokens, projects, users, workspaceMembers, workspaces } from './schema';
@@ -54,6 +55,13 @@ export class DbIdentityStore implements HttpIdentityStore {
       if (isUniqueViolation(error, 'agent_tokens_creation_key_unique')) throw new AppError('CONFLICT', 'Creation key already used');
       throw error;
     }
+  }
+  async listTokens(input: { userId: string; workspaceId: string; projectId: string; offset: number; limit: number }): Promise<AgentToken[]> {
+    if (![input.userId, input.workspaceId, input.projectId].every(isId)) return [];
+    const t = agentTokens;
+    const rows = await this.db.select({ id: t.id, userId: t.userId, projectId: t.projectId, prefix: t.prefix, scopes: t.scopes, createdAt: t.createdAt, expiresAt: t.expiresAt, revokedAt: t.revokedAt }).from(t)
+      .where(and(eq(t.userId, input.userId), eq(t.workspaceId, input.workspaceId), eq(t.projectId, input.projectId))).orderBy(desc(t.createdAt), desc(t.id)).limit(input.limit).offset(input.offset);
+    return rows.map(row => ({ ...row, createdAt: toIso(row.createdAt), expiresAt: toIso(row.expiresAt), revokedAt: row.revokedAt === null ? null : toIso(row.revokedAt) }));
   }
   async revokeToken(input: { userId: string; workspaceId: string; projectId: string; tokenId: string; revokedAt: string; idempotencyKey: string }): Promise<string | null> {
     if (![input.userId, input.workspaceId, input.projectId, input.tokenId].every(isId)) return null;

@@ -1,6 +1,6 @@
-import type { ActorContext, CreateAgentTokenInput, RevokeAgentTokenInput, RevokeAgentTokenResult, Scope, TokenCreated } from '../../contracts';
+import type { ActorContext, CreateAgentTokenInput, ListAgentTokensResult, RevokeAgentTokenInput, RevokeAgentTokenResult, Scope, TokenCreated } from '../../contracts';
 import { readAuthEnvironment } from '../env';
-import { createTokenService } from '../domain/tokens/service';
+import { createTokenService, type ListTokensInput } from '../domain/tokens/service';
 import { createIdentityServices } from './actors';
 import type { HttpIdentityStore } from './identity-store';
 import { MemoryRateLimiter } from './rate-limit';
@@ -20,3 +20,4 @@ export async function getBrowserActor(request: Request): Promise<ActorContext> {
 export async function getTokenActor(request: Request, scope: Scope): Promise<ActorContext> { return identities().getTokenActor(request, scope); }
 export async function createToken(ctx: ActorContext, input: Omit<CreateAgentTokenInput, 'scopes'> & { scopes?: Scope[] }): Promise<TokenCreated> { return createTokenService(getHttpIdentityStore()).createToken(ctx, input); }
 export async function revokeToken(ctx: ActorContext, input: RevokeAgentTokenInput): Promise<RevokeAgentTokenResult> { return createTokenService(getHttpIdentityStore()).revokeToken(ctx, input); }
+export async function listTokens(ctx: ActorContext, input: ListTokensInput): Promise<ListAgentTokensResult> { return createTokenService(getHttpIdentityStore()).listTokens(ctx, input); }

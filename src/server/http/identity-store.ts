@@ -12,6 +12,8 @@ export interface HttpIdentityStore {
   getTokenByHash(hash: string): Promise<StoredToken | null>;
   /** Atomically enforce unique(userId, projectId, idempotencyKey); duplicates throw CONFLICT. */
   insertToken(token: StoredToken): Promise<void>;
+  /** Newest first; never exposes hashes or creation keys. */
+  listTokens(input: { userId: string; workspaceId: string; projectId: string; offset: number; limit: number }): Promise<AgentToken[]>;
   revokeToken(input: { userId: string; workspaceId: string; projectId: string; tokenId: string; revokedAt: string; idempotencyKey: string }): Promise<string | null>;
 }
 export const browserScopes: Scope[] = ['project:read', 'records:import', 'graph:propose', 'graph:merge', 'escalations:write'];

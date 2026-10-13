@@ -1,9 +1,12 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { CreateAgentTokenInputSchema, RevokeAgentTokenInputSchema, type ActorContext, type CreateAgentTokenInput, type RevokeAgentTokenInput, type RevokeAgentTokenResult, type TokenCreated } from '../../../contracts';
+import type { z } from 'zod';
+import { CreateAgentTokenInputSchema, ListAgentTokensInputSchema, RevokeAgentTokenInputSchema, type ActorContext, type CreateAgentTokenInput, type ListAgentTokensResult, type RevokeAgentTokenInput, type RevokeAgentTokenResult, type TokenCreated } from '../../../contracts';
 import { canonicalHash } from '../../../lib/canonical-json';
 import type { HttpIdentityStore } from '../../http/identity-store';
 import { AppError } from '../../errors';
+import { decodeCursor, encodeCursor, viewKey } from '../graph/paging';
 type CreateInput = Omit<CreateAgentTokenInput, 'scopes'> & { scopes?: CreateAgentTokenInput['scopes'] };
+export type ListTokensInput = z.input<typeof ListAgentTokensInputSchema>;
 export function createTokenService(store: HttpIdentityStore, now: () => number = Date.now) {
   async function authorize(ctx: ActorContext, projectId: string): Promise<void> {
     if (ctx.kind !== 'user') throw new AppError('FORBIDDEN', 'Only browser users can manage tokens');
@@ -21,6 +24,16 @@ export function createTokenService(store: HttpIdentityStore, now: () => number =
       const token = { id: randomUUID(), userId: ctx.userId, projectId: input.projectId, prefix: secret.slice(0, 8), scopes: [...new Set(input.scopes)], createdAt, expiresAt, revokedAt: null };
       await store.insertToken({ ...token, hash: createHash('sha256').update(secret).digest('hex'), workspaceId: ctx.workspaceId, label: input.label, idempotencyKey: input.idempotencyKey, requestDigest: canonicalHash(input) });
       return { token, secret, requestId: ctx.requestId };
+    },
+    async listTokens(ctx: ActorContext, raw: ListTokensInput): Promise<ListAgentTokensResult> {
+      const result = ListAgentTokensInputSchema.safeParse(raw);
+      if (!result.success) throw new AppError('VALIDATION', 'Invalid token list input');
+      const input = result.data; await authorize(ctx, input.projectId);
+      const view = viewKey({ list: 'agent_tokens', projectId: input.projectId, userId: ctx.userId });
+      const offset = decodeCursor(input.cursor, view)?.o ?? 0;
+      const rows = await store.listTokens({ userId: ctx.userId, workspaceId: ctx.workspaceId, projectId: input.projectId, offset, limit: input.limit + 1 });
+      const items = rows.slice(0, input.limit);
+      return { projectId: input.projectId, items, nextCursor: rows.length > items.length ? encodeCursor({ view, o: offset + items.length }) : null, requestId: ctx.requestId };
     },
     async revokeToken(ctx: ActorContext, raw: RevokeAgentTokenInput): Promise<RevokeAgentTokenResult> {
       const result = RevokeAgentTokenInputSchema.safeParse(raw);
