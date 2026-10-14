@@ -146,6 +146,7 @@ export class DbIdentityStore implements HttpIdentityStore {
         userId: t.userId,
         projectId: t.projectId,
         prefix: t.prefix,
+        label: t.label,
         scopes: t.scopes,
         createdAt: t.createdAt,
         expiresAt: t.expiresAt,

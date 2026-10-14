@@ -1,9 +1,11 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import type { EngineOutput } from '../../contracts/engine';
-import type { GraphContext } from '../../contracts/graph';
+import type { GraphContext, GraphSnapshot } from '../../contracts/graph';
 import type { ActGlyph, GraphLayout } from '../../contracts/layout';
+import type { ViewSelection } from '../../contracts/mcp';
 import { createTimeScale, layoutPromiseGraph } from '../../lib/graph-layout';
+import type { EditTarget } from '../review/draft-edit';
 import { FilterBar, type ZoomChoice } from './FilterBar';
 import { applyFilters, filtersToSearch, type GraphFilters } from './filters';
 import { ACT_LABEL, partyName, shortStamp, type Directory } from './labels';
@@ -23,6 +25,14 @@ export type GraphScreenProps = {
   pendingEvidenceCount: number;
   initialFilters: GraphFilters;
   escalation: EscalationFocus | null;
+  view: ViewSelection;
+  edit: EditTarget;
+  snapshot: Pick<GraphSnapshot, 'acts' | 'recordDecisions'>;
+  /** Loops and acts a proposal changes against its base: halo on the branch, agent badge on the step. */
+  changedLoopIds?: readonly string[];
+  agentActIds?: readonly string[];
+  heading?: string;
+  headingLevel?: 1 | 2;
 };
 export type EscalationFocus =
   { state: 'cited'; loopIds: string[] } | { state: 'no-analysis' } | { state: 'missing' };
@@ -44,8 +54,25 @@ export function GraphScreen({
   pendingEvidenceCount,
   initialFilters,
   escalation,
+  view: graphView,
+  edit,
+  snapshot,
+  changedLoopIds,
+  agentActIds,
+  heading = 'Main graph',
+  headingLevel = 1,
 }: GraphScreenProps) {
+  const Heading = headingLevel === 1 ? 'h1' : 'h2';
   const escalationLoopIds = escalation?.state === 'cited' ? escalation.loopIds : null;
+  const halo = useMemo(() => new Set(changedLoopIds ?? []), [changedLoopIds]);
+  const agentActs = useMemo(() => new Set(agentActIds ?? []), [agentActIds]);
+  const loopTargets = useMemo(
+    () =>
+      engine.loops
+        .map((item) => ({ id: item.loop.id, title: item.loop.title }))
+        .sort((a, b) => a.title.localeCompare(b.title)),
+    [engine],
+  );
   // Selection and view live outside the filter state so opening a loop never re-runs the filters or the layout.
   const [filters, setFilters] = useState<GraphFilters>({
     ...initialFilters,
@@ -231,9 +258,9 @@ export function GraphScreen({
 
   return (
     <section className="screen" aria-labelledby="graph-heading" style={{ paddingTop: 0 }}>
-      <h1 id="graph-heading" className="sr">
-        Main graph
-      </h1>
+      <Heading id="graph-heading" className="sr">
+        {heading}
+      </Heading>
       <FilterBar
         filters={{ ...filters, view }}
         query={query}
@@ -301,6 +328,7 @@ export function GraphScreen({
               selectedLoopId={selectedLoop?.loop.id ?? null}
               selectedMilestoneId={selectedMilestone?.milestone.id ?? null}
               faded={faded}
+              halo={halo}
               currentActId={actIndex >= 0 ? actId : null}
               revealX={revealX}
               onSelectLoop={selectLoop}
@@ -319,6 +347,11 @@ export function GraphScreen({
                 T={engine.T}
                 currentActIndex={actIndex}
                 pendingEvidenceCount={pendingEvidenceCount}
+                view={graphView}
+                edit={edit}
+                loops={loopTargets}
+                snapshot={snapshot}
+                agentActIds={agentActs}
                 onClose={close}
               />
             )}

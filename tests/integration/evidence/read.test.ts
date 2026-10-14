@@ -6,6 +6,7 @@ import { createProject } from '../../../src/server/domain/projects';
 import {
   ingestRecords,
   loadRecordMetadata,
+  readCitedRecords,
   readRecordChunk,
   readRecordText,
   searchRecords,
@@ -409,5 +410,42 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('record reads', () => {
     });
     expect(metadata.get(withdrawnId)).toMatchObject({ bodyText: null, withdrawn: true });
     expect(metadata.get(newId)!.digest).toMatch(/^[a-f0-9]{64}$/);
+  });
+  it('readCitedRecords batches labels and bodies for the review screens, masks withdrawn versions and skips foreign IDs', async () => {
+    const kept = await ingestOne('Visible body', 'Visible title');
+    const hidden = await ingestOne('Secret body', 'Secret title');
+    await withdrawRecord(t.db, ctx, {
+      projectId: project.id,
+      recordId: await recordIdOf(hidden),
+      expectedEvidenceRevision: await evidenceRevision(),
+      reason: 'Client asked',
+      idempotencyKey: randomUUID(),
+    });
+    const read = await readCitedRecords(t.db, ctx, {
+      projectId: project.id,
+      recordVersionIds: [kept, hidden, randomUUID()],
+    });
+    expect([...read.keys()].sort()).toEqual([kept, hidden].sort());
+    expect(read.get(kept)).toMatchObject({
+      recordVersionId: kept,
+      title: 'Visible title',
+      bodyText: 'Visible body',
+      withdrawn: false,
+    });
+    expect(read.get(hidden)).toMatchObject({
+      recordVersionId: hidden,
+      title: 'Unavailable evidence',
+      author: 'Withdrawn by source',
+      bodyText: null,
+      quotedRanges: [],
+      withdrawn: true,
+    });
+    expect(JSON.stringify(read.get(hidden))).not.toContain('Secret');
+    await expect(
+      readCitedRecords(t.db, agentActor(ctx, project.id, ['records:import']), {
+        projectId: project.id,
+        recordVersionIds: [kept],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });

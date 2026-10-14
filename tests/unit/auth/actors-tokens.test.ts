@@ -242,6 +242,7 @@ describe('hashed project agent tokens', () => {
       nextCursor: null,
       requestId: 'test',
     });
+    expect(listed.items[0]).toMatchObject({ label: 'Agent', prefix: created.secret.slice(0, 8) });
     expect(JSON.stringify(listed)).not.toContain(
       createHash('sha256').update(created.secret).digest('hex'),
     );

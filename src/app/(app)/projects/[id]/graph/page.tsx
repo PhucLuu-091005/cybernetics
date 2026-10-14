@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   IdSchema,
@@ -10,12 +11,16 @@ import { GraphHeader, type HeadCommit } from '../../../../../components/graph/Gr
 import { GraphScreen, type EscalationFocus } from '../../../../../components/graph/GraphScreen';
 import { citedLoops, parseFilters } from '../../../../../components/graph/filters';
 import { shortStamp } from '../../../../../components/graph/labels';
+import { proposalHighlights } from '../../../../../components/review/describe';
+import { ProposalFrame } from '../../../../../components/review/ProposalFrame';
 import { getApp } from '../../../../../server/app';
 import { listHistory } from '../../../../../server/domain/commits';
 import { getEscalation } from '../../../../../server/domain/escalations';
-import { getGraphView } from '../../../../../server/domain/graph';
+import { getGraphView, resolveView } from '../../../../../server/domain/graph';
 import { listProjects } from '../../../../../server/domain/projects';
+import { getProposal } from '../../../../../server/domain/proposals';
 import { AppError } from '../../../../../server/errors';
+import { diffSnapshots } from '../../../../../server/graph/diff';
 import { notFoundOn, requireActor } from '../../../../../server/http/rsc';
 
 export const dynamic = 'force-dynamic';
@@ -51,9 +56,14 @@ export default async function GraphPage({
 }) {
   const [{ id }, raw] = await Promise.all([params, searchParams]);
   if (!IdSchema.safeParse(id).success) notFound();
+  const search = toSearch(raw),
+    proposalId = search.get('proposal');
+  if (proposalId !== null) {
+    if (!IdSchema.safeParse(proposalId).success) notFound();
+    return <ProposalGraph projectId={id} proposalId={proposalId} search={search} />;
+  }
   const actor = await requireActor(`/projects/${id}/graph`);
   const db = getApp().db,
-    search = toSearch(raw),
     filters = parseFilters(search);
   const t = search.get('t'),
     T = t && TimestampSchema.safeParse(t).success ? t : undefined;
@@ -123,7 +133,7 @@ export default async function GraphPage({
         pendingEvidenceCount={view.pendingEvidenceCount}
       />
       <GraphScreen
-        key={`screen-${view.T}`}
+        key={`screen-main-${view.T}`}
         projectId={id}
         title={project.title}
         clientName={project.clientName}
@@ -132,6 +142,123 @@ export default async function GraphPage({
         pendingEvidenceCount={view.pendingEvidenceCount}
         initialFilters={filters}
         escalation={escalation}
+        view={{ kind: 'main' }}
+        snapshot={view.snapshot}
+        edit={{
+          kind: 'main',
+          basis: { mainCommitId: view.mainCommitId, evidenceRevision: view.evidenceRevision },
+        }}
+      />
+    </>
+  );
+}
+
+/** SRD 7.6: proposal mode shows the candidate graph with base, author and revision, framed apart from main. */
+async function ProposalGraph({
+  projectId,
+  proposalId,
+  search,
+}: {
+  projectId: string;
+  proposalId: string;
+  search: URLSearchParams;
+}) {
+  const actor = await requireActor(`/projects/${projectId}/graph`);
+  const db = getApp().db,
+    filters = parseFilters(search);
+  const t = search.get('t'),
+    T = t && TimestampSchema.safeParse(t).success ? t : undefined;
+  const [proposal, projects] = await Promise.all([
+    notFoundOn(getProposal(db, actor, { projectId, proposalId })),
+    listProjects(db, actor),
+  ]);
+  const project = projects.find((item) => item.id === projectId);
+  if (!project) notFound();
+  const [view, base] = await Promise.all([
+    notFoundOn(
+      getGraphView(db, actor, {
+        projectId,
+        view: { kind: 'proposal', proposalId, proposalRevision: proposal.revision },
+        ...(T ? { T } : {}),
+      }),
+    ),
+    notFoundOn(
+      resolveView(db, actor, projectId, { kind: 'commit', commitId: proposal.baseCommitId }),
+    ),
+  ]);
+  const highlights = proposalHighlights(diffSnapshots(base.snapshot, proposal.candidate).changes);
+  const requested = search.get('rev');
+  const href = `/projects/${projectId}/proposals/${proposal.id}`;
+  const timeZone = view.snapshot.context.timeZone;
+  return (
+    <>
+      <header className="topbar">
+        <div className="proj">
+          <b>{project.title}</b>
+          <small>
+            {project.clientName} project, time zone {timeZone}
+          </small>
+        </div>
+        <span className="sp" />
+        <span className="faint" style={{ fontSize: 12 }}>
+          Evaluated at {shortStamp(view.T, timeZone)} {timeZone}
+        </span>
+      </header>
+      <div className="screen" style={{ paddingBottom: 0 }}>
+        {requested !== null && Number(requested) !== proposal.revision && (
+          <p className="card pad" role="status" style={{ marginBottom: 10, fontSize: 13 }}>
+            You opened revision {requested}; the draft is now at revision {proposal.revision}. This
+            view shows the current revision.
+          </p>
+        )}
+        <ProposalFrame
+          projectId={projectId}
+          proposal={proposal}
+          mainCommitId={view.mainCommitId}
+          evidenceRevision={view.evidenceRevision}
+          viewerUserId={actor.userId}
+          level={2}
+          actions={
+            <>
+              <Link className="btn" href={href}>
+                Open proposal
+              </Link>
+              <Link className="btn btn-draft" href={`${href}/review`}>
+                Review changes
+              </Link>
+              <Link className="btn" href={`/projects/${projectId}/graph`}>
+                Main view
+              </Link>
+            </>
+          }
+        />
+        <p className="faint" style={{ fontSize: 12 }}>
+          The violet halo marks loops this proposal changes. Edits in the loop panel go into this
+          draft; main does not change until a person merges it.
+        </p>
+      </div>
+      <GraphScreen
+        key={`screen-proposal-${proposal.id}-${view.T}`}
+        projectId={projectId}
+        title={project.title}
+        clientName={project.clientName}
+        context={view.snapshot.context}
+        engine={view.engine}
+        pendingEvidenceCount={view.pendingEvidenceCount}
+        initialFilters={filters}
+        escalation={null}
+        view={{ kind: 'proposal', proposalId: proposal.id, proposalRevision: proposal.revision }}
+        snapshot={view.snapshot}
+        edit={{
+          kind: 'proposal',
+          basis: { mainCommitId: view.mainCommitId, evidenceRevision: view.evidenceRevision },
+          proposalId: proposal.id,
+          revision: proposal.revision,
+          status: proposal.status,
+        }}
+        changedLoopIds={highlights.loopIds}
+        agentActIds={proposal.author.kind === 'agent' ? highlights.actIds : []}
+        heading={`Candidate graph for ${proposal.title}`}
       />
     </>
   );
