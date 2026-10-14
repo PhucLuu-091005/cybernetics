@@ -37,6 +37,7 @@ export function CanvasControls({
   fullscreen,
   fullscreenEnabled,
   onFullscreen,
+  onResetLayout,
 }: {
   zoom: number;
   onStep(direction: 1 | -1): void;
@@ -46,6 +47,8 @@ export function CanvasControls({
   fullscreen: boolean;
   fullscreenEnabled: boolean;
   onFullscreen(): void;
+  /** Present only when the user moved something. */
+  onResetLayout: (() => void) | null;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -105,6 +108,16 @@ export function CanvasControls({
           <Icon d="M12 5v14M5 12h14" />
         </button>
         <span className="sep" aria-hidden="true" />
+        {onResetLayout && (
+          <button
+            type="button"
+            aria-label="Reset layout"
+            title="Reset layout"
+            onClick={onResetLayout}
+          >
+            <Icon d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5" />
+          </button>
+        )}
         <button
           type="button"
           aria-label="Fit the project"

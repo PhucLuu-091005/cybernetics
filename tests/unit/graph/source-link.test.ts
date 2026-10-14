@@ -45,5 +45,12 @@ describe('actSource', () => {
       }),
     ).toMatchObject({ app: 'slack', label: '#larkspur-it' });
     expect(actSource(P, V, undefined)).toMatchObject({ app: null, label: null });
+    expect(
+      actSource(P, V, {
+        source: 'agent',
+        sourceLabel: 'gmail:go-live-plan',
+        permalink: 'https://mail.google.com/mail/u/0/#all/x',
+      }),
+    ).toMatchObject({ app: 'gmail', label: 'go-live-plan' });
   });
 });

@@ -188,6 +188,7 @@ export default async function ProposalPage({
         context={candidate.context}
         engine={view.engine}
         pendingEvidenceCount={view.pendingEvidenceCount}
+        sources={view.sources}
         initialFilters={parseFilters(new URLSearchParams())}
         escalation={null}
         view={{ kind: 'proposal', proposalId: proposal.id, proposalRevision: proposal.revision }}

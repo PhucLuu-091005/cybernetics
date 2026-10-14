@@ -81,3 +81,22 @@ export function applyLayoutOffsets(
   });
   return changed ? { ...layout, branches } : layout;
 }
+
+/** The vertical shift range that keeps a branch line and its card shelves inside the lane. */
+export function loopShiftRange(
+  layout: GraphLayout,
+  loopId: string,
+  rowHeight: number,
+): [number, number] | null {
+  const branch = layout.branches.find((item) => item.loopId === loopId),
+    lane = layout.lanes.find((item) => item.departmentId === branch?.departmentId);
+  if (!branch || !lane) return null;
+  const cardTop = Math.min(
+    branch.y - rowHeight / 2,
+    ...branch.glyphs.map((glyph) => glyph.card?.y ?? Infinity),
+  );
+  return [
+    lane.y + (branch.y - cardTop) - branch.y,
+    lane.y + lane.height - rowHeight / 2 - branch.y,
+  ];
+}

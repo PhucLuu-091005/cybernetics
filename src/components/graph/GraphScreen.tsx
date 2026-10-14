@@ -1,14 +1,26 @@
 'use client';
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { EngineOutput } from '../../contracts/engine';
 import type { GraphContext, GraphSnapshot } from '../../contracts/graph';
-import type { ActGlyph } from '../../contracts/layout';
 import type { ViewSelection } from '../../contracts/mcp';
-import { BASE_PX_PER_DAY, BASE_ROW_HEIGHT, layoutPromiseGraph } from '../../lib/graph-layout';
+import type { GraphSource } from '../../contracts/views';
+import {
+  BASE_PX_PER_DAY,
+  BASE_ROW_HEIGHT,
+  CARD,
+  NO_OFFSETS,
+  applyLayoutOffsets,
+  layoutPromiseGraph,
+  loopShiftRange,
+  type LayoutOffsets,
+} from '../../lib/graph-layout';
 import type { EditTarget } from '../review/draft-edit';
 import { FilterBar } from './FilterBar';
 import { applyFilters, filtersToSearch, type GraphFilters } from './filters';
+import type { CardInfo } from './CardNode';
 import { ACT_LABEL, partyName, shortStamp, type Directory } from './labels';
+import { browserStore, hasOffsets, readOffsets, withOffset, writeOffsets } from './offset-store';
+import { actSource } from './source-link';
 import { Legend } from './Legend';
 import { LoopList } from './LoopList';
 import { LoopPanel } from './LoopPanel';
@@ -27,6 +39,8 @@ export type GraphScreenProps = {
   view: ViewSelection;
   edit: EditTarget;
   snapshot: Pick<GraphSnapshot, 'acts' | 'recordDecisions'>;
+  /** Source of each cited record version, keyed by version ID. */
+  sources: Record<string, GraphSource>;
   /** Loops and acts a proposal changes against its base: halo on the branch, agent badge on the step. */
   changedLoopIds?: readonly string[];
   agentActIds?: readonly string[];
@@ -36,7 +50,6 @@ export type GraphScreenProps = {
 export type EscalationFocus =
   { state: 'cited'; loopIds: string[] } | { state: 'no-analysis' } | { state: 'missing' };
 
-type Tip = { x: number; y: number; glyph: ActGlyph };
 const isTyping = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (/^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName) || target.isContentEditable);
@@ -52,6 +65,7 @@ export function GraphScreen({
   view: graphView,
   edit,
   snapshot,
+  sources,
   changedLoopIds,
   agentActIds,
   heading = 'Main graph',
@@ -79,7 +93,12 @@ export function GraphScreen({
   const [query, setQuery] = useState(initialFilters.q);
   const [milestoneId, setMilestoneId] = useState<string | null>(null);
   const [actId, setActId] = useState<string | null>(null);
-  const [tip, setTip] = useState<Tip | null>(null);
+  const [offsets, setOffsets] = useState<LayoutOffsets>(NO_OFFSETS);
+  // Browser storage exists only after hydration, so saved positions load in an effect.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOffsets(readOffsets(browserStore(), projectId));
+  }, [projectId]);
   const lastFocus = useRef<string | null>(null);
 
   const stageRef = useRef<HTMLDivElement>(null);
@@ -99,15 +118,51 @@ export function GraphScreen({
     () => engine.loops.filter((loop) => visible.has(loop.loop.id)),
     [engine, visible],
   );
-  const layout = useMemo(
+  const baseLayout = useMemo(
     () =>
       layoutPromiseGraph(
         { ...engine, loops: visibleLoops },
         { context },
-        { pxPerDay: BASE_PX_PER_DAY, rowHeight: BASE_ROW_HEIGHT },
+        { pxPerDay: BASE_PX_PER_DAY, rowHeight: BASE_ROW_HEIGHT, cards: CARD },
       ),
     [engine, visibleLoops, context],
   );
+  const layout = useMemo(
+    () => applyLayoutOffsets(baseLayout, offsets, BASE_ROW_HEIGHT),
+    [baseLayout, offsets],
+  );
+  const onDrag = useCallback(
+    (kind: 'acts' | 'loops', id: string, value: number, done: boolean) => {
+      const range = kind === 'loops' ? loopShiftRange(baseLayout, id, BASE_ROW_HEIGHT) : null;
+      const clamped = range ? Math.min(range[1], Math.max(range[0], value)) : value;
+      setOffsets((previous) => {
+        const next = withOffset(previous, kind, id, Math.round(clamped * 1000) / 1000);
+        if (done) writeOffsets(browserStore(), projectId, next);
+        return next;
+      });
+    },
+    [baseLayout, projectId],
+  );
+  const resetLayout = useCallback(() => {
+    writeOffsets(browserStore(), projectId, NO_OFFSETS);
+    setOffsets(NO_OFFSETS);
+  }, [projectId]);
+  const cards = useMemo(() => {
+    const map = new Map<string, CardInfo>();
+    for (const loop of visibleLoops)
+      for (const act of loop.acts) {
+        const versionId = act.citation.recordVersionId;
+        map.set(act.id, {
+          type: act.type,
+          label: ACT_LABEL[act.type],
+          when: shortStamp(act.occurredAt, context.timeZone),
+          person: partyName(act.actor, directory),
+          quote: act.quote,
+          source: actSource(projectId, versionId, sources[versionId]),
+        });
+      }
+    return map;
+  }, [visibleLoops, context.timeZone, directory, projectId, sources]);
   const milestoneStatus = useMemo(
     () => new Map(engine.milestones.map((item) => [item.milestone.id, item.status])),
     [engine],
@@ -208,17 +263,6 @@ export function GraphScreen({
     return () => document.removeEventListener('keydown', onKey);
   }, [selectedLoop, selectedMilestone, actIndex, close, view]);
 
-  const onHoverAct = useCallback(
-    (glyph: ActGlyph | null, event?: MouseEvent) =>
-      setTip(glyph && event ? { glyph, x: event.clientX, y: event.clientY } : null),
-    [],
-  );
-  const hoveredAct = tip
-    ? engine.loops
-        .find((loop) => loop.loop.id === tip.glyph.loopId)
-        ?.acts.find((act) => act.id === tip.glyph.id)
-    : undefined;
-
   const counts = useMemo(() => {
     const broken = visibleLoops.filter((loop) =>
       loop.breakdowns.some((item) => item.severity === 'broken'),
@@ -305,9 +349,12 @@ export function GraphScreen({
               faded={faded}
               halo={halo}
               currentActId={actIndex >= 0 ? actId : null}
+              cards={cards}
+              offsets={offsets}
+              onDrag={onDrag}
+              onResetLayout={hasOffsets(offsets) ? resetLayout : null}
               onSelectLoop={selectLoop}
               onSelectMilestone={selectMilestone}
-              onHoverAct={onHoverAct}
               stageRef={stageRef}
             />
             {selectedLoop && (
@@ -339,28 +386,6 @@ export function GraphScreen({
           </div>
           <Legend />
         </>
-      )}
-      {tip && hoveredAct && (
-        <div
-          className="tip"
-          role="tooltip"
-          style={{
-            left: Math.min(
-              tip.x + 14,
-              (typeof window === 'undefined' ? 1200 : window.innerWidth) - 310,
-            ),
-            top: tip.y + 14,
-          }}
-        >
-          <b>{ACT_LABEL[hoveredAct.type]}</b>, {partyName(hoveredAct.actor, directory)}
-          <br />
-          {shortStamp(hoveredAct.occurredAt, context.timeZone)} {context.timeZone}
-          {hoveredAct.quote === null ? (
-            <q>Unavailable evidence</q>
-          ) : (
-            <q>{hoveredAct.quote.slice(0, 140)}</q>
-          )}
-        </div>
       )}
     </section>
   );
