@@ -326,7 +326,7 @@ test('a drag on empty canvas moves it; the lane names stay in their column and f
 }) => {
   await signIn(page, 'graph-canvas');
   const column = page.getByTestId('lane-column');
-  const name = column.locator('[data-lane]').filter({ hasText: 'Engineering' });
+  const name = column.locator('[data-lane]').filter({ hasText: /^Engineering$/ });
   const nameBefore = await boxOf(name);
   const viewport = page.locator('.react-flow__viewport');
   const before = await viewport.evaluate(
@@ -491,6 +491,38 @@ test('a sideways drag keeps an event in its day, an upward drag moves the branch
   await reset.click();
   await expect(reset).toBeHidden();
   expect(await saved()).toHaveLength(0);
+});
+
+test('a promise split into tasks shows its gateways, its waiting note, its task panel and the indented list', async ({
+  page,
+}) => {
+  await signIn(page, 'graph-tasks');
+  await expect(page.locator('.gateway.split')).toHaveCount(1);
+  await expect(page.locator('.gateway.handoff')).toHaveCount(4);
+  await expect(page.locator('.gateway.handoff.pending')).toHaveCount(1);
+  await expect(page.locator('.gateway.join')).toHaveCount(1);
+  await expect(page.locator('.handoff-note')).toContainText([
+    'waited 4 business days',
+    'waiting for PG-203 Country list field type',
+  ]);
+  await openLoop(page.getByRole('button', { name: /^Loop: CRS tax residency section/ }));
+  const work = loopPanel(page).getByRole('region', { name: 'Tasks and handoffs' });
+  await expect(work).toContainText('3 of 5 done');
+  await work.getByRole('button', { name: /PG-201 CRS form logic/ }).click();
+  const task = loopPanel(page).getByRole('region', { name: 'Tasks and handoffs' });
+  await expect(task).toContainText('Part of');
+  await expect(task).toContainText('After');
+  await expect(task.getByRole('button', { name: /CRS tax residency section/ })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page
+    .getByRole('group', { name: /^view$/i })
+    .getByRole('button', { name: 'List' })
+    .click();
+  const rows = page.getByRole('table', { name: /loops/i }).getByRole('row');
+  const names = await rows.evaluateAll((items) => items.map((item) => item.textContent ?? ''));
+  const parentAt = names.findIndex((text) => text.includes('CRS tax residency section'));
+  expect(names[parentAt + 1]).toContain('Analyse the CRS and FATCA rules');
+  await expect(rows.filter({ hasText: 'PG-201 CRS form logic' })).toHaveClass(/task-row/);
 });
 
 test('phone width: no horizontal page scroll on graph, open panel and list; sign out is reachable', async ({

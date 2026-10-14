@@ -35,7 +35,7 @@ export type ProposalEntry = {
 export type FixtureSet = {
   records: FixtureRecord[];
   main: GraphSnapshot;
-  gold: { T: string; loops: Record<string, { state: string; breakdowns: string[] }> };
+  gold: { T: string; loops: Record<string, { state: string | null; breakdowns: string[] }> };
   history: HistoryEntry[];
   proposals: ProposalEntry[];
 };

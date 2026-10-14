@@ -53,8 +53,8 @@ describe('day bounds and the shared branch path', () => {
     expect(scale.dayRange('2026-03-08T23:30:00-04:00')).toEqual({ start: 10, end: 20 });
     expect(scale.dayRange('2026-03-09T00:00:00-04:00')).toEqual({ start: 20, end: 30 });
   });
-  it('builds every branch path with the shared path function', () => {
-    for (const branch of withCards.branches)
+  it('builds every top-level branch path with the shared path function', () => {
+    for (const branch of withCards.branches.filter((item) => !item.task))
       expect(
         branchPath(
           branch.xStart,

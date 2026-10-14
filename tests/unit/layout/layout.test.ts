@@ -88,7 +88,9 @@ describe('layoutPromiseGraph design rules', () => {
     expect(vendor.map((lane) => lane.name)).toEqual([
       'Implementation',
       'Digitization',
+      'Solutions Engineering',
       'Engineering',
+      'Digitization QA',
       'Customer Success',
     ]);
     for (let i = 1; i < vendor.length; i++)
@@ -214,7 +216,7 @@ describe('layoutPromiseGraph design rules', () => {
       'Milestone: Go-live and first close, moved from 2026-09-30 to 2026-10-15, at risk',
     );
     expect(milestone('Go-live and first close', l)).toMatchObject({
-      openLoopCount: 3,
+      openLoopCount: 4,
       brokenLoopCount: 2,
       y: l.trunkY,
     });
@@ -227,7 +229,7 @@ describe('layoutPromiseGraph design rules', () => {
     expect(l.navigation.loopIds).toEqual(l.branches.map((b) => b.loopId));
     const starts = l.branches.map((b) => b.xStart);
     expect(starts).toEqual([...starts].sort((a, b) => a - b));
-    expect(l.navigation.loopIds).toHaveLength(30);
+    expect(l.navigation.loopIds).toHaveLength(36);
   });
   it('labels glyphs with act type and person initials and names them for assistive technology', () => {
     const b = branch('Client secret renewal');
@@ -296,7 +298,7 @@ describe('layoutPromiseGraph design rules', () => {
     const lane = l.lanes.find((item) => item.departmentId === extra.performerDepartmentId)!;
     expect(b.xStart).toBe(Math.round(xOf(gold.T, snapshot.context, 12) * 100) / 100);
     expect(b.row).toBeLessThan(lane.subRows);
-    expect(l.navigation.loopIds).toHaveLength(31);
+    expect(l.navigation.loopIds).toHaveLength(37);
     expect(l.navigation.loopIds).toEqual(l.branches.map((item) => item.loopId));
     const starts = l.branches.map((item) => item.xStart);
     expect(starts).toEqual([...starts].sort((a, c) => a - c));

@@ -194,6 +194,44 @@
       "title": "First-close rehearsal",
       "state": "closed",
       "breakdowns": []
+    },
+    "a68a9786-2b41-4e8b-8b6c-df7fab8c9c3d": {
+      "key": "crs",
+      "title": "CRS tax residency section with DealCloud sync",
+      "state": "promised",
+      "breakdowns": []
+    },
+    "970430d4-c51d-4835-a0e9-901d611992d7": {
+      "key": "crs-analysis",
+      "title": "Analyse the CRS and FATCA rules for the form",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "73366771-4992-4b7e-8f0a-424902b4474f": {
+      "key": "crs-form-logic",
+      "title": "PG-201 CRS form logic",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "10e4e253-941a-40e1-bdda-e01979d846b2": {
+      "key": "crs-dealcloud",
+      "title": "PG-202 DealCloud mapping for CRS fields",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "cc02c1b8-4d07-483b-8390-5db929158416": {
+      "key": "crs-country-field",
+      "title": "PG-203 Country list field type",
+      "state": "promised",
+      "breakdowns": [
+        "silent_overdue"
+      ]
+    },
+    "0c455f07-002a-4d11-a23b-5b073798490c": {
+      "key": "crs-qa",
+      "title": "Test the CRS section end to end",
+      "state": null,
+      "breakdowns": []
     }
   },
   "milestones": {
