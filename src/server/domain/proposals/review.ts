@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import {
+  DiffProposalInputSchema,
   ReviewProposalInputSchema,
   type ActorContext,
   type EngineOutput,
@@ -13,7 +14,7 @@ import { requireScope } from '../../http/scopes';
 import { deriveProject } from '../../loops/engine';
 import { requireProject } from '../access';
 import { loadCommit } from '../commits/store';
-import { hydrateEngineInput } from '../graph/hydrate';
+import { evaluationTime, hydrateEngineInput } from '../graph/hydrate';
 import { countPending } from '../inbox/list';
 import { toProject } from '../projects';
 import { invalid } from '../records/metadata';
@@ -110,4 +111,26 @@ export async function reviewProposal(
     },
     { isolationLevel: 'repeatable read', accessMode: 'read only' },
   );
+}
+
+/** Reviews the draft at the revisions current now; a concurrent change between the read and the review surfaces as CONFLICT, never as a mixed digest. */
+export async function diffProposal(
+  db: Db,
+  ctx: ActorContext,
+  raw: z.input<typeof DiffProposalInputSchema>,
+): Promise<ProposalReview> {
+  requireScope(ctx, 'project:read');
+  const parsed = DiffProposalInputSchema.safeParse(raw);
+  if (!parsed.success) throw invalid('Invalid proposal diff', parsed.error);
+  const input = parsed.data;
+  const project = toProject(await requireProject(db, ctx, input.projectId));
+  const row = await findProposal(db, project.id, input.proposalId, false);
+  return reviewProposal(db, ctx, {
+    projectId: project.id,
+    proposalId: row.id,
+    expectedMainCommitId: project.mainCommitId,
+    expectedProposalRevision: row.revision,
+    expectedEvidenceRevision: project.evidenceRevision,
+    T: evaluationTime(row.candidate, input.T),
+  });
 }

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import type {
   Act,
   ActType,
@@ -741,12 +742,13 @@ export function buildFixtures(source: StorySource) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const directory = new URL('../fixtures/', import.meta.url);
+  // A path, not `new URL(..., import.meta.url)`: the sandbox seed bundles this module, and Turbopack resolves URL literals as assets at build time.
+  const directory = join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures');
   const source = JSON.parse(
-    readFileSync(new URL('story-source.json', directory), 'utf8'),
+    readFileSync(join(directory, 'story-source.json'), 'utf8'),
   ) as StorySource;
   for (const [name, value] of Object.entries(buildFixtures(source))) {
-    writeFileSync(new URL(name, directory), `${JSON.stringify(value, null, 2)}\n`);
+    writeFileSync(join(directory, name), `${JSON.stringify(value, null, 2)}\n`);
     console.log(`wrote fixtures/${name}`);
   }
 }

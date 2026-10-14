@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   GetEscalationInputSchema,
   IdSchema,
+  PageInputSchema,
   RevisionSchema,
   utf8Bytes,
   type ActorContext,
@@ -15,7 +16,13 @@ import { escalationAnalyses, escalations } from '../../db/schema';
 import { isId, toIso, type Db, type ProjectRow, type Tx } from '../../db/tx';
 import { requireScope } from '../../http/scopes';
 import { requireProject } from '../access';
-import { MAX_PAGE_BYTES, takePage, viewKey } from '../graph/paging';
+import {
+  MAX_PAGE_BYTES,
+  decodeCursor as decodePageCursor,
+  encodeCursor as encodePageCursor,
+  takePage,
+  viewKey,
+} from '../graph/paging';
 import { READ_ONLY } from '../graph/read';
 import { toProject } from '../projects';
 import { invalid } from '../records/metadata';
@@ -23,8 +30,14 @@ import { assessClaims } from './verdict';
 
 export type EscalationRow = typeof escalations.$inferSelect;
 export type AnalysisRow = typeof escalationAnalyses.$inferSelect;
-const ListEscalationsInputSchema = z.strictObject({ projectId: IdSchema });
+const ListEscalationsInputSchema = PageInputSchema.extend({ projectId: IdSchema });
 export type ListEscalationsInput = z.input<typeof ListEscalationsInputSchema>;
+export type ListEscalationsResult = {
+  projectId: string;
+  items: Escalation[];
+  nextCursor: string | null;
+  requestId: string;
+};
 const CursorSchema = z.strictObject({ v: z.string(), b: RevisionSchema });
 // Covers a longer requestId and wider revision numbers on later reads than the save-time estimate saw.
 const READ_SLACK_BYTES = 256;
@@ -198,25 +211,48 @@ export async function listEscalations(
   db: Db,
   ctx: ActorContext,
   raw: ListEscalationsInput,
-): Promise<Escalation[]> {
+): Promise<ListEscalationsResult> {
   requireScope(ctx, 'project:read');
   const parsed = ListEscalationsInputSchema.safeParse(raw);
   if (!parsed.success) throw invalid('Invalid escalation list', parsed.error);
-  const project = await requireProject(db, ctx, parsed.data.projectId);
-  const latest = db
-    .select({
-      escalationId: escalationAnalyses.escalationId,
-      revision: max(escalationAnalyses.revision).as('latest_revision'),
-    })
-    .from(escalationAnalyses)
-    .where(eq(escalationAnalyses.projectId, project.id))
-    .groupBy(escalationAnalyses.escalationId)
-    .as('latest');
-  const rows = await db
-    .select({ escalation: escalations, revision: latest.revision })
-    .from(escalations)
-    .leftJoin(latest, eq(latest.escalationId, escalations.id))
-    .where(eq(escalations.projectId, project.id))
-    .orderBy(desc(escalations.createdAt), desc(escalations.id));
-  return rows.map(({ escalation, revision }) => toEscalation(escalation, revision ?? null));
+  const input = parsed.data;
+  return db.transaction(async (tx) => {
+    const project = await requireProject(tx, ctx, input.projectId);
+    const view = viewKey({ list: 'escalations', projectId: project.id });
+    const offset = decodePageCursor(input.cursor, view)?.o ?? 0;
+    const latest = tx
+      .select({
+        escalationId: escalationAnalyses.escalationId,
+        revision: max(escalationAnalyses.revision).as('latest_revision'),
+      })
+      .from(escalationAnalyses)
+      .where(eq(escalationAnalyses.projectId, project.id))
+      .groupBy(escalationAnalyses.escalationId)
+      .as('latest');
+    const rows = await tx
+      .select({ escalation: escalations, revision: latest.revision })
+      .from(escalations)
+      .leftJoin(latest, eq(latest.escalationId, escalations.id))
+      .where(eq(escalations.projectId, project.id))
+      .orderBy(desc(escalations.createdAt), desc(escalations.id))
+      .limit(input.limit + 1)
+      .offset(offset);
+    const items = rows.map(({ escalation, revision }) =>
+      toEscalation(escalation, revision ?? null),
+    );
+    const page: ListEscalationsResult = {
+      projectId: project.id,
+      items: [],
+      nextCursor: null,
+      requestId: ctx.requestId,
+    };
+    const { taken } = takePage(items, 0, input.limit, {
+      ...page,
+      nextCursor: encodePageCursor({ view, o: offset + items.length }),
+    });
+    page.items = taken;
+    if (taken.length < items.length)
+      page.nextCursor = encodePageCursor({ view, o: offset + taken.length });
+    return page;
+  }, READ_ONLY);
 }

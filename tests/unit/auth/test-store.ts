@@ -54,6 +54,24 @@ export function memoryStore(): MemoryStore {
         throw new AppError('CONFLICT', 'Creation key already used');
       tokens.set(token.hash, token);
     },
+    async listTokens({ userId, workspaceId, projectId, offset, limit }) {
+      return [...tokens.values()]
+        .filter(
+          (t) => t.userId === userId && t.workspaceId === workspaceId && t.projectId === projectId,
+        )
+        .reverse()
+        .slice(offset, offset + limit)
+        .map(({ id, userId, projectId, prefix, scopes, createdAt, expiresAt, revokedAt }) => ({
+          id,
+          userId,
+          projectId,
+          prefix,
+          scopes,
+          createdAt,
+          expiresAt,
+          revokedAt,
+        }));
+    },
     async revokeToken(input) {
       const token = [...tokens.values()].find(
         (t) =>

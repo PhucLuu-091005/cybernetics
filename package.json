@@ -13,12 +13,14 @@
     "dev": "next dev --hostname 127.0.0.1",
     "build": "next build && cp -R .next/static .next/standalone/.next/ && cp -R public .next/standalone/",
     "start": "node .next/standalone/server.js",
-    "eval": "vitest run tests/unit/contracts",
+    "eval": "vitest run --config eval/vitest.config.ts",
+    "check:providers": "node scripts/check-no-model-dependencies.mjs",
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
     "@noble/hashes": "2.4.0",
     "drizzle-orm": "0.45.4",
     "next": "16.4.0",

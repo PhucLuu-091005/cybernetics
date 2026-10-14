@@ -69,6 +69,19 @@ Proposals, all based on commit 3:
 - `crm-sync-title-phase-one` and `crm-sync-title-sow-scope` change the title of the same loop. After one merges, a rebase of the other reports one conflict on that loop.
 - `agent-incident-follow-up` (origin `agent`) adds Sarah's follow-up from the pending escalation-three email to the incident report loop and includes that record. Loop states and breakdowns stay the same. The incident loop gets one nudge.
 
+## Sandbox seed
+
+`seedSandbox` (`src/server/domain/seed`) copies Larkspur into a new user's workspace inside the first sign-in transaction. It uses only domain paths: `ingestRecords` in batches of 25, proposal → review → merge for the main snapshot and both history merges, and revert preview → digest → apply for the revert. After every history commit it checks that main equals the re-keyed `history.json` snapshot.
+
+- Re-keying: ingestion assigns record version IDs. Every other fixture UUID becomes ``uuidFromKey(`${projectId}:${fixtureId}`)``, so two sandboxes share no entity ID. Integration tests that call `seedLarkspur` keep the fixture IDs.
+- The initial commit holds the calendar only. The first merge adds people, departments, milestones and the main snapshot.
+- Withdrawn record: `record-version:training:2` (Fundline's 1 September "Completed: run operations training" report). The `training` loop is closed with no breakdown and anchors no milestone. The act stays in the graph with unavailable evidence, so every gold state and breakdown stays the same. The record is not one of the 4 pending records. The seed withdraws it after the revert and before the drafts.
+- Drafts: the three `proposals.json` drafts are created on the revert commit after the withdrawal, with their fixture titles and rationales. The browser user authors all three. The agent draft keeps `origin: agent` on its act.
+
+## Eval
+
+`pnpm eval` runs `eval/*.eval.ts` with `eval/vitest.config.ts`. It needs no network, database or model credentials. It prints one line per metric and fails unless each is 100%: transition/breakdown accuracy against `gold.json`, quote validity for every citation and submitted quote, expected diff matches for `history.json` and `proposals.json`, conflict detection for every proposal pair, and revert/restore correctness for `history.json`.
+
 ## Engine and gold decisions
 
 The engine matched the hand-written gold for all 30 loops and all 7 milestones on the first run. No engine change and no gold change was necessary. Story data decisions:
