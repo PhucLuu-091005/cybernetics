@@ -1,22 +1,29 @@
 import type { FieldError, GraphOperation, Proposal } from '../../contracts';
 
-export type ApiError = { status: number; code: string; message: string; errors?: FieldError[] };
+export type ApiError = {
+  status: number;
+  code: string;
+  message: string;
+  errors?: FieldError[];
+  details?: Record<string, unknown>;
+};
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: ApiError };
 /** What the page displayed; every mutation sends it so a concurrent change answers CONFLICT instead of overwriting. */
 export type Basis = { mainCommitId: string; evidenceRevision: number };
 
 export async function send<T>(
   path: string,
-  method: 'POST' | 'PATCH',
-  body: unknown,
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  body?: unknown,
 ): Promise<ApiResult<T>> {
   let response: Response;
   try {
-    response = await fetch(path, {
-      method,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    response = await fetch(
+      path,
+      method === 'GET'
+        ? { headers: { Accept: 'application/json' } }
+        : { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) },
+    );
   } catch {
     return {
       ok: false,
@@ -37,6 +44,7 @@ export async function send<T>(
       code: error.code ?? 'INTERNAL',
       message: error.message ?? `Request failed with status ${response.status}`,
       ...(error.errors ? { errors: error.errors } : {}),
+      ...(error.details && typeof error.details === 'object' ? { details: error.details } : {}),
     },
   };
 }

@@ -61,16 +61,19 @@ export function memoryStore(): MemoryStore {
         )
         .reverse()
         .slice(offset, offset + limit)
-        .map(({ id, userId, projectId, prefix, scopes, createdAt, expiresAt, revokedAt }) => ({
-          id,
-          userId,
-          projectId,
-          prefix,
-          scopes,
-          createdAt,
-          expiresAt,
-          revokedAt,
-        }));
+        .map(
+          ({ id, userId, projectId, prefix, label, scopes, createdAt, expiresAt, revokedAt }) => ({
+            id,
+            userId,
+            projectId,
+            prefix,
+            label,
+            scopes,
+            createdAt,
+            expiresAt,
+            revokedAt,
+          }),
+        );
     },
     async revokeToken(input) {
       const token = [...tokens.values()].find(

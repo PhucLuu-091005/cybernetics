@@ -273,6 +273,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
       'createdAt',
       'expiresAt',
       'id',
+      'label',
       'prefix',
       'projectId',
       'revokedAt',

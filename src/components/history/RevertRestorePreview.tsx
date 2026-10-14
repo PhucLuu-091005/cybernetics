@@ -1,0 +1,343 @@
+'use client';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import type { CommitPreview, CommitReceipt, Proposal } from '../../contracts';
+import { send, type ApiError, type Basis } from '../inbox/api';
+import { ConflictBanner } from '../review/ConflictBanner';
+import { describeEntity, entityTitle, newestImage, type Names } from '../review/describe';
+import { ChangeCells } from '../review/DiffView';
+import { useHydrated } from '../review/hydrated';
+
+export type LaterCommit = { id: string; message: string; keys: string[] };
+type Props = {
+  projectId: string;
+  target: { id: string; message: string; kind: 'initial' | 'merge' | 'revert' | 'restore' };
+  touched: string[];
+  /** Oldest first, so the restore list can name the latest later commit that touched an entity. */
+  later: LaterCommit[];
+  basis: Basis;
+  T: string;
+  names: Names;
+};
+type Kind = 'revert' | 'restore';
+const quoted = (message: string) => `“${message}”`;
+
+/** SRD 6.5: revert and restore always show their diff first, then apply as a new commit with the previewed head, evidence and digest. */
+export function RevertRestorePreview({
+  projectId,
+  target,
+  touched,
+  later,
+  basis,
+  T,
+  names,
+}: Props) {
+  const router = useRouter();
+  const hydrated = useHydrated();
+  const [preview, setPreview] = useState<CommitPreview | null>(null);
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<{
+    error: ApiError;
+    during: 'preview' | 'apply' | 'inverse';
+  } | null>(null);
+
+  const load = async (kind: Kind) => {
+    setBusy(true);
+    setFailure(null);
+    const result = await send<CommitPreview>(
+      `/api/v1/projects/${projectId}/${kind}-preview`,
+      'POST',
+      {
+        targetCommitId: target.id,
+        expectedMainCommitId: basis.mainCommitId,
+        expectedEvidenceRevision: basis.evidenceRevision,
+        T,
+      },
+    );
+    setBusy(false);
+    if (!result.ok) {
+      setPreview(null);
+      setFailure({ error: result.error, during: 'preview' });
+      return;
+    }
+    setPreview(result.data);
+    setMessage(
+      kind === 'revert'
+        ? `Revert ${quoted(target.message)}`
+        : `Restore graph as of ${quoted(target.message)}`,
+    );
+  };
+  const apply = async () => {
+    if (!preview) return;
+    setBusy(true);
+    setFailure(null);
+    const result = await send<CommitReceipt>(
+      `/api/v1/projects/${projectId}/${preview.kind}`,
+      'POST',
+      {
+        targetCommitId: target.id,
+        expectedMainCommitId: preview.mainCommitId,
+        expectedEvidenceRevision: preview.evidenceRevision,
+        reviewDigest: preview.digest,
+        T: preview.T,
+        message: message.trim(),
+        idempotencyKey: crypto.randomUUID(),
+      },
+    );
+    setBusy(false);
+    if (result.ok) router.push(`/projects/${projectId}/history/${result.data.commitId}`);
+    else setFailure({ error: result.error, during: 'apply' });
+  };
+  const inverse = async () => {
+    setBusy(true);
+    setFailure(null);
+    const result = await send<Proposal>(
+      `/api/v1/projects/${projectId}/proposals/from-inverse`,
+      'POST',
+      {
+        targetCommitId: target.id,
+        expectedMainCommitId: basis.mainCommitId,
+        expectedEvidenceRevision: basis.evidenceRevision,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    );
+    setBusy(false);
+    if (result.ok) router.push(`/projects/${projectId}/proposals/${result.data.id}`);
+    else setFailure({ error: result.error, during: 'inverse' });
+  };
+
+  const touchedSet = new Set(touched);
+  const preserved = later.filter((commit) => commit.keys.some((key) => !touchedSet.has(key)));
+  const source = (key: string) => [...later].reverse().find((commit) => commit.keys.includes(key));
+  const blocked = preview !== null && (preview.conflicts.length > 0 || preview.candidate === null);
+  const disabled = !hydrated || busy;
+
+  return (
+    <>
+      <div className="row">
+        <button
+          className="btn"
+          type="button"
+          disabled={disabled || target.kind === 'initial'}
+          aria-pressed={preview?.kind === 'revert'}
+          onClick={() => load('revert')}
+        >
+          Preview revert
+        </button>
+        <button
+          className="btn"
+          type="button"
+          disabled={disabled}
+          aria-pressed={preview?.kind === 'restore'}
+          onClick={() => load('restore')}
+        >
+          Preview restore
+        </button>
+      </div>
+      {failure && (
+        <ConflictBanner
+          title={
+            failure.error.status === 409
+              ? 'Conflict: main or the evidence moved since this page loaded.'
+              : failure.during === 'preview'
+                ? 'The preview failed.'
+                : 'Nothing was applied.'
+          }
+          error={failure.error}
+          message={
+            failure.error.status === 409
+              ? 'No commit was created. Reload to preview against the current main.'
+              : undefined
+          }
+          actions={
+            failure.error.status === 409 ? (
+              <button
+                className="btn"
+                type="button"
+                onClick={() => {
+                  setFailure(null);
+                  setPreview(null);
+                  router.refresh();
+                }}
+              >
+                Reload
+              </button>
+            ) : undefined
+          }
+        />
+      )}
+      {preview && (
+        <section
+          className={`card pad stack preview-${preview.kind}`}
+          aria-label={`${preview.kind === 'revert' ? 'Revert' : 'Restore'} preview for ${target.id.slice(0, 7)}`}
+        >
+          <h2>
+            {preview.kind === 'revert'
+              ? `Revert preview for ${target.id.slice(0, 7)}`
+              : `Restore preview: graph as of ${target.id.slice(0, 7)}`}
+          </h2>
+          {blocked ? (
+            <>
+              <p style={{ fontSize: 13 }}>
+                <b className="bad">The {preview.kind} conflicts with later changes.</b>{' '}
+                {preview.conflicts.length}{' '}
+                {preview.conflicts.length === 1 ? 'entity blocks' : 'entities block'} the apply:
+              </p>
+              <ul className="plain-list">
+                {preview.conflicts.map((conflict) => (
+                  <li key={`${conflict.collection}/${conflict.id}`}>
+                    {entityTitle(
+                      conflict.collection,
+                      conflict.id,
+                      newestImage(conflict.main, conflict.proposed, conflict.base),
+                      names,
+                    )}
+                    : <span className="faint">{conflict.reason}</span>
+                  </li>
+                ))}
+              </ul>
+              {preview.kind === 'revert' && (
+                <div className="row">
+                  <button
+                    className="btn btn-draft"
+                    type="button"
+                    disabled={disabled}
+                    onClick={inverse}
+                  >
+                    Create proposal from inverse
+                  </button>
+                  <span className="faint" style={{ fontSize: 12 }}>
+                    The draft applies the inverse where it is safe and keeps main for each
+                    conflicting entity, so you resolve them explicitly before a merge.
+                  </span>
+                </div>
+              )}
+            </>
+          ) : preview.kind === 'revert' ? (
+            <>
+              <p style={{ fontSize: 13 }}>
+                Touched entities: {preview.diff.changes.length}. Main still equals this
+                commit&apos;s result for every touched entity, so the inverse applies without
+                conflict.
+              </p>
+              <div className="tablewrap" style={{ border: 0 }}>
+                <table aria-label="Touched entities">
+                  <thead>
+                    <tr>
+                      <th>Entity</th>
+                      <th>Main now</th>
+                      <th>After revert</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.diff.changes.map((change) => (
+                      <tr key={`${change.collection}/${change.id}`}>
+                        <td>
+                          {entityTitle(
+                            change.collection,
+                            change.id,
+                            newestImage(change.before, change.after),
+                            names,
+                          )}
+                        </td>
+                        <ChangeCells change={change} names={names} />
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="ok" style={{ fontSize: 13 }} data-testid="preserved">
+                {preserved.length ? (
+                  <>
+                    ✓ Unrelated later work stays:{' '}
+                    {preserved
+                      .map((commit) => `${quoted(commit.message)} (${commit.id.slice(0, 7)})`)
+                      .join(', ')}
+                    .
+                  </>
+                ) : (
+                  '✓ No later commit changed other entities.'
+                )}
+              </p>
+            </>
+          ) : (
+            <>
+              <p style={{ fontSize: 13 }}>
+                Restore copies this snapshot into a new commit on top of{' '}
+                {preview.mainCommitId.slice(0, 7)}.{' '}
+                {preview.diff.changes.length
+                  ? 'It replaces later interpretation:'
+                  : 'Main already equals this snapshot, so the restore changes no entity.'}
+              </p>
+              <ul className="plain-list" data-testid="removed-later">
+                {preview.diff.changes.map((change) => {
+                  const { kind, name } = describeEntity(
+                    change.collection,
+                    change.id,
+                    newestImage(change.before, change.after),
+                    names,
+                  );
+                  const from = source(`${change.collection}/${change.id}`);
+                  const verb =
+                    change.kind === 'removed'
+                      ? 'Removes'
+                      : change.kind === 'added'
+                        ? 'Adds back'
+                        : 'Changes';
+                  return (
+                    <li
+                      key={`${change.collection}/${change.id}`}
+                      className={
+                        change.kind === 'removed'
+                          ? 'diff-rem'
+                          : change.kind === 'added'
+                            ? 'diff-add'
+                            : 'diff-chg'
+                      }
+                    >
+                      {verb} {kind.toLowerCase()}: {name}
+                      {from ? ` (from ${quoted(from.message)}, ${from.id.slice(0, 7)})` : ''}
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="faint" style={{ fontSize: 12 }}>
+                History, evidence and token settings stay. Restore is blocked when a citation in the
+                old snapshot is withdrawn.
+              </p>
+            </>
+          )}
+          <p className="faint" style={{ fontSize: 12 }}>
+            Preview digest{' '}
+            <span className="digest">
+              {preview.digest.slice(0, 4)}…{preview.digest.slice(-4)}
+            </span>
+            , expected head {preview.mainCommitId.slice(0, 7)}, evidence revision{' '}
+            {preview.evidenceRevision}. No evidence and no commit is deleted.
+          </p>
+          {!blocked && (
+            <div className="row" style={{ alignItems: 'flex-end' }}>
+              <label className="field" style={{ flex: 1 }}>
+                Commit message
+                <input
+                  value={message}
+                  maxLength={2000}
+                  onChange={(event) => setMessage(event.target.value)}
+                />
+              </label>
+              <button
+                className="btn btn-ink"
+                type="button"
+                disabled={disabled || !message.trim()}
+                onClick={apply}
+              >
+                Apply {preview.kind} as new commit
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+    </>
+  );
+}

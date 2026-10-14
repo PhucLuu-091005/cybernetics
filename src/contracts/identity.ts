@@ -46,6 +46,7 @@ export const AgentTokenSchema = z.strictObject({
   userId: TextSchema,
   projectId: IdSchema,
   prefix: TextSchema,
+  label: z.string().min(1).max(200),
   scopes: z.array(ScopeSchema),
   createdAt: TimestampSchema,
   expiresAt: TimestampSchema,

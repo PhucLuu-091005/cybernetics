@@ -48,6 +48,7 @@ export function createTokenService(store: HttpIdentityStore, now: () => number =
         userId: ctx.userId,
         projectId: input.projectId,
         prefix: secret.slice(0, 8),
+        label: input.label,
         scopes: [...new Set(input.scopes)],
         createdAt,
         expiresAt,
@@ -57,7 +58,6 @@ export function createTokenService(store: HttpIdentityStore, now: () => number =
         ...token,
         hash: createHash('sha256').update(secret).digest('hex'),
         workspaceId: ctx.workspaceId,
-        label: input.label,
         idempotencyKey: input.idempotencyKey,
         requestDigest: canonicalHash(input),
       });

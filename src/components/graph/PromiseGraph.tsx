@@ -35,6 +35,7 @@ const AXIS_LABEL_Y = 18;
 const nodeTypes = { act: ActNode, milestone: MilestoneNode, laneLabel: LaneLabel };
 const edgeTypes = { branch: BranchEdge };
 type GraphNode = ActNodeType | MilestoneNodeType | LaneLabelNode;
+const NO_HALO: ReadonlySet<string> = new Set();
 
 export type PromiseGraphProps = {
   title: string;
@@ -47,6 +48,7 @@ export type PromiseGraphProps = {
   selectedLoopId: string | null;
   selectedMilestoneId: string | null;
   faded: ReadonlySet<string>;
+  halo?: ReadonlySet<string>;
   currentActId: string | null;
   revealX: number | null;
   onSelectLoop(loopId: string, actId?: string): void;
@@ -213,6 +215,7 @@ function Graph(props: PromiseGraphProps) {
     selectedLoopId,
     selectedMilestoneId,
     faded,
+    halo = NO_HALO,
     currentActId,
     onSelectLoop,
     onSelectMilestone,
@@ -361,6 +364,7 @@ function Graph(props: PromiseGraphProps) {
       selectedLoopId,
       selectedMilestoneId,
       faded,
+      halo,
       currentActId,
       activeKey: tabStop,
       navFocus: (_event: FocusEvent, key: string) => {
@@ -394,6 +398,7 @@ function Graph(props: PromiseGraphProps) {
       selectedLoopId,
       selectedMilestoneId,
       faded,
+      halo,
       currentActId,
       tabStop,
       order,

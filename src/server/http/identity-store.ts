@@ -3,7 +3,6 @@ export type Membership = { userId: string; workspaceId: string };
 export type StoredToken = AgentToken & {
   workspaceId: string;
   hash: string;
-  label: string;
   idempotencyKey: string;
   requestDigest?: string;
 };
