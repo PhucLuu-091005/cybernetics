@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Linear Tickets Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700&family=Overpass+Mono:wght@400;600&display=swap">
+<style>
+:root {
+  --panel: #e7ece7; --surface: #f5f7f4; --sunk: #dce3dd; --ink: #17212d; --ink-2: #4b5663; --ink-3: #6e7883;
+  --rule: #c5cec7; --trunk: #17212d; --proceed: #22724a; --route: #2c5aa2; --danger: #c0312a; --caution: #b97f0c;
+  --isolated: #868e94; --shadow: 0 1px 0 rgba(23,33,45,.06), 0 8px 24px -12px rgba(23,33,45,.28);
+  --f-ui: 'Overpass', system-ui, sans-serif; --f-id: 'Overpass Mono', ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --panel: #11191f; --surface: #18222a; --sunk: #0d1419; --ink: #e2e8e3; --ink-2: #a3aeb5; --ink-3: #7f8a92;
+    --rule: #2b3942; --trunk: #dce3dd; --proceed: #52b381; --route: #73a0ea; --danger: #f1665c; --caution: #e8b03d;
+    --isolated: #7d878d; --shadow: 0 1px 0 rgba(0,0,0,.3), 0 10px 28px -12px rgba(0,0,0,.7);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --panel: #11191f; --surface: #18222a; --sunk: #0d1419; --ink: #e2e8e3; --ink-2: #a3aeb5; --ink-3: #7f8a92;
+  --rule: #2b3942; --trunk: #dce3dd; --proceed: #52b381; --route: #73a0ea; --danger: #f1665c; --caution: #e8b03d;
+  --isolated: #7d878d; --shadow: 0 1px 0 rgba(0,0,0,.3), 0 10px 28px -12px rgba(0,0,0,.7);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--panel); color: var(--ink); font: 14px/1.5 var(--f-ui); }
+main { max-width: 1120px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+h2 { font-size: 16px; margin: 36px 0 6px; }
+p.note { color: var(--ink-2); margin: 0 0 14px; max-width: 760px; }
+.num { font-family: var(--f-id); color: var(--ink-3); margin-right: 6px; }
+.gframe { position: relative; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.gscroll { overflow-x: auto; }
+.lanecol { position: absolute; left: 0; top: 0; width: 120px; z-index: 2; border-right: 1px solid var(--rule); background: var(--surface); }
+.lanecol div { position: absolute; left: 0; width: 120px; padding-left: 12px; display: flex; align-items: center; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+svg text { font-family: var(--f-ui); }
+.chip { cursor: pointer; }
+.chip:hover rect { stroke: var(--ink); }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+@media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px; }
+.panel h3 { font-size: 15px; margin: 0 0 2px; }
+.panel .meta { font-size: 12px; color: var(--ink-3); margin-bottom: 12px; }
+.panel h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin: 14px 0 6px; display: flex; justify-content: space-between; align-items: center; }
+.tk { display: grid; grid-template-columns: 16px 1fr auto; gap: 2px 8px; padding: 7px 0; border-top: 1px solid var(--rule); font-size: 13px; }
+.tk .t { font-weight: 700; }
+.tk .d { grid-column: 2 / 4; font-size: 12px; color: var(--ink-3); }
+.tk a { color: var(--route); font-weight: 700; text-decoration: none; font-size: 12px; }
+.st { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 3px; color: var(--surface); background: var(--c); }
+.btn { font: inherit; font-size: 12px; font-weight: 600; padding: 4px 10px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); border-radius: 4px; cursor: pointer; }
+.ic { width: 14px; height: 14px; color: var(--ink-2); vertical-align: -2px; }
+table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; font-size: 13px; }
+th, td { text-align: left; padding: 7px 10px; border-top: 1px solid var(--rule); }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); border-top: 0; }
+td.child { padding-left: 28px; }
+td.child::before { content: '↳ '; color: var(--ink-3); }
+.bd { font-size: 11px; font-weight: 700; color: var(--danger); }
+.tablewrap { overflow-x: auto; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-linear" viewBox="0 0 24 24"><path fill="currentColor" d="M2.886 4.18A11.982 11.982 0 0 1 11.99 0C18.624 0 24 5.376 24 12.009c0 3.64-1.62 6.903-4.18 9.105L2.887 4.18ZM1.817 5.626l16.556 16.556c-.524.33-1.075.62-1.65.866L.951 7.277c.247-.575.537-1.126.866-1.65ZM.322 9.163l14.515 14.515c-.71.172-1.443.282-2.195.322L0 11.358a12 12 0 0 1 .322-2.195Zm-.17 4.862 9.823 9.824a12.02 12.02 0 0 1-9.824-9.824Z"/></symbol>
+    <symbol id="i-gmail" viewBox="0 0 24 24"><path fill="currentColor" d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/></symbol>
+  </defs>
+</svg>
+<main>
+  <h1>Linear tickets as child loops: mockup for review</h1>
+  <p class="note">Spec: <code>docs/superpowers/specs/2026-10-14-linear-tickets-design.md</code>. Click the chip <b>▸ 3/5</b> at the end of the go-live branch to show or hide its tickets.</p>
+
+  <h2><span class="num">1</span>Graph: progress chip and ticket branches</h2>
+  <p class="note">Tickets sit in the parent's lane, in the rows after the parent. Each ticket forks from the parent's line; a closed ticket merges back into it. The red dot on the chip says that one ticket is broken. A ticket from another department names it in its title.</p>
+  <div class="gframe" id="frame">
+    <div class="lanecol" id="lanecol" aria-hidden="true"></div>
+    <div class="gscroll"><svg id="g" role="img" aria-label="Mock graph with a parent loop and its tickets"></svg></div>
+  </div>
+
+  <h2><span class="num">2</span>Loop panel</h2>
+  <div class="grid">
+    <div class="panel" aria-label="Loop panel of the parent">
+      <h3>Go-live date</h3>
+      <div class="meta">Implementation · Minh Trần for Sarah Kim · promised, due 15 Oct</div>
+      <h4>Tickets (3/5 done) <button type="button" class="btn" id="panelToggle">Show tickets on graph</button></h4>
+      <div id="ticketList"></div>
+    </div>
+    <div class="panel" aria-label="Loop panel of a ticket">
+      <div class="meta" style="margin-bottom:6px">Part of <a href="#" style="color:var(--route);font-weight:700;text-decoration:none">Go-live date</a></div>
+      <h3>PG-121 Go-live checklist automation</h3>
+      <div class="meta">Engineering · Quang Nguyễn for Minh Trần · promised, due 7 Oct</div>
+      <p style="margin:0;font-size:13px"><span class="bd">✕ Silent overdue</span>: Quang Nguyễn promised to automate the go-live checklist by 2026-10-07. No delivery or change notice by that date.</p>
+    </div>
+  </div>
+
+  <h2><span class="num">3</span>List view</h2>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Title</th><th>Performer department</th><th>State</th><th>Breakdowns</th><th>Milestone</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  </div>
+</main>
+<script>
+(() => {
+  const AXIS = 26, ROW = 44, PAD = 12, TRUNK_BAND = 58, CURVE = 16, COL = 120, PX = 22, DAYS = 30;
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (name, attrs, parent) => { const n = document.createElementNS(NS, name); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); if (parent) parent.appendChild(n); return n; };
+  // Day 0 = 10 Sep. T = 9 Oct (day 29).
+  const T = 29;
+  const parent = { title: 'Go-live date', start: 1, end: T, tone: 'route', acts: [1, 6.5, 20] };
+  const tickets = [
+    { key: 'PG-112', title: 'Fund III data import', dept: 'Engineering', start: 3, end: 14, tone: 'proceed', closed: true, acts: [3, 3.6, 12, 14] },
+    { key: 'PG-113', title: 'Investor portal branding', dept: 'Digitization', start: 4, end: 11, tone: 'proceed', closed: true, acts: [4, 5, 10, 11] },
+    { key: 'PG-117', title: 'Capital call notice template', dept: 'Digitization', start: 9, end: 19, tone: 'proceed', closed: true, acts: [9, 9.5, 18, 19] },
+    { key: 'PG-118', title: 'Dynamics CRM sync job', dept: 'Engineering', start: 16, end: T, tone: 'route', closed: false, acts: [16, 17] },
+    { key: 'PG-121', title: 'Go-live checklist automation', dept: 'Engineering', start: 21, end: T, tone: 'danger', closed: false, acts: [21, 22], broken: 27 },
+  ];
+  const other = { title: 'Kickoff deck', start: 0, end: 5, tone: 'proceed', acts: [0, 1, 4, 5] };
+  let expanded = false;
+
+  function draw() {
+    const rows = 1 + (expanded ? tickets.length : 0) + 1;
+    const laneH = rows * ROW + PAD;
+    const trunkY = AXIS + laneH + TRUNK_BAND / 2, height = trunkY + TRUNK_BAND / 2 + 40;
+    const width = COL + DAYS * PX + 90;
+    const svg = document.getElementById('g');
+    svg.innerHTML = '';
+    svg.setAttribute('width', width); svg.setAttribute('height', height);
+    document.getElementById('frame').style.height = height + 'px';
+    const laneY = AXIS;
+    el('rect', { x: 0, y: 0, width, height, fill: css('--surface') }, svg);
+    for (let d = 0; d <= DAYS; d += 5) {
+      const x = COL + d * PX;
+      el('line', { x1: x, y1: AXIS - 4, x2: x, y2: height, stroke: css('--rule'), 'stroke-width': .6 }, svg);
+      el('text', { x: x + 2, y: 17, 'font-size': 10, fill: css('--ink-3') }, svg).textContent = `${(d + 10 - 1) % 30 + 1} ${d < 21 ? 'Sep' : 'Oct'}`;
+    }
+    const xT = COL + T * PX;
+    el('line', { x1: xT, y1: AXIS - 6, x2: xT, y2: height, stroke: css('--ink'), 'stroke-dasharray': '3 3' }, svg);
+    el('line', { x1: COL, y1: trunkY, x2: width - 10, y2: trunkY, stroke: css('--trunk'), 'stroke-width': 4 }, svg);
+    const rowY = (r) => laneY + laneH - PAD / 2 - ROW / 2 - r * ROW;
+    const X = (t) => COL + t * PX;
+    const branch = (b, y, forkY, merge) => {
+      const xs = X(b.start), xe = X(b.end), c = css('--' + b.tone);
+      let d = `M${xs - CURVE} ${forkY} C${xs - 4} ${forkY} ${xs - 12} ${y} ${xs} ${y} H${xe}`;
+      if (merge) d += ` C${xe + 12} ${y} ${xe + 4} ${forkY} ${xe + CURVE} ${forkY}`;
+      el('path', { d, fill: 'none', stroke: c, 'stroke-width': 3 }, svg);
+      b.acts.forEach((t, i) => {
+        el('circle', { cx: X(t), cy: y, r: 5.5, fill: i === 0 ? css('--surface') : c, stroke: c, 'stroke-width': 2 }, svg);
+      });
+      if (b.broken) {
+        const bx = X(b.broken);
+        el('circle', { cx: bx, cy: y, r: 7.5, fill: css('--surface'), stroke: css('--danger'), 'stroke-width': 1.6 }, svg);
+        el('path', { d: `M${bx - 3.4} ${y - 3.4} L${bx + 3.4} ${y + 3.4} M${bx - 3.4} ${y + 3.4} L${bx + 3.4} ${y - 3.4}`, stroke: css('--danger'), 'stroke-width': 2 }, svg);
+      }
+    };
+    // Parent block on rows 0..n, the other loop above it.
+    const py = rowY(0);
+    branch(parent, py, trunkY, false);
+    el('text', { x: X(parent.start) + 8, y: py + 14, 'font-size': 10, 'font-weight': 700, fill: css('--ink') }, svg).textContent = parent.title;
+    // Chip
+    const cx = X(parent.end) + 8, chip = el('g', { class: 'chip', role: 'button', tabindex: -1, 'aria-expanded': String(expanded), 'aria-label': `${expanded ? 'Hide' : 'Show'} 5 tickets, 3 done` }, svg);
+    el('rect', { x: cx, y: py - 8, width: 50, height: 16, rx: 8, fill: css('--surface'), stroke: css('--rule') }, chip);
+    el('text', { x: cx + 9, y: py + 4, 'font-size': 10, 'font-weight': 700, fill: css('--ink') }, chip).textContent = `${expanded ? '▾' : '▸'} 3/5`;
+    el('circle', { cx: cx + 44, cy: py - 6, r: 3.5, fill: css('--danger') }, chip);
+    chip.addEventListener('click', toggle);
+    if (expanded)
+      tickets.forEach((tk, i) => {
+        const y = rowY(i + 1);
+        branch(tk, y, py, tk.closed);
+        tk.acts.forEach((t) => el('use', { href: '#i-linear', x: X(t) - 6, y: y - 22, width: 11, height: 11, color: css('--route') }, svg));
+        el('text', { x: X(tk.start) + 8, y: y + 14, 'font-size': 10, 'font-weight': 700, fill: css('--ink') }, svg).textContent = `${tk.key} ${tk.title} · ${tk.dept}`;
+      });
+    const oy = rowY(rows - 1);
+    branch(other, oy, trunkY, true);
+    el('text', { x: X(other.start) + 8, y: oy + 14, 'font-size': 10, 'font-weight': 700, fill: css('--ink') }, svg).textContent = other.title;
+    const col = document.getElementById('lanecol');
+    col.style.height = height + 'px';
+    col.innerHTML = `<div style="top:0;height:${AXIS}px;font-size:11px;font-weight:700;color:var(--ink-3)">Vendor</div><div style="top:${laneY}px;height:${laneH}px">Implementation</div>`;
+    document.getElementById('panelToggle').textContent = expanded ? 'Hide tickets on graph' : 'Show tickets on graph';
+  }
+  function toggle() { expanded = !expanded; draw(); }
+  document.getElementById('panelToggle').addEventListener('click', toggle);
+
+  const STATE = { closed: ['closed', '--proceed'], promised: ['promised', '--route'] };
+  const list = document.getElementById('ticketList');
+  list.innerHTML = tickets.map((tk) => {
+    const [label, color] = tk.closed ? STATE.closed : STATE.promised;
+    return `<div class="tk"><svg class="ic" role="img"><title>Linear</title><use href="#i-linear"/></svg>`
+      + `<span class="t">${tk.key} ${tk.title}</span><span class="st" style="--c:var(${tk.broken ? '--danger' : color})">${tk.broken ? 'overdue' : label}</span>`
+      + `<span class="d">${tk.dept} · <a href="#" target="_blank" rel="noopener noreferrer">Open in Linear ↗</a></span></div>`;
+  }).join('');
+  const rows = document.getElementById('rows');
+  rows.innerHTML = `<tr><td><b>Go-live date</b></td><td>Implementation</td><td>promised</td><td><span class="faint">none</span></td><td>Go-live and first close</td></tr>`
+    + tickets.map((tk) => `<tr><td class="child"><b>${tk.key} ${tk.title}</b></td><td>${tk.dept}</td><td>${tk.closed ? 'closed' : 'promised'}</td><td>${tk.broken ? '<span class="bd">✕ Silent overdue</span>' : 'none'}</td><td>none (parent carries it)</td></tr>`).join('');
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
+  draw();
+})();
+</script>
+</body>
+</html>

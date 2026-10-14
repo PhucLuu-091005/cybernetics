@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handoff Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+:root { --bg: #ffffff; --side: #fafafa; --surface: #ffffff; --stripe: #fafafa; --border: #ebebeb; --text: #0a0a0a; --muted: #737373; --faint: #a3a3a3; --accent: #0a0a0a; --accent-ink: #fff;
+  --proceed: #16a34a; --route: #2563eb; --danger: #dc2626; --caution: #d97706; --violet: #7c3aed; --hold: #2563eb; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root { --bg: #0a0a0a; --side: #0d0d0d; --surface: #111111; --stripe: #141414; --border: #262626; --text: #ededed; --muted: #a1a1a1; --faint: #5c5c5c; --accent: #ededed; --accent-ink: #0a0a0a;
+  --proceed: #4ade80; --route: #60a5fa; --danger: #f87171; --caution: #fbbf24; --violet: #a78bfa; --hold: #60a5fa; color-scheme: dark; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 Geist, system-ui, sans-serif; }
+main { max-width: 1120px; margin: 0 auto; padding: 32px 16px 72px; }
+h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.02em; }
+.lead { font-size: 17px; color: var(--muted); margin: 0 0 28px; max-width: 820px; }
+.lead b { color: var(--text); }
+h2 { font-size: 18px; margin: 36px 0 10px; letter-spacing: -0.01em; }
+.card { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 18px; }
+.stepper-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.step-title { font-size: 17px; font-weight: 600; }
+.step-title .n { font: 600 12px 'Geist Mono', monospace; color: var(--accent-ink); background: var(--accent); border-radius: 6px; padding: 2px 8px; margin-right: 10px; }
+.step-text { color: var(--muted); margin: 6px 0 12px; min-height: 48px; max-width: 900px; }
+.nav { display: flex; gap: 8px; align-items: center; }
+.nav button { font: 500 14px Geist, sans-serif; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; padding: 6px 14px; cursor: pointer; }
+.nav button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.nav button:disabled { opacity: .4; cursor: default; }
+.dots { display: flex; gap: 6px; }
+.dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--border); cursor: pointer; }
+.dots span.on { background: var(--accent); }
+.scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+svg text { font-family: Geist, system-ui, sans-serif; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.grid3 > * { min-width: 0; }
+@media (max-width: 960px) { .grid3 { grid-template-columns: 1fr; } }
+.sc h3 { font-size: 15px; margin: 0 0 2px; }
+.sc .sub { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
+.verdict { margin-top: 10px; display: grid; gap: 6px; font-size: 13px; }
+.verdict div { display: grid; grid-template-columns: 22px 1fr; gap: 6px; align-items: start; padding: 7px 9px; border-radius: 8px; background: var(--side); }
+.ok { color: var(--proceed); font-weight: 700; } .bad { color: var(--danger); font-weight: 700; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--muted); margin-top: 12px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.linear { display: grid; grid-template-columns: 1fr auto 1fr; gap: 18px; align-items: center; }
+@media (max-width: 800px) { .linear { grid-template-columns: 1fr; } }
+.issue { border: 1px solid var(--border); border-radius: 12px; padding: 14px; background: var(--side); font-size: 13px; }
+.issue .id { font: 500 12px 'Geist Mono', monospace; color: var(--muted); }
+.issue .t { font-weight: 600; font-size: 15px; margin: 2px 0 10px; }
+.issue .row { display: flex; justify-content: space-between; padding: 6px 0; border-top: 1px solid var(--border); color: var(--muted); }
+.issue .row b { color: var(--text); font-weight: 500; }
+.issue .blk { display: inline-flex; align-items: center; gap: 6px; border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--border)); color: var(--text); border-radius: 999px; padding: 1px 9px; font-size: 12px; }
+.arrow { font-size: 28px; color: var(--muted); text-align: center; }
+.summary { margin-top: 28px; border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; font-size: 15px; }
+.summary b { font-weight: 600; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="t-request" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></g></symbol>
+    <symbol id="t-promise" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"/><path d="M3 4h8"/></g></symbol>
+    <symbol id="t-report_done" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12"/><path d="m16 17 2 2 4-4"/><path d="M21 11.127V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.729l7 4a2 2 0 0 0 2 .001l1.32-.753"/><path d="M3.29 7 12 12l8.71-5"/><path d="m7.5 4.27 8.997 5.148"/></g></symbol>
+    <symbol id="t-accept" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></g></symbol>
+    <symbol id="j-split" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3"/><path d="m15 9 6-6"/></g></symbol>
+    <symbol id="j-handoff" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></g></symbol>
+    <symbol id="j-merge" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></g></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></g></symbol>
+    <symbol id="s-linear" viewBox="0 0 24 24"><path fill="currentColor" d="M2.886 4.18A11.982 11.982 0 0 1 11.99 0C18.624 0 24 5.376 24 12.009c0 3.64-1.62 6.903-4.18 9.105L2.887 4.18ZM1.817 5.626l16.556 16.556c-.524.33-1.075.62-1.65.866L.951 7.277c.247-.575.537-1.126.866-1.65ZM.322 9.163l14.515 14.515c-.71.172-1.443.282-2.195.322L0 11.358a12 12 0 0 1 .322-2.195Zm-.17 4.862 9.823 9.824a12.02 12.02 0 0 1-9.824-9.824Z"/></symbol>
+  </defs>
+</svg>
+<main>
+  <h1>Điểm bàn giao là gì?</h1>
+  <p class="lead">Một promise thường đi qua nhiều phòng ban. <b>Điểm bàn giao</b> là lúc phòng trước làm xong phần của mình và <b>trao lại cho phòng sau</b> làm tiếp. Giống chạy tiếp sức: điểm bàn giao là chỗ trao gậy.</p>
+
+  <h2>1. Xem từng bước</h2>
+  <div class="card">
+    <div class="stepper-head">
+      <div class="step-title" id="stepTitle"></div>
+      <div class="nav"><button type="button" id="prev">← Trước</button><div class="dots" id="dots"></div><button type="button" id="next" class="primary">Tiếp →</button></div>
+    </div>
+    <p class="step-text" id="stepText"></p>
+    <div class="scroll"><svg id="story" role="img" aria-label="Câu chuyện promise theo từng bước"></svg></div>
+    <div class="legend">
+      <span><svg width="18" height="18"><rect x="3" y="3" width="12" height="12" rx="2" transform="rotate(45 9 9)" fill="none" stroke="currentColor" stroke-width="2"/></svg>Giao điểm: tách việc, bàn giao, nhận lại</span>
+      <span><svg width="38" height="12"><line x1="2" y1="6" x2="36" y2="6" stroke="currentColor" stroke-width="1.6" stroke-dasharray="5 4"/></svg>Đường nối việc con với promise</span>
+      <span><svg width="22" height="18"><rect x="1" y="1" width="20" height="16" rx="8" fill="none" stroke="var(--hold)" stroke-width="2"/><circle cx="11" cy="9" r="3" fill="var(--hold)"/></svg>Phòng đang giữ promise</span>
+    </div>
+  </div>
+
+  <h2>2. Ba tình huống — và app hiểu thế nào</h2>
+  <p class="step-text" style="min-height:0">Cùng một promise, ba cách diễn ra khác nhau. Dưới mỗi hình: app làm được gì nếu <b>tự đoán theo thời gian</b> (cách 1) và nếu <b>có liên kết "blocked by" từ Linear</b> (cách 2).</p>
+  <div class="grid3" id="scenarios"></div>
+
+  <h2>3. Cách 2 lấy dữ liệu ở đâu?</h2>
+  <div class="card linear">
+    <div class="issue">
+      <div class="id"><svg width="12" height="12" style="vertical-align:-1px;color:var(--muted)"><use href="#s-linear"/></svg> PG-201</div>
+      <div class="t">Database migration</div>
+      <div class="row"><span>Status</span><b>Done</b></div>
+      <div class="row"><span>Assignee</span><b>Quang Nguyễn</b></div>
+      <div class="row"><span>Relations</span><span class="blk">⛔ Blocked by ANL-12 · Analyse tax residency rules</span></div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="issue" style="background:var(--surface)">
+      <div class="t" style="margin-top:0">App vẽ được điểm bàn giao chắc chắn</div>
+      <div style="color:var(--muted)">Agent đọc dòng <b style="color:var(--text)">"Blocked by"</b> trong Linear và ghi vào loop PG-201: <code>after = [Analyse tax residency rules]</code>. Từ đó app biết PG-201 phải chờ phần phân tích, nên vẽ đúng điểm bàn giao Analysts → Engineering, đo được thời gian chờ, và cảnh báo nếu PG-201 bắt đầu sớm hơn.</div>
+    </div>
+  </div>
+
+  <div class="summary"><b>Tóm lại:</b> điểm bàn giao cho biết <b>promise đang nằm ở phòng nào</b>, <b>có bị kẹt khi chuyển phòng không</b>, và <b>có ai làm khi chưa đủ đầu vào không</b>. Cách 1 (tự đoán) chỉ đúng khi mọi thứ suôn sẻ; cách 2 (liên kết "blocked by" có sẵn trong Linear) đúng trong cả ba tình huống.</div>
+</main>
+<script>
+(() => {
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (name, attrs, parent) => { const n = document.createElementNS(NS, name); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); if (parent) parent.appendChild(n); return n; };
+  const date = (t) => new Date(Date.UTC(2026, 9, 6) + Math.floor(t) * 864e5).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', timeZone: 'UTC' });
+
+  // A small drawing kit shared by the stepper and the scenarios.
+  function kit(svg, { px, col, width, lanes, rowH }) {
+    const X = (t) => col + 16 + t * px;
+    let y = 22; const laneY = {};
+    lanes.forEach((ln) => { laneY[ln.name] = { y, h: ln.rows * rowH + 14 }; y += ln.rows * rowH + 14; });
+    const height = y + 8;
+    svg.setAttribute('width', width); svg.setAttribute('height', height);
+    const rowY = (lane, r = 0) => laneY[lane].y + 7 + rowH / 2 + r * rowH;
+    return {
+      X, rowY, height,
+      frame(hold, days, T) {
+        lanes.forEach((ln, i) => {
+          const L = laneY[ln.name], held = hold === ln.name;
+          el('rect', { x: 0, y: L.y, width, height: L.h, fill: held ? `color-mix(in srgb, ${css('--hold')} 9%, transparent)` : i % 2 ? css('--stripe') : 'transparent' }, svg);
+          el('text', { x: 12, y: L.y + L.h / 2 + 4, 'font-size': 12.5, 'font-weight': held ? 700 : 500, fill: held ? css('--hold') : css('--muted') }, svg).textContent = ln.label;
+          if (held) { el('rect', { x: col - 30, y: L.y + L.h / 2 - 9, width: 22, height: 18, rx: 9, fill: 'none', stroke: css('--hold'), 'stroke-width': 2 }, svg); el('circle', { cx: col - 19, cy: L.y + L.h / 2, r: 3.5, fill: css('--hold') }, svg); }
+        });
+        el('line', { x1: col, y1: 0, x2: col, y2: height, stroke: css('--border') }, svg);
+        for (let d = 0; d <= days; d += 7) { el('line', { x1: X(d), y1: 16, x2: X(d), y2: height, stroke: css('--border') }, svg); el('text', { x: X(d) + 4, y: 12, 'font-size': 11, fill: css('--faint') }, svg).textContent = date(d); }
+        if (T !== undefined) { el('line', { x1: X(T), y1: 16, x2: X(T), y2: height, stroke: css('--accent'), 'stroke-dasharray': '4 3' }, svg); el('text', { x: X(T) + 4, y: 12, 'font-size': 11, 'font-weight': 700, fill: css('--text') }, svg).textContent = 'Hôm nay'; }
+      },
+      line(t0, t1, y, tone, opts = {}) { el('line', { x1: X(t0), y1: y, x2: X(t1), y2: y, stroke: css('--' + tone), 'stroke-width': 2.5, 'stroke-linecap': 'round', 'stroke-dasharray': opts.dash ? '2 5' : '' }, svg); },
+      acts(list, y, tone) { for (const [t, type] of list) { const x = X(t); el('circle', { cx: x, cy: y, r: 10, fill: css('--surface') }, svg); el('use', { href: '#t-' + type, x: x - 8, y: y - 8, width: 16, height: 16, color: css('--' + tone) }, svg); } },
+      title(t, y, text) { el('text', { x: X(t) + 6, y: y + 21, 'font-size': 11.5, 'font-weight': 600, fill: css('--text') }, svg).textContent = text; },
+      link(t0, y0, t1, y1, tone) { const x0 = X(t0), x1 = X(t1); el('path', { d: `M${x0} ${y0} C${x0} ${(y0 + y1) / 2} ${x1 - 30} ${y1} ${x1 - 10} ${y1}`, fill: 'none', stroke: css('--' + tone), 'stroke-width': 1.6, 'stroke-dasharray': '5 4' }, svg); },
+      back(t0, y0, t1, y1, tone) { const x0 = X(t0), x1 = X(t1); el('path', { d: `M${x0 + 10} ${y0} C${x0 + 30} ${y0} ${x1} ${(y0 + y1) / 2} ${x1} ${y1}`, fill: 'none', stroke: css('--' + tone), 'stroke-width': 1.6, 'stroke-dasharray': '5 4' }, svg); },
+      junction(t, y, kind, label, tone = 'text') { const x = X(t), c = css('--' + tone); el('rect', { x: x - 11, y: y - 11, width: 22, height: 22, rx: 3, transform: `rotate(45 ${x} ${y})`, fill: css('--surface'), stroke: c, 'stroke-width': 2 }, svg); el('use', { href: '#j-' + kind, x: x - 7, y: y - 7, width: 14, height: 14, color: c }, svg); if (label) el('text', { x, y: y - 20, 'font-size': 11.5, 'font-weight': 700, 'text-anchor': 'middle', fill: c }, svg).textContent = label; },
+      tag(t, y, text, tone) { const x = X(t), w = text.length * 6.4 + 16; el('rect', { x, y: y - 10, width: w, height: 20, rx: 10, fill: `color-mix(in srgb, ${css('--' + tone)} 14%, ${css('--surface')})`, stroke: css('--' + tone) }, svg); el('text', { x: x + 8, y: y + 4, 'font-size': 11, 'font-weight': 600, fill: css('--text') }, svg).textContent = text; },
+      warn(t, y, text) { const x = X(t); el('circle', { cx: x, cy: y - 18, r: 9, fill: css('--surface'), stroke: css('--danger'), 'stroke-width': 1.6 }, svg); el('use', { href: '#i-warn', x: x - 6, y: y - 24, width: 12, height: 12, color: css('--danger') }, svg); el('text', { x: x + 13, y: y - 14, 'font-size': 11, 'font-weight': 700, fill: css('--danger') }, svg).textContent = text; },
+    };
+  }
+
+  // ===== Stepper =====
+  const STEPS = [
+    { t: 'Khách yêu cầu, Minh hứa', text: 'Sarah (khách) xin thêm trường "tax residency". Minh (Implementation) hứa làm xong trước 30/10. Lúc này promise nằm ở phòng Implementation.', hold: 'Implementation' },
+    { t: 'Tách việc: Minh nhờ Analysts phân tích', text: 'Minh giao phần phân tích yêu cầu cho An (Analysts). Hình thoi có icon "tách" đánh dấu chỗ việc rời khỏi promise. Promise giờ đang nằm ở Analysts.', hold: 'Analysts' },
+    { t: 'Analysts làm xong, Minh chấp nhận', text: 'An nộp bản phân tích ngày 13/10, Minh chấp nhận ngày 14/10. Đường của việc phân tích quay về promise — đúng tại điểm bàn giao (hình thoi ⇄).', hold: 'Analysts' },
+    { t: 'Bàn giao: Engineering nhận và chia 4 ticket', text: 'Từ điểm bàn giao, Engineering nhận đầu vào và tách thành 4 ticket Linear. Cả 4 đường đều xuất phát từ cùng một điểm, nên nhìn là biết: "phân tích xong → chuyển cho dev".', hold: 'Engineering' },
+    { t: 'Hôm nay: promise đang ở Engineering', text: '2/4 ticket đã xong và quay về promise (hình thoi có icon "nhận lại"). PG-204 quá hạn. Nhìn bảng là biết ngay: promise đang nằm ở Engineering, còn chờ 2 ticket.', hold: 'Engineering' },
+  ];
+  let step = 0;
+  const tk = [
+    { key: 'PG-201', start: 9.1, acts: [[9.1, 'request'], [9.5, 'promise'], [11.6, 'report_done'], [12.3, 'accept']], tone: 'proceed', end: 12.3, done: true },
+    { key: 'PG-202', start: 9.3, acts: [[9.3, 'request'], [10.2, 'promise'], [14.6, 'report_done'], [15.3, 'accept']], tone: 'proceed', end: 15.3, done: true },
+    { key: 'PG-203', start: 9.6, acts: [[9.6, 'request'], [11.4, 'promise']], tone: 'route' },
+    { key: 'PG-204', start: 9.8, acts: [[9.8, 'request'], [12.4, 'promise']], tone: 'danger', broken: 16 },
+  ];
+  function drawStory() {
+    const svg = document.getElementById('story'); svg.innerHTML = '';
+    const k = kit(svg, { px: 40, col: 150, width: 150 + 16 + 21 * 40 + 30, rowH: 48, lanes: [{ name: 'Implementation', label: 'Implementation', rows: 1.4 }, { name: 'Analysts', label: 'Analysts', rows: 1 }, { name: 'Engineering', label: 'Engineering', rows: 4 }] });
+    const s = STEPS[step];
+    const now = [3, 5.5, 8.6, 11, 18.5][step];
+    k.frame(s.hold, 21, step === 4 ? 18.5 : undefined);
+    const py = k.rowY('Implementation') + 10, ay = k.rowY('Analysts');
+    k.line(0.4, now, py, 'route'); k.acts([[0.4, 'request'], [1.0, 'promise']], py, 'route'); k.title(0.4, py, 'Tax residency field (promise)');
+    if (step >= 1) {
+      const aEnd = step >= 2 ? 8.1 : now;
+      k.line(1.6, aEnd, ay, 'proceed'); k.link(1.3, py, 1.6, ay, 'proceed');
+      k.acts([[1.6, 'request'], [2.3, 'promise'], ...(step >= 2 ? [[7.5, 'report_done'], [8.1, 'accept']] : [])], ay, 'proceed');
+      k.title(1.6, ay, 'Phân tích yêu cầu');
+      k.junction(1.3, py, 'split', 'Tách việc → Analysts');
+    }
+    if (step >= 2) { k.back(8.1, ay, 8.6, py, 'proceed'); k.junction(8.6, py, 'handoff', 'Bàn giao: Analysts → Engineering' + (step >= 3 ? ' · 4' : '')); }
+    if (step >= 3) {
+      tk.forEach((t, i) => {
+        const y = k.rowY('Engineering', i), end = step === 4 ? (t.done ? t.end : 18.5) : Math.min(now, t.done ? t.end : now);
+        k.line(t.start, end, y, t.tone); k.link(8.6, py, t.start, y, t.tone);
+        k.acts(t.acts.filter(([at]) => at <= (step === 4 ? 99 : now)), y, t.tone); k.title(t.start, y, t.key);
+        if (step === 4 && t.done) { k.back(t.end, y, t.end + 0.8, py, 'proceed'); k.junction(t.end + 0.8, py, 'merge', '', 'proceed'); }
+        if (step === 4 && t.broken) k.warn(t.broken, y, 'quá hạn');
+      });
+    }
+    document.getElementById('stepTitle').innerHTML = `<span class="n">${step + 1}/${STEPS.length}</span>${s.t}`;
+    document.getElementById('stepText').textContent = s.text;
+    document.getElementById('prev').disabled = step === 0;
+    document.getElementById('next').disabled = step === STEPS.length - 1;
+    document.querySelectorAll('#dots span').forEach((d, i) => d.classList.toggle('on', i === step));
+  }
+  const dots = document.getElementById('dots');
+  STEPS.forEach((_, i) => { const d = document.createElement('span'); d.title = `Bước ${i + 1}`; d.onclick = () => { step = i; drawStory(); }; dots.appendChild(d); });
+  document.getElementById('prev').onclick = () => { step = Math.max(0, step - 1); drawStory(); };
+  document.getElementById('next').onclick = () => { step = Math.min(STEPS.length - 1, step + 1); drawStory(); };
+  document.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight') document.getElementById('next').click(); if (e.key === 'ArrowLeft') document.getElementById('prev').click(); });
+
+  // ===== Scenarios =====
+  const SCEN = [
+    { h: 'A. Suôn sẻ', sub: 'Phân tích xong 14/10, dev bắt đầu ngay 15/10.', starts: [9.1, 9.5], v1: ['ok', 'Vẽ đúng: dev bắt đầu trong vòng 2 ngày sau khi phân tích xong.'], v2: ['ok', 'Vẽ đúng.'] },
+    { h: 'B. Bàn giao chậm', sub: 'Phân tích xong 14/10, nhưng tới 20/10 dev mới bắt đầu.', starts: [14.1, 14.5], wait: true, v1: ['bad', 'Không vẽ bàn giao (quá 2 ngày) → không thấy chỗ kẹt.'], v2: ['ok', 'Vẽ bàn giao + đoạn vàng "chờ 4 ngày làm việc".'] },
+    { h: 'C. Làm khi chưa đủ đầu vào', sub: 'Dev bắt đầu từ 10/10, phân tích tới 14/10 mới xong.', starts: [4.1, 9.3], early: true, v1: ['bad', 'Không biết có vấn đề, không cảnh báo.'], v2: ['ok', 'Cảnh báo đỏ: "bắt đầu trước khi bàn giao".'] },
+  ];
+  const root = document.getElementById('scenarios');
+  for (const sc of SCEN) {
+    const card = document.createElement('div'); card.className = 'card sc';
+    card.innerHTML = `<h3>${sc.h}</h3><p class="sub">${sc.sub}</p><div class="scroll"><svg role="img" aria-label="${sc.h}"></svg></div><div class="verdict"><div><span class="${sc.v1[0]}">${sc.v1[0] === 'ok' ? '✓' : '✗'}</span><span><b>Cách 1 · tự đoán:</b> ${sc.v1[1]}</span></div><div><span class="${sc.v2[0]}">${sc.v2[0] === 'ok' ? '✓' : '✗'}</span><span><b>Cách 2 · "blocked by":</b> ${sc.v2[1]}</span></div></div>`;
+    root.appendChild(card);
+    const svg = card.querySelector('svg');
+    const k = kit(svg, { px: 12.5, col: 92, width: 92 + 16 + 19 * 12.5 + 20, rowH: 40, lanes: [{ name: 'Impl', label: 'Implementation', rows: 1.4 }, { name: 'Ana', label: 'Analysts', rows: 1 }, { name: 'Eng', label: 'Engineering', rows: 2 }] });
+    k.frame(null, 19);
+    const py = k.rowY('Impl') + 10, ay = k.rowY('Ana');
+    k.line(0.4, 18.5, py, 'route'); k.acts([[0.4, 'request']], py, 'route');
+    k.line(1.6, 8.1, ay, 'proceed'); k.link(1.3, py, 1.6, ay, 'proceed'); k.acts([[1.6, 'request'], [8.1, 'accept']], ay, 'proceed'); k.junction(1.3, py, 'split');
+    k.back(8.1, ay, 8.6, py, 'proceed'); k.junction(8.6, py, 'handoff', '⇄ bàn giao');
+    if (sc.wait) { el('line', { x1: k.X(8.6) + 12, y1: py, x2: k.X(14.1), y2: py, stroke: css('--caution'), 'stroke-width': 5, opacity: .55 }, svg); k.tag(9.6, py + 22, 'chờ 4 ngày', 'caution'); }
+    sc.starts.forEach((s, i) => {
+      const y = k.rowY('Eng', i); k.line(s, 18.5, y, i === 0 && sc.early ? 'danger' : 'route'); k.acts([[s, 'request']], y, i === 0 && sc.early ? 'danger' : 'route');
+      if (sc.early && i === 0) { k.warn(s, y, 'làm trước bàn giao'); el('path', { d: `M${k.X(8.6)} ${py + 12} C${k.X(8.6)} ${y - 40} ${k.X(s) + 40} ${y - 30} ${k.X(s) + 12} ${y - 6}`, fill: 'none', stroke: css('--danger'), 'stroke-width': 1.4, 'stroke-dasharray': '3 3' }, svg); }
+      else k.link(8.6, py, s, y, 'route');
+    });
+  }
+  drawStory();
+})();
+</script>
+</body>
+</html>
