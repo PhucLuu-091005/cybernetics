@@ -10,6 +10,10 @@ export type ProjectRow = typeof projects.$inferSelect;
 export function withTransaction<T>(db: Db, fn: (tx: Tx) => Promise<T>): Promise<T> {
   return db.transaction(fn);
 }
+/** Drizzle runs a nested transaction() as a savepoint and ignores its isolation options, so domain functions written for Db can join an outer transaction. */
+export function joinTransaction(tx: Tx): Db {
+  return tx as unknown as Db;
+}
 export const isId = (value: string) => IdSchema.safeParse(value).success;
 /** Postgres renders timestamptz as "2026-10-13 10:00:00.123+00"; contracts require ISO 8601. */
 export function toIso(value: string): string {

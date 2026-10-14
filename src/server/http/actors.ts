@@ -48,7 +48,8 @@ export function createIdentityServices(options: IdentityOptions) {
         requestId: newRequestId(),
       };
     },
-    async getTokenActor(request: Request, scope: Scope): Promise<ActorContext> {
+    /** A null scope verifies the token only; the caller must then check scope per operation (the MCP route does so per tool). */
+    async getTokenActor(request: Request, scope: Scope | null): Promise<ActorContext> {
       if (env.mode === 'local' && process.env.NODE_ENV === 'production')
         throw new AppError('UNAUTHENTICATED', 'Local authentication unavailable');
       assertTokenTransport(request, env);
@@ -75,7 +76,8 @@ export function createIdentityServices(options: IdentityOptions) {
       )
         throw new AppError('NOT_FOUND', 'Project not found');
       limiter.consume(`token:${token.id}`, 60, now());
-      if (!token.scopes.includes(scope)) throw new AppError('FORBIDDEN', 'Token scope required');
+      if (scope !== null && !token.scopes.includes(scope))
+        throw new AppError('FORBIDDEN', 'Token scope required');
       return {
         kind: 'agent',
         userId: token.userId,

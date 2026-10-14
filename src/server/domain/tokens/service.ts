@@ -1,9 +1,12 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import type { z } from 'zod';
 import {
   CreateAgentTokenInputSchema,
+  ListAgentTokensInputSchema,
   RevokeAgentTokenInputSchema,
   type ActorContext,
   type CreateAgentTokenInput,
+  type ListAgentTokensResult,
   type RevokeAgentTokenInput,
   type RevokeAgentTokenResult,
   type TokenCreated,
@@ -11,9 +14,11 @@ import {
 import { canonicalHash } from '../../../lib/canonical-json';
 import type { HttpIdentityStore } from '../../http/identity-store';
 import { AppError } from '../../errors';
+import { decodeCursor, encodeCursor, viewKey } from '../graph/paging';
 type CreateInput = Omit<CreateAgentTokenInput, 'scopes'> & {
   scopes?: CreateAgentTokenInput['scopes'];
 };
+export type ListTokensInput = z.input<typeof ListAgentTokensInputSchema>;
 export function createTokenService(store: HttpIdentityStore, now: () => number = Date.now) {
   async function authorize(ctx: ActorContext, projectId: string): Promise<void> {
     if (ctx.kind !== 'user')
@@ -57,6 +62,33 @@ export function createTokenService(store: HttpIdentityStore, now: () => number =
         requestDigest: canonicalHash(input),
       });
       return { token, secret, requestId: ctx.requestId };
+    },
+    async listTokens(ctx: ActorContext, raw: ListTokensInput): Promise<ListAgentTokensResult> {
+      const result = ListAgentTokensInputSchema.safeParse(raw);
+      if (!result.success) throw new AppError('VALIDATION', 'Invalid token list input');
+      const input = result.data;
+      await authorize(ctx, input.projectId);
+      const view = viewKey({
+        list: 'agent_tokens',
+        projectId: input.projectId,
+        userId: ctx.userId,
+      });
+      const offset = decodeCursor(input.cursor, view)?.o ?? 0;
+      const rows = await store.listTokens({
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+        projectId: input.projectId,
+        offset,
+        limit: input.limit + 1,
+      });
+      const items = rows.slice(0, input.limit);
+      return {
+        projectId: input.projectId,
+        items,
+        nextCursor:
+          rows.length > items.length ? encodeCursor({ view, o: offset + items.length }) : null,
+        requestId: ctx.requestId,
+      };
     },
     async revokeToken(
       ctx: ActorContext,

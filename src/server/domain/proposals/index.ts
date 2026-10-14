@@ -19,5 +19,5 @@ export {
   type ProposalRow,
   type ProposalSummary,
 } from './read';
-export { reviewProposal } from './review';
+export { diffProposal, reviewProposal } from './review';
 export { assertValidCandidate, updateProposal } from './update';

@@ -224,6 +224,33 @@ describe('hashed project agent tokens', () => {
         idempotencyKey: 'revoke',
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(s.tokens.listTokens(actor, { projectId: s.projectId })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+  it('lists the owner project tokens without hashes or secrets and rejects a foreign project', async () => {
+    const s = await setup();
+    const created = await s.tokens.createToken(s.ctx, {
+      projectId: s.projectId,
+      label: 'Agent',
+      idempotencyKey: 'list-1',
+    });
+    const listed = await s.tokens.listTokens(s.ctx, { projectId: s.projectId });
+    expect(listed).toEqual({
+      projectId: s.projectId,
+      items: [created.token],
+      nextCursor: null,
+      requestId: 'test',
+    });
+    expect(JSON.stringify(listed)).not.toContain(
+      createHash('sha256').update(created.secret).digest('hex'),
+    );
+    await expect(
+      s.tokens.listTokens(s.ctx, { projectId: s.projectId, cursor: 'forged' }),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+    await expect(s.tokens.listTokens(s.ctx, { projectId: randomUUID() })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
   });
   it('rejects revoked, expired, removed-member and wrong-project tokens on every call', async () => {
     const s = await setup();
@@ -327,6 +354,32 @@ describe('hashed project agent tokens', () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+  it('verifies a token without a scope check when the caller passes no scope, and still rejects revoked tokens', async () => {
+    const s = await setup();
+    const created = await s.tokens.createToken(s.ctx, {
+      projectId: s.projectId,
+      label: 'Importer',
+      scopes: ['records:import'],
+      idempotencyKey: 'create-1',
+    });
+    const request = new Request(`${env.appOrigin}/mcp`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${created.secret}` },
+    });
+    await expect(s.services.getTokenActor(request, null)).resolves.toMatchObject({
+      kind: 'agent',
+      projectId: s.projectId,
+      scopes: ['records:import'],
+    });
+    await s.tokens.revokeToken(s.ctx, {
+      projectId: s.projectId,
+      tokenId: created.token.id,
+      idempotencyKey: 'revoke-1',
+    });
+    await expect(s.services.getTokenActor(request, null)).rejects.toMatchObject({
+      code: 'UNAUTHENTICATED',
+    });
   });
   it('counts denied scope attempts toward the token call budget', async () => {
     const s = await setup();

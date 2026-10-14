@@ -220,7 +220,11 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('escalations', () => {
       escalation: { id: escalationId, latestAnalysisRevision: 2 },
     });
     expect(view.analyses.map((analysis) => analysis.revision)).toEqual([2, 1]);
-    expect(await listEscalations(t.db, ctx, { projectId })).toEqual([view.escalation]);
+    expect(await listEscalations(t.db, ctx, { projectId })).toMatchObject({
+      projectId,
+      items: [view.escalation],
+      nextCursor: null,
+    });
   });
   it('rejects hidden, withdrawn and missing acts, malformed markers and stale expected revisions without writing', async () => {
     await withdrawRecord(t.db, ctx, {
