@@ -1,4 +1,5 @@
 import type { Node, NodeProps } from '@xyflow/react';
+import { useEffect, useRef } from 'react';
 import type { ActType } from '../../contracts/graph';
 import type { ActGlyph } from '../../contracts/layout';
 import { CARD } from '../../lib/graph-layout';
@@ -22,8 +23,18 @@ export function CardNode({ data }: NodeProps<CardNodeType>) {
   const { glyph, info, color } = data,
     { link, app, label } = info.source;
   const faded = ui.faded.has(glyph.loopId);
+  // A mouse press on a card drags the card, not the canvas; touches still reach the canvas, so a pinch over a card zooms.
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = root.current;
+    if (!element) return;
+    const stop = (event: MouseEvent) => event.stopPropagation();
+    element.addEventListener('mousedown', stop);
+    return () => element.removeEventListener('mousedown', stop);
+  }, []);
   return (
     <div
+      ref={root}
       className={`ev-card${ui.currentActId === glyph.id ? ' cur' : ''}`}
       data-act={glyph.id}
       title={info.quote ?? undefined}
