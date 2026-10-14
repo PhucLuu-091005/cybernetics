@@ -1,0 +1,296 @@
+{
+  "T": "2026-10-09T18:00:00+07:00",
+  "loops": {
+    "f47bd121-41c5-426b-a176-2fe21e2f3eb2": {
+      "key": "go-live",
+      "title": "Go-live date",
+      "state": "promised",
+      "breakdowns": []
+    },
+    "03795c5a-cb4e-4ac4-b1b9-0989365b2676": {
+      "key": "subscription",
+      "title": "Subscription documents",
+      "state": "closed",
+      "breakdowns": [
+        "late_delivery"
+      ]
+    },
+    "bee46970-1047-4c41-862d-b614d140ba13": {
+      "key": "w8",
+      "title": "W-8 form logic",
+      "state": "closed",
+      "breakdowns": [
+        "rejected_delivery"
+      ]
+    },
+    "c42b5aab-9968-43fe-904c-e896b183a2c5": {
+      "key": "crm-sync",
+      "title": "Dynamics CRM sync scope",
+      "state": "promised",
+      "breakdowns": [
+        "ambiguous_promise"
+      ]
+    },
+    "fd3d4b6e-b1d1-450a-b254-09b069209825": {
+      "key": "secret",
+      "title": "Client secret renewal",
+      "state": "requested",
+      "breakdowns": [
+        "unanswered_request"
+      ]
+    },
+    "4856a10e-903c-46c4-a668-29985a751df1": {
+      "key": "incident-report",
+      "title": "Sync incident report",
+      "state": "promised",
+      "breakdowns": [
+        "silent_overdue"
+      ]
+    },
+    "030efae4-48c8-47e7-b7cc-d2324a048701": {
+      "key": "side-letter",
+      "title": "Side-letter field mapping",
+      "state": "delivered",
+      "breakdowns": [
+        "unconfirmed_delivery"
+      ]
+    },
+    "8f145647-5460-48fb-a9d2-bd66dac5c616": {
+      "key": "branding",
+      "title": "Investor portal branding",
+      "state": "change_pending",
+      "breakdowns": [
+        "unilateral_change"
+      ]
+    },
+    "f923e3ae-0e5c-4a96-92ac-2d8662392010": {
+      "key": "kickoff",
+      "title": "Kickoff agenda",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "8f1f80fc-a219-44d4-9d6f-b7bd95b40885": {
+      "key": "workspace",
+      "title": "Workspace access",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "9b6cf7b4-b83d-4284-b74c-d9787a990e24": {
+      "key": "contacts",
+      "title": "Contact register",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "39588bf8-4394-48df-8ce0-433f43f33e2f": {
+      "key": "sow",
+      "title": "Statement of work signature",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "d3e9c97b-13c4-479b-91b6-08a9f4a1da75": {
+      "key": "roles",
+      "title": "Investor roles",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "a9f51950-019d-4ec7-a538-eca3cbaa3ae2": {
+      "key": "aml",
+      "title": "AML checklist",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "b7d42002-9208-470f-9d68-676876dd4c01": {
+      "key": "tax",
+      "title": "Tax residency fields",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "1d0916fb-613e-4fa9-9b75-f056bb81cdb8": {
+      "key": "permissions",
+      "title": "Permission matrix",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "f9cbfa27-1f25-427a-a994-b40b9805bf9a": {
+      "key": "imports",
+      "title": "Investor import sample",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "31dd22c1-e896-4317-ab3b-dabed34b67d5": {
+      "key": "bank",
+      "title": "Bank detail validation",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "99011ca0-261e-4bd1-abbb-a7900869958a": {
+      "key": "notifications",
+      "title": "Notification wording",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "a3ff71fd-5e00-4c12-99f8-6f58f8ff2f96": {
+      "key": "consent",
+      "title": "Consent capture",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "5a6feb48-d460-4d26-ad3a-39676bfad4fc": {
+      "key": "redaction",
+      "title": "Document redaction",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "beeaaefd-20b2-47b5-a2f9-b3baee2dc4f8": {
+      "key": "sso",
+      "title": "SSO test",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "d7cc3b02-8f52-4f7b-a5d7-d91cca592337": {
+      "key": "archive",
+      "title": "Archive folder",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "521adec8-e950-4569-b2e3-61a1e1575f3d": {
+      "key": "csv",
+      "title": "CSV export",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "911e4a85-a925-4730-be58-3f19c26f0c88": {
+      "key": "training",
+      "title": "Operations training",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "eefe61e8-6815-49bd-90fd-f4cf2d919913": {
+      "key": "signoff",
+      "title": "Client sign-off",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "41b853d3-c4d9-46d7-a652-d610011b69e9": {
+      "key": "routing",
+      "title": "Legal review routing",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "6d4fd0f8-2df4-47fd-9b81-fc3e0aa8414b": {
+      "key": "monitoring",
+      "title": "Sync monitoring",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "91b22100-44e8-4e9b-bed0-f6335c7d7d4c": {
+      "key": "crm",
+      "title": "CRM integration live",
+      "state": "closed",
+      "breakdowns": []
+    },
+    "eadb92f3-2964-4d67-bc2c-ce5e493c6735": {
+      "key": "close",
+      "title": "First-close rehearsal",
+      "state": "closed",
+      "breakdowns": []
+    }
+  },
+  "milestones": {
+    "Kickoff": "reached",
+    "Documents received": "reached",
+    "Digitization complete": "reached",
+    "Client sign-off": "reached",
+    "CRM integration live": "reached",
+    "Go-live and first close": "at_risk",
+    "Hypercare end": "on_track"
+  },
+  "escalations": [
+    {
+      "key": "go-live-slip",
+      "complaint": "You promised go-live by 30 September and never told us it slipped.",
+      "claims": [
+        {
+          "id": "51d3d79f-f0ca-4df0-8ad5-b55228a0c4be",
+          "text": "Fundline promised go-live by 30 September.",
+          "type": "promise",
+          "verdict": "supported",
+          "supportingActIds": [
+            "94f5c370-711a-4039-9e20-a02d1fd5e70d"
+          ],
+          "contradictingActIds": []
+        },
+        {
+          "id": "f4c6a08a-d658-4142-946b-57983348d2d6",
+          "text": "Fundline never told Larkspur that go-live slipped.",
+          "type": "notice",
+          "verdict": "contradicted",
+          "supportingActIds": [],
+          "contradictingActIds": [
+            "fe8cb040-d525-4e8b-9009-a911e6098e6b",
+            "94e84396-211b-4c56-95bb-1464890069cc"
+          ]
+        }
+      ]
+    },
+    {
+      "key": "dynamics-scope",
+      "complaint": "The Dynamics sync was always in scope for phase 1.",
+      "claims": [
+        {
+          "id": "5ce56af0-de30-4c72-85d3-ca77946fee06",
+          "text": "The Dynamics CRM sync was in scope for phase 1.",
+          "type": "scope",
+          "verdict": "contested",
+          "supportingActIds": [
+            "34ea80c9-52b5-4f2d-812d-7620d6929478"
+          ],
+          "contradictingActIds": [
+            "32ff2949-ea99-4272-94ba-9481ca5265b5"
+          ]
+        }
+      ]
+    },
+    {
+      "key": "sync-incident",
+      "complaint": "The sync dropped 40 investors and nobody told us for a week.",
+      "claims": [
+        {
+          "id": "1de7e5a1-9bc7-4942-84ee-a2ce5607b82f",
+          "text": "The sync dropped 40 investors.",
+          "type": "incident",
+          "verdict": "supported",
+          "supportingActIds": [
+            "55e19ec6-af3e-4d9e-b2e0-aa6825a7bfb9"
+          ],
+          "contradictingActIds": []
+        },
+        {
+          "id": "0a4740d0-d754-4138-a99b-a74cb9bf9b83",
+          "text": "Nobody at Fundline told Larkspur about the incident for a week.",
+          "type": "notice",
+          "verdict": "contested",
+          "supportingActIds": [
+            "5e5b6b44-de1f-4701-8d3c-ff4e54e77328"
+          ],
+          "contradictingActIds": [
+            "55e19ec6-af3e-4d9e-b2e0-aa6825a7bfb9"
+          ]
+        }
+      ]
+    }
+  ],
+  "isolation": {
+    "loops": {
+      "f8db2022-dabf-4c88-8368-d4f331dbd93f": {
+        "key": "investor-import",
+        "title": "Investor import",
+        "state": "delivered",
+        "breakdowns": []
+      }
+    },
+    "milestones": {
+      "Go-live": "on_track"
+    }
+  }
+}

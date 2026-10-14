@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:17.11-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    environment:
+      POSTGRES_DB: promise_graph
+      POSTGRES_USER: promise_graph
+      POSTGRES_PASSWORD: local-development-only
+    ports:
+      - '127.0.0.1:55432:5432'
+    volumes:
+      - promise_graph_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U promise_graph -d promise_graph']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  promise_graph_pg:

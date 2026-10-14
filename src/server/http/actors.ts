@@ -1,0 +1,90 @@
+import { createHash } from 'node:crypto';
+import { IdSchema, type ActorContext, type Scope } from '../../contracts';
+import type { AuthEnvironment } from '../env';
+import { AppError, newRequestId } from '../errors';
+import { browserScopes, type HttpIdentityStore } from './identity-store';
+import { assertTokenTransport } from './origin';
+import { MemoryRateLimiter, type RateLimiter } from './rate-limit';
+import { readSession } from './session';
+export type IdentityOptions = {
+  store: HttpIdentityStore;
+  env: AuthEnvironment;
+  now?: () => number;
+  limiter?: RateLimiter;
+};
+export function requestedProject(request: Request): string | null {
+  const match = new URL(request.url).pathname.match(/\/projects\/([^/]+)/);
+  if (!match) return null;
+  const result = IdSchema.safeParse(match[1]);
+  if (!result.success) throw new AppError('NOT_FOUND', 'Project not found');
+  return result.data;
+}
+export function createIdentityServices(options: IdentityOptions) {
+  const { store, env } = options,
+    now = options.now ?? Date.now,
+    limiter = options.limiter ?? new MemoryRateLimiter();
+  return {
+    async getBrowserActor(request: Request): Promise<ActorContext> {
+      const session = readSession(request, env, now());
+      const user = await store.resolveSessionUser(session.userId);
+      if (!user) throw new AppError('UNAUTHENTICATED', 'Unknown session');
+      const projectId = requestedProject(request);
+      let workspaceId = user.defaultWorkspaceId;
+      if (projectId) {
+        const project = await store.resolveProject(user.userId, projectId);
+        if (!project || !(await store.resolveMembership(user.userId, project.workspaceId)))
+          throw new AppError('NOT_FOUND', 'Project not found');
+        workspaceId = project.workspaceId;
+      } else if (!(await store.resolveMembership(user.userId, workspaceId)))
+        throw new AppError('NOT_FOUND', 'Workspace not found');
+      const write = !['GET', 'HEAD', 'OPTIONS'].includes(request.method);
+      limiter.consume(`user:${user.userId}:${write ? 'write' : 'read'}`, write ? 20 : 60, now());
+      return {
+        kind: 'user',
+        userId: user.userId,
+        workspaceId,
+        projectId,
+        scopes: [...browserScopes],
+        requestId: newRequestId(),
+      };
+    },
+    async getTokenActor(request: Request, scope: Scope): Promise<ActorContext> {
+      if (env.mode === 'local' && process.env.NODE_ENV === 'production')
+        throw new AppError('UNAUTHENTICATED', 'Local authentication unavailable');
+      assertTokenTransport(request, env);
+      const authorization = request.headers.get('authorization');
+      if (!authorization || !/^Bearer inv_[A-Za-z0-9_-]{43}$/.test(authorization))
+        throw new AppError('UNAUTHENTICATED', 'Bearer token required');
+      const hash = createHash('sha256').update(authorization.slice(7)).digest('hex');
+      const token = await store.getTokenByHash(hash);
+      if (
+        !token ||
+        token.revokedAt ||
+        Date.parse(token.expiresAt) <= now() ||
+        !Number.isFinite(Date.parse(token.expiresAt))
+      )
+        throw new AppError('UNAUTHENTICATED', 'Invalid or expired token');
+      if (!(await store.resolveMembership(token.userId, token.workspaceId)))
+        throw new AppError('NOT_FOUND', 'Project not found');
+      const project = await store.resolveProject(token.userId, token.projectId);
+      const requested = requestedProject(request);
+      if (
+        !project ||
+        project.workspaceId !== token.workspaceId ||
+        (requested && requested !== token.projectId)
+      )
+        throw new AppError('NOT_FOUND', 'Project not found');
+      limiter.consume(`token:${token.id}`, 60, now());
+      if (!token.scopes.includes(scope)) throw new AppError('FORBIDDEN', 'Token scope required');
+      return {
+        kind: 'agent',
+        userId: token.userId,
+        tokenId: token.id,
+        workspaceId: token.workspaceId,
+        projectId: token.projectId,
+        scopes: [...token.scopes],
+        requestId: newRequestId(),
+      };
+    },
+  };
+}

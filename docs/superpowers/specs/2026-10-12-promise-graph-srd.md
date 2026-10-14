@@ -1,6 +1,6 @@
 # The Investigator: Promise Graph Software Requirements Document
 
-Version: 1.1 | Date: 12 October 2026 | Status: updated planning baseline; application implementation has not started.
+Version: 1.2 | Date: 13 October 2026 | Status: implementation in progress. v1.2 replaces Clerk with direct Google sign-in, makes hosting provider-neutral and fixes three engine ambiguities (section 0.1).
 Submission deadline: 18 October 2026, 23:59 Asia/Ho_Chi_Minh.
 
 This version replaces v1.0 in this file and all 10 October planning documents. The current architecture and delivery plan are contained here and in `../plans/2026-10-12-promise-graph-implementation.md`; task ownership is in `../../agent-tasks/2026-10-12-promise-graph-tasks.md`.
@@ -21,8 +21,25 @@ Implementation defaults selected for this revision (not additional owner require
 - Agent tokens can propose changes; merge/revert/restore permissions are separate and off by default. A user may explicitly grant them per token. No agent self-elevation.
 - P0 supports proposals based on main, not arbitrary branch trees or multi-parent merges. Both humans and agents can work on separate proposals.
 - Immutable full graph snapshots are sufficient for the bounded MVP. Diffs and inverses are entity-based; do not introduce event sourcing or a CRDT.
-- Keep one Next.js Node application, PostgreSQL/Drizzle, Clerk, and a private Node worker with pg-boss for optional non-AI ingestion jobs. P0 manual/MCP imports work without a running worker.
+- Keep one Next.js Node application, PostgreSQL/Drizzle, Google sign-in (section 3), and a private Node worker with pg-boss for optional non-AI ingestion jobs. P0 manual/MCP imports work without a running worker.
 - UI is English; records may contain Vietnamese names and text. Use fictional demo data only.
+
+### 0.1 Changes in v1.2 (13 October)
+
+Owner decisions:
+
+- Sign-in uses Google OpenID Connect directly (authorization code with PKCE, implemented directly against Google's OAuth endpoints) and an HMAC-signed session cookie. Clerk is removed. A local signed-session mode stays for development and tests only and fails closed in production.
+- The demo needs a live public URL. Deployment is provider-neutral: one Docker image, `DATABASE_URL`, and the environment variables in `.env.example`. The owner selects the host.
+
+Implementation defaults (the owner can override them in review):
+
+- An agreed change (`agree_change`) sets a new effective due date. A renegotiation notice covers only the due date that it tried to change. If the agreed date passes with no delivery, `silent_overdue` applies.
+- A repeated `promise` in state `promised` compares only the due date. The action wording can differ. A repeated promise with a different, already set due date is `out_of_order`.
+- A delivery (`report_done` or implicit delivery) clears `pendingTerms`. A delivery made under unagreed terms keeps its `unilateral_change` breakdown.
+- `{n}` in the `unanswered_request` sentence counts business days from the first unanswered customer act (the request or counter that started the wait) to `T`. Follow-ups do not restart the count. The rule threshold still uses the last customer act.
+- The engine rejects input in which an act cites a record version that has no metadata. The domain must supply metadata for every cited version.
+- REST routes nest under `/api/v1/projects/:projectId/...` (for example `/api/v1/projects/:projectId/proposals/:proposalId/merge`), so every route names its project scope. The section 11 table lists the routes without that prefix.
+- Error code `INTERNAL` (HTTP 500) covers unexpected server failures. It never carries internal error text.
 
 ## 1. Problem and product promise
 
@@ -36,7 +53,7 @@ The graph is a curated interpretation of imported records, not a claim of comple
 
 ### 2.1 P0
 
-- Google sign-in through Clerk; personal workspace and copied seeded sandbox on first visit.
+- Google sign-in (OpenID Connect, signed session cookie); personal workspace and copied seeded sandbox on first visit.
 - Project context: people, side rules, departments, milestones, calendar, time zone and project window.
 - Paste and MCP import; immutable record versions, search, chunked retrieval, and per-version inbox review.
 - Human proposal editor and external-agent proposal submission with verified citations.
@@ -44,7 +61,7 @@ The graph is a curated interpretation of imported records, not a claim of comple
 - Proposal diff, explicit merge, conflict detection and explicit rebase; graph history, revert and restore.
 - Project-scoped agent tokens with separate read/import/propose/merge/escalation permissions.
 - Optional saved escalation analyses and answer drafts submitted by a human or external agent; no automatic analysis and no outgoing messages.
-- Offline deterministic evaluation, integration tests, Railway deployment, README and demo.
+- Offline deterministic evaluation, integration tests, live deployment on an owner-selected Docker host, README and demo.
 
 ### 2.2 Release gates
 
@@ -67,9 +84,9 @@ Exclude from P0: native connector credentials/OAuth, scheduled sync, server AI p
 
 ## 3. Workspaces and authorization
 
-A Clerk subject identifies a user. Workspaces hold projects and memberships; P0 members have equal browser rights. Every query and mutation derives workspace membership from the verified actor, never the request body. Cross-workspace or cross-project IDs return 404/`NOT_FOUND`.
+A verified Google subject (`google:<sub>`) identifies a user. On the first sign-in the app creates the user, a personal workspace and the seeded sandbox project in one transaction. A user can belong to more than one workspace; the session holds the user ID, and the selected project determines the workspace. Workspaces hold projects and memberships; P0 members have equal browser rights. Every query and mutation derives workspace membership from the verified actor, never the request body. Cross-workspace or cross-project IDs return 404/`NOT_FOUND`.
 
-Agent tokens belong to a user and exactly one project. Store only SHA-256 hashes, display a prefix, default expiry 30 days, and support revocation. Every call checks expiry, revocation, current membership and scope.
+Agent tokens belong to a user and exactly one project. Store only SHA-256 hashes, display a prefix, default expiry 30 days, and support revocation. Every call checks expiry, revocation, current membership and scope. Token creation requires an idempotency key and shows the raw secret once; persistence holds only its hash and creation key. A repeated creation key returns CONFLICT without creating another token or replaying the raw secret. This is the explicit exception to generic mutation receipt replay; if the first response is lost, the owner revokes that token and creates another with a new key. Revocation retries return the original revocation timestamp.
 
 Scopes: `project:read`, `records:import`, `graph:propose`, `graph:merge`, `escalations:write`. Default creation grants the first three only. `graph:merge` also permits explicit revert/restore, with reviewed expected revisions; it is an optional capability the owner must grant in token settings. Tokens cannot manage connections, settings, members or tokens. Record text and tool outputs cannot authorize scope changes.
 
@@ -181,7 +198,7 @@ The engine evaluates each loop at time `T`. Each rule lists the acts that prove 
 | `ambiguous_promise` | warning | A `hedged` promise and no firm promise, `report_done`, `decline` or `cancel` within the hedge window | the hedged promise | "{performer} said \"{quote}\". The client may read this as a commitment." |
 | `unconfirmed_delivery` | warning | State is `delivered` for more than the accept window | the report | "Delivered on {date}. No confirmation from {customer} after {n} business days." |
 
-A fulfillment cycle starts with the first effective promise and restarts on each valid rejection. A rejection retains the effective due date but clears the active delivery/confirmation and pending terms; an earlier delivery cannot suppress a current overdue warning. Clearing pending terms means a proposal for changing the date must be made again after reopening. A later agreed change updates the active due date, not a prior delivery's historical deadline. A repeated promise may clarify a missing due date or a hedged commitment; changing an already set due date or scope requires `renegotiate` and `agree_change`. Conflicting repeated promise terms do not replace the current commitment.
+A fulfillment cycle starts with the first effective promise and restarts on each valid rejection. A rejection retains the effective due date but clears the active delivery/confirmation and pending terms; an earlier delivery cannot suppress a current overdue warning. Clearing pending terms means a proposal for changing the date must be made again after reopening. A later agreed change updates the active due date, not a prior delivery's historical deadline. A repeated promise may clarify a missing due date or a hedged commitment; changing an already set due date requires `renegotiate` and `agree_change` (wording may differ, section 0.1). Conflicting repeated promise terms do not replace the current commitment.
 
 `unanswered_request`, `silent_overdue`, `ambiguous_promise` and `unconfirmed_delivery` describe the current unresolved cycle and clear when resolved. `late_delivery` and `rejected_delivery` preserve historical facts, even after closure. `unilateral_change` clears if a pending proposal is resolved before delivery, but preserves a delivery made under unagreed terms. Each delivery is checked against the effective due date at its occurrence; later changes cannot erase lateness. Proof sets include the effective promise/agreed change and rejection starting the active cycle where applicable. History can replay the old warning at an earlier explicit T. State counts and historical breakdown chips remain distinct.
 
@@ -381,7 +398,7 @@ Save analyses as immutable revisions pinned to an accessible committed graph and
 
 Stateless Streamable HTTP at `/mcp`; pinned compatible official TypeScript SDK. Auth: bearer project token. Check configured Host and permitted Origin. Every result includes project ID, graph commit/evidence revision where relevant, and request ID. Pages at most 50 items and responses at most 50,000 characters. `get_record` chunks are at most 8,000 characters with absolute UTF-16 start/end, next cursor and digest; never silently truncate. Cursors bind project, immutable version/commit, filters and offset. Snapshot retrieval is entity-paginated.
 
-Errors: `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `VALIDATION`, `CONFLICT`, `RATE_LIMITED`, `LIMIT_EXCEEDED`. No provider errors. Cross-project IDs return `NOT_FOUND`. Mutation receipts bind operation/project/token or user/key and canonical input hash; retries return the original result after current authorization checks.
+Errors: `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `VALIDATION`, `CONFLICT`, `RATE_LIMITED`, `LIMIT_EXCEEDED`, `INTERNAL`. No provider errors. Cross-project IDs return `NOT_FOUND`. Mutation receipts bind operation/project/token or user/key and canonical input hash; retries return the original result after current authorization checks.
 
 | Tool | Scope | Input / result |
 |---|---|---|
@@ -408,7 +425,7 @@ No MCP call implicitly merges or triggers analysis. Record contents are untruste
 
 ## 11. REST API
 
-Browser uses `/api/v1` and Clerk session cookies. REST/MCP share domain functions and revision/validation rules.
+Browser uses `/api/v1` and the signed session cookie. REST/MCP share domain functions and revision/validation rules.
 
 | Route | Behavior |
 |---|---|
@@ -436,7 +453,7 @@ All graph settings/editing use proposal operations, not direct PATCH on main. So
 flowchart LR
     H[Human browser] --> W[Next.js: UI, REST, MCP]
     A[External AI with its own connectors] -->|read evidence / submit proposal| W
-    W --> C[Clerk browser identity]
+    W --> C[Google OpenID Connect sign-in]
     W --> D[Shared domain: inbox, proposals, validation, commits]
     D --> P[(PostgreSQL: immutable evidence and graph versions)]
     D --> E[Pure engine and layout]
@@ -446,14 +463,14 @@ flowchart LR
     K --> X[Optional Slack/Gmail APIs]
 ```
 
-Stack: TypeScript, supported Node LTS, Next.js App Router with Node Route Handlers/standalone output, React, Tailwind/shadcn, React Flow, Clerk, PostgreSQL 17, Drizzle migrations, Zod, Vitest, Playwright. Verify compatibility during skeleton task and pin resolved versions in the lockfile; no speculative model/provider version requirements. Host on Railway with web and PostgreSQL; worker is optional until connector work starts. No Redis/object store/AI service is required.
+Stack: TypeScript, supported Node LTS, Next.js App Router with Node Route Handlers/standalone output, React, Tailwind/shadcn, React Flow, Google OpenID Connect (direct), PostgreSQL 17, Drizzle migrations, Zod, Vitest, Playwright. Verify compatibility during skeleton task and pin resolved versions in the lockfile; no speculative model/provider version requirements. Host the Docker image and PostgreSQL on an owner-selected provider; worker is optional until connector work starts. No Redis/object store/AI service is required.
 
 ```text
 src/contracts/                     types and Zod schemas
 src/app/                           pages and thin /api/v1, /mcp adapters
 src/components/{graph,inbox,review,history}/
 src/lib/{calendar,record-header,graph-layout}/
-src/server/http/                   Clerk/token actor, errors, limits, Origin
+src/server/http/                   session/token actor, errors, limits, Origin
 src/server/domain/{projects,records,inbox,proposals,commits,escalations,tokens}/
 src/server/graph/{validate,diff,rebase,revert,restore}/
 src/server/loops/engine/            pure state machine and breakdown rules
@@ -536,7 +553,7 @@ Records: about 120, in two Slack channels (`#larkspur-onboarding`, a shared chan
 | Subscription documents | Minh asks Sarah for the subscription documents by 10 July. Sarah promises. The documents arrive on 24 July. | `late_delivery` on the client side |
 | W-8 form logic | Lan reports the forms done on 14 August. Sarah rejects them on 18 August. Lan reports again on 28 August. Sarah accepts on 2 September. | `rejected_delivery` |
 | Dynamics CRM sync scope | On 4 August Sarah asks for the Dynamics sync in phase 1. Quang answers "we'll look into it" and nothing follows. | `ambiguous_promise` (escalation 2) |
-| Client secret renewal | On 22 September Quang asks Tom to renew the expired Azure client secret. No answer for 9 business days. | `unanswered_request` on the client side (escalation 3) |
+| Client secret renewal | On 22 September Quang asks Tom to renew the expired Azure client secret. No answer for 13 business days (empty holiday calendar). | `unanswered_request` on the client side (escalation 3) |
 | Sync incident report | On 1 October Daniel promises a root cause report by 3 October. Nothing follows by 9 October. | `silent_overdue` (escalation 3) |
 | Side-letter field mapping | Priya asks for the mapping. Minh reports it done on 29 August. Nobody confirms. | `unconfirmed_delivery` |
 | Investor portal branding | Lan moves the date from 20 to 27 August. Sarah never answers. | `unilateral_change` |
@@ -623,7 +640,7 @@ Proposal update batches at most 100 operations/1 MiB, can be applied in several 
 
 ## 17. Security and operational limits
 
-HTTPS, Clerk session checks, project-token checks, Origin checks on browser mutations, Zod validation on every boundary, protected `private, no-store` responses. No browser DB access. Disable raw HTML in Markdown; record text is rendered as text. Only stored Slack/Gmail permalinks are active external links; no server URL fetching from content.
+HTTPS, signed session checks, project-token checks, Origin checks on browser mutations, Zod validation on every boundary, protected `private, no-store` responses. No browser DB access. Disable raw HTML in Markdown; record text is rendered as text. Only stored Slack/Gmail permalinks are active external links; no server URL fetching from content.
 
 Rate limits: 60 reads and 20 writes/minute/browser user; 60 calls/minute/token. Logs contain request IDs/counts, not evidence, prompts, tokens or credentials. Atomic snapshot saves and head updates, bounded reads, rollback on conflict and idempotency are mandatory. No background merge or retry that changes expected revisions.
 
