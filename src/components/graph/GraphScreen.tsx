@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { EngineOutput } from '../../contracts/engine';
+import type { DerivedLoop, EngineOutput } from '../../contracts/engine';
 import type { GraphContext, GraphSnapshot } from '../../contracts/graph';
 import type { ViewSelection } from '../../contracts/mcp';
 import type { GraphSource } from '../../contracts/views';
@@ -23,7 +23,7 @@ import { browserStore, hasOffsets, readOffsets, withOffset, writeOffsets } from 
 import { actSource } from './source-link';
 import { Legend } from './Legend';
 import { LoopList } from './LoopList';
-import { LoopPanel } from './LoopPanel';
+import { LoopPanel, type LoopRelations, type RelatedLoop } from './LoopPanel';
 import { MilestonePanel } from './MilestonePanel';
 import { PromiseGraph } from './PromiseGraph';
 import { loopKey, milestoneKey } from './ui-context';
@@ -173,13 +173,48 @@ export function GraphScreen({
   const selectedMilestone = milestoneId
     ? (engine.milestones.find((item) => item.milestone.id === milestoneId) ?? null)
     : null;
+  const relations: LoopRelations = useMemo(() => {
+    if (!selectedLoop) return { parent: null, after: [], tasks: [] };
+    const related = (id: string): RelatedLoop[] => {
+      const item = engine.loops.find((loop) => loop.loop.id === id);
+      return item
+        ? [
+            {
+              id,
+              title: item.loop.title,
+              department:
+                directory.departments.get(item.loop.performerDepartmentId)?.name ?? 'Unknown',
+              state: item.state,
+            },
+          ]
+        : [];
+    };
+    const { parentLoopId, afterLoopIds = [] } = selectedLoop.loop;
+    return {
+      parent: parentLoopId ? (related(parentLoopId)[0] ?? null) : null,
+      after: afterLoopIds.flatMap(related),
+      tasks: engine.loops
+        .filter((loop) => loop.loop.parentLoopId === selectedLoop.loop.id)
+        .flatMap((loop) => related(loop.loop.id)),
+    };
+  }, [selectedLoop, engine, directory]);
   const actIndex =
     selectedLoop && actId ? selectedLoop.acts.findIndex((act) => act.id === actId) : -1;
 
   // SRD 7.3: a selection keeps its loops at full opacity; an escalation focus fades the loops it does not cite.
   const faded = useMemo(() => {
+    // A selected promise or task keeps its whole family at full strength: the promise and every task.
+    const family = (loop: DerivedLoop) => {
+      const root = loop.loop.parentLoopId ?? loop.loop.id;
+      return [
+        root,
+        ...visibleLoops
+          .filter((item) => item.loop.parentLoopId === root)
+          .map((item) => item.loop.id),
+      ];
+    };
     const keep = selectedLoop
-      ? new Set([selectedLoop.loop.id])
+      ? new Set(family(selectedLoop))
       : selectedMilestone
         ? new Set(selectedMilestone.loopIds)
         : escalationLoopIds
@@ -372,6 +407,8 @@ export function GraphScreen({
                 loops={loopTargets}
                 snapshot={snapshot}
                 agentActIds={agentActs}
+                relations={relations}
+                onOpenLoop={selectLoop}
                 onClose={close}
               />
             )}

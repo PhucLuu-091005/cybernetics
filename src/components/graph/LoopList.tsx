@@ -20,8 +20,31 @@ type Props = {
   onOpen(loopId: string): void;
 };
 
+/** Tasks follow their parent, so the list reads as the graph does: a promise, then the work it split into. */
+function withTasksUnderParents(loops: readonly DerivedLoop[]): DerivedLoop[] {
+  const present = new Set(loops.map((loop) => loop.loop.id));
+  const tasks = new Map<string, DerivedLoop[]>();
+  for (const loop of loops) {
+    const parent = loop.loop.parentLoopId;
+    if (parent && present.has(parent)) tasks.set(parent, [...(tasks.get(parent) ?? []), loop]);
+  }
+  const startOf = (loop: DerivedLoop) => loop.acts[0]?.occurredAt ?? '9999';
+  return loops.flatMap((loop) =>
+    loop.loop.parentLoopId && present.has(loop.loop.parentLoopId)
+      ? []
+      : [
+          loop,
+          ...(tasks.get(loop.loop.id) ?? []).sort(
+            (a, b) =>
+              startOf(a).localeCompare(startOf(b)) || a.loop.title.localeCompare(b.loop.title),
+          ),
+        ],
+  );
+}
+
 export function LoopList({ loops, directory, milestones, timeZone, onOpen }: Props) {
   const milestoneName = new Map(milestones.map((item) => [item.id, item.name]));
+  const present = new Set(loops.map((loop) => loop.loop.id));
   return (
     <div className="tablewrap">
       <table>
@@ -39,10 +62,11 @@ export function LoopList({ loops, directory, milestones, timeZone, onOpen }: Pro
           </tr>
         </thead>
         <tbody>
-          {loops.map((loop) => {
+          {withTasksUnderParents(loops).map((loop) => {
             const last = loop.acts.at(-1);
+            const task = Boolean(loop.loop.parentLoopId && present.has(loop.loop.parentLoopId));
             return (
-              <tr key={loop.loop.id}>
+              <tr key={loop.loop.id} className={task ? 'task-row' : undefined}>
                 <td>
                   <button
                     type="button"

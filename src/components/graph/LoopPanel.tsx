@@ -9,6 +9,7 @@ import {
   type GraphOperation,
   type GraphSnapshot,
   type LoopAct,
+  type LoopState,
   type Milestone,
   type ViewSelection,
 } from '../../contracts';
@@ -46,7 +47,21 @@ type Props = {
   snapshot: Pick<GraphSnapshot, 'acts' | 'recordDecisions'>;
   /** Acts added or changed by an agent-authored proposal; only a proposal view can derive this. */
   agentActIds: ReadonlySet<string>;
+  /** The promise a task belongs to, the tasks that hand off to it, and a promise's own tasks. */
+  relations: LoopRelations;
+  onOpenLoop(loopId: string): void;
   onClose(): void;
+};
+export type RelatedLoop = {
+  id: string;
+  title: string;
+  department: string;
+  state: LoopState | null;
+};
+export type LoopRelations = {
+  parent: RelatedLoop | null;
+  after: RelatedLoop[];
+  tasks: RelatedLoop[];
 };
 type Evidence = Pick<LoopAct, 'context' | 'permalink' | 'source' | 'sourceLabel'>;
 type StepEdit = { actId: string; action: 'type' | 'move' | 'hide' };
@@ -194,6 +209,8 @@ export function LoopPanel({
   loops,
   snapshot,
   agentActIds,
+  relations,
+  onOpenLoop,
   onClose,
 }: Props) {
   const { acts: evidence, rateLimited } = useEvidence(projectId, loop.loop.id, T, view);
@@ -291,6 +308,7 @@ export function LoopPanel({
             <span className="faint">{partyDetail(loop.loop.performer, directory)}</span>
           </div>
         </div>
+        <LoopWork relations={relations} onOpenLoop={onOpenLoop} />
         <dl className="kv">
           <dt>Original due</dt>
           <dd>{dueLabel(loop.originalDue)}</dd>
@@ -484,5 +502,72 @@ export function LoopPanel({
         )}
       </div>
     </aside>
+  );
+}
+
+function RelatedButton({ loop, onOpenLoop }: { loop: RelatedLoop; onOpenLoop(id: string): void }) {
+  return (
+    <button type="button" className="rel" onClick={() => onOpenLoop(loop.id)}>
+      <span
+        className="st"
+        style={
+          { '--c': loop.state ? STATE_COLOR[loop.state] : 'var(--isolated)' } as React.CSSProperties
+        }
+      >
+        {stateLabel(loop.state)}
+      </span>
+      {loop.title}
+    </button>
+  );
+}
+
+function LoopWork({
+  relations,
+  onOpenLoop,
+}: {
+  relations: LoopRelations;
+  onOpenLoop(id: string): void;
+}) {
+  const { parent, after, tasks } = relations;
+  if (!parent && !after.length && !tasks.length) return null;
+  const done = tasks.filter((task) => task.state === 'closed').length;
+  const departments = [...new Set(tasks.map((task) => task.department))];
+  return (
+    <section className="work" aria-label="Tasks and handoffs">
+      {parent && (
+        <p>
+          <small>Part of</small>
+          <RelatedButton loop={parent} onOpenLoop={onOpenLoop} />
+        </p>
+      )}
+      {after.length > 0 && (
+        <p>
+          <small>After</small>
+          {after.map((item) => (
+            <RelatedButton key={item.id} loop={item} onOpenLoop={onOpenLoop} />
+          ))}
+        </p>
+      )}
+      {tasks.length > 0 && (
+        <>
+          <h3>
+            Tasks{' '}
+            <span className="faint">
+              {done} of {tasks.length} done
+            </span>
+          </h3>
+          {departments.map((department) => (
+            <div key={department}>
+              <small>{department}</small>
+              {tasks
+                .filter((task) => task.department === department)
+                .map((task) => (
+                  <RelatedButton key={task.id} loop={task} onOpenLoop={onOpenLoop} />
+                ))}
+            </div>
+          ))}
+        </>
+      )}
+    </section>
   );
 }

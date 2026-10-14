@@ -941,6 +941,74 @@
     stroke-width: 1.3;
     opacity: 0.6;
   }
+  .gateway rect {
+    fill: var(--surface);
+    stroke: var(--ink);
+    stroke-width: 1.6;
+  }
+  .gateway {
+    color: var(--ink);
+  }
+  .gateway.pending rect {
+    stroke-dasharray: 3 2;
+    stroke: var(--ink-3);
+  }
+  .gateway.pending {
+    color: var(--ink-3);
+  }
+  .handoff-note {
+    font-size: 10.5px;
+    font-weight: 500;
+    fill: var(--caution);
+  }
+  .br-tasks {
+    fill: var(--ink-2);
+  }
+  .lod-0 .br-tasks,
+  .lod-0 .handoff-note {
+    display: none;
+  }
+  .work {
+    border-top: 1px solid var(--rule-2);
+    border-bottom: 1px solid var(--rule-2);
+    padding: 10px 0;
+    margin: 10px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .work h3 {
+    font-size: 13px;
+  }
+  .work small {
+    display: block;
+    color: var(--ink-3);
+    font-size: 11.5px;
+    margin-bottom: 2px;
+  }
+  .work .rel {
+    all: unset;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    padding: 3px 0;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--ink);
+  }
+  .work .rel:hover {
+    text-decoration: underline;
+  }
+  .work .rel:focus-visible {
+    outline: 2px solid var(--focus);
+  }
+  .task-row td:first-child {
+    padding-left: 22px;
+  }
+  .task-row td:first-child::before {
+    content: '↳ ';
+    color: var(--ink-3);
+  }
   .cards-off .react-flow__node-card,
   .cards-off .stem {
     display: none;
