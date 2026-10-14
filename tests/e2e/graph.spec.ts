@@ -444,6 +444,31 @@ test('an event card shows the act, the person, the quote and a source link, and 
   await expect(card).toBeHidden();
 });
 
+test('a pinch over an event card zooms the canvas', async ({ page }) => {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
+  await signIn(page, 'graph-cards');
+  const { card } = await firstCardOf(page, secretRenewal(page));
+  const box = await boxOf(card);
+  const x = box.x + box.width / 2,
+    y = box.y + box.height / 2;
+  const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', spread: number) =>
+    cdp.send('Input.dispatchTouchEvent', {
+      type,
+      touchPoints:
+        type === 'touchEnd'
+          ? []
+          : [
+              { x: x - spread, y, id: 1 },
+              { x: x + spread, y, id: 2 },
+            ],
+    });
+  await touch('touchStart', 20);
+  for (const spread of [40, 60, 80]) await touch('touchMove', spread);
+  await touch('touchEnd', 0);
+  await expect.poll(() => zoomOf(page)).toBeGreaterThan(1);
+});
+
 test('a press on an event card opens its loop at that act', async ({ page }) => {
   await signIn(page, 'graph-cards');
   const { card } = await firstCardOf(page, secretRenewal(page));

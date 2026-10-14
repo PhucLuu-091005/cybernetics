@@ -402,6 +402,8 @@ function Graph(props: PromiseGraphProps) {
     (event: PointerEvent, glyph: ActGlyph) => {
       if (event.button !== 0) return;
       event.stopPropagation();
+      // On touch the canvas owns movement (pan and pinch); a tap still opens the loop.
+      const touch = event.pointerType === 'touch';
       const zoom = flow.getViewport().zoom,
         x0 = event.clientX,
         y0 = event.clientY,
@@ -415,6 +417,11 @@ function Graph(props: PromiseGraphProps) {
           ? Math.min(1, Math.max(0, fraction0 + (moveEvent.clientX - x0) / zoom / dayWidth))
           : shift0 + (moveEvent.clientY - y0) / zoom;
       const onMove = (moveEvent: globalThis.PointerEvent) => {
+        if (touch) {
+          if (Math.hypot(moveEvent.clientX - x0, moveEvent.clientY - y0) >= DRAG_START_PX)
+            axis = 'x';
+          return;
+        }
         if (!axis) {
           const dx = moveEvent.clientX - x0,
             dy = moveEvent.clientY - y0;
@@ -437,6 +444,7 @@ function Graph(props: PromiseGraphProps) {
           onSelectLoop(glyph.loopId, glyph.id);
           return;
         }
+        if (touch) return;
         onDrag(axis === 'x' ? 'acts' : 'loops', axis === 'x' ? glyph.id : glyph.loopId, last, true);
         // The browser still sends a click to the common ancestor; it must not open the loop.
         const swallow = (clickEvent: MouseEvent) => clickEvent.stopPropagation();
@@ -562,7 +570,6 @@ function Graph(props: PromiseGraphProps) {
             ...fixed,
             id: `card:${glyph.id}`,
             type: 'card' as const,
-            className: 'nopan',
             style: { pointerEvents: 'all' as const },
             position: { x: glyph.card.x, y: glyph.card.y },
             width: CARD.width,
