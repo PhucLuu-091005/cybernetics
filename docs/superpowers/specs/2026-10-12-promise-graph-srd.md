@@ -303,13 +303,17 @@ Both operations are idempotent. A revert of a revert works by the same delta rul
 
 ### 7.2 Zoom
 
-| `pxPerDay` | Level | What shows |
-|---|---|---|
-| below 6 | Milestones | Trunk and milestones. Each milestone shows counts: open loops, broken loops. Branches are hidden. |
-| 6 to 40 | Branches (default) | All branches and glyphs, no labels |
-| above 40 | Detail | Glyph labels (act type and person initials) and the loop title at the branch start |
+Revised 14 October 2026 (owner decision, `docs/superpowers/specs/2026-10-14-ui-redesign-decisions.md`, part B).
 
-The default view fits the project window to the screen width. Mouse wheel and pinch zoom around the pointer. Drag pans.
+The graph is a canvas panel with geometric zoom from 10 % to 400 %. The layout uses one base scale (18 px per day, 64 px per row); zoom scales it.
+
+- The wheel scrolls; Shift + wheel scrolls sideways. Ctrl/Cmd + wheel or a pinch zooms around the pointer. A drag on empty canvas moves it. No keyboard shortcuts.
+- The time axis stays at the top and the department column stays at the left.
+- Floating controls: zoom out, a % menu (Fit the project, Fit this week, Fit this month, 50 %, 100 %, 200 %), zoom in, fit the project, a minimap and full screen.
+- A double-click on a branch zooms to that loop, at 150 % at most.
+- The first view is 100 % with T at 80 % of the width and the trunk at the centre.
+- Under 60 % the loop titles and milestone names hide; the axis labels days only when a day is 56 px or wider.
+- Focus on a milestone or a branch (Tab) moves the canvas when the item is outside the visible area.
 
 ### 7.3 Interactions
 

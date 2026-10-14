@@ -6,11 +6,10 @@ import {
   type KeyboardEvent,
   type MouseEvent,
 } from 'react';
-import type { ActGlyph, GraphLayout } from '../../contracts/layout';
+import type { ActGlyph } from '../../contracts/layout';
 
 /** What the custom nodes and the branch edge read; React Flow rebuilds them only when layout changes. */
 export type GraphUi = {
-  zoomLevel: GraphLayout['zoomLevel'];
   selectedLoopId: string | null;
   selectedMilestoneId: string | null;
   faded: ReadonlySet<string>;
@@ -23,6 +22,7 @@ export type GraphUi = {
   selectLoop(loopId: string, actId?: string): void;
   selectMilestone(milestoneId: string): void;
   hoverAct(glyph: ActGlyph | null, event?: MouseEvent): void;
+  zoomToLoop(loopId: string): void;
 };
 export const GraphUiContext = createContext<GraphUi | null>(null);
 export function useGraphUi(): GraphUi {

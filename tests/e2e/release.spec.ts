@@ -253,6 +253,8 @@ test('1 and 9: sign in reaches the seeded main graph, a red branch shows its pro
     'aria-label',
     /unanswered request/i,
   );
+  // A branch can sit outside the visible canvas; focus brings it into view, as Tab does.
+  await branch(page, 'Client secret renewal').focus();
   await branch(page, 'Client secret renewal').click();
   await expect(loopPanel(page).getByTestId('verified-quote').first()).toBeVisible();
   await page.keyboard.press('Escape');

@@ -22,6 +22,7 @@
   --draft-bg: #ede9fe;
   --mark: #fef08a;
   --focus: #2563eb;
+  --stripe: #fbfbfb;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 8px 24px -12px rgba(0, 0, 0, 0.18);
   --f-ui: var(--font-geist), 'Geist', system-ui, sans-serif;
   --f-doc: var(--font-geist), 'Geist', system-ui, sans-serif;
@@ -51,6 +52,7 @@
   --draft-bg: #2e1065;
   --mark: #4d3d00;
   --focus: #60a5fa;
+  --stripe: #141414;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px -12px rgba(0, 0, 0, 0.75);
   color-scheme: dark;
 }
@@ -78,6 +80,7 @@
     --draft-bg: #2e1065;
     --mark: #4d3d00;
     --focus: #60a5fa;
+    --stripe: #141414;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px -12px rgba(0, 0, 0, 0.75);
     color-scheme: dark;
   }
@@ -591,12 +594,192 @@
   .stage.open {
     grid-template-columns: minmax(0, 1fr) 400px;
   }
+  .canvas-stage {
+    --lane-col: 132px;
+    --axis-h: 28px;
+    position: relative;
+    height: max(460px, calc(100dvh - 330px));
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .canvas-corner {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: var(--lane-col);
+    height: var(--axis-h);
+    z-index: 4;
+    background: var(--surface);
+    border-right: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  .canvas-axis {
+    position: absolute;
+    left: var(--lane-col);
+    right: 0;
+    top: 0;
+    height: var(--axis-h);
+    z-index: 3;
+    background: var(--surface);
+    border-bottom: 1px solid var(--rule);
+    overflow: hidden;
+  }
+  .time-axis {
+    display: block;
+  }
+  .time-axis text {
+    fill: var(--ink-3);
+  }
+  .time-axis .t-label {
+    fill: var(--panel);
+  }
   .gwrap {
+    position: absolute;
+    left: var(--lane-col);
+    top: var(--axis-h);
+    right: 0;
+    bottom: 0;
+  }
+  /* Clip, not hidden: a hidden box is still a scroll container, and focus or find-in-page would scroll it out of step with the viewport. */
+  .canvas-stage,
+  .gwrap .react-flow {
+    overflow: clip !important;
+  }
+  .lane-col {
+    position: absolute;
+    left: 0;
+    top: var(--axis-h);
+    bottom: 0;
+    width: var(--lane-col);
+    z-index: 3;
+    background: var(--surface);
+    border-right: 1px solid var(--rule);
+    overflow: hidden;
+  }
+  .lane-col > span {
+    position: absolute;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 10px 0 12px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .lane-col > .odd {
+    background: var(--stripe);
+  }
+  .lane-col > .side {
+    font-size: 11px;
+    color: var(--ink-3);
+  }
+  .lod-0 .br-title,
+  .lod-0 .ms-name {
+    display: none;
+  }
+  .canvas-controls-wrap {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    z-index: 6;
+  }
+  .canvas-controls {
+    display: flex;
+    gap: 2px;
+    padding: 4px;
     background: var(--surface);
     border: 1px solid var(--rule);
-    border-radius: 8px;
-    overflow: hidden;
-    position: relative;
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+  }
+  .canvas-controls button,
+  .canvas-menu button {
+    all: unset;
+    box-sizing: border-box;
+    min-width: 30px;
+    height: 30px;
+    padding: 0 7px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--ink);
+  }
+  .canvas-controls button:hover,
+  .canvas-controls button[aria-pressed='true'],
+  .canvas-menu button:hover {
+    background: var(--rule-2);
+  }
+  .canvas-controls button:focus-visible,
+  .canvas-menu button:focus-visible {
+    outline: 2px solid var(--focus);
+  }
+  .canvas-controls .pct {
+    min-width: 56px;
+    font-family: var(--f-id);
+    font-size: 12px;
+  }
+  .canvas-controls .sep {
+    width: 1px;
+    margin: 4px 2px;
+    background: var(--rule);
+  }
+  .canvas-menu {
+    position: absolute;
+    right: 0;
+    bottom: 46px;
+    min-width: 170px;
+    padding: 4px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+  }
+  .canvas-menu button {
+    display: flex;
+    width: 100%;
+    justify-content: flex-start;
+    font-size: 13px;
+  }
+  .canvas-menu hr {
+    border: 0;
+    border-top: 1px solid var(--rule);
+    margin: 4px 0;
+  }
+  .minimap {
+    position: absolute;
+    right: 12px;
+    bottom: 58px;
+    z-index: 5;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    touch-action: none;
+  }
+  .minimap .view {
+    fill: color-mix(in srgb, var(--ink) 8%, transparent);
+    stroke: var(--ink);
+    stroke-width: 1.5;
+  }
+  .stage:fullscreen {
+    background: var(--panel);
+    padding: 12px;
+    align-items: stretch;
+  }
+  .stage:fullscreen .canvas-stage {
+    height: calc(100dvh - 24px);
+  }
+  .stage:fullscreen .drawer {
+    max-height: calc(100dvh - 24px);
   }
   .legend {
     display: flex;
@@ -1589,6 +1772,11 @@
     .drawer {
       max-height: none;
       position: static;
+    }
+  }
+  @media (max-width: 600px) {
+    .canvas-stage {
+      --lane-col: 92px;
     }
   }
   @media (max-width: 860px) {

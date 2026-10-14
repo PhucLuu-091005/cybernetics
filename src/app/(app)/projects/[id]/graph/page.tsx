@@ -136,7 +136,6 @@ export default async function GraphPage({
         key={`screen-main-${view.T}`}
         projectId={id}
         title={project.title}
-        clientName={project.clientName}
         context={view.snapshot.context}
         engine={view.engine}
         pendingEvidenceCount={view.pendingEvidenceCount}
@@ -241,7 +240,6 @@ async function ProposalGraph({
         key={`screen-proposal-${proposal.id}-${view.T}`}
         projectId={projectId}
         title={project.title}
-        clientName={project.clientName}
         context={view.snapshot.context}
         engine={view.engine}
         pendingEvidenceCount={view.pendingEvidenceCount}

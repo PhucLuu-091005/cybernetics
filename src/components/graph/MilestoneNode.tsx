@@ -57,6 +57,7 @@ export function MilestoneNode({ data }: NodeProps<MilestoneNodeType>) {
           />
         )}
         <text
+          className="ms-name"
           x={x}
           y={below ? y + 22 : y - 14}
           textAnchor="middle"
@@ -66,18 +67,6 @@ export function MilestoneNode({ data }: NodeProps<MilestoneNodeType>) {
         >
           {milestone.label}
         </text>
-        {ui.zoomLevel === 'milestones' && (
-          <text
-            x={x}
-            y={below ? y + 35 : y + 24}
-            textAnchor="middle"
-            fontSize="10.5"
-            fill="var(--ink-2)"
-          >
-            {milestone.openLoopCount} open,{' '}
-            {milestone.brokenLoopCount ? `✕ ${milestone.brokenLoopCount} broken` : '0 broken'}
-          </text>
-        )}
       </g>
     </svg>
   );

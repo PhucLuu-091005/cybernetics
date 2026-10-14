@@ -2,24 +2,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import type { EngineOutput } from '../../contracts/engine';
 import type { GraphContext, GraphSnapshot } from '../../contracts/graph';
-import type { ActGlyph, GraphLayout } from '../../contracts/layout';
+import type { ActGlyph } from '../../contracts/layout';
 import type { ViewSelection } from '../../contracts/mcp';
-import { createTimeScale, layoutPromiseGraph } from '../../lib/graph-layout';
+import { BASE_PX_PER_DAY, BASE_ROW_HEIGHT, layoutPromiseGraph } from '../../lib/graph-layout';
 import type { EditTarget } from '../review/draft-edit';
-import { FilterBar, type ZoomChoice } from './FilterBar';
+import { FilterBar } from './FilterBar';
 import { applyFilters, filtersToSearch, type GraphFilters } from './filters';
 import { ACT_LABEL, partyName, shortStamp, type Directory } from './labels';
 import { Legend } from './Legend';
 import { LoopList } from './LoopList';
 import { LoopPanel } from './LoopPanel';
 import { MilestonePanel } from './MilestonePanel';
-import { GRAPH_LEFT, GRAPH_RIGHT, PromiseGraph } from './PromiseGraph';
+import { PromiseGraph } from './PromiseGraph';
 import { loopKey, milestoneKey } from './ui-context';
 
 export type GraphScreenProps = {
   projectId: string;
   title: string;
-  clientName: string;
   context: GraphContext;
   engine: EngineOutput;
   pendingEvidenceCount: number;
@@ -37,9 +36,6 @@ export type GraphScreenProps = {
 export type EscalationFocus =
   { state: 'cited'; loopIds: string[] } | { state: 'no-analysis' } | { state: 'missing' };
 
-const ZOOM_PX: Record<Exclude<ZoomChoice, 'branches'>, number> = { milestones: 4, detail: 44 };
-const zoomLevelOf = (pxPerDay: number): GraphLayout['zoomLevel'] =>
-  pxPerDay < 6 ? 'milestones' : pxPerDay > 40 ? 'detail' : 'branches';
 type Tip = { x: number; y: number; glyph: ActGlyph };
 const isTyping = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
@@ -48,7 +44,6 @@ const isTyping = (target: EventTarget | null) =>
 export function GraphScreen({
   projectId,
   title,
-  clientName,
   context,
   engine,
   pendingEvidenceCount,
@@ -84,25 +79,10 @@ export function GraphScreen({
   const [query, setQuery] = useState(initialFilters.q);
   const [milestoneId, setMilestoneId] = useState<string | null>(null);
   const [actId, setActId] = useState<string | null>(null);
-  const [width, setWidth] = useState<number | null>(null);
-  const [pxPerDay, setPxPerDay] = useState<number | null>(null);
   const [tip, setTip] = useState<Tip | null>(null);
   const lastFocus = useRef<string | null>(null);
 
-  const days = useMemo(() => createTimeScale(context, 1).dateEndX(context.windowEnd), [context]);
-  const fit = useCallback(
-    (available: number) => Math.min(40, Math.max(6, (available - GRAPH_LEFT - GRAPH_RIGHT) / days)),
-    [days],
-  );
-  const onWidth = useCallback(
-    (next: number) => {
-      setWidth(next);
-      // SRD 7.2: the default view fits the project window to the screen width, once.
-      setPxPerDay((previous) => previous ?? fit(next));
-    },
-    [fit],
-  );
-  const scalePx = pxPerDay ?? 9;
+  const stageRef = useRef<HTMLDivElement>(null);
 
   const directory: Directory = useMemo(
     () => ({
@@ -121,8 +101,12 @@ export function GraphScreen({
   );
   const layout = useMemo(
     () =>
-      layoutPromiseGraph({ ...engine, loops: visibleLoops }, { context }, { pxPerDay: scalePx }),
-    [engine, visibleLoops, context, scalePx],
+      layoutPromiseGraph(
+        { ...engine, loops: visibleLoops },
+        { context },
+        { pxPerDay: BASE_PX_PER_DAY, rowHeight: BASE_ROW_HEIGHT },
+      ),
+    [engine, visibleLoops, context],
   );
   const milestoneStatus = useMemo(
     () => new Map(engine.milestones.map((item) => [item.milestone.id, item.status])),
@@ -224,8 +208,6 @@ export function GraphScreen({
     return () => document.removeEventListener('keydown', onKey);
   }, [selectedLoop, selectedMilestone, actIndex, close, view]);
 
-  const onZoomChoice = (level: ZoomChoice) =>
-    setPxPerDay(level === 'branches' ? fit(width ?? 1000) : ZOOM_PX[level]);
   const onHoverAct = useCallback(
     (glyph: ActGlyph | null, event?: MouseEvent) =>
       setTip(glyph && event ? { glyph, x: event.clientX, y: event.clientY } : null),
@@ -251,9 +233,6 @@ export function GraphScreen({
     ).length;
     return { broken, warning, closed, ended, open: visibleLoops.length - closed - ended };
   }, [visibleLoops]);
-  const revealX = selectedLoop
-    ? (layout.branches.find((branch) => branch.loopId === selectedLoop.loop.id)?.xStart ?? null)
-    : null;
   const panelOpen = view === 'graph' && (selectedLoop !== null || selectedMilestone !== null);
 
   return (
@@ -266,11 +245,9 @@ export function GraphScreen({
         query={query}
         departments={context.departments}
         milestones={context.milestones}
-        zoomLevel={zoomLevelOf(scalePx)}
         onChange={update}
         onView={setView}
         onQuery={onQuery}
-        onZoom={onZoomChoice}
       />
       <p className="coverage">
         <span>
@@ -316,13 +293,11 @@ export function GraphScreen({
         />
       ) : (
         <>
-          <div className={`stage${panelOpen ? ' open' : ''}`}>
+          <div ref={stageRef} className={`stage${panelOpen ? ' open' : ''}`}>
             <PromiseGraph
               title={title}
-              clientName={clientName}
               context={context}
               layout={layout}
-              pxPerDay={scalePx}
               T={engine.T}
               milestoneStatus={milestoneStatus}
               selectedLoopId={selectedLoop?.loop.id ?? null}
@@ -330,12 +305,10 @@ export function GraphScreen({
               faded={faded}
               halo={halo}
               currentActId={actIndex >= 0 ? actId : null}
-              revealX={revealX}
               onSelectLoop={selectLoop}
               onSelectMilestone={selectMilestone}
               onHoverAct={onHoverAct}
-              onWidth={onWidth}
-              onZoom={setPxPerDay}
+              stageRef={stageRef}
             />
             {selectedLoop && (
               <LoopPanel
