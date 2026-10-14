@@ -30,11 +30,6 @@ export function ActNode({ data }: NodeProps<ActNodeType>) {
         style={{ overflow: 'visible', display: 'block' }}
       >
         <Glyph type={glyph.type} x={half} y={half} color={color} />
-        {ui.zoomLevel === 'detail' && (
-          <text x={half} y={half - 10} textAnchor="middle" fontSize="10" fill="var(--ink-2)">
-            {glyph.label}
-          </text>
-        )}
       </svg>
     </div>
   );

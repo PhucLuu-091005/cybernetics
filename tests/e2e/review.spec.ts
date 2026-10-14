@@ -302,6 +302,8 @@ test('loop panel edits on main open a proposal first; change type, move and hide
     'data-ready',
     'true',
   );
+  // A branch can sit outside the visible canvas; focus brings it into view, as Tab does.
+  await branch(page, 'Client secret renewal').focus();
   await branch(page, 'Client secret renewal').click();
   const panel = page.getByRole('complementary', { name: /loop panel/i });
   await panel.getByLabel('Milestone').selectOption({ label: 'Hypercare end' });

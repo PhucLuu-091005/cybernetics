@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const PROJECT = 'Larkspur Capital, Fund III onboarding';
 // Each spec signs in as its own local user, so specs share neither the per-user rate limit nor sandbox state.
@@ -14,6 +14,20 @@ const branchTitles = async (page: Page) =>
   )
     .map((name) => name.slice('Loop: '.length).split(', ')[0])
     .sort();
+
+const graph = (page: Page) => page.getByRole('group', { name: /promise graph for/i });
+const zoomOf = async (page: Page) => Number(await graph(page).getAttribute('data-zoom'));
+const boxOf = async (locator: Locator) => (await locator.boundingBox())!;
+const controls = (page: Page) => page.getByRole('toolbar', { name: 'Canvas controls' });
+/** A branch can sit outside the visible canvas; focus brings it into view, as Tab does. */
+const openLoop = async (locator: Locator) => {
+  await locator.focus();
+  await locator.click();
+};
+const preset = async (page: Page, name: string) => {
+  await controls(page).getByRole('button', { name: 'Zoom level' }).click();
+  await page.getByRole('menuitem', { name }).click();
+};
 
 async function signIn(page: Page) {
   await page.goto('/signin?label=graph');
@@ -43,10 +57,7 @@ test('sign in reaches the seeded graph in at most 3 clicks and shows proof in on
     'ambiguous promise',
     'unconfirmed delivery',
   ]) {
-    await page
-      .getByRole('button', { name: new RegExp(`Loop: .*${name}`, 'i') })
-      .first()
-      .click();
+    await openLoop(page.getByRole('button', { name: new RegExp(`Loop: .*${name}`, 'i') }).first());
     await expect(
       page
         .getByRole('complementary', { name: /loop panel/i })
@@ -175,7 +186,7 @@ test('the loop panel shows each quote inside its surrounding text, with the sour
   page,
 }) => {
   await signIn(page);
-  await page.getByRole('button', { name: /^Loop: Client secret renewal/ }).click();
+  await openLoop(page.getByRole('button', { name: /^Loop: Client secret renewal/ }));
   const panel = loopPanel(page);
   const first = panel.getByTestId('verified-quote').first();
   await expect(first).toBeVisible();
@@ -208,7 +219,7 @@ test('a rate-limited loop read shows a short retry note and keeps the bare quote
       }),
     }),
   );
-  await page.getByRole('button', { name: /^Loop: Client secret renewal/ }).click();
+  await openLoop(page.getByRole('button', { name: /^Loop: Client secret renewal/ }));
   const panel = loopPanel(page);
   await expect(panel.getByRole('status')).toHaveText('Too many requests — try again in a minute.');
   await expect(panel.getByTestId('verified-quote').first()).toBeVisible();
@@ -226,7 +237,7 @@ test('keys do not act while typing, inside an open menu, or while the list view 
   page,
 }) => {
   await signIn(page);
-  await page.getByRole('button', { name: /^Loop: Go-live date/ }).click();
+  await openLoop(page.getByRole('button', { name: /^Loop: Go-live date/ }));
   const panel = loopPanel(page);
   await expect(panel).toBeVisible();
   const search = page.getByRole('searchbox', { name: /search loop titles and quotes/i });
@@ -267,22 +278,30 @@ test('an escalation without analysis fades no loop and says so', async ({ page }
   await expect(page.locator('.br-faded')).toHaveCount(0);
 });
 
-test('wheel and pinch both zoom the time axis', async ({ page }) => {
+test('the canvas opens at 100 %, the wheel moves it, and Ctrl + wheel or a pinch zooms it', async ({
+  page,
+}) => {
+  // d3-zoom registers touch listeners only when the page starts on a touch device.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
   await signIn(page);
-  const graph = page.getByRole('group', { name: /promise graph for/i });
-  await expect.poll(() => graph.getAttribute('data-px-per-day')).not.toBeNull();
-  const start = Number(await graph.getAttribute('data-px-per-day'));
-  const box = (await graph.boundingBox())!;
+  expect(await zoomOf(page)).toBe(1);
+  const box = await boxOf(graph(page));
+  const trunk = page.locator('.react-flow__viewport');
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const before = await trunk.evaluate((node) => getComputedStyle(node).transform);
+  await page.mouse.wheel(0, 200);
+  await expect
+    .poll(() => trunk.evaluate((node) => getComputedStyle(node).transform))
+    .not.toBe(before);
+  expect(await zoomOf(page)).toBe(1);
   await page.keyboard.down('Control');
   await page.mouse.wheel(0, -300);
   await page.keyboard.up('Control');
-  await expect
-    .poll(async () => Number(await graph.getAttribute('data-px-per-day')))
-    .toBeGreaterThan(start);
-  const wheeled = Number(await graph.getAttribute('data-px-per-day'));
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
+  await expect.poll(() => zoomOf(page)).toBeGreaterThan(1);
+  const wheeled = await zoomOf(page);
+  // Ctrl + wheel inside the canvas zooms the canvas, never the browser page.
+  expect(await page.evaluate(() => window.visualViewport?.scale ?? 1)).toBe(1);
   const y = box.y + box.height / 2,
     x = box.x + box.width / 2;
   const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', spread: number) =>
@@ -299,9 +318,101 @@ test('wheel and pinch both zoom the time axis', async ({ page }) => {
   await touch('touchStart', 40);
   for (const spread of [60, 90, 120]) await touch('touchMove', spread);
   await touch('touchEnd', 0);
+  await expect.poll(() => zoomOf(page)).toBeGreaterThan(wheeled);
+});
+
+test('a drag on empty canvas moves it; the lane names stay in their column and follow the zoom', async ({
+  page,
+}) => {
+  await signIn(page);
+  const column = page.getByTestId('lane-column');
+  const name = column.locator('[data-lane]').filter({ hasText: 'Engineering' });
+  const nameBefore = await boxOf(name);
+  const viewport = page.locator('.react-flow__viewport');
+  const before = await viewport.evaluate(
+    (node) => new DOMMatrix(getComputedStyle(node).transform).e,
+  );
+  const box = await boxOf(graph(page));
+  await page.mouse.move(box.x + box.width - 60, box.y + box.height - 90);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 360, box.y + box.height - 90, { steps: 8 });
+  await page.mouse.up();
   await expect
-    .poll(async () => Number(await graph.getAttribute('data-px-per-day')))
-    .toBeGreaterThan(wheeled);
+    .poll(() => viewport.evaluate((node) => new DOMMatrix(getComputedStyle(node).transform).e))
+    .toBeLessThan(before - 200);
+  expect((await boxOf(name)).x).toBe(nameBefore.x);
+  await preset(page, '200%');
+  await expect.poll(async () => (await boxOf(name)).height).toBeGreaterThan(nameBefore.height);
+});
+
+test('the controls step the zoom, the % menu applies presets, and titles hide under 60 %', async ({
+  page,
+}) => {
+  await signIn(page);
+  await expect(page.locator('text.br-title').first()).toBeAttached();
+  await controls(page).getByRole('button', { name: 'Zoom in' }).click();
+  await expect.poll(() => zoomOf(page)).toBe(1.25);
+  await controls(page).getByRole('button', { name: 'Zoom out' }).click();
+  await controls(page).getByRole('button', { name: 'Zoom out' }).click();
+  await expect.poll(() => zoomOf(page)).toBe(0.75);
+  await preset(page, '200%');
+  await expect.poll(() => zoomOf(page)).toBe(2);
+  await expect(page.getByRole('menu')).toBeHidden();
+  await expect(
+    page
+      .getByTestId('time-axis')
+      .getByText(/^\d{1,2} \w+$/)
+      .first(),
+  ).toBeVisible();
+  await preset(page, '50%');
+  await expect.poll(() => zoomOf(page)).toBe(0.5);
+  await expect(page.locator('text.br-title').first()).toBeHidden();
+  await preset(page, 'Fit this week');
+  await expect.poll(() => zoomOf(page)).toBeGreaterThan(2);
+  await controls(page).getByRole('button', { name: 'Fit the project' }).click();
+  await expect.poll(() => zoomOf(page)).toBeLessThan(1);
+});
+
+test('a double-click on a branch zooms to that loop, at 150 % at most', async ({ page }) => {
+  await signIn(page);
+  await controls(page).getByRole('button', { name: 'Fit the project' }).click();
+  await expect.poll(() => zoomOf(page)).toBeLessThan(0.6);
+  const branch = page.getByRole('button', { name: /^Loop: Client secret renewal/ });
+  await branch.locator('.hit').dispatchEvent('dblclick');
+  await expect.poll(() => zoomOf(page)).toBeGreaterThan(0.6);
+  expect(await zoomOf(page)).toBeLessThanOrEqual(1.5);
+  const area = await boxOf(graph(page));
+  const hit = await boxOf(branch.locator('.hit'));
+  expect(hit.x).toBeGreaterThanOrEqual(area.x);
+  expect(hit.x + hit.width).toBeLessThanOrEqual(area.x + area.width);
+});
+
+test('the minimap moves the canvas on a click; full screen enters and exits', async ({ page }) => {
+  await signIn(page);
+  await controls(page).getByRole('button', { name: 'Minimap' }).click();
+  const map = page.getByRole('img', { name: 'Minimap' });
+  await expect(map).toBeVisible();
+  const viewport = page.locator('.react-flow__viewport');
+  const before = await viewport.evaluate((node) => getComputedStyle(node).transform);
+  const m = await boxOf(map);
+  await page.mouse.click(m.x + 8, m.y + m.height / 2);
+  await expect
+    .poll(() => viewport.evaluate((node) => getComputedStyle(node).transform))
+    .not.toBe(before);
+  await controls(page).getByRole('button', { name: 'Minimap' }).click();
+  await expect(map).toBeHidden();
+
+  const enabled = await page.evaluate(() => document.fullscreenEnabled);
+  if (!enabled) {
+    await expect(controls(page).getByRole('button', { name: /full screen/i })).toHaveCount(0);
+    return;
+  }
+  await controls(page).getByRole('button', { name: 'Full screen' }).click();
+  await expect
+    .poll(() => page.evaluate(() => document.fullscreenElement?.className ?? ''))
+    .toContain('stage');
+  await controls(page).getByRole('button', { name: 'Exit full screen' }).click();
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeNull();
 });
 
 test('phone width: no horizontal page scroll on graph, open panel and list; sign out is reachable', async ({
@@ -315,7 +426,7 @@ test('phone width: no horizontal page scroll on graph, open panel and list; sign
   await expect.poll(() => branches(page).count()).toBeGreaterThanOrEqual(30);
   expect(await overflow()).toBeLessThanOrEqual(0);
   await page.screenshot({ path: test.info().outputPath('phone-graph.png'), fullPage: true });
-  await branches(page).first().click();
+  await openLoop(branches(page).first());
   await expect(loopPanel(page)).toBeVisible();
   expect(await overflow()).toBeLessThanOrEqual(0);
   await page.screenshot({ path: test.info().outputPath('phone-panel.png'), fullPage: true });

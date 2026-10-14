@@ -3,7 +3,7 @@ import type { BranchLayout, BranchSegment } from '../../contracts/layout';
 import { TONE_COLOR } from './labels';
 import { loopKey, useGraphUi } from './ui-context';
 
-export type BranchEdgeType = Edge<{ branch: BranchLayout; xT: number; left: number }, 'branch'>;
+export type BranchEdgeType = Edge<{ branch: BranchLayout; xT: number }, 'branch'>;
 
 const DASH: Record<BranchSegment['style'], string | undefined> = {
   solid: undefined,
@@ -23,8 +23,8 @@ function curves(branch: BranchLayout): { fork: string; merge: string | null } {
 
 export function BranchEdge({ data }: EdgeProps<BranchEdgeType>) {
   const ui = useGraphUi();
-  if (!data || ui.zoomLevel === 'milestones') return null;
-  const { branch, xT, left } = data,
+  if (!data) return null;
+  const { branch, xT } = data,
     { y } = branch,
     key = loopKey(branch.loopId);
   const { fork, merge } = curves(branch);
@@ -34,7 +34,6 @@ export function BranchEdge({ data }: EdgeProps<BranchEdgeType>) {
   const width = Math.max(branch.xEnd - branch.xStart, 0);
   return (
     <g
-      transform={`translate(${left} 0)`}
       className={`${ui.faded.has(branch.loopId) ? 'br-faded' : ''}${selected ? ' br-sel' : ''}`}
       style={{ transition: 'opacity .15s' }}
     >
@@ -86,11 +85,16 @@ export function BranchEdge({ data }: EdgeProps<BranchEdgeType>) {
           />
         </g>
       ))}
-      {ui.zoomLevel === 'detail' && (
-        <text x={branch.xStart + 8} y={y + 16} fontSize="11" fontWeight="700" fill="var(--ink)">
-          {branch.title}
-        </text>
-      )}
+      <text
+        className="br-title"
+        x={branch.xStart + 8}
+        y={y + 16}
+        fontSize="11"
+        fontWeight="600"
+        fill="var(--ink)"
+      >
+        {branch.title}
+      </text>
       <g
         className="br"
         role="button"
@@ -99,6 +103,10 @@ export function BranchEdge({ data }: EdgeProps<BranchEdgeType>) {
         aria-label={branch.accessibleName}
         aria-pressed={selected}
         onClick={() => ui.selectLoop(branch.loopId)}
+        onDoubleClick={(event) => {
+          event.stopPropagation();
+          ui.zoomToLoop(branch.loopId);
+        }}
         onKeyDown={(event) => ui.navKeyDown(event, key)}
         onFocus={(event) => ui.navFocus(event, key)}
       >

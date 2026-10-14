@@ -185,7 +185,6 @@ export default async function ProposalPage({
         key={`candidate-${proposal.id}-${view.T}`}
         projectId={id}
         title={project.title}
-        clientName={project.clientName}
         context={candidate.context}
         engine={view.engine}
         pendingEvidenceCount={view.pendingEvidenceCount}
