@@ -14,6 +14,7 @@ import {
 import { createTimeScale, type TimeScale } from './time';
 
 export { createTimeScale, xOf, type TimeScale } from './time';
+export * from './viewport';
 
 type Tone = BranchSegment['tone'];
 type Style = BranchSegment['style'];
