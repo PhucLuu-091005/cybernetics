@@ -13,6 +13,7 @@ import {
   type ViewSelection,
 } from '../../contracts';
 import { activePermalink } from '../inbox/links';
+import { SOURCE_APP_NAME, sourceApp } from '../../lib/source-app';
 import { ConflictBanner } from '../review/ConflictBanner';
 import { useDraftEdit, type EditTarget } from '../review/draft-edit';
 import { changeActType, hideAct, moveAct, setLoopMilestone, toAct } from '../review/operations';
@@ -93,9 +94,8 @@ function useEvidence(
   return evidence?.key === key ? evidence : { acts: null, rateLimited: false };
 }
 function sourceName(evidence: Evidence): string | null {
-  if (evidence.source === 'slack' || evidence.sourceLabel.startsWith('#')) return 'Slack';
-  if (evidence.source === 'gmail' || evidence.sourceLabel.startsWith('gmail:')) return 'Gmail';
-  return null;
+  const app = sourceApp(evidence.source, evidence.permalink);
+  return app === 'agent' || app === 'paste' ? null : SOURCE_APP_NAME[app];
 }
 
 function loopTone(loop: DerivedLoop): string {
