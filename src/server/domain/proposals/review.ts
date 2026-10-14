@@ -1,72 +1,25 @@
-import { and, count, eq, notInArray } from 'drizzle-orm';
 import type { z } from 'zod';
 import {
   ReviewProposalInputSchema,
   type ActorContext,
-  type EngineInput,
   type EngineOutput,
-  type GraphSnapshot,
   type ProposalReview,
 } from '../../../contracts';
 import { canonicalHash } from '../../../lib/canonical-json';
-import { recordVersions } from '../../db/schema';
-import type { Db, Tx } from '../../db/tx';
+import type { Db } from '../../db/tx';
 import { diffSnapshots } from '../../graph/diff';
 import { threeWayRebase } from '../../graph/rebase';
 import { requireScope } from '../../http/scopes';
 import { deriveProject } from '../../loops/engine';
 import { requireProject } from '../access';
 import { loadCommit } from '../commits/store';
+import { hydrateEngineInput } from '../graph/hydrate';
+import { countPending } from '../inbox/list';
 import { toProject } from '../projects';
-import { invalid, loadRecordMetadata } from '../records/metadata';
+import { invalid } from '../records/metadata';
 import { assertReviewBasis, reviewDigest } from './digest';
 import { findProposal, toProposal } from './read';
 
-/** Temporary until Task 10's hydrateEngineInput. Every cited version is loaded, including ones after T, because the engine rejects a citation without metadata. */
-async function engineInputFor(
-  db: Db | Tx,
-  projectId: string,
-  snapshot: GraphSnapshot,
-  T: string,
-): Promise<EngineInput> {
-  const metadata = await loadRecordMetadata(
-    db,
-    projectId,
-    snapshot.acts.map((act) => act.citation.recordVersionId),
-  );
-  return {
-    snapshot,
-    T,
-    records: [...metadata.values()].map(
-      ({ recordVersionId, occurredAt, bodyText, digest, withdrawn, quotedRanges }) => ({
-        recordVersionId,
-        occurredAt,
-        bodyText,
-        digest,
-        withdrawn,
-        quotedRanges,
-      }),
-    ),
-  };
-}
-/** Temporary until Task 10's countPending: versions without a decision in the candidate. */
-async function pendingCount(
-  db: Db | Tx,
-  projectId: string,
-  snapshot: GraphSnapshot,
-): Promise<number> {
-  const decided = snapshot.recordDecisions.map((decision) => decision.recordVersionId);
-  const [row] = await db
-    .select({ n: count() })
-    .from(recordVersions)
-    .where(
-      and(
-        eq(recordVersions.projectId, projectId),
-        decided.length ? notInArray(recordVersions.id, decided) : undefined,
-      ),
-    );
-  return row.n;
-}
 function loopEffects(before: EngineOutput, after: EngineOutput): ProposalReview['effects'] {
   const byId = (output: EngineOutput) => new Map(output.loops.map((loop) => [loop.loop.id, loop]));
   const old = byId(before),
@@ -118,8 +71,10 @@ export async function reviewProposal(
         proposal.baseCommitId === main.id
           ? main
           : await loadCommit(tx, project.id, proposal.baseCommitId);
-      const before = deriveProject(await engineInputFor(tx, project.id, main.snapshot, input.T));
-      const after = deriveProject(await engineInputFor(tx, project.id, candidate, input.T));
+      const before = deriveProject(
+        await hydrateEngineInput(tx, project.id, main.snapshot, input.T),
+      );
+      const after = deriveProject(await hydrateEngineInput(tx, project.id, candidate, input.T));
       const snapshotHash = canonicalHash(candidate);
       return {
         projectId: project.id,
@@ -143,7 +98,7 @@ export async function reviewProposal(
           base.id === main.id
             ? []
             : threeWayRebase(base.snapshot, candidate, main.snapshot).conflicts,
-        pendingEvidenceCount: await pendingCount(tx, project.id, candidate),
+        pendingEvidenceCount: await countPending(tx, project.id, main.snapshot),
         author: proposal.author,
         rationale: proposal.rationale,
         citedRecordVersionIds: [
