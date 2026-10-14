@@ -1,5 +1,11 @@
 'use client';
-import { createContext, useContext, type FocusEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import {
+  createContext,
+  useContext,
+  type FocusEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react';
 import type { ActGlyph, GraphLayout } from '../../contracts/layout';
 
 /** What the custom nodes and the branch edge read; React Flow rebuilds them only when layout changes. */
