@@ -6,6 +6,11 @@ export const runtime = 'nodejs';
 export async function DELETE(request: Request): Promise<Response> {
   try {
     assertRequestOrigin(request, readAuthEnvironment(), true);
-    return new Response(null, { status: 204, headers: { 'Set-Cookie': clearSessionCookie(), 'Cache-Control': 'private, no-store' } });
-  } catch (error) { return errorResponse(error, newRequestId()); }
+    return new Response(null, {
+      status: 204,
+      headers: { 'Set-Cookie': clearSessionCookie(), 'Cache-Control': 'private, no-store' },
+    });
+  } catch (error) {
+    return errorResponse(error, newRequestId());
+  }
 }

@@ -8,5 +8,7 @@ export async function GET(request: Request): Promise<Response> {
     const env = readAuthEnvironment();
     if (env.mode !== 'google') return new Response(null, { status: 404 });
     return await completeGoogleSignIn(request, env, getApp().identity, googleClient(env));
-  } catch (error) { return errorResponse(error, newRequestId()); }
+  } catch (error) {
+    return errorResponse(error, newRequestId());
+  }
 }

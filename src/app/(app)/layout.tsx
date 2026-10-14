@@ -14,12 +14,19 @@ export default async function AppLayout({ children }: Readonly<{ children: React
   return (
     <div className="app">
       <div className="rail">
-        <div className="brand"><BrandMark /><b>Promise Graph</b></div>
-        <RailNav projects={projects.map(project => ({ id: project.id, clientName: project.clientName }))} />
+        <div className="brand">
+          <BrandMark />
+          <b>Promise Graph</b>
+        </div>
+        <RailNav
+          projects={projects.map((project) => ({ id: project.id, clientName: project.clientName }))}
+        />
         <div className="rail-foot">
           <ThemeToggle />
           <SignOutButton />
-          <span className="faint">The app never calls an AI model. Nothing changes the graph until a person merges it.</span>
+          <span className="faint">
+            The app never calls an AI model. Nothing changes the graph until a person merges it.
+          </span>
         </div>
       </div>
       <div className="main">{children}</div>

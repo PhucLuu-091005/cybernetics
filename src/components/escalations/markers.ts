@@ -20,12 +20,14 @@ export function renderMarkers(answer: string): AnswerPart[] {
 /** Copy and download carry the citations as numbered plain-text references, so the answer still reads correctly outside the app. */
 export function answerPlainText(answer: string, acts: ReadonlyMap<string, CitedActText>): string {
   const numbers = new Map<string, number>();
-  const body = renderMarkers(answer).map(part => {
-    if (part.kind === 'text') return part.text;
-    if (!acts.has(part.actId)) return `[act:${part.actId}]`;
-    if (!numbers.has(part.actId)) numbers.set(part.actId, numbers.size + 1);
-    return `[${numbers.get(part.actId)}]`;
-  }).join('');
+  const body = renderMarkers(answer)
+    .map((part) => {
+      if (part.kind === 'text') return part.text;
+      if (!acts.has(part.actId)) return `[act:${part.actId}]`;
+      if (!numbers.has(part.actId)) numbers.set(part.actId, numbers.size + 1);
+      return `[${numbers.get(part.actId)}]`;
+    })
+    .join('');
   if (!numbers.size) return body;
   const lines = [...numbers].map(([actId, number]) => {
     const { label, quote } = acts.get(actId)!;

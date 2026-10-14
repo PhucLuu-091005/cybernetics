@@ -2,28 +2,57 @@ import { expect, test, type Page } from '@playwright/test';
 
 const PROJECT = 'Larkspur Capital, Fund III onboarding';
 // Each spec signs in as its own local user, so specs share neither the per-user rate limit nor sandbox state.
-const activeLabel = (page: Page) => page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? '');
+const activeLabel = (page: Page) =>
+  page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? '');
 const loopPanel = (page: Page) => page.getByRole('complementary', { name: /loop panel/i });
 const branches = (page: Page) => page.getByRole('button', { name: /^Loop: / });
-const branchTitles = async (page: Page) => (await branches(page).evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label') ?? ''))).map(name => name.slice('Loop: '.length).split(', ')[0]).sort();
+const branchTitles = async (page: Page) =>
+  (
+    await branches(page).evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute('aria-label') ?? ''),
+    )
+  )
+    .map((name) => name.slice('Loop: '.length).split(', ')[0])
+    .sort();
 
 async function signIn(page: Page) {
   await page.goto('/signin?label=graph');
   await page.getByRole('button', { name: /continue/i }).click();
   await expect(page.getByText(PROJECT)).toBeVisible();
   // Keyboard and wheel handlers attach on hydration; data-ready appears once the client has measured the graph.
-  await expect(page.getByRole('group', { name: /promise graph for/i })).toHaveAttribute('data-ready', 'true');
+  await expect(page.getByRole('group', { name: /promise graph for/i })).toHaveAttribute(
+    'data-ready',
+    'true',
+  );
   await expect(branches(page).first()).toBeVisible();
 }
 
-test('sign in reaches the seeded graph in at most 3 clicks and shows proof in one click', async ({ page }) => {
+test('sign in reaches the seeded graph in at most 3 clicks and shows proof in one click', async ({
+  page,
+}) => {
   await page.goto('/signin?label=graph');
   await page.getByRole('button', { name: /continue/i }).click();
   await expect(page.getByText('Larkspur Capital, Fund III onboarding')).toBeVisible();
   await expect(page.getByTestId('main-badge')).toHaveText(/main/i);
-  for (const name of ['unanswered request', 'silent overdue', 'late delivery', 'unilateral change', 'rejected delivery', 'ambiguous promise', 'unconfirmed delivery']) {
-    await page.getByRole('button', { name: new RegExp(`Loop: .*${name}`, 'i') }).first().click();
-    await expect(page.getByRole('complementary', { name: /loop panel/i }).getByTestId('verified-quote').first()).toBeVisible();
+  for (const name of [
+    'unanswered request',
+    'silent overdue',
+    'late delivery',
+    'unilateral change',
+    'rejected delivery',
+    'ambiguous promise',
+    'unconfirmed delivery',
+  ]) {
+    await page
+      .getByRole('button', { name: new RegExp(`Loop: .*${name}`, 'i') })
+      .first()
+      .click();
+    await expect(
+      page
+        .getByRole('complementary', { name: /loop panel/i })
+        .getByTestId('verified-quote')
+        .first(),
+    ).toBeVisible();
     await page.keyboard.press('Escape');
   }
 
@@ -32,8 +61,14 @@ test('sign in reaches the seeded graph in at most 3 clicks and shows proof in on
   await expect(branches(page).first()).toBeVisible();
   const paint = await page.evaluate(() => {
     const timing = performance.timing;
-    const fcp = performance.getEntriesByType('paint').find(entry => entry.name === 'first-contentful-paint');
-    return { firstContentfulPaintMs: Math.round(fcp?.startTime ?? -1), domContentLoadedMs: timing.domContentLoadedEventEnd - timing.navigationStart, loadMs: timing.loadEventEnd - timing.navigationStart };
+    const fcp = performance
+      .getEntriesByType('paint')
+      .find((entry) => entry.name === 'first-contentful-paint');
+    return {
+      firstContentfulPaintMs: Math.round(fcp?.startTime ?? -1),
+      domContentLoadedMs: timing.domContentLoadedEventEnd - timing.navigationStart,
+      loadMs: timing.loadEventEnd - timing.navigationStart,
+    };
   });
   test.info().annotations.push({ type: 'first-paint', description: JSON.stringify(paint) });
   console.log(`first-paint ${JSON.stringify(paint)}`);
@@ -41,7 +76,9 @@ test('sign in reaches the seeded graph in at most 3 clicks and shows proof in on
   expect(paint.firstContentfulPaintMs).toBeLessThan(2000);
 });
 
-test('keyboard: Tab reaches a branch, Enter opens the panel, arrows move between acts', async ({ page }) => {
+test('keyboard: Tab reaches a branch, Enter opens the panel, arrows move between acts', async ({
+  page,
+}) => {
   await signIn(page);
   await page.getByRole('searchbox', { name: /search loop titles and quotes/i }).focus();
 
@@ -51,17 +88,21 @@ test('keyboard: Tab reaches a branch, Enter opens the panel, arrows move between
     await page.keyboard.press('Tab');
     visited.push(await activeLabel(page));
   }
-  const graphStops = visited.filter(name => name.startsWith('Milestone: ') || name.startsWith('Loop: '));
+  const graphStops = visited.filter(
+    (name) => name.startsWith('Milestone: ') || name.startsWith('Loop: '),
+  );
   expect(graphStops.at(-1)).toMatch(/^Loop: /);
   expect(graphStops.slice(0, -1)).toHaveLength(7);
-  expect(graphStops.slice(0, -1).every(name => name.startsWith('Milestone: '))).toBe(true);
+  expect(graphStops.slice(0, -1).every((name) => name.startsWith('Milestone: '))).toBe(true);
   expect(graphStops[0]).toMatch(/^Milestone: Kickoff, /);
 
   const loopName = graphStops.at(-1)!;
   await page.keyboard.press('Enter');
   const panel = loopPanel(page);
   await expect(panel).toBeVisible();
-  await expect(panel.getByRole('heading', { level: 2 })).toHaveText(loopName.slice('Loop: '.length).split(', ')[0]);
+  await expect(panel.getByRole('heading', { level: 2 })).toHaveText(
+    loopName.slice('Loop: '.length).split(', ')[0],
+  );
 
   const steps = panel.getByRole('list', { name: /steps/i }).getByRole('listitem');
   expect(await steps.count()).toBeGreaterThan(1);
@@ -89,33 +130,50 @@ test('list view shows the same loops as the graph with the same filters', async 
   const total = await branches(page).count();
 
   await page.getByRole('searchbox', { name: /search loop titles and quotes/i }).fill('sync');
-  await page.getByRole('group', { name: /^side$/i }).getByRole('button', { name: 'Vendor' }).click();
+  await page
+    .getByRole('group', { name: /^side$/i })
+    .getByRole('button', { name: 'Vendor' })
+    .click();
   await expect(page).toHaveURL(/[?&]q=sync(&|$)/);
   await expect(page).toHaveURL(/[?&]side=vendor(&|$)/);
   await expect.poll(() => branches(page).count()).toBeLessThan(total);
   const graphTitles = await branchTitles(page);
   expect(graphTitles.length).toBeGreaterThan(0);
 
-  await page.getByRole('group', { name: /^view$/i }).getByRole('button', { name: 'List' }).click();
+  await page
+    .getByRole('group', { name: /^view$/i })
+    .getByRole('button', { name: 'List' })
+    .click();
   await expect(page).toHaveURL(/[?&]view=list(&|$)/);
   const rows = page.getByRole('table', { name: /loops/i }).locator('tbody tr');
   await expect(rows).toHaveCount(graphTitles.length);
-  const listTitles = (await rows.locator('td:first-child').allInnerTexts()).map(text => text.trim()).sort();
+  const listTitles = (await rows.locator('td:first-child').allInnerTexts())
+    .map((text) => text.trim())
+    .sort();
   expect(listTitles).toEqual(graphTitles);
   await expect(branches(page)).toHaveCount(0);
 
   // The URL holds the filters, so a reload reproduces the same list.
   await page.reload();
-  await expect(page.getByRole('searchbox', { name: /search loop titles and quotes/i })).toHaveValue('sync');
-  await expect(page.getByRole('table', { name: /loops/i }).locator('tbody tr')).toHaveCount(graphTitles.length);
+  await expect(page.getByRole('searchbox', { name: /search loop titles and quotes/i })).toHaveValue(
+    'sync',
+  );
+  await expect(page.getByRole('table', { name: /loops/i }).locator('tbody tr')).toHaveCount(
+    graphTitles.length,
+  );
 
-  await page.getByRole('group', { name: /^view$/i }).getByRole('button', { name: 'Graph' }).click();
+  await page
+    .getByRole('group', { name: /^view$/i })
+    .getByRole('button', { name: 'Graph' })
+    .click();
   await expect.poll(() => branchTitles(page)).toEqual(graphTitles);
 });
 
 const projectIdOf = (page: Page) => new URL(page.url()).pathname.split('/')[2];
 
-test('the loop panel shows each quote inside its surrounding text, with the source and an https permalink', async ({ page }) => {
+test('the loop panel shows each quote inside its surrounding text, with the source and an https permalink', async ({
+  page,
+}) => {
   await signIn(page);
   await page.getByRole('button', { name: /^Loop: Client secret renewal/ }).click();
   const panel = loopPanel(page);
@@ -123,7 +181,9 @@ test('the loop panel shows each quote inside its surrounding text, with the sour
   await expect(first).toBeVisible();
   const quote = (await first.innerText()).trim();
   const block = panel.getByTestId('quote-context').first();
-  await expect.poll(async () => (await block.innerText()).trim().length).toBeGreaterThan(quote.length);
+  await expect
+    .poll(async () => (await block.innerText()).trim().length)
+    .toBeGreaterThan(quote.length);
   expect(await block.innerText()).toContain(quote);
   const open = panel.getByRole('link', { name: /^Open in Slack$/ }).first();
   await expect(open).toHaveAttribute('href', /^https:\/\//);
@@ -138,7 +198,9 @@ test('a project the user cannot see returns 404 with the not-found page', async 
   expect((await page.goto('/projects/not-a-uuid/graph'))?.status()).toBe(404);
 });
 
-test('keys do not act while typing, inside an open menu, or while the list view hides the panel', async ({ page }) => {
+test('keys do not act while typing, inside an open menu, or while the list view hides the panel', async ({
+  page,
+}) => {
   await signIn(page);
   await page.getByRole('button', { name: /^Loop: Go-live date/ }).click();
   const panel = loopPanel(page);
@@ -152,10 +214,16 @@ test('keys do not act while typing, inside an open menu, or while the list view 
   await panel.locator('summary[aria-label="Act actions"]').first().click();
   await page.keyboard.press('Escape');
   await expect(panel).toBeVisible();
-  await page.getByRole('group', { name: /^view$/i }).getByRole('button', { name: 'List' }).click();
+  await page
+    .getByRole('group', { name: /^view$/i })
+    .getByRole('button', { name: 'List' })
+    .click();
   await page.locator('body').click({ position: { x: 5, y: 5 } });
   await page.keyboard.press('ArrowRight');
-  await page.getByRole('group', { name: /^view$/i }).getByRole('button', { name: 'Graph' }).click();
+  await page
+    .getByRole('group', { name: /^view$/i })
+    .getByRole('button', { name: 'Graph' })
+    .click();
   await expect(panel).toBeVisible();
   await expect(panel.locator('[aria-current="step"]')).toHaveCount(0);
 });
@@ -163,9 +231,12 @@ test('keys do not act while typing, inside an open menu, or while the list view 
 test('an escalation without analysis fades no loop and says so', async ({ page }) => {
   await signIn(page);
   const projectId = projectIdOf(page);
-  const created = await page.request.post(`/api/v1/projects/${projectId}/escalations`, { headers: { Origin: new URL(page.url()).origin }, data: { complaint: 'The incident report is late.', idempotencyKey: `e2e-${Date.now()}` } });
+  const created = await page.request.post(`/api/v1/projects/${projectId}/escalations`, {
+    headers: { Origin: new URL(page.url()).origin },
+    data: { complaint: 'The incident report is late.', idempotencyKey: `e2e-${Date.now()}` },
+  });
   expect(created.status()).toBe(201);
-  const { id } = await created.json() as { id: string };
+  const { id } = (await created.json()) as { id: string };
   await page.goto(`/projects/${projectId}/graph?escalation=${id}`);
   await expect(page.getByText(/no analysis yet/i)).toBeVisible();
   await expect.poll(() => branches(page).count()).toBeGreaterThanOrEqual(30);
@@ -182,22 +253,40 @@ test('wheel and pinch both zoom the time axis', async ({ page }) => {
   await page.keyboard.down('Control');
   await page.mouse.wheel(0, -300);
   await page.keyboard.up('Control');
-  await expect.poll(async () => Number(await graph.getAttribute('data-px-per-day'))).toBeGreaterThan(start);
+  await expect
+    .poll(async () => Number(await graph.getAttribute('data-px-per-day')))
+    .toBeGreaterThan(start);
   const wheeled = Number(await graph.getAttribute('data-px-per-day'));
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
-  const y = box.y + box.height / 2, x = box.x + box.width / 2;
-  const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', spread: number) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: x - spread, y, id: 1 }, { x: x + spread, y, id: 2 }] });
+  const y = box.y + box.height / 2,
+    x = box.x + box.width / 2;
+  const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', spread: number) =>
+    cdp.send('Input.dispatchTouchEvent', {
+      type,
+      touchPoints:
+        type === 'touchEnd'
+          ? []
+          : [
+              { x: x - spread, y, id: 1 },
+              { x: x + spread, y, id: 2 },
+            ],
+    });
   await touch('touchStart', 40);
   for (const spread of [60, 90, 120]) await touch('touchMove', spread);
   await touch('touchEnd', 0);
-  await expect.poll(async () => Number(await graph.getAttribute('data-px-per-day'))).toBeGreaterThan(wheeled);
+  await expect
+    .poll(async () => Number(await graph.getAttribute('data-px-per-day')))
+    .toBeGreaterThan(wheeled);
 });
 
-test('phone width: no horizontal page scroll on graph, open panel and list; sign out is reachable', async ({ page }) => {
+test('phone width: no horizontal page scroll on graph, open panel and list; sign out is reachable', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await signIn(page);
-  const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  const overflow = () =>
+    page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
   await expect.poll(() => branches(page).count()).toBeGreaterThanOrEqual(30);
   expect(await overflow()).toBeLessThanOrEqual(0);
@@ -207,7 +296,10 @@ test('phone width: no horizontal page scroll on graph, open panel and list; sign
   expect(await overflow()).toBeLessThanOrEqual(0);
   await page.screenshot({ path: test.info().outputPath('phone-panel.png'), fullPage: true });
   await page.keyboard.press('Escape');
-  await page.getByRole('group', { name: /^view$/i }).getByRole('button', { name: 'List' }).click();
+  await page
+    .getByRole('group', { name: /^view$/i })
+    .getByRole('button', { name: 'List' })
+    .click();
   await expect(page.getByRole('table', { name: /loops/i })).toBeVisible();
   expect(await overflow()).toBeLessThanOrEqual(0);
   await page.screenshot({ path: test.info().outputPath('phone-list.png'), fullPage: true });

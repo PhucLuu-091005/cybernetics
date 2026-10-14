@@ -8,5 +8,9 @@ export function SignOutButton() {
     router.push('/signin');
     router.refresh();
   };
-  return <button className="btn btn-quiet" type="button" onClick={signOut}>Sign out</button>;
+  return (
+    <button className="btn btn-quiet" type="button" onClick={signOut}>
+      Sign out
+    </button>
+  );
 }
