@@ -20,34 +20,73 @@ export async function createTestDatabase(): Promise<TestDb> {
   const url = Object.assign(new URL(admin), { pathname: `/${name}` }).toString();
   const pool = new Pool({ connectionString: url, max: 10, options: utc });
   // The FORCE fallback below can terminate a socket that pool.end() is still closing; only that FATAL is teardown noise.
-  pool.on('connect', client => { client.on('error', error => { if (pgCode(error) !== '57P01') throw error; }); });
+  pool.on('connect', (client) => {
+    client.on('error', (error) => {
+      if (pgCode(error) !== '57P01') throw error;
+    });
+  });
   const db = drizzle(pool, { schema });
   // pool.end() resolves before its sockets close, so wait for sessions to leave instead of killing them mid-close.
   const drop = async () => {
     for (let attempt = 0; attempt < 40; attempt++) {
-      try { await adminPool.query(`DROP DATABASE ${name}`); return; }
-      catch (error) { if (pgCode(error) !== '55006') throw error; await new Promise(resolve => setTimeout(resolve, 50)); }
+      try {
+        await adminPool.query(`DROP DATABASE ${name}`);
+        return;
+      } catch (error) {
+        if (pgCode(error) !== '55006') throw error;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
     }
     await adminPool.query(`DROP DATABASE ${name} WITH (FORCE)`);
   };
   const close = async () => {
-    try { await pool.end(); }
-    finally {
-      try { await drop(); }
-      finally { await adminPool.end(); }
+    try {
+      await pool.end();
+    } finally {
+      try {
+        await drop();
+      } finally {
+        await adminPool.end();
+      }
     }
   };
-  try { await runMigrations(db); }
-  catch (error) { await close(); throw error; }
+  try {
+    await runMigrations(db);
+  } catch (error) {
+    await close();
+    throw error;
+  }
   return { db, url, close };
 }
-export async function testActor(db: Db, opts: { subject?: string; name?: string; email?: string | null } = {}): Promise<ActorContext> {
+export async function testActor(
+  db: Db,
+  opts: { subject?: string; name?: string; email?: string | null } = {},
+): Promise<ActorContext> {
   const store = new DbIdentityStore(db);
-  const { userId } = await store.provisionUser({ subject: opts.subject ?? `google:${randomUUID()}`, email: opts.email ?? null, name: opts.name ?? 'Test User' });
+  const { userId } = await store.provisionUser({
+    subject: opts.subject ?? `google:${randomUUID()}`,
+    email: opts.email ?? null,
+    name: opts.name ?? 'Test User',
+  });
   const session = await store.resolveSessionUser(userId);
   if (!session) throw new Error('Provisioned user has no workspace');
-  return { kind: 'user', userId, workspaceId: session.defaultWorkspaceId, projectId: null, scopes: [...browserScopes], requestId: randomUUID() };
+  return {
+    kind: 'user',
+    userId,
+    workspaceId: session.defaultWorkspaceId,
+    projectId: null,
+    scopes: [...browserScopes],
+    requestId: randomUUID(),
+  };
 }
 export function agentActor(user: ActorContext, projectId: string, scopes: Scope[]): ActorContext {
-  return { kind: 'agent', userId: user.userId, tokenId: randomUUID(), workspaceId: user.workspaceId, projectId, scopes: [...scopes], requestId: randomUUID() };
+  return {
+    kind: 'agent',
+    userId: user.userId,
+    tokenId: randomUUID(),
+    workspaceId: user.workspaceId,
+    projectId,
+    scopes: [...scopes],
+    requestId: randomUUID(),
+  };
 }

@@ -1,0 +1,6 @@
+pnpm-lock.yaml
+docs/
+*.md
+fixtures/*.json
+src/server/db/migrations/
+next-env.d.ts
