@@ -80,6 +80,10 @@ export const LoopSchema = z.strictObject({
   performer: PartySchema,
   performerDepartmentId: IdSchema,
   milestoneId: IdSchema.nullable(),
+  /** Present only on a task: the top-level loop (a promise) whose work this task carries. */
+  parentLoopId: IdSchema.optional(),
+  /** Present only on a task: sibling tasks that hand off to this one (Linear "blocked by"). */
+  afterLoopIds: z.array(IdSchema).min(1).max(20).optional(),
 });
 export const RecordDecisionSchema = z
   .strictObject({
