@@ -9,6 +9,14 @@ export const LayoutOptionsSchema = z.strictObject({
   rowHeight: z.number().positive().default(28),
   lanePadding: z.number().nonnegative().default(12),
   branchGap: z.number().nonnegative().default(16),
+  /** Event cards above each branch line; the layout reserves their shelves inside the branch row. */
+  cards: z
+    .strictObject({
+      width: z.number().positive(),
+      height: z.number().positive(),
+      gap: z.number().nonnegative(),
+    })
+    .optional(),
 });
 export const LaneLayoutSchema = z.strictObject({
   id: IdSchema,
@@ -26,6 +34,10 @@ export const ActGlyphSchema = z.strictObject({
   type: ActTypeSchema,
   x: coordinate,
   y: coordinate,
+  dayStartX: coordinate,
+  dayEndX: coordinate,
+  /** Top-left corner of the event card, present when the layout places cards. */
+  card: z.strictObject({ x: coordinate, y: coordinate }).optional(),
   glyph: TextSchema,
   label: TextSchema,
   accessibleName: TextSchema,
