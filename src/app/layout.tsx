@@ -1,22 +1,14 @@
 import type { Metadata } from 'next';
-import { Overpass, Overpass_Mono, Source_Serif_4 } from 'next/font/google';
+import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 
-const overpass = Overpass({
+const geist = Geist({
   subsets: ['latin', 'latin-ext', 'vietnamese'],
-  weight: ['400', '500', '600', '700', '800'],
-  variable: '--font-overpass',
+  variable: '--font-geist',
 });
-const overpassMono = Overpass_Mono({
-  subsets: ['latin'],
-  weight: ['500'],
-  variable: '--font-overpass-mono',
-});
-const sourceSerif = Source_Serif_4({
+const geistMono = Geist_Mono({
   subsets: ['latin', 'latin-ext', 'vietnamese'],
-  weight: ['400', '600'],
-  style: ['normal', 'italic'],
-  variable: '--font-source-serif',
+  variable: '--font-geist-mono',
 });
 
 export const metadata: Metadata = {
@@ -28,11 +20,7 @@ const THEME_SCRIPT = `try{var t=localStorage.getItem('pg-theme');if(t==='light'|
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="en"
-      className={`${overpass.variable} ${overpassMono.variable} ${sourceSerif.variable}`}
-      suppressHydrationWarning
-    >
+    <html lang="en" className={`${geist.variable} ${geistMono.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
