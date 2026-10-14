@@ -18,6 +18,7 @@ import { createTimeScale, type TimeScale } from './time';
 export { CARD_INSET, placeCards, type CardSize, type CardSlot } from './cards';
 export { CURVE, branchPath } from './path';
 export { createTimeScale, xOf, type TimeScale } from './time';
+export { NO_OFFSETS, actXInDay, applyLayoutOffsets, type LayoutOffsets } from './offsets';
 export * from './viewport';
 
 type Tone = BranchSegment['tone'];
