@@ -14,7 +14,9 @@
     "build": "next build && cp -R .next/static .next/standalone/.next/ && cp -R public .next/standalone/",
     "start": "node .next/standalone/server.js",
     "eval": "vitest run tests/unit/contracts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
     "@noble/hashes": "2.4.0",
