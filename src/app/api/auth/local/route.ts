@@ -6,6 +6,11 @@ export const runtime = 'nodejs';
 export async function POST(request: Request): Promise<Response> {
   try {
     const cookie = await startLocalSession(request, readAuthEnvironment(), getHttpIdentityStore());
-    return new Response(null, { status: 303, headers: { Location: '/', 'Set-Cookie': cookie, 'Cache-Control': 'private, no-store' } });
-  } catch (error) { return errorResponse(error, newRequestId()); }
+    return new Response(null, {
+      status: 303,
+      headers: { Location: '/', 'Set-Cookie': cookie, 'Cache-Control': 'private, no-store' },
+    });
+  } catch (error) {
+    return errorResponse(error, newRequestId());
+  }
 }

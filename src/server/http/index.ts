@@ -1,4 +1,9 @@
-export { getBrowserActor, getTokenActor, configureHttpIdentityStore, getHttpIdentityStore } from './runtime';
+export {
+  getBrowserActor,
+  getTokenActor,
+  configureHttpIdentityStore,
+  getHttpIdentityStore,
+} from './runtime';
 export { createIdentityServices } from './actors';
 export { AppError, errorResponse, newRequestId, privateJson } from '../errors';
 export { assertRequestOrigin, assertTokenTransport } from './origin';
