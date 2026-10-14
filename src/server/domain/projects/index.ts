@@ -13,12 +13,18 @@ import { canonicalHash } from '../../../lib/canonical-json';
 import { AppError } from '../../errors';
 import { graphCommits, projects, workspaceMembers } from '../../db/schema';
 import { isId, withTransaction, type Db, type ProjectRow } from '../../db/tx';
-const CreateProjectInputSchema = z.strictObject({
+const NewProjectInputSchema = z.strictObject({
   title: ProjectSchema.shape.title,
   clientName: ProjectSchema.shape.clientName,
+});
+const CreateProjectInputSchema = NewProjectInputSchema.extend({
   snapshot: GraphSnapshotSchema.optional(),
 });
 export type CreateProjectInput = z.input<typeof CreateProjectInputSchema>;
+const invalidProject = (error: z.ZodError) =>
+  new AppError('VALIDATION', 'Invalid project input', {
+    errors: error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message })),
+  });
 export function emptySnapshot(timeZone = 'Asia/Ho_Chi_Minh', now = new Date()): GraphSnapshot {
   const windowStart = localDate(now, timeZone);
   const windowEnd = new Date(Date.parse(`${windowStart}T00:00:00Z`) + 90 * 86_400_000)
@@ -66,13 +72,7 @@ export async function createProject(
   if (ctx.kind !== 'user')
     throw new AppError('FORBIDDEN', 'Only browser users can create projects');
   const parsed = CreateProjectInputSchema.safeParse(raw);
-  if (!parsed.success)
-    throw new AppError('VALIDATION', 'Invalid project input', {
-      errors: parsed.error.issues.map((issue) => ({
-        path: issue.path.join('.'),
-        message: issue.message,
-      })),
-    });
+  if (!parsed.success) throw invalidProject(parsed.error);
   const { title, clientName } = parsed.data,
     snapshot = parsed.data.snapshot ?? emptySnapshot();
   return withTransaction(db, async (tx) => {
@@ -116,6 +116,16 @@ export async function createProject(
       .returning();
     return toProject(row);
   });
+}
+/** A snapshot skips proposal validation, so only the server-side seed may pass one; REST callers always start from an empty main. */
+export async function createEmptyProject(
+  db: Db,
+  ctx: ActorContext,
+  raw: z.input<typeof NewProjectInputSchema>,
+): Promise<Project> {
+  const parsed = NewProjectInputSchema.safeParse(raw);
+  if (!parsed.success) throw invalidProject(parsed.error);
+  return createProject(db, ctx, parsed.data);
 }
 export async function listProjects(db: Db, ctx: ActorContext): Promise<Project[]> {
   if (!isId(ctx.userId)) return [];

@@ -17,6 +17,8 @@ import {
 import { ActorReferenceSchema } from './identity';
 
 export const SourceKindSchema = z.enum(['paste', 'agent', 'slack', 'gmail']);
+/** Slack and Gmail records arrive only through native connectors (P1), so their permalinks can be trusted; P0 imports cannot claim those sources. */
+export const ImportSourceSchema = SourceKindSchema.extract(['paste', 'agent']);
 export const AliasSchema = z.strictObject({
   name: z.string().min(1).max(200),
   email: z.email().nullable().optional(),
@@ -113,7 +115,7 @@ export const RecordVersionSchema = RecordVersionBaseSchema.superRefine((value, c
 export const IngestRecordsInputSchema = boundedJson(
   z.strictObject({
     projectId: IdSchema,
-    source: SourceKindSchema,
+    source: ImportSourceSchema,
     sourceLabel: recordFields.sourceLabel,
     records: z.array(RecordInputSchema).min(1).max(25),
     idempotencyKey: IdempotencyKeySchema,
@@ -272,7 +274,7 @@ export type WithdrawRecordResult = z.infer<typeof WithdrawRecordResultSchema>;
 export const IngestEnvelopeSchema = boundedJson(
   z.strictObject({
     projectId: IdSchema,
-    source: SourceKindSchema,
+    source: ImportSourceSchema,
     sourceLabel: recordFields.sourceLabel,
     records: z.array(z.json()).min(1).max(25),
     idempotencyKey: IdempotencyKeySchema,

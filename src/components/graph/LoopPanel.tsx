@@ -12,6 +12,7 @@ import {
   type Milestone,
   type ViewSelection,
 } from '../../contracts';
+import { activePermalink } from '../inbox/links';
 import { ConflictBanner } from '../review/ConflictBanner';
 import { useDraftEdit, type EditTarget } from '../review/draft-edit';
 import { changeActType, hideAct, moveAct, setLoopMilestone, toAct } from '../review/operations';
@@ -56,16 +57,14 @@ const viewQuery = (view: ViewSelection): Record<string, string> =>
       : {};
 
 /** The graph view carries quotes only; the loop read adds surrounding text and permalinks for the open loop. */
+type EvidenceRead = { acts: ReadonlyMap<string, Evidence> | null; rateLimited: boolean };
 function useEvidence(
   projectId: string,
   loopId: string,
   T: string,
   view: ViewSelection,
-): ReadonlyMap<string, Evidence> | null {
-  const [evidence, setEvidence] = useState<{
-    key: string;
-    acts: ReadonlyMap<string, Evidence>;
-  } | null>(null);
+): EvidenceRead {
+  const [evidence, setEvidence] = useState<(EvidenceRead & { key: string }) | null>(null);
   const query = new URLSearchParams({ T, ...viewQuery(view) }).toString();
   const key = `${loopId}@${query}`;
   useEffect(() => {
@@ -74,19 +73,24 @@ function useEvidence(
       signal: controller.signal,
       headers: { Accept: 'application/json' },
     })
-      .then((response) =>
-        response.ok ? (response.json() as Promise<{ loop: { acts: LoopAct[] } }>) : null,
-      )
+      .then((response) => {
+        if (response.status === 429) setEvidence({ key, acts: null, rateLimited: true });
+        return response.ok ? (response.json() as Promise<{ loop: { acts: LoopAct[] } }>) : null;
+      })
       .then((result) => {
         if (result)
-          setEvidence({ key, acts: new Map(result.loop.acts.map((act) => [act.id, act])) });
+          setEvidence({
+            key,
+            acts: new Map(result.loop.acts.map((act) => [act.id, act])),
+            rateLimited: false,
+          });
       })
       .catch(() => {
         /* the panel keeps the bare quote when the loop read fails */
       });
     return () => controller.abort();
   }, [projectId, loopId, query, key]);
-  return evidence?.key === key ? evidence.acts : null;
+  return evidence?.key === key ? evidence : { acts: null, rateLimited: false };
 }
 function sourceName(evidence: Evidence): string | null {
   if (evidence.source === 'slack' || evidence.sourceLabel.startsWith('#')) return 'Slack';
@@ -192,7 +196,7 @@ export function LoopPanel({
   agentActIds,
   onClose,
 }: Props) {
-  const evidence = useEvidence(projectId, loop.loop.id, T, view);
+  const { acts: evidence, rateLimited } = useEvidence(projectId, loop.loop.id, T, view);
   const edit = useDraftEdit(projectId, target);
   const [stepEdit, setStepEdit] = useState<StepEdit | null>(null);
   const onMain = target.kind === 'main';
@@ -345,6 +349,11 @@ export function LoopPanel({
         )}
         <div>
           <h3 style={{ marginBottom: 8 }}>Steps</h3>
+          {rateLimited && (
+            <p role="status" className="faint" style={{ fontSize: 12, marginBottom: 8 }}>
+              Too many requests — try again in a minute.
+            </p>
+          )}
           {loop.acts.length === 0 ? (
             <p className="faint" style={{ fontSize: 13 }}>
               No acts yet at the evaluation time.
@@ -353,7 +362,8 @@ export function LoopPanel({
             <ol className="steps" aria-label="Steps">
               {loop.acts.map((act, index) => {
                 const detail = evidence?.get(act.id),
-                  name = detail ? sourceName(detail) : null;
+                  name = detail ? sourceName(detail) : null,
+                  link = detail ? activePermalink(detail) : null;
                 return (
                   <li
                     key={act.id}
@@ -442,11 +452,15 @@ export function LoopPanel({
                       </div>
                     )}
                     <div className="links">
-                      {detail?.permalink?.startsWith('https://') && (
-                        <a href={detail.permalink} target="_blank" rel="noopener noreferrer">
+                      {link ? (
+                        <a href={link} target="_blank" rel="noopener noreferrer">
                           {name ? `Open in ${name}` : 'Open source'}
                         </a>
-                      )}
+                      ) : detail?.permalink ? (
+                        <span className="faint" style={{ overflowWrap: 'anywhere' }}>
+                          {detail.permalink}
+                        </span>
+                      ) : null}
                       <Link href={`/projects/${projectId}/records/${act.citation.recordVersionId}`}>
                         View record
                       </Link>

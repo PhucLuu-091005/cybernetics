@@ -28,6 +28,19 @@ export const SOURCE_LABEL: Record<SourceKind, string> = {
   gmail: 'Gmail',
 };
 
+/** SRD 17: only a stored https permalink from a native Slack or Gmail source becomes an active link; any other URL is shown as text. */
+export function activePermalink({
+  source,
+  permalink,
+}: {
+  source: SourceKind;
+  permalink: string | null;
+}): string | null {
+  return permalink?.startsWith('https://') && (source === 'slack' || source === 'gmail')
+    ? permalink
+    : null;
+}
+
 export type InboxQuery = {
   state: InboxState;
   proposal: string | null;

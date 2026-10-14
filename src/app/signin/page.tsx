@@ -144,7 +144,8 @@ export default async function SignInPage({
         )}
         <p className="muted" style={{ fontSize: 13 }}>
           Your first visit creates a private sandbox: a copy of the Larkspur Capital demo project
-          with its imported records and reviewed loops.
+          with its imported records and reviewed loops. Building it can take about 10 seconds on the
+          free host.
         </p>
         <hr style={{ border: 0, borderTop: '1px solid var(--rule-2)', width: '100%' }} />
         <p className="faint" style={{ fontSize: 12 }}>

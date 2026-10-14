@@ -443,7 +443,7 @@ function deriveLoop(loop: Loop, acts: DerivedAct[], context: GraphContext, T: st
         [...activeProof(), hedge.id],
         hedge.quote === null
           ? `${performerName} made a hedged promise. The evidence quote is unavailable.`
-          : `${performerName} said "${hedge.quote}". The client may read this as a commitment.`,
+          : `${performerName} said "${hedge.quote}"${/[.!?]$/.test(hedge.quote) ? '' : '.'} The client may read this as a commitment.`,
         hedge.occurredAt,
         null,
         days(hedge.occurredAt),

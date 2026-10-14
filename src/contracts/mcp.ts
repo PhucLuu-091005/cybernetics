@@ -11,7 +11,9 @@ import {
 import {
   ActSchema,
   AnnotationSchema,
+  ConflictSchema,
   DepartmentSchema,
+  EntityCollectionSchema,
   GraphContextSchema,
   LoopSchema,
   MilestoneSchema,
@@ -225,6 +227,25 @@ export const GetProposalResultSchema = z.strictObject({
 export const DiffProposalInputSchema = GetProposalInputSchema;
 export const DiffProposalResultSchema = ProposalReviewSchema;
 export const McpErrorSchema = DomainErrorSchema;
+/** SRD 10 caps MCP results at 50,000 characters, so MCP returns change keys and counts; agents read entity values with get_snapshot. */
+export const MAX_SUMMARY_KEYS = 50;
+const SummaryKeysSchema = z.array(TextSchema).max(MAX_SUMMARY_KEYS);
+export const DiffSummarySchema = z.strictObject({
+  total: RevisionSchema,
+  counts: z.partialRecord(
+    EntityCollectionSchema,
+    z.strictObject({ added: RevisionSchema, removed: RevisionSchema, changed: RevisionSchema }),
+  ),
+  added: SummaryKeysSchema,
+  removed: SummaryKeysSchema,
+  changed: SummaryKeysSchema,
+});
+export const ConflictSummarySchema = z.strictObject({
+  conflictCount: RevisionSchema,
+  conflicts: z
+    .array(ConflictSchema.pick({ collection: true, id: true, reason: true }))
+    .max(MAX_SUMMARY_KEYS),
+});
 export type Project = z.infer<typeof ProjectSchema>;
 export type GetProjectInput = z.infer<typeof GetProjectInputSchema>;
 export type GetProjectResult = z.infer<typeof GetProjectResultSchema>;
@@ -249,5 +270,7 @@ export type GetProposalInput = z.infer<typeof GetProposalInputSchema>;
 export type GetProposalResult = z.infer<typeof GetProposalResultSchema>;
 export type DiffProposalInput = z.infer<typeof DiffProposalInputSchema>;
 export type DiffProposalResult = z.infer<typeof DiffProposalResultSchema>;
+export type DiffSummary = z.infer<typeof DiffSummarySchema>;
+export type ConflictSummary = z.infer<typeof ConflictSummarySchema>;
 
 export type SnapshotContext = z.infer<typeof SnapshotContextSchema>;

@@ -14,7 +14,7 @@ import {
 } from '../../support/proposals';
 import { configureApp, resetApp } from '../../../src/server/app';
 import { SESSION_COOKIE, signSession } from '../../../src/server/http/session';
-import { createProject } from '../../../src/server/domain/projects';
+import { createProject, emptySnapshot } from '../../../src/server/domain/projects';
 import {
   createProposal,
   reviewProposal,
@@ -470,5 +470,23 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
     expect((await call('GET', `/projects/${created.body.id}`)).body.project.id).toBe(
       created.body.id,
     );
+  });
+  it('rejects a snapshot in a REST project creation, so main always starts empty', async () => {
+    const before = (await call('GET', '/projects')).body.items.length;
+    const snapshot = {
+      ...emptySnapshot(),
+      acts: [],
+      loops: [{ ...(putLoop('Smuggled') as { value: object }).value }],
+    };
+    const response = await call('POST', '/projects', {
+      title: 'Smuggled graph',
+      clientName: 'Client',
+      snapshot,
+    });
+    expect(response).toMatchObject({
+      status: 400,
+      body: { code: 'VALIDATION', errors: [expect.objectContaining({ path: expect.any(String) })] },
+    });
+    expect((await call('GET', '/projects')).body.items).toHaveLength(before);
   });
 });
