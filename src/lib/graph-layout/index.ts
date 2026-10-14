@@ -12,11 +12,14 @@ import {
   type MilestoneLayout,
 } from '../../contracts/layout';
 import { placeCards, shelfCount, type CardSlot } from './cards';
+import { businessDaysBetween } from '../calendar';
+import { linkTasks } from './handoffs';
 import { CURVE, branchPath } from './path';
 import { createTimeScale, type TimeScale } from './time';
 
 export { CARD_INSET, placeCards, type CardSize, type CardSlot } from './cards';
 export { CURVE, branchPath } from './path';
+export { linkTasks } from './handoffs';
 export { createTimeScale, xOf, type TimeScale } from './time';
 export {
   NO_OFFSETS,
@@ -333,6 +336,17 @@ export function layoutPromiseGraph(
   };
   const shelfStep = (cards?.height ?? 0) + (cards?.gap ?? 0);
 
+  const loopsById = new Map(engine.loops.map((item) => [item.loop.id, item]));
+  const taskCounts = new Map<string, { count: number; done: number }>();
+  for (const item of engine.loops) {
+    const parentId = item.loop.parentLoopId;
+    if (!parentId || !loopsById.has(parentId)) continue;
+    const counts = taskCounts.get(parentId) ?? { count: 0, done: 0 };
+    taskCounts.set(parentId, {
+      count: counts.count + 1,
+      done: counts.done + (item.state === 'closed' ? 1 : 0),
+    });
+  }
   const branches: BranchLayout[] = drafts.map(
     ({ loop, department, xStart, lineEnd, xEnd, endKind, row, acts, slots }) => {
       const y = round(rowY(department.id, row));
@@ -393,10 +407,58 @@ export function layoutPromiseGraph(
         endKind,
         breakdownMarkers,
         title: loop.loop.title,
-        accessibleName: `Loop: ${loop.loop.title}, ${department.name}, ${status}`,
+        accessibleName: `Loop: ${loop.loop.title}, ${department.name}, ${status}${taskNote(loop)}`,
+        ...taskFields(loop),
       };
     },
   );
+  function taskNote(loop: DerivedLoop): string {
+    const counts = taskCounts.get(loop.loop.id);
+    if (counts)
+      return `, ${counts.count} ${counts.count === 1 ? 'task' : 'tasks'}, ${counts.done} done`;
+    const parent = loop.loop.parentLoopId ? loopsById.get(loop.loop.parentLoopId) : undefined;
+    return parent ? `, task of ${parent.loop.title}` : '';
+  }
+  function taskFields(loop: DerivedLoop): Pick<BranchLayout, 'task' | 'tasks'> {
+    const counts = taskCounts.get(loop.loop.id);
+    if (counts) return { tasks: counts };
+    const { parentLoopId, afterLoopIds = [] } = loop.loop;
+    if (!parentLoopId) return {};
+    const before = afterLoopIds.flatMap((id) => {
+      const other = loopsById.get(id);
+      return other?.loop.parentLoopId === parentLoopId && other ? [other] : [];
+    });
+    const startedAt = loop.acts[0]?.occurredAt ?? null;
+    const open = before.filter((item) => item.state !== 'closed' || !item.closedAt);
+    const lastClose = before.reduce<string | null>(
+      (latest, item) =>
+        item.closedAt && (latest === null || Date.parse(item.closedAt) > Date.parse(latest))
+          ? item.closedAt
+          : latest,
+      null,
+    );
+    // Display only (owner decision, 14 Oct 2026): the engine and its breakdowns never see these notes.
+    const early =
+      startedAt !== null &&
+      before.length > 0 &&
+      (open.length > 0 || (lastClose !== null && Date.parse(startedAt) < Date.parse(lastClose)));
+    let wait: string | null = null;
+    if (!early && open.length)
+      wait = `waiting for ${open.map((item) => item.loop.title).join(', ')}`;
+    else if (!early && lastClose) {
+      const days = businessDaysBetween(lastClose, startedAt ?? engine.T, context);
+      if (days > 1) wait = `${startedAt ? 'waited' : 'waiting'} ${days} business days`;
+    }
+    return {
+      task: {
+        parentLoopId,
+        afterLoopIds,
+        closed: loop.state === 'closed',
+        wait,
+        early,
+      },
+    };
+  }
 
   const milestones: MilestoneLayout[] = [...engine.milestones]
     .sort(
@@ -434,17 +496,19 @@ export function layoutPromiseGraph(
     ...branches.map((branch) => branch.xEnd + CURVE),
     ...milestones.map((item) => item.x + CURVE),
   );
-  return {
+  return linkTasks({
     width: round(Math.max(0, width)),
     height: round(bottom + BOTTOM_MARGIN),
     trunkY,
     lanes,
     branches,
     milestones,
+    gateways: [],
+    connectors: [],
     zoomLevel: zoomLevel(pxPerDay),
     navigation: {
       milestoneIds: milestones.map((item) => item.id),
       loopIds: branches.map((branch) => branch.loopId),
     },
-  };
+  });
 }
