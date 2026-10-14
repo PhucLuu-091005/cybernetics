@@ -11,8 +11,12 @@ import {
   type LayoutOptions,
   type MilestoneLayout,
 } from '../../contracts/layout';
+import { placeCards, shelfCount, type CardSlot } from './cards';
+import { CURVE, branchPath } from './path';
 import { createTimeScale, type TimeScale } from './time';
 
+export { CARD_INSET, placeCards, type CardSize, type CardSlot } from './cards';
+export { CURVE, branchPath } from './path';
 export { createTimeScale, xOf, type TimeScale } from './time';
 export * from './viewport';
 
@@ -21,8 +25,7 @@ type Style = BranchSegment['style'];
 // Vertical bands and curve geometry come from the approved design file (docs/design/2026-10-13-promise-graph-ui.html).
 const AXIS_HEIGHT = 26,
   TRUNK_BAND = 58,
-  BOTTOM_MARGIN = 30,
-  CURVE = 16;
+  BOTTOM_MARGIN = 30;
 const GLYPH: Record<ActType, string> = {
   request: '○',
   promise: '●',
@@ -80,6 +83,13 @@ interface Draft {
   xEnd: number;
   endKind: BranchLayout['endKind'];
   row: number;
+  /** Acts that get a glyph: all but the accept that the merge curve already shows. */
+  acts: DerivedAct[];
+  slots: CardSlot[];
+  /** What the branch and its cards occupy, for row packing. */
+  extentStart: number;
+  extentEnd: number;
+  height: number;
 }
 
 function zoomLevel(pxPerDay: number): GraphLayout['zoomLevel'] {
@@ -194,20 +204,28 @@ function partyLabels(
   };
 }
 
-function packRows(drafts: Draft[], branchGap: number): Map<string, number> {
-  const rowEnds = new Map<string, number[]>();
+/** Returns the height of every sub-row per department; a sub-row is as tall as its tallest branch. */
+function packRows(drafts: Draft[], branchGap: number): Map<string, number[]> {
+  const rows = new Map<string, { end: number; height: number }[]>();
   for (const draft of drafts) {
-    const ends = rowEnds.get(draft.department.id) ?? [];
-    let row = ends.findIndex((end) => draft.xStart - end >= branchGap);
+    const list = rows.get(draft.department.id) ?? [];
+    let row = list.findIndex((item) => draft.extentStart - item.end >= branchGap);
     if (row < 0) {
-      row = ends.length;
-      ends.push(draft.xEnd);
+      row = list.length;
+      list.push({ end: draft.extentEnd, height: draft.height });
     }
-    ends[row] = draft.xEnd;
+    list[row] = { end: draft.extentEnd, height: Math.max(list[row].height, draft.height) };
     draft.row = row;
-    rowEnds.set(draft.department.id, ends);
+    rows.set(draft.department.id, list);
   }
-  return new Map([...rowEnds].map(([id, ends]) => [id, ends.length]));
+  return new Map([...rows].map(([id, list]) => [id, list.map((item) => item.height)]));
+}
+
+function mergeAcceptIndex(loop: DerivedLoop, endKind: BranchLayout['endKind']): number {
+  if (endKind !== 'merge') return -1;
+  for (let i = loop.acts.length - 1; i >= 0; i--)
+    if (loop.acts[i].type === 'accept' && loop.acts[i].occurredAt === loop.closedAt) return i;
+  return -1;
 }
 
 export function layoutPromiseGraph(
@@ -215,7 +233,7 @@ export function layoutPromiseGraph(
   input: LayoutInput,
   options: LayoutOptions,
 ): GraphLayout {
-  const { pxPerDay, rowHeight, lanePadding, branchGap } = LayoutOptionsSchema.parse(options);
+  const { pxPerDay, rowHeight, lanePadding, branchGap, cards } = LayoutOptionsSchema.parse(options);
   const { context } = input;
   const scale = createTimeScale(context, pxPerDay);
   const people = new Map(context.people.map((person) => [person.id, person]));
@@ -236,6 +254,14 @@ export function layoutPromiseGraph(
       end.kind === 'open' && loop.dueSoon && loop.dueAt
         ? Math.max(lineEnd, round(scale.x(loop.dueAt)))
         : lineEnd;
+    const skip = mergeAcceptIndex(loop, end.kind);
+    const acts = loop.acts.filter((_, index) => index !== skip);
+    const slots = cards
+      ? placeCards(
+          acts.map((act) => round(scale.x(act.occurredAt))),
+          cards,
+        )
+      : [];
     drafts.push({
       loop,
       department,
@@ -245,16 +271,22 @@ export function layoutPromiseGraph(
       xEnd: tailEnd,
       endKind: end.kind,
       row: 0,
+      acts,
+      slots,
+      extentStart: Math.min(xStart, ...slots.map((slot) => slot.x)),
+      extentEnd: Math.max(tailEnd, ...slots.map((slot) => slot.x + (cards?.width ?? 0))),
+      height: rowHeight + shelfCount(slots) * ((cards?.height ?? 0) + (cards?.gap ?? 0)),
     });
   }
   drafts.sort((a, b) => a.startEpoch - b.startEpoch || compareId(a.loop.loop.id, b.loop.loop.id));
-  const subRows = packRows(drafts, branchGap);
+  const rowHeights = packRows(drafts, branchGap);
 
   const bySide = (side: Department['side']) =>
     context.departments
       .filter((department) => department.side === side)
       .sort((a, b) => a.order - b.order || compareId(a.id, b.id));
-  const laneHeight = (id: string) => Math.max(1, subRows.get(id) ?? 0) * rowHeight + lanePadding;
+  const laneHeight = (id: string) =>
+    (rowHeights.get(id) ?? [rowHeight]).reduce((sum, height) => sum + height, 0) + lanePadding;
   const vendor = bySide('vendor'),
     client = bySide('client');
   const trunkY =
@@ -270,7 +302,7 @@ export function layoutPromiseGraph(
     order: department.order,
     y,
     height: laneHeight(department.id),
-    subRows: subRows.get(department.id) ?? 0,
+    subRows: rowHeights.get(department.id)?.length ?? 0,
   });
   let top = trunkY - TRUNK_BAND / 2;
   for (const department of vendor) {
@@ -283,37 +315,45 @@ export function layoutPromiseGraph(
     bottom += laneHeight(department.id);
   }
   const laneById = new Map(lanes.map((item) => [item.departmentId, item]));
+  // Each branch line sits rowHeight / 2 above the bottom of its sub-row; its card shelves fill the space above.
   const rowY = (departmentId: string, row: number) => {
     const { y, height, side } = laneById.get(departmentId)!;
+    const heights = rowHeights.get(departmentId) ?? [],
+      before = heights.slice(0, row).reduce((sum, item) => sum + item, 0);
     return side === 'vendor'
-      ? y + height - lanePadding / 2 - rowHeight / 2 - row * rowHeight
-      : y + lanePadding / 2 + rowHeight / 2 + row * rowHeight;
+      ? y + height - lanePadding / 2 - before - rowHeight / 2
+      : y + lanePadding / 2 + before + heights[row] - rowHeight / 2;
   };
+  const shelfStep = (cards?.height ?? 0) + (cards?.gap ?? 0);
 
   const branches: BranchLayout[] = drafts.map(
-    ({ loop, department, xStart, lineEnd, xEnd, endKind, row }) => {
+    ({ loop, department, xStart, lineEnd, xEnd, endKind, row, acts, slots }) => {
       const y = round(rowY(department.id, row));
       const { segments, tone } = segmentsOf(loop, scale, xStart, lineEnd, xEnd);
-      let mergeAccept = -1;
-      if (endKind === 'merge')
-        for (let i = loop.acts.length - 1; i >= 0 && mergeAccept < 0; i--)
-          if (loop.acts[i].type === 'accept' && loop.acts[i].occurredAt === loop.closedAt)
-            mergeAccept = i;
-      const glyphs: ActGlyph[] = loop.acts.flatMap((act, index) => {
-        if (index === mergeAccept) return [];
-        const actor = partyLabels(act.actor, people);
-        return [
-          {
-            id: act.id,
-            loopId: loop.loop.id,
-            type: act.type,
-            x: round(scale.x(act.occurredAt)),
-            y,
-            glyph: GLYPH[act.type],
-            label: `${ACT_LABEL[act.type].toLowerCase()} ${actor.initials}`,
-            accessibleName: `${ACT_LABEL[act.type]} by ${actor.name}, ${scale.localStamp(act.occurredAt)}`,
-          },
-        ];
+      const glyphs: ActGlyph[] = acts.map((act, index) => {
+        const actor = partyLabels(act.actor, people),
+          day = scale.dayRange(act.occurredAt),
+          slot = slots[index];
+        return {
+          id: act.id,
+          loopId: loop.loop.id,
+          type: act.type,
+          x: round(scale.x(act.occurredAt)),
+          y,
+          dayStartX: round(day.start),
+          dayEndX: round(day.end),
+          ...(slot && cards
+            ? {
+                card: {
+                  x: slot.x,
+                  y: round(y - rowHeight / 2 - cards.height - slot.shelf * shelfStep),
+                },
+              }
+            : {}),
+          glyph: GLYPH[act.type],
+          label: `${ACT_LABEL[act.type].toLowerCase()} ${actor.initials}`,
+          accessibleName: `${ACT_LABEL[act.type]} by ${actor.name}, ${scale.localStamp(act.occurredAt)}`,
+        };
       });
       const breakdownMarkers = loop.breakdowns
         .filter((item) => item.severity === 'broken')
@@ -323,11 +363,6 @@ export function layoutPromiseGraph(
           label: BREAKDOWN_LABEL[item.type],
         }))
         .sort((a, b) => a.x - b.x || compareId(a.label, b.label));
-      const fork = `M${num(xStart - CURVE)} ${num(trunkY)} C${num(xStart - 4)} ${num(trunkY)} ${num(xStart - 12)} ${num(y)} ${num(xStart)} ${num(y)} H${num(xEnd)}`;
-      const merge =
-        endKind === 'merge'
-          ? ` C${num(xEnd + 12)} ${num(y)} ${num(xEnd + 4)} ${num(trunkY)} ${num(xEnd + CURVE)} ${num(trunkY)}`
-          : '';
       const labels = [
         ...new Set(loop.breakdowns.map((item) => BREAKDOWN_LABEL[item.type].toLowerCase())),
       ];
@@ -344,7 +379,7 @@ export function layoutPromiseGraph(
         xStart,
         xEnd,
         y,
-        path: fork + merge,
+        path: branchPath(xStart, xEnd, y, trunkY, endKind === 'merge'),
         segments,
         glyphs,
         tone,

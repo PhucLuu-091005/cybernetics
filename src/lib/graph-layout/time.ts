@@ -37,6 +37,8 @@ export interface TimeScale {
   /** x of the centre of a local calendar date, where the approved design places date-only marks. */
   dateX(date: string): number;
   dateEndX(date: string): number;
+  /** x of the start and the end of the local calendar day that contains the instant. */
+  dayRange(instant: string): { start: number; end: number };
   localStamp(instant: string): string;
 }
 
@@ -90,6 +92,10 @@ export function createTimeScale(clock: Clock, pxPerDay: number): TimeScale {
     },
     dateX: (date) => (dateIndex(date) + 0.5) * pxPerDay,
     dateEndX: (date) => (dateIndex(date) + 1) * pxPerDay,
+    dayRange(instant) {
+      const day = locate(Date.parse(instant));
+      return { start: day.index * pxPerDay, end: (day.index + 1) * pxPerDay };
+    },
     localStamp(instant) {
       const epoch = Date.parse(instant),
         day = locate(epoch);
