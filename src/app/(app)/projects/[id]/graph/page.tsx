@@ -139,6 +139,7 @@ export default async function GraphPage({
         context={view.snapshot.context}
         engine={view.engine}
         pendingEvidenceCount={view.pendingEvidenceCount}
+        sources={view.sources}
         initialFilters={filters}
         escalation={escalation}
         view={{ kind: 'main' }}
@@ -243,6 +244,7 @@ async function ProposalGraph({
         context={view.snapshot.context}
         engine={view.engine}
         pendingEvidenceCount={view.pendingEvidenceCount}
+        sources={view.sources}
         initialFilters={filters}
         escalation={null}
         view={{ kind: 'proposal', proposalId: proposal.id, proposalRevision: proposal.revision }}

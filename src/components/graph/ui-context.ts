@@ -4,7 +4,7 @@ import {
   useContext,
   type FocusEvent,
   type KeyboardEvent,
-  type MouseEvent,
+  type PointerEvent,
 } from 'react';
 import type { ActGlyph } from '../../contracts/layout';
 
@@ -21,7 +21,8 @@ export type GraphUi = {
   navFocus(event: FocusEvent, key: string): void;
   selectLoop(loopId: string, actId?: string): void;
   selectMilestone(milestoneId: string): void;
-  hoverAct(glyph: ActGlyph | null, event?: MouseEvent): void;
+  /** A press on an event card or icon: a click opens the loop at that act, a drag moves the act or the branch. */
+  startDrag(event: PointerEvent, glyph: ActGlyph): void;
   zoomToLoop(loopId: string): void;
 };
 export const GraphUiContext = createContext<GraphUi | null>(null);

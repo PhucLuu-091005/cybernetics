@@ -33,9 +33,12 @@ export function actSource(
   recordVersionId: string,
   source: GraphSource | undefined,
 ): ActSource {
+  const app = source ? sourceApp(source.source, source.permalink) : null;
+  // "gmail:go-live-plan" next to the Gmail icon reads better as "go-live-plan".
+  const label = source && app ? source.sourceLabel.replace(new RegExp(`^${app}:`), '') : null;
   return {
-    app: source ? sourceApp(source.source, source.permalink) : null,
-    label: source?.sourceLabel ?? null,
+    app,
+    label: label || source?.sourceLabel || null,
     link: sourceLink(projectId, recordVersionId, source),
   };
 }
