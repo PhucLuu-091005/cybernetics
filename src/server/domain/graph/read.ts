@@ -93,6 +93,11 @@ export async function getGraphView(
     const resolved = await resolveView(tx, ctx, input.projectId, input.view),
       { project, snapshot } = resolved;
     const T = evaluationTime(snapshot, input.T);
+    const cited = await loadCitationSources(
+      tx,
+      project.id,
+      snapshot.acts.map((act) => act.citation.recordVersionId),
+    );
     return {
       projectId: project.id,
       view: input.view,
@@ -107,6 +112,12 @@ export async function getGraphView(
       engine: await evaluate(tx, resolved, T),
       people: snapshot.context.people,
       departments: snapshot.context.departments,
+      sources: Object.fromEntries(
+        [...cited].map(([id, item]) => [
+          id,
+          { source: item.source, sourceLabel: item.sourceLabel, permalink: item.permalink },
+        ]),
+      ),
     };
   }, READ_ONLY);
 }

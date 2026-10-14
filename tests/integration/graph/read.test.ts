@@ -141,6 +141,17 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('graph reads', () => {
     expect(old.snapshot.context.replyWindowDays).toBe(2);
     expect(old.T).toBe(T);
   });
+  it('graph view names the source of every cited record version', async () => {
+    const view = await getGraphView(t.db, ctx, { projectId, view: { kind: 'main' }, T });
+    const cited = new Set(view.snapshot.acts.map((act) => act.citation.recordVersionId));
+    expect(new Set(Object.keys(view.sources))).toEqual(cited);
+    expect(view.sources[citedVersionId]).toMatchObject({
+      source: expect.stringMatching(/^(paste|agent|slack|gmail)$/),
+      sourceLabel: expect.any(String),
+    });
+    expect(GraphViewSchema.parse(view)).toEqual(view);
+  });
+
   it('withdrawn text is masked in every view including old commits', async () => {
     await withdraw(citedRecordId);
     for (const view of [{ kind: 'main' }, { kind: 'commit', commitId: firstCommitId }] as const) {
@@ -149,6 +160,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('graph reads', () => {
         .flatMap((loop) => loop.acts)
         .find((item) => item.citation.recordVersionId === citedVersionId)!;
       expect(act).toMatchObject({ quote: null, unavailable: true });
+      expect(graph.sources[citedVersionId].permalink).toBeNull();
+      expect(graph.sources[citedVersionId].sourceLabel.length).toBeGreaterThan(0);
     }
   });
   it('paginates loops without losing entities', async () => {

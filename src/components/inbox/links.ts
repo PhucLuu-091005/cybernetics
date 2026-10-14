@@ -1,4 +1,5 @@
 import type { InboxState, SourceKind } from '../../contracts/records';
+import { linkablePermalink } from '../../lib/source-app';
 
 export const INBOX_STATES: readonly InboxState[] = [
   'pending',
@@ -28,7 +29,7 @@ export const SOURCE_LABEL: Record<SourceKind, string> = {
   gmail: 'Gmail',
 };
 
-/** SRD 17: only a stored https permalink from a native Slack or Gmail source becomes an active link; any other URL is shown as text. */
+/** SRD 17: a permalink is an active link only for a native Slack or Gmail source or a Slack, Gmail or Linear https URL. */
 export function activePermalink({
   source,
   permalink,
@@ -36,9 +37,7 @@ export function activePermalink({
   source: SourceKind;
   permalink: string | null;
 }): string | null {
-  return permalink?.startsWith('https://') && (source === 'slack' || source === 'gmail')
-    ? permalink
-    : null;
+  return linkablePermalink(source, permalink);
 }
 
 export type InboxQuery = {

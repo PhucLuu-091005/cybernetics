@@ -644,7 +644,7 @@ Proposal update batches at most 100 operations/1 MiB, can be applied in several 
 
 ## 17. Security and operational limits
 
-HTTPS, signed session checks, project-token checks, Origin checks on browser mutations, Zod validation on every boundary, protected `private, no-store` responses. No browser DB access. Disable raw HTML in Markdown; record text is rendered as text. Only stored Slack/Gmail permalinks are active external links; no server URL fetching from content.
+HTTPS, signed session checks, project-token checks, Origin checks on browser mutations, Zod validation on every boundary, protected `private, no-store` responses. No browser DB access. Disable raw HTML in Markdown; record text is rendered as text. Active external links: stored https permalinks of native Slack/Gmail records, and agent or pasted permalinks whose host is `slack.com` (or a subdomain), `mail.google.com` or `linear.app` (https, no credentials, no port; owner decision of 14 October 2026). Any other URL stays plain text. No server URL fetching from content.
 
 Rate limits: 60 reads and 20 writes/minute/browser user; 60 calls/minute/token. Logs contain request IDs/counts, not evidence, prompts, tokens or credentials. Atomic snapshot saves and head updates, bounded reads, rollback on conflict and idempotency are mandatory. No background merge or retry that changes expected revisions.
 
