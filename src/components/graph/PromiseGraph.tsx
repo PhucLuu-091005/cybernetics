@@ -44,6 +44,7 @@ import { ActNode, ACT_NODE_SIZE, type ActNodeType } from './ActNode';
 import { BranchEdge, type BranchEdgeType } from './BranchEdge';
 import { CanvasControls, type Preset } from './CanvasControls';
 import { CardNode, type CardInfo, type CardNodeType } from './CardNode';
+import { GATEWAY_SIZE, GatewayNode, type GatewayNodeType } from './GatewayNode';
 import { LaneColumn } from './LaneColumn';
 import { LaneLabel, type LaneLabelNode } from './LaneLabel';
 import { MilestoneNode, MILESTONE_NODE, type MilestoneNodeType } from './MilestoneNode';
@@ -56,12 +57,19 @@ const CURVE = 16,
   PAN_MARGIN = 400,
   // Wide enough that the stripes never end inside the view, even at 10 %.
   STRIPE_OVERHANG = 20_000;
-const nodeTypes = { act: ActNode, card: CardNode, milestone: MilestoneNode, laneLabel: LaneLabel };
+const nodeTypes = {
+  act: ActNode,
+  card: CardNode,
+  gateway: GatewayNode,
+  milestone: MilestoneNode,
+  laneLabel: LaneLabel,
+};
 const edgeTypes = { branch: BranchEdge };
-type GraphNode = ActNodeType | CardNodeType | MilestoneNodeType | LaneLabelNode;
+type GraphNode = ActNodeType | CardNodeType | GatewayNodeType | MilestoneNodeType | LaneLabelNode;
 // A press that moves less than this is a click; a longer one picks its axis once.
 const DRAG_START_PX = 4;
 const NO_HALO: ReadonlySet<string> = new Set();
+const DASH = { solid: undefined, dashed: '7 5', dotted: '1.5 4' } as const;
 
 export type PromiseGraphProps = {
   title: string;
@@ -148,6 +156,28 @@ function Backdrop({
           />
         );
       })}
+      {layout.connectors.map((connector) => (
+        <g key={connector.id} className="handoff">
+          <path
+            d={connector.path}
+            fill="none"
+            stroke={TONE_COLOR[connector.tone]}
+            strokeWidth={2.4}
+            strokeDasharray={DASH[connector.style]}
+            strokeLinecap="round"
+          />
+          {connector.note && (
+            <text
+              x={connector.note.x}
+              y={connector.note.y}
+              className="handoff-note"
+              textAnchor="middle"
+            >
+              {connector.note.text}
+            </text>
+          )}
+        </g>
+      ))}
       <line
         x1={-CURVE}
         y1={layout.trunkY}
@@ -546,7 +576,17 @@ function Graph(props: PromiseGraphProps) {
         ];
       }),
     );
-    return [...lanes, ...milestones, ...acts, ...cardNodes];
+    const gateways: GatewayNodeType[] = layout.gateways.map((gateway) => ({
+      ...fixed,
+      id: `gateway:${gateway.id}`,
+      type: 'gateway' as const,
+      position: { x: gateway.x - GATEWAY_SIZE / 2, y: gateway.y - GATEWAY_SIZE / 2 },
+      width: GATEWAY_SIZE,
+      height: GATEWAY_SIZE,
+      style: { pointerEvents: 'all' as const },
+      data: { gateway },
+    }));
+    return [...lanes, ...milestones, ...acts, ...gateways, ...cardNodes];
   }, [layout, milestoneStatus, cards]);
   const edges = useMemo<BranchEdgeType[]>(
     () =>

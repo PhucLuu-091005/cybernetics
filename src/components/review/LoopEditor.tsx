@@ -7,6 +7,8 @@ import { partyFromValue, partyValue } from './operations';
 
 type Props = {
   loop: Loop | null;
+  /** Every loop of the draft, for the parent and the after links. */
+  loops: readonly Loop[];
   people: readonly Person[];
   departments: readonly Department[];
   milestones: readonly Milestone[];
@@ -15,9 +17,10 @@ type Props = {
   onSave(operations: GraphOperation[], title: string): void;
 };
 
-/** A loop's customer, performer, lane and milestone; its state stays derived from its acts. */
+/** A loop's customer, performer, lane, milestone, parent and after links; its state stays derived from its acts. */
 export function LoopEditor({
   loop,
+  loops,
   people,
   departments,
   milestones,
@@ -34,6 +37,25 @@ export function LoopEditor({
     loop?.performerDepartmentId ?? departments[0]?.id ?? '',
   );
   const [milestoneId, setMilestoneId] = useState(loop?.milestoneId ?? '');
+  const [parentId, setParentId] = useState(loop?.parentLoopId ?? '');
+  const [afterIds, setAfterIds] = useState<string[]>(loop?.afterLoopIds ?? []);
+  const hasTasks = loops.some((item) => item.parentLoopId === id);
+  const parents = loops.filter((item) => item.id !== id && item.parentLoopId === undefined);
+  const siblings = parentId
+    ? loops.filter((item) => item.id !== id && item.parentLoopId === parentId)
+    : [];
+  const chooseParent = (value: string) => {
+    setParentId(value);
+    setAfterIds([]);
+    // A task takes its milestone from its parent.
+    if (value) setMilestoneId('');
+  };
+  const toggleAfter = (value: string, on: boolean) =>
+    setAfterIds((previous) =>
+      on
+        ? [...previous.filter((item) => item !== value), value]
+        : previous.filter((item) => item !== value),
+    );
   const hydrated = useHydrated();
   const disabled = !editable || busy || !hydrated;
   const chooseCustomer = (value: string) => setCustomer(value);
@@ -57,7 +79,16 @@ export function LoopEditor({
             customer: partyFromValue(customer),
             performer: partyFromValue(performer),
             performerDepartmentId: departmentId,
-            milestoneId: milestoneId || null,
+            milestoneId: parentId ? null : milestoneId || null,
+            // Absent, never undefined: canonical JSON rejects undefined values.
+            ...(parentId ? { parentLoopId: parentId } : {}),
+            ...(parentId && afterIds.length
+              ? {
+                  afterLoopIds: afterIds.filter((item) =>
+                    siblings.some((loop) => loop.id === item),
+                  ),
+                }
+              : {}),
           },
         },
       ],
@@ -123,7 +154,8 @@ export function LoopEditor({
           <select
             id={id}
             value={milestoneId}
-            disabled={disabled}
+            disabled={disabled || Boolean(parentId)}
+            title={parentId ? 'A task takes its milestone from its parent.' : undefined}
             onChange={(event) => setMilestoneId(event.target.value)}
           >
             <option value="">None</option>
@@ -135,6 +167,39 @@ export function LoopEditor({
           </select>
         )}
       </SelectField>
+      <SelectField label="Part of">
+        {(fieldId) => (
+          <select
+            id={fieldId}
+            value={parentId}
+            disabled={disabled || hasTasks}
+            title={hasTasks ? 'This loop has tasks, so it stays top level.' : undefined}
+            onChange={(event) => chooseParent(event.target.value)}
+          >
+            <option value="">None (top-level loop)</option>
+            {parents.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.title}
+              </option>
+            ))}
+          </select>
+        )}
+      </SelectField>
+      {siblings.length > 0 && (
+        <fieldset className="field wide" disabled={disabled}>
+          <legend>After (tasks that hand off to this one)</legend>
+          {siblings.map((item) => (
+            <label key={item.id} className="row" style={{ gap: 6 }}>
+              <input
+                type="checkbox"
+                checked={afterIds.includes(item.id)}
+                onChange={(event) => toggleAfter(item.id, event.target.checked)}
+              />
+              {item.title}
+            </label>
+          ))}
+        </fieldset>
+      )}
       <div className="wide row">
         <button
           className="btn btn-draft"

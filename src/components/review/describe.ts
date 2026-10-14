@@ -117,7 +117,9 @@ function fieldValue(
   names: Names,
 ): string {
   if (value === null || value === undefined) return 'none';
-  if (field === 'loopId') return loopName(value as string, names);
+  if (field === 'loopId' || field === 'parentLoopId') return loopName(value as string, names);
+  if (field === 'afterLoopIds')
+    return (value as string[]).map((id) => loopName(id, names)).join(', ');
   if (field === 'milestoneId') return milestoneName(value as string, names);
   if (field === 'performerDepartmentId' || field === 'departmentId')
     return names.departments[value as string] ?? 'Unknown department';
@@ -140,6 +142,8 @@ function fieldValue(
 
 const FIELD_LABEL: Record<string, string> = {
   loopId: 'loop',
+  parentLoopId: 'part of',
+  afterLoopIds: 'after',
   milestoneId: 'milestone',
   performerDepartmentId: 'performer department',
   departmentId: 'department',
