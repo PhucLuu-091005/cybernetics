@@ -27,7 +27,7 @@ describe('fixtures', () => {
     for (const item of records) expect(RecordInputSchema.safeParse(item.record).success).toBe(true);
     expect(GraphSnapshotSchema.safeParse(main).success).toBe(true);
     expect(larkspur.length).toBeGreaterThanOrEqual(115);
-    expect(main.loops).toHaveLength(30);
+    expect(main.loops).toHaveLength(36);
   });
   it('cites every quote at exact UTF-16 offsets outside quoted ranges', () => {
     for (const act of main.acts) {

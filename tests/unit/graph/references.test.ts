@@ -34,10 +34,9 @@ describe('task and handoff references', () => {
     expect(referenceErrors(snapshot)).toEqual([]);
   });
   it('keeps the new fields absent on top-level loops, so canonical JSON never meets undefined', () => {
-    for (const loop of base.loops) {
-      expect('parentLoopId' in loop).toBe(false);
+    for (const loop of base.loops.filter((item) => item.parentLoopId === undefined))
       expect('afterLoopIds' in loop).toBe(false);
-    }
+    expect(base.loops.filter((item) => item.parentLoopId !== undefined)).toHaveLength(5);
     expect(() => canonicalJson(GraphSnapshotSchema.parse(base))).not.toThrow();
   });
   it('rejects a missing parent, a nested task, a self parent and a task with a milestone', () => {

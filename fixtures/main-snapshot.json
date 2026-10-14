@@ -33,6 +33,20 @@
         "role": "Integration engineer"
       },
       {
+        "id": "62776279-663c-4f09-a17f-6196b6288947",
+        "name": "Khoa Lê",
+        "side": "vendor",
+        "departmentId": "506c4b97-fa6c-4c8c-aafd-d286daabd10e",
+        "role": "Solutions engineer"
+      },
+      {
+        "id": "2c4d2577-1d38-4aed-b0eb-83b0a431e303",
+        "name": "Hà Đỗ",
+        "side": "vendor",
+        "departmentId": "d1da2706-25d1-4487-9dbf-1590c3a007fc",
+        "role": "Digitization QA analyst"
+      },
+      {
         "id": "ef22704b-3862-4dc6-aaee-28b80cf38b1c",
         "name": "Daniel Reyes",
         "side": "vendor",
@@ -75,16 +89,28 @@
         "order": 1
       },
       {
+        "id": "506c4b97-fa6c-4c8c-aafd-d286daabd10e",
+        "name": "Solutions Engineering",
+        "side": "vendor",
+        "order": 2
+      },
+      {
         "id": "885626e4-ddc0-46a3-af26-0f16c1e9559f",
         "name": "Engineering",
         "side": "vendor",
-        "order": 2
+        "order": 3
+      },
+      {
+        "id": "d1da2706-25d1-4487-9dbf-1590c3a007fc",
+        "name": "Digitization QA",
+        "side": "vendor",
+        "order": 4
       },
       {
         "id": "ef3c551f-6b24-4077-a6bb-9e65b0f223b9",
         "name": "Customer Success",
         "side": "vendor",
-        "order": 3
+        "order": 5
       },
       {
         "id": "80d08cab-9829-45a0-ab3e-06018deb4b28",
@@ -3430,6 +3456,469 @@
       "confidence": null
     },
     {
+      "id": "d86fdd1c-851c-4fd3-a919-51c9aba926c9",
+      "citation": {
+        "recordVersionId": "03536406-3ef5-4460-ab26-377d81b0df66",
+        "start": 68,
+        "end": 175
+      },
+      "type": "request",
+      "actor": {
+        "kind": "person",
+        "personId": "b4303040-3907-4e0b-9107-b832a506c708"
+      },
+      "customer": {
+        "kind": "person",
+        "personId": "b4303040-3907-4e0b-9107-b832a506c708"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "3a2773de-a5f6-4b77-b430-fff878eabf39"
+      },
+      "action": "add a CRS tax residency section to the Fund III subscription form and sync it to DealCloud",
+      "due": null,
+      "hedged": false,
+      "loopId": "a68a9786-2b41-4e8b-8b6c-df7fab8c9c3d",
+      "hidden": false,
+      "origin": "human",
+      "confidence": null
+    },
+    {
+      "id": "da23791b-0676-45af-a029-5661a02157cd",
+      "citation": {
+        "recordVersionId": "ba0ae82e-ca15-4fc8-ae9e-667a1c95c8d3",
+        "start": 35,
+        "end": 100
+      },
+      "type": "promise",
+      "actor": {
+        "kind": "person",
+        "personId": "3a2773de-a5f6-4b77-b430-fff878eabf39"
+      },
+      "customer": {
+        "kind": "person",
+        "personId": "b4303040-3907-4e0b-9107-b832a506c708"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "3a2773de-a5f6-4b77-b430-fff878eabf39"
+      },
+      "action": "add a CRS tax residency section to the Fund III subscription form and sync it to DealCloud",
+      "due": {
+        "date": "2026-10-16",
+        "precision": "day"
+      },
+      "hedged": false,
+      "loopId": "a68a9786-2b41-4e8b-8b6c-df7fab8c9c3d",
+      "hidden": false,
+      "origin": "human",
+      "confidence": null
+    },
+    {
+      "id": "575ec112-87b9-4310-9538-abf8dbd86100",
+      "citation": {
+        "recordVersionId": "cf29a8e5-4ab6-41d2-95f1-d6da3c0be5b1",
+        "start": 55,
+        "end": 134
+      },
+      "type": "request",
+      "actor": {
+        "kind": "person",
+        "personId": "3a2773de-a5f6-4b77-b430-fff878eabf39"
+      },
+      "customer": {
+        "kind": "person",
+        "personId": "3a2773de-a5f6-4b77-b430-fff878eabf39"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "action": "analyse the CRS and FATCA rules and list the form fields",
+      "due": null,
+      "hedged": false,
+      "loopId": "970430d4-c51d-4835-a0e9-901d611992d7",
+      "hidden": false,
+      "origin": "human",
+      "confidence": null
+    },
+    {
+      "id": "b4263ca4-4740-490c-8ada-343e82fd6ee5",
+      "citation": {
+        "recordVersionId": "fd69b3d5-8e52-43d9-b3d0-21d29f2d7f4a",
+        "start": 7,
+        "end": 58
+      },
+      "type": "promise",
+      "actor": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "customer": {
+        "kind": "person",
+        "personId": "3a2773de-a5f6-4b77-b430-fff878eabf39"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "action": "analyse the CRS and FATCA rules and list the form fields",
+      "due": {
+        "date": "2026-09-22",
+        "precision": "day"
+      },
+      "hedged": false,
+      "loopId": "970430d4-c51d-4835-a0e9-901d611992d7",
+      "hidden": false,
+      "origin": "human",
+      "confidence": null
+    },
+    {
+      "id": "432ec692-266c-4930-b6cd-f68891639905",
+      "citation": {
+        "recordVersionId": "cf20b4ec-a648-48db-a2bb-ddc584c00835",
+        "start": 19,
+        "end": 79
+      },
+      "type": "report_done",
+      "actor": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "customer": {
+        "kind": "person",
+        "personId": "3a2773de-a5f6-4b77-b430-fff878eabf39"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "action": "analyse the CRS and FATCA rules and list the form fields",
+      "due": null,
+      "hedged": false,
+      "loopId": "970430d4-c51d-4835-a0e9-901d611992d7",
+      "hidden": false,
+      "origin": "human",
+      "confidence": null
+    },
+    {
+      "id": "58d24519-0dc2-4e23-9654-b2f5a1567cf1",
+      "citation": {
+        "recordVersionId": "0f164172-d441-4325-888d-2c61a9a68025",
+        "start": 22,
+        "end": 60
+      },
+      "type": "accept",
+      "actor": {
+        "kind": "person",
+        "personId": "3a2773de-a5f6-4b77-b430-fff878eabf39"
+      },
+      "customer": {
+        "kind": "person",
+        "personId": "3a2773de-a5f6-4b77-b430-fff878eabf39"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "action": "analyse the CRS and FATCA rules and list the form fields",
+      "due": null,
+      "hedged": false,
+      "loopId": "970430d4-c51d-4835-a0e9-901d611992d7",
+      "hidden": false,
+      "origin": "human",
+      "confidence": null
+    },
+    {
+      "id": "868b598b-82c2-4cb4-8a31-9602cb185693",
+      "citation": {
+        "recordVersionId": "56dba878-5e33-40f2-8c54-fba85a4206a8",
+        "start": 49,
+        "end": 108
+      },
+      "type": "request",
+      "actor": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "customer": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "62776279-663c-4f09-a17f-6196b6288947"
+      },
+      "action": "build the CRS show and hide logic in the subscription form",
+      "due": null,
+      "hedged": false,
+      "loopId": "73366771-4992-4b7e-8f0a-424902b4474f",
+      "hidden": false,
+      "origin": "human",
+      "confidence": null
+    },
+    {
+      "id": "7e10256e-205c-4892-a316-f6a0d39e6c1b",
+      "citation": {
+        "recordVersionId": "ae88ed2b-08f9-40c3-bbee-763279eccfe5",
+        "start": 16,
+        "end": 63
+      },
+      "type": "promise",
+      "actor": {
+        "kind": "person",
+        "personId": "62776279-663c-4f09-a17f-6196b6288947"
+      },
+      "customer": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "62776279-663c-4f09-a17f-6196b6288947"
+      },
+      "action": "build the CRS show and hide logic in the subscription form",
+      "due": {
+        "date": "2026-09-30",
+        "precision": "day"
+      },
+      "hedged": false,
+      "loopId": "73366771-4992-4b7e-8f0a-424902b4474f",
+      "hidden": false,
+      "origin": "human",
+      "confidence": null
+    },
+    {
+      "id": "31d06266-19b7-4bbb-8a83-c5c2cd3681de",
+      "citation": {
+        "recordVersionId": "f34c356b-5716-44d4-b111-9aec6239f537",
+        "start": 19,
+        "end": 61
+      },
+      "type": "report_done",
+      "actor": {
+        "kind": "person",
+        "personId": "62776279-663c-4f09-a17f-6196b6288947"
+      },
+      "customer": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "62776279-663c-4f09-a17f-6196b6288947"
+      },
+      "action": "build the CRS show and hide logic in the subscription form",
+      "due": null,
+      "hedged": false,
+      "loopId": "73366771-4992-4b7e-8f0a-424902b4474f",
+      "hidden": false,
+      "origin": "human",
+      "confidence": null
+    },
+    {
+      "id": "ec9a47c1-011d-44c0-9bb8-e72f36f10b74",
+      "citation": {
+        "recordVersionId": "a729f68a-0549-4507-85fc-ae34293626ff",
+        "start": 27,
+        "end": 71
+      },
+      "type": "accept",
+      "actor": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "customer": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "62776279-663c-4f09-a17f-6196b6288947"
+      },
+      "action": "build the CRS show and hide logic in the subscription form",
+      "due": null,
+      "hedged": false,
+      "loopId": "73366771-4992-4b7e-8f0a-424902b4474f",
+      "hidden": false,
+      "origin": "human",
+      "confidence": null
+    },
+    {
+      "id": "292f52bc-aee1-43da-ac21-1894d0125d56",
+      "citation": {
+        "recordVersionId": "3063a32f-a42c-4eb2-bc45-fe7763fb78dc",
+        "start": 55,
+        "end": 94
+      },
+      "type": "request",
+      "actor": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "customer": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "62776279-663c-4f09-a17f-6196b6288947"
+      },
+      "action": "map the CRS fields to DealCloud",
+      "due": null,
+      "hedged": false,
+      "loopId": "10e4e253-941a-40e1-bdda-e01979d846b2",
+      "hidden": false,
+      "origin": "human",
+      "confidence": null
+    },
+    {
+      "id": "8cac04b3-f005-4d76-86f2-4ffe9ef9597b",
+      "citation": {
+        "recordVersionId": "6796e2a1-5edf-4505-a5be-ae763ab0b783",
+        "start": 22,
+        "end": 71
+      },
+      "type": "promise",
+      "actor": {
+        "kind": "person",
+        "personId": "62776279-663c-4f09-a17f-6196b6288947"
+      },
+      "customer": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "62776279-663c-4f09-a17f-6196b6288947"
+      },
+      "action": "map the CRS fields to DealCloud",
+      "due": {
+        "date": "2026-10-02",
+        "precision": "day"
+      },
+      "hedged": false,
+      "loopId": "10e4e253-941a-40e1-bdda-e01979d846b2",
+      "hidden": false,
+      "origin": "human",
+      "confidence": null
+    },
+    {
+      "id": "c6a27783-6cd1-43c8-b402-01ac754875af",
+      "citation": {
+        "recordVersionId": "8cfbb2ad-e1be-4db5-a14a-7cca45f1fdc0",
+        "start": 25,
+        "end": 68
+      },
+      "type": "report_done",
+      "actor": {
+        "kind": "person",
+        "personId": "62776279-663c-4f09-a17f-6196b6288947"
+      },
+      "customer": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "62776279-663c-4f09-a17f-6196b6288947"
+      },
+      "action": "map the CRS fields to DealCloud",
+      "due": null,
+      "hedged": false,
+      "loopId": "10e4e253-941a-40e1-bdda-e01979d846b2",
+      "hidden": false,
+      "origin": "human",
+      "confidence": null
+    },
+    {
+      "id": "0e8082ec-675a-487a-bf3f-e746190edbbb",
+      "citation": {
+        "recordVersionId": "87f66bf7-82cb-4a3f-8288-bdd01be3ed3d",
+        "start": 25,
+        "end": 66
+      },
+      "type": "accept",
+      "actor": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "customer": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "62776279-663c-4f09-a17f-6196b6288947"
+      },
+      "action": "map the CRS fields to DealCloud",
+      "due": null,
+      "hedged": false,
+      "loopId": "10e4e253-941a-40e1-bdda-e01979d846b2",
+      "hidden": false,
+      "origin": "human",
+      "confidence": null
+    },
+    {
+      "id": "3bbe4a75-f798-4694-88e7-d1c53618a521",
+      "citation": {
+        "recordVersionId": "8d7e928f-2bc5-47aa-9756-95cc79a86c3c",
+        "start": 58,
+        "end": 128
+      },
+      "type": "request",
+      "actor": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "customer": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "8a4b6eb7-d431-4929-99c8-a19a3d30ab43"
+      },
+      "action": "add a multi-select country list field type",
+      "due": null,
+      "hedged": false,
+      "loopId": "cc02c1b8-4d07-483b-8390-5db929158416",
+      "hidden": false,
+      "origin": "human",
+      "confidence": null
+    },
+    {
+      "id": "8a7d89e9-8b88-4b3b-9072-89220a2e94b2",
+      "citation": {
+        "recordVersionId": "714e58ef-9113-4ccd-8939-a068d4b0a049",
+        "start": 13,
+        "end": 65
+      },
+      "type": "promise",
+      "actor": {
+        "kind": "person",
+        "personId": "8a4b6eb7-d431-4929-99c8-a19a3d30ab43"
+      },
+      "customer": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "8a4b6eb7-d431-4929-99c8-a19a3d30ab43"
+      },
+      "action": "add a multi-select country list field type",
+      "due": {
+        "date": "2026-10-06",
+        "precision": "day"
+      },
+      "hedged": false,
+      "loopId": "cc02c1b8-4d07-483b-8390-5db929158416",
+      "hidden": false,
+      "origin": "human",
+      "confidence": null
+    },
+    {
       "id": "32ff2949-ea99-4272-94ba-9481ca5265b5",
       "citation": {
         "recordVersionId": "cc57a7bf-629c-43b3-bad0-a7e10bc25967",
@@ -3878,6 +4367,109 @@
       },
       "performerDepartmentId": "8aed75f7-71f1-4828-8812-a4d74c113d71",
       "milestoneId": "00346531-3161-414c-9c8b-894d169856b2"
+    },
+    {
+      "id": "a68a9786-2b41-4e8b-8b6c-df7fab8c9c3d",
+      "title": "CRS tax residency section with DealCloud sync",
+      "customer": {
+        "kind": "person",
+        "personId": "b4303040-3907-4e0b-9107-b832a506c708"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "3a2773de-a5f6-4b77-b430-fff878eabf39"
+      },
+      "performerDepartmentId": "8aed75f7-71f1-4828-8812-a4d74c113d71",
+      "milestoneId": "00346531-3161-414c-9c8b-894d169856b2"
+    },
+    {
+      "id": "970430d4-c51d-4835-a0e9-901d611992d7",
+      "title": "Analyse the CRS and FATCA rules for the form",
+      "customer": {
+        "kind": "person",
+        "personId": "3a2773de-a5f6-4b77-b430-fff878eabf39"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "performerDepartmentId": "d867f101-abe1-4c2e-86a6-99e31319e0f1",
+      "milestoneId": null,
+      "parentLoopId": "a68a9786-2b41-4e8b-8b6c-df7fab8c9c3d"
+    },
+    {
+      "id": "73366771-4992-4b7e-8f0a-424902b4474f",
+      "title": "PG-201 CRS form logic",
+      "customer": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "62776279-663c-4f09-a17f-6196b6288947"
+      },
+      "performerDepartmentId": "506c4b97-fa6c-4c8c-aafd-d286daabd10e",
+      "milestoneId": null,
+      "parentLoopId": "a68a9786-2b41-4e8b-8b6c-df7fab8c9c3d",
+      "afterLoopIds": [
+        "970430d4-c51d-4835-a0e9-901d611992d7"
+      ]
+    },
+    {
+      "id": "10e4e253-941a-40e1-bdda-e01979d846b2",
+      "title": "PG-202 DealCloud mapping for CRS fields",
+      "customer": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "62776279-663c-4f09-a17f-6196b6288947"
+      },
+      "performerDepartmentId": "506c4b97-fa6c-4c8c-aafd-d286daabd10e",
+      "milestoneId": null,
+      "parentLoopId": "a68a9786-2b41-4e8b-8b6c-df7fab8c9c3d",
+      "afterLoopIds": [
+        "970430d4-c51d-4835-a0e9-901d611992d7"
+      ]
+    },
+    {
+      "id": "cc02c1b8-4d07-483b-8390-5db929158416",
+      "title": "PG-203 Country list field type",
+      "customer": {
+        "kind": "person",
+        "personId": "ea7d2554-d264-4a69-b4df-b9e2869765a1"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "8a4b6eb7-d431-4929-99c8-a19a3d30ab43"
+      },
+      "performerDepartmentId": "885626e4-ddc0-46a3-af26-0f16c1e9559f",
+      "milestoneId": null,
+      "parentLoopId": "a68a9786-2b41-4e8b-8b6c-df7fab8c9c3d",
+      "afterLoopIds": [
+        "970430d4-c51d-4835-a0e9-901d611992d7"
+      ]
+    },
+    {
+      "id": "0c455f07-002a-4d11-a23b-5b073798490c",
+      "title": "Test the CRS section end to end",
+      "customer": {
+        "kind": "person",
+        "personId": "3a2773de-a5f6-4b77-b430-fff878eabf39"
+      },
+      "performer": {
+        "kind": "person",
+        "personId": "2c4d2577-1d38-4aed-b0eb-83b0a431e303"
+      },
+      "performerDepartmentId": "d1da2706-25d1-4487-9dbf-1590c3a007fc",
+      "milestoneId": null,
+      "parentLoopId": "a68a9786-2b41-4e8b-8b6c-df7fab8c9c3d",
+      "afterLoopIds": [
+        "73366771-4992-4b7e-8f0a-424902b4474f",
+        "10e4e253-941a-40e1-bdda-e01979d846b2",
+        "cc02c1b8-4d07-483b-8390-5db929158416"
+      ]
     }
   ],
   "annotations": [],
@@ -4388,6 +4980,11 @@
       "reason": ""
     },
     {
+      "recordVersionId": "03536406-3ef5-4460-ab26-377d81b0df66",
+      "disposition": "included",
+      "reason": ""
+    },
+    {
       "recordVersionId": "1483565d-2b2c-4afe-8e04-90da3de91df0",
       "disposition": "included",
       "reason": ""
@@ -4404,6 +5001,21 @@
     },
     {
       "recordVersionId": "8bfd34bb-9750-42c1-8f60-87c5c8335df7",
+      "disposition": "included",
+      "reason": ""
+    },
+    {
+      "recordVersionId": "cf29a8e5-4ab6-41d2-95f1-d6da3c0be5b1",
+      "disposition": "included",
+      "reason": ""
+    },
+    {
+      "recordVersionId": "fd69b3d5-8e52-43d9-b3d0-21d29f2d7f4a",
+      "disposition": "included",
+      "reason": ""
+    },
+    {
+      "recordVersionId": "ba0ae82e-ca15-4fc8-ae9e-667a1c95c8d3",
       "disposition": "included",
       "reason": ""
     },
@@ -4428,7 +5040,27 @@
       "reason": ""
     },
     {
+      "recordVersionId": "cf20b4ec-a648-48db-a2bb-ddc584c00835",
+      "disposition": "included",
+      "reason": ""
+    },
+    {
       "recordVersionId": "2cdb817f-eb8b-43bf-821a-6526a8dce0ae",
+      "disposition": "included",
+      "reason": ""
+    },
+    {
+      "recordVersionId": "0f164172-d441-4325-888d-2c61a9a68025",
+      "disposition": "included",
+      "reason": ""
+    },
+    {
+      "recordVersionId": "56dba878-5e33-40f2-8c54-fba85a4206a8",
+      "disposition": "included",
+      "reason": ""
+    },
+    {
+      "recordVersionId": "ae88ed2b-08f9-40c3-bbee-763279eccfe5",
       "disposition": "included",
       "reason": ""
     },
@@ -4438,7 +5070,17 @@
       "reason": ""
     },
     {
+      "recordVersionId": "8d7e928f-2bc5-47aa-9756-95cc79a86c3c",
+      "disposition": "included",
+      "reason": ""
+    },
+    {
       "recordVersionId": "dfa8565c-11e9-4db4-b62b-6cdac8ab1964",
+      "disposition": "included",
+      "reason": ""
+    },
+    {
+      "recordVersionId": "714e58ef-9113-4ccd-8939-a068d4b0a049",
       "disposition": "included",
       "reason": ""
     },
@@ -4458,7 +5100,37 @@
       "reason": ""
     },
     {
+      "recordVersionId": "3063a32f-a42c-4eb2-bc45-fe7763fb78dc",
+      "disposition": "included",
+      "reason": ""
+    },
+    {
+      "recordVersionId": "6796e2a1-5edf-4505-a5be-ae763ab0b783",
+      "disposition": "included",
+      "reason": ""
+    },
+    {
+      "recordVersionId": "f34c356b-5716-44d4-b111-9aec6239f537",
+      "disposition": "included",
+      "reason": ""
+    },
+    {
+      "recordVersionId": "a729f68a-0549-4507-85fc-ae34293626ff",
+      "disposition": "included",
+      "reason": ""
+    },
+    {
       "recordVersionId": "ffb64468-9688-4eb4-9cd5-60a6d97143e6",
+      "disposition": "included",
+      "reason": ""
+    },
+    {
+      "recordVersionId": "8cfbb2ad-e1be-4db5-a14a-7cca45f1fdc0",
+      "disposition": "included",
+      "reason": ""
+    },
+    {
+      "recordVersionId": "87f66bf7-82cb-4a3f-8288-bdd01be3ed3d",
       "disposition": "included",
       "reason": ""
     },
