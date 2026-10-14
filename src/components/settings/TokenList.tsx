@@ -8,7 +8,17 @@ import { ConflictBanner } from '../review/ConflictBanner';
 import { useHydrated } from '../review/hydrated';
 import { Pager } from '../shell/Pager';
 
-function TokenRow({ projectId, token, now, timeZone }: { projectId: string; token: AgentToken; now: string; timeZone: string }) {
+function TokenRow({
+  projectId,
+  token,
+  now,
+  timeZone,
+}: {
+  projectId: string;
+  token: AgentToken;
+  now: string;
+  timeZone: string;
+}) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [confirming, setConfirming] = useState(false);
@@ -20,38 +30,129 @@ function TokenRow({ projectId, token, now, timeZone }: { projectId: string; toke
   const revoke = async () => {
     setBusy(true);
     setFailure(null);
-    const result = await send<RevokeAgentTokenResult>(`/api/v1/projects/${projectId}/agent-tokens/${token.id}`, 'DELETE', { idempotencyKey: revokeKey });
+    const result = await send<RevokeAgentTokenResult>(
+      `/api/v1/projects/${projectId}/agent-tokens/${token.id}`,
+      'DELETE',
+      { idempotencyKey: revokeKey },
+    );
     setBusy(false);
-    if (result.ok) { setConfirming(false); router.refresh(); }
-    else setFailure(result.error);
+    if (result.ok) {
+      setConfirming(false);
+      router.refresh();
+    } else setFailure(result.error);
   };
   return (
     <tr className={token.revokedAt || expired ? 'inactive' : undefined}>
-      <td><span className="id">{token.prefix}…</span><br /><span className="faint">{token.label}</span></td>
-      <td><div className="scopes">{token.scopes.map(scope => <span key={scope} className={scope === 'graph:merge' ? 'chip risk' : 'chip'}>{scope}</span>)}</div></td>
-      <td>{token.revokedAt ? `Revoked ${shortDay(token.revokedAt, timeZone)}` : expired ? `Expired ${shortDay(token.expiresAt, timeZone)}` : shortDay(token.expiresAt, timeZone, true)}</td>
       <td>
-        {!token.revokedAt && !expired && (confirming
-          ? <div className="row">
-              <button className="btn" type="button" style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }} disabled={busy} onClick={revoke}>Confirm revoke</button>
-              <button className="btn" type="button" disabled={busy} onClick={() => setConfirming(false)}>Keep</button>
+        <span className="id">{token.prefix}…</span>
+        <br />
+        <span className="faint">{token.label}</span>
+      </td>
+      <td>
+        <div className="scopes">
+          {token.scopes.map((scope) => (
+            <span key={scope} className={scope === 'graph:merge' ? 'chip risk' : 'chip'}>
+              {scope}
+            </span>
+          ))}
+        </div>
+      </td>
+      <td>
+        {token.revokedAt
+          ? `Revoked ${shortDay(token.revokedAt, timeZone)}`
+          : expired
+            ? `Expired ${shortDay(token.expiresAt, timeZone)}`
+            : shortDay(token.expiresAt, timeZone, true)}
+      </td>
+      <td>
+        {!token.revokedAt &&
+          !expired &&
+          (confirming ? (
+            <div className="row">
+              <button
+                className="btn"
+                type="button"
+                style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                disabled={busy}
+                onClick={revoke}
+              >
+                Confirm revoke
+              </button>
+              <button
+                className="btn"
+                type="button"
+                disabled={busy}
+                onClick={() => setConfirming(false)}
+              >
+                Keep
+              </button>
             </div>
-          : <button className="btn" type="button" disabled={!hydrated} onClick={() => setConfirming(true)}>Revoke</button>)}
+          ) : (
+            <button
+              className="btn"
+              type="button"
+              disabled={!hydrated}
+              onClick={() => setConfirming(true)}
+            >
+              Revoke
+            </button>
+          ))}
         {failure && <ConflictBanner title="The token was not revoked." error={failure} />}
       </td>
     </tr>
   );
 }
 
-export function TokenList({ projectId, tokens, now, timeZone, basePath, nextCursor, paged }: { projectId: string; tokens: AgentToken[]; now: string; timeZone: string; basePath: string; nextCursor: string | null; paged: boolean }) {
+export function TokenList({
+  projectId,
+  tokens,
+  now,
+  timeZone,
+  basePath,
+  nextCursor,
+  paged,
+}: {
+  projectId: string;
+  tokens: AgentToken[];
+  now: string;
+  timeZone: string;
+  basePath: string;
+  nextCursor: string | null;
+  paged: boolean;
+}) {
   return (
     <section className="tablewrap" aria-labelledby="token-list">
-      <h2 id="token-list" className="sr">Your tokens for this project</h2>
+      <h2 id="token-list" className="sr">
+        Your tokens for this project
+      </h2>
       <table>
-        <thead><tr><th>Token</th><th>Scopes</th><th>Expires</th><th><span className="sr">Actions</span></th></tr></thead>
+        <thead>
+          <tr>
+            <th>Token</th>
+            <th>Scopes</th>
+            <th>Expires</th>
+            <th>
+              <span className="sr">Actions</span>
+            </th>
+          </tr>
+        </thead>
         <tbody>
-          {tokens.map(token => <TokenRow key={token.id} projectId={projectId} token={token} now={now} timeZone={timeZone} />)}
-          {tokens.length === 0 && <tr><td colSpan={4} className="faint">No tokens yet. Create one to connect your agent.</td></tr>}
+          {tokens.map((token) => (
+            <TokenRow
+              key={token.id}
+              projectId={projectId}
+              token={token}
+              now={now}
+              timeZone={timeZone}
+            />
+          ))}
+          {tokens.length === 0 && (
+            <tr>
+              <td colSpan={4} className="faint">
+                No tokens yet. Create one to connect your agent.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
       <Pager basePath={basePath} nextCursor={nextCursor} paged={paged} noun="tokens" />

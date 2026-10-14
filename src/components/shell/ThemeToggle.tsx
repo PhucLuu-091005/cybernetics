@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 
 const THEMES = ['system', 'light', 'dark'] as const;
-type Theme = typeof THEMES[number];
+type Theme = (typeof THEMES)[number];
 
 export function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>('system');
@@ -17,7 +17,21 @@ export function ThemeToggle() {
     setTheme(value);
     if (value === 'system') delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = value;
-    try { if (value === 'system') localStorage.removeItem('pg-theme'); else localStorage.setItem('pg-theme', value); } catch { /* storage can be unavailable; the toggle still works for this page */ }
+    try {
+      if (value === 'system') localStorage.removeItem('pg-theme');
+      else localStorage.setItem('pg-theme', value);
+    } catch {
+      /* storage can be unavailable; the toggle still works for this page */
+    }
   };
-  return <button className="btn" type="button" onClick={next} aria-label={`Colour theme: ${theme}. Switch theme`}>Theme: {theme}</button>;
+  return (
+    <button
+      className="btn"
+      type="button"
+      onClick={next}
+      aria-label={`Colour theme: ${theme}. Switch theme`}
+    >
+      Theme: {theme}
+    </button>
+  );
 }

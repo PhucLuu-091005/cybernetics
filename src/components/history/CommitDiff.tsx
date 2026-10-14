@@ -3,21 +3,51 @@ import { changeClass, entityTitle, newestImage, type Names } from '../review/des
 import { ChangeCells } from '../review/DiffView';
 
 const MAX_ROWS = 150;
-const COLLECTION = { acts: 'acts', loops: 'loops', annotations: 'annotations', recordDecisions: 'record decisions', people: 'people', departments: 'departments', milestones: 'milestones', context: 'context' } as const;
+const COLLECTION = {
+  acts: 'acts',
+  loops: 'loops',
+  annotations: 'annotations',
+  recordDecisions: 'record decisions',
+  people: 'people',
+  departments: 'departments',
+  milestones: 'milestones',
+  context: 'context',
+} as const;
 
 export function CommitDiff({ diff, names }: { diff: SnapshotDiff; names: Names }) {
-  const counts = diff.changes.reduce<Record<string, number>>((total, change) => ({ ...total, [change.kind]: (total[change.kind] ?? 0) + 1 }), {});
+  const counts = diff.changes.reduce<Record<string, number>>(
+    (total, change) => ({ ...total, [change.kind]: (total[change.kind] ?? 0) + 1 }),
+    {},
+  );
   return (
     <div className="stack" style={{ gap: 6 }}>
-      <p className="faint" style={{ fontSize: 12 }}>{diff.changes.length} {diff.changes.length === 1 ? 'entity' : 'entities'}: {counts.added ?? 0} added, {counts.changed ?? 0} changed, {counts.removed ?? 0} removed.</p>
+      <p className="faint" style={{ fontSize: 12 }}>
+        {diff.changes.length} {diff.changes.length === 1 ? 'entity' : 'entities'}:{' '}
+        {counts.added ?? 0} added, {counts.changed ?? 0} changed, {counts.removed ?? 0} removed.
+      </p>
       <div className="tablewrap" style={{ border: 0 }}>
         <table aria-label="Commit changes">
-          <thead><tr><th>Collection</th><th>Entity</th><th>Change</th><th>Before</th><th>After</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Collection</th>
+              <th>Entity</th>
+              <th>Change</th>
+              <th>Before</th>
+              <th>After</th>
+            </tr>
+          </thead>
           <tbody>
-            {diff.changes.slice(0, MAX_ROWS).map(change => (
+            {diff.changes.slice(0, MAX_ROWS).map((change) => (
               <tr key={`${change.collection}/${change.id}`}>
                 <td>{COLLECTION[change.collection]}</td>
-                <td>{entityTitle(change.collection, change.id, newestImage(change.after, change.before), names)}</td>
+                <td>
+                  {entityTitle(
+                    change.collection,
+                    change.id,
+                    newestImage(change.after, change.before),
+                    names,
+                  )}
+                </td>
                 <td className={`change ${changeClass(change.kind)}`}>{change.kind}</td>
                 <ChangeCells change={change} names={names} />
               </tr>
@@ -25,7 +55,11 @@ export function CommitDiff({ diff, names }: { diff: SnapshotDiff; names: Names }
           </tbody>
         </table>
       </div>
-      {diff.changes.length > MAX_ROWS && <p className="faint" style={{ fontSize: 12 }}>{diff.changes.length - MAX_ROWS} more changes are not listed.</p>}
+      {diff.changes.length > MAX_ROWS && (
+        <p className="faint" style={{ fontSize: 12 }}>
+          {diff.changes.length - MAX_ROWS} more changes are not listed.
+        </p>
+      )}
     </div>
   );
 }

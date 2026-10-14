@@ -28,7 +28,7 @@ databases:
   - name: promise-graph-db
     plan: free
     region: singapore
-    postgresMajorVersion: "17"
+    postgresMajorVersion: '17'
     databaseName: promise_graph
     user: promise_graph
     # Only the web service connects, over Render's private network.

@@ -14,7 +14,10 @@ type Props = {
   projectId: string;
   escalationId: string;
   complaint: string;
-  analysis: Pick<EscalationAnalysis, 'id' | 'revision' | 'graphCommitId' | 'evidenceRevision' | 'answerText' | 'contentHash'>;
+  analysis: Pick<
+    EscalationAnalysis,
+    'id' | 'revision' | 'graphCommitId' | 'evidenceRevision' | 'answerText' | 'contentHash'
+  >;
   authorLabel: string;
   approvalLabel: string | null;
   acts: Readonly<Record<string, CitedAct>>;
@@ -33,30 +36,74 @@ function download(name: string, text: string) {
 }
 
 /** SRD 9: the app never sends the answer; a person copies or downloads it. */
-export function AnswerDraft({ projectId, escalationId, complaint, analysis, authorLabel, approvalLabel, acts, stale, basis }: Props) {
+export function AnswerDraft({
+  projectId,
+  escalationId,
+  complaint,
+  analysis,
+  authorLabel,
+  approvalLabel,
+  acts,
+  stale,
+  basis,
+}: Props) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<ApiError | null>(null);
   const parts = useMemo(() => renderMarkers(analysis.answerText), [analysis.answerText]);
-  const plain = useMemo(() => answerPlainText(analysis.answerText, new Map(Object.values(acts).map(act => [act.actId, { label: act.plain, quote: act.quote }]))), [analysis.answerText, acts]);
+  const plain = useMemo(
+    () =>
+      answerPlainText(
+        analysis.answerText,
+        new Map(
+          Object.values(acts).map((act) => [act.actId, { label: act.plain, quote: act.quote }]),
+        ),
+      ),
+    [analysis.answerText, acts],
+  );
   const pinnedLine = `Analysis revision ${analysis.revision}, pinned graph commit ${analysis.graphCommitId.slice(0, 7)}, evidence revision ${analysis.evidenceRevision}.`;
 
   const copy = async () => {
-    try { await navigator.clipboard.writeText(plain); setStatus('Answer copied.'); }
-    catch { setStatus('Copy failed. Select the answer text and copy it by hand.'); }
+    try {
+      await navigator.clipboard.writeText(plain);
+      setStatus('Answer copied.');
+    } catch {
+      setStatus('Copy failed. Select the answer text and copy it by hand.');
+    }
   };
   const save = () => {
-    download(`escalation-${escalationId.slice(0, 8)}-r${analysis.revision}.md`, ['# Answer draft', '', `Complaint: "${complaint}"`, '', plain, '', COVERAGE, pinnedLine, ''].join('\n'));
+    download(
+      `escalation-${escalationId.slice(0, 8)}-r${analysis.revision}.md`,
+      [
+        '# Answer draft',
+        '',
+        `Complaint: "${complaint}"`,
+        '',
+        plain,
+        '',
+        COVERAGE,
+        pinnedLine,
+        '',
+      ].join('\n'),
+    );
     setStatus('Answer downloaded.');
   };
   const approve = async () => {
     setBusy(true);
     setFailure(null);
-    const result = await send<EscalationAnalysis>(`/api/v1/projects/${projectId}/escalations/${escalationId}/analyses/${analysis.id}/approval`, 'POST', {
-      expectedAnalysisRevision: analysis.revision, expectedMainCommitId: basis.mainCommitId, expectedEvidenceRevision: basis.evidenceRevision, contentHash: analysis.contentHash, idempotencyKey: crypto.randomUUID(),
-    });
+    const result = await send<EscalationAnalysis>(
+      `/api/v1/projects/${projectId}/escalations/${escalationId}/analyses/${analysis.id}/approval`,
+      'POST',
+      {
+        expectedAnalysisRevision: analysis.revision,
+        expectedMainCommitId: basis.mainCommitId,
+        expectedEvidenceRevision: basis.evidenceRevision,
+        contentHash: analysis.contentHash,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    );
     setBusy(false);
     if (result.ok) router.refresh();
     else setFailure(result.error);
@@ -66,30 +113,101 @@ export function AnswerDraft({ projectId, escalationId, complaint, analysis, auth
     <section className="card pad stack" aria-labelledby="answer-draft">
       <div className="row">
         <h2 id="answer-draft">Answer draft</h2>
-        {stale && <span className="badge b-stale" data-testid="stale-badge">Stale</span>}
+        {stale && (
+          <span className="badge b-stale" data-testid="stale-badge">
+            Stale
+          </span>
+        )}
         <span style={{ flex: 1 }} />
-        <span className="faint" style={{ fontSize: 12 }}>analysis revision {analysis.revision} by {authorLabel}</span>
+        <span className="faint" style={{ fontSize: 12 }}>
+          analysis revision {analysis.revision} by {authorLabel}
+        </span>
       </div>
       <dl className="kv">
         <dt>Pinned graph</dt>
-        <dd><span className="id" data-testid="pinned-commit" title={analysis.graphCommitId}>{analysis.graphCommitId.slice(0, 7)}</span> <span className="faint">{analysis.graphCommitId === basis.mainCommitId ? 'current main' : `main is now ${basis.mainCommitId.slice(0, 7)}`}</span></dd>
+        <dd>
+          <span className="id" data-testid="pinned-commit" title={analysis.graphCommitId}>
+            {analysis.graphCommitId.slice(0, 7)}
+          </span>{' '}
+          <span className="faint">
+            {analysis.graphCommitId === basis.mainCommitId
+              ? 'current main'
+              : `main is now ${basis.mainCommitId.slice(0, 7)}`}
+          </span>
+        </dd>
         <dt>Pinned evidence</dt>
-        <dd>revision {analysis.evidenceRevision} <span className="faint">{analysis.evidenceRevision === basis.evidenceRevision ? 'current' : `current is ${basis.evidenceRevision}`}</span></dd>
+        <dd>
+          revision {analysis.evidenceRevision}{' '}
+          <span className="faint">
+            {analysis.evidenceRevision === basis.evidenceRevision
+              ? 'current'
+              : `current is ${basis.evidenceRevision}`}
+          </span>
+        </dd>
       </dl>
       <div className="answer" data-testid="answer">
-        {parts.length ? parts.map((part, index) => part.kind === 'text' ? <Fragment key={index}>{part.text}</Fragment> : <CitationChip key={index} actId={part.actId} acts={acts} />) : <span className="faint">The analysis has no answer text.</span>}
+        {parts.length ? (
+          parts.map((part, index) =>
+            part.kind === 'text' ? (
+              <Fragment key={index}>{part.text}</Fragment>
+            ) : (
+              <CitationChip key={index} actId={part.actId} acts={acts} />
+            ),
+          )
+        ) : (
+          <span className="faint">The analysis has no answer text.</span>
+        )}
       </div>
       <p style={{ fontSize: 13, fontWeight: 600 }}>{COVERAGE}</p>
-      {failure && <ConflictBanner title={failure.status === 409 ? 'Approval refused: this analysis is no longer the current one.' : 'The answer was not approved.'} error={failure}
-        actions={<button className="btn" type="button" onClick={() => { setFailure(null); router.refresh(); }}>Reload</button>} />}
-      {approvalLabel && <p className="ok" style={{ fontSize: 13 }} data-testid="approval">{approvalLabel}</p>}
+      {failure && (
+        <ConflictBanner
+          title={
+            failure.status === 409
+              ? 'Approval refused: this analysis is no longer the current one.'
+              : 'The answer was not approved.'
+          }
+          error={failure}
+          actions={
+            <button
+              className="btn"
+              type="button"
+              onClick={() => {
+                setFailure(null);
+                router.refresh();
+              }}
+            >
+              Reload
+            </button>
+          }
+        />
+      )}
+      {approvalLabel && (
+        <p className="ok" style={{ fontSize: 13 }} data-testid="approval">
+          {approvalLabel}
+        </p>
+      )}
       <div className="row">
-        <button className="btn" type="button" disabled={!hydrated} onClick={copy}>Copy answer</button>
-        <button className="btn" type="button" disabled={!hydrated} onClick={save}>Download .md</button>
+        <button className="btn" type="button" disabled={!hydrated} onClick={copy}>
+          Copy answer
+        </button>
+        <button className="btn" type="button" disabled={!hydrated} onClick={save}>
+          Download .md
+        </button>
         <span style={{ flex: 1 }} />
-        {!approvalLabel && <button className="btn btn-ink" type="button" disabled={!hydrated || busy || stale} onClick={approve}>Approve answer</button>}
+        {!approvalLabel && (
+          <button
+            className="btn btn-ink"
+            type="button"
+            disabled={!hydrated || busy || stale}
+            onClick={approve}
+          >
+            Approve answer
+          </button>
+        )}
       </div>
-      <p className="faint" role="status" style={{ fontSize: 12, minHeight: '1em' }}>{status}</p>
+      <p className="faint" role="status" style={{ fontSize: 12, minHeight: '1em' }}>
+        {status}
+      </p>
       <p className="faint" style={{ fontSize: 12 }}>
         {stale
           ? `Approval needs current pinned inputs. Ask the agent for a new analysis revision on ${basis.mainCommitId.slice(0, 7)} first. The app never sends the answer.`

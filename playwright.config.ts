@@ -3,7 +3,10 @@ import { defineConfig, devices } from '@playwright/test';
 import { testDatabaseUrl } from './tests/support/db';
 
 const admin = process.env.TEST_DATABASE_URL;
-if (!admin) throw new Error('TEST_DATABASE_URL is required: e2e runs against a throwaway database created from it, never the shared one');
+if (!admin)
+  throw new Error(
+    'TEST_DATABASE_URL is required: e2e runs against a throwaway database created from it, never the shared one',
+  );
 // Workers re-read this config; the env var pins one database name and secret for the whole run.
 process.env.E2E_DATABASE_NAME ??= `pg_e2e_${randomUUID().replaceAll('-', '')}`;
 process.env.E2E_SESSION_SECRET ??= process.env.SESSION_SECRET ?? randomBytes(32).toString('hex');
@@ -31,6 +34,12 @@ export default defineConfig({
     // Reusing a running server could point the suite at the shared database.
     reuseExistingServer: false,
     timeout: 120_000,
-    env: { AUTH_MODE: 'local', NEXT_PUBLIC_APP_URL: baseURL, SESSION_SECRET: process.env.E2E_SESSION_SECRET, DATABASE_URL: testDatabaseUrl(admin, process.env.E2E_DATABASE_NAME), NEXT_TELEMETRY_DISABLED: '1' },
+    env: {
+      AUTH_MODE: 'local',
+      NEXT_PUBLIC_APP_URL: baseURL,
+      SESSION_SECRET: process.env.E2E_SESSION_SECRET,
+      DATABASE_URL: testDatabaseUrl(admin, process.env.E2E_DATABASE_NAME),
+      NEXT_TELEMETRY_DISABLED: '1',
+    },
   },
 });
