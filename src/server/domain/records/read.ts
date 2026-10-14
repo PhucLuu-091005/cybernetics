@@ -30,6 +30,26 @@ function decodeCursor(cursor: string, versionId: string, body: string): number {
   return parsed.data.o;
 }
 
+async function loadVersion(db: Db, ctx: ActorContext, projectId: string, recordVersionId: string) {
+  const project = await requireProject(db, ctx, projectId);
+  const [row] = await db
+    .select({ version: recordVersions, withdrawnAt: records.withdrawnAt })
+    .from(recordVersions)
+    .innerJoin(
+      records,
+      and(eq(records.projectId, recordVersions.projectId), eq(records.id, recordVersions.recordId)),
+    )
+    .where(and(eq(recordVersions.projectId, project.id), eq(recordVersions.id, recordVersionId)))
+    .limit(1);
+  if (!row) throw new AppError('NOT_FOUND', 'Record version not found');
+  const version = toRecordVersion(row.version, row.withdrawnAt !== null);
+  return {
+    project,
+    version,
+    header: buildRecordHeader(version, { timeZone: await mainTimeZone(db, project) }),
+  };
+}
+
 export async function readRecordChunk(
   db: Db,
   ctx: ActorContext,
@@ -39,20 +59,12 @@ export async function readRecordChunk(
   const parsed = ReadRecordChunkInputSchema.safeParse(raw);
   if (!parsed.success) throw invalid('Invalid record read', parsed.error);
   const input = parsed.data;
-  const project = await requireProject(db, ctx, input.projectId);
-  const [row] = await db
-    .select({ version: recordVersions, withdrawnAt: records.withdrawnAt })
-    .from(recordVersions)
-    .innerJoin(
-      records,
-      and(eq(records.projectId, recordVersions.projectId), eq(records.id, recordVersions.recordId)),
-    )
-    .where(
-      and(eq(recordVersions.projectId, project.id), eq(recordVersions.id, input.recordVersionId)),
-    )
-    .limit(1);
-  if (!row) throw new AppError('NOT_FOUND', 'Record version not found');
-  const version = toRecordVersion(row.version, row.withdrawnAt !== null);
+  const { project, version, header } = await loadVersion(
+    db,
+    ctx,
+    input.projectId,
+    input.recordVersionId,
+  );
   const { bodyText: body, ...metadata } = version;
   const start = input.cursor == null ? 0 : decodeCursor(input.cursor, version.id, body);
   let end = Math.min(start + input.limit, body.length);
@@ -68,7 +80,41 @@ export async function readRecordChunk(
     nextCursor: end < body.length ? encodeCursor(version.id, end) : null,
     totalLength: body.length,
     withdrawn: version.withdrawn,
-    header: buildRecordHeader(version, { timeZone: await mainTimeZone(db, project) }),
+    header,
+    metadata,
+    requestId: ctx.requestId,
+  };
+}
+
+const ReadRecordTextInputSchema = ReadRecordChunkInputSchema.pick({
+  projectId: true,
+  recordVersionId: true,
+});
+export type RecordText = Omit<RecordChunk, 'start' | 'end' | 'nextCursor'>;
+/** Browser viewer only: it maps a selection to absolute offsets, so it needs the whole body, which the ingest contract caps at 64 KiB. */
+export async function readRecordText(
+  db: Db,
+  ctx: ActorContext,
+  raw: z.input<typeof ReadRecordTextInputSchema>,
+): Promise<RecordText> {
+  requireScope(ctx, 'project:read');
+  const parsed = ReadRecordTextInputSchema.safeParse(raw);
+  if (!parsed.success) throw invalid('Invalid record read', parsed.error);
+  const { project, version, header } = await loadVersion(
+    db,
+    ctx,
+    parsed.data.projectId,
+    parsed.data.recordVersionId,
+  );
+  const { bodyText: text, ...metadata } = version;
+  return {
+    projectId: project.id,
+    recordVersionId: version.id,
+    digest: version.digest,
+    text,
+    totalLength: text.length,
+    withdrawn: version.withdrawn,
+    header,
     metadata,
     requestId: ctx.requestId,
   };

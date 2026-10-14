@@ -7,6 +7,7 @@ import {
   ingestRecords,
   loadRecordMetadata,
   readRecordChunk,
+  readRecordText,
   searchRecords,
   withdrawRecord,
 } from '../../../src/server/domain/records';
@@ -81,6 +82,49 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('record reads', () => {
     } while (cursor);
     expect(text).toBe(body);
     expect(starts).toEqual([0, 7_999]);
+  });
+  it('readRecordText returns the whole masked body in one read with the chunk header and metadata', async () => {
+    const body = 'a'.repeat(7_999) + '😀' + 'ơ'.repeat(20_000) + ' end';
+    const id = await ingestOne(body);
+    const first = await readRecordChunk(t.db, ctx, { projectId: project.id, recordVersionId: id });
+    const read = await readRecordText(t.db, ctx, { projectId: project.id, recordVersionId: id });
+    expect(read).toEqual({
+      projectId: project.id,
+      recordVersionId: id,
+      digest: first.digest,
+      text: body,
+      totalLength: body.length,
+      withdrawn: false,
+      header: first.header,
+      metadata: first.metadata,
+      requestId: ctx.requestId,
+    });
+    const withdrawn = await ingestOne('to be masked');
+    await withdrawRecord(t.db, ctx, {
+      projectId: project.id,
+      recordId: await recordIdOf(withdrawn),
+      expectedEvidenceRevision: await evidenceRevision(),
+      reason: 'Client asked',
+      idempotencyKey: randomUUID(),
+    });
+    expect(
+      await readRecordText(t.db, ctx, { projectId: project.id, recordVersionId: withdrawn }),
+    ).toMatchObject({
+      withdrawn: true,
+      text: '',
+      totalLength: 0,
+      header: expect.stringMatching(/Unavailable evidence/),
+      metadata: { permalink: null },
+    });
+    await expect(
+      readRecordText(t.db, ctx, { projectId: project.id, recordVersionId: randomUUID() }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(
+      readRecordText(t.db, agentActor(ctx, project.id, ['records:import']), {
+        projectId: project.id,
+        recordVersionId: id,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
   it('withdrawal masks historical chunk reads and bumps evidence revision once', async () => {
     const id = await ingestOne('secret body');

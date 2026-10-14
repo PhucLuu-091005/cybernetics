@@ -11,13 +11,18 @@ import type { ActorContext, Scope } from '../../src/contracts';
 const utc = '-c TimeZone=UTC';
 const pgCode = (error: unknown) => (error as { code?: string } | null)?.code;
 export type TestDb = { db: Db; url: string; close(): Promise<void> };
-export async function createTestDatabase(): Promise<TestDb> {
+export const testDatabaseUrl = (admin: string, name: string) =>
+  Object.assign(new URL(admin), { pathname: `/${name}` }).toString();
+export async function createTestDatabase(
+  name = `pg_test_${randomUUID().replaceAll('-', '')}`,
+): Promise<TestDb> {
   const admin = process.env.TEST_DATABASE_URL;
   if (!admin) throw new Error('TEST_DATABASE_URL is required for integration tests');
-  const name = `pg_test_${randomUUID().replaceAll('-', '')}`;
+  if (!/^pg_(test|e2e)_[a-f0-9]{32}$/.test(name))
+    throw new Error('Test database names must be throwaway pg_test_/pg_e2e_ names');
   const adminPool = new Pool({ connectionString: admin, max: 1, options: utc });
   await adminPool.query(`CREATE DATABASE ${name}`);
-  const url = Object.assign(new URL(admin), { pathname: `/${name}` }).toString();
+  const url = testDatabaseUrl(admin, name);
   const pool = new Pool({ connectionString: url, max: 10, options: utc });
   // The FORCE fallback below can terminate a socket that pool.end() is still closing; only that FATAL is teardown noise.
   pool.on('connect', (client) => {

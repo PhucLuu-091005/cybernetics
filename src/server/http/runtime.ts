@@ -9,7 +9,7 @@ import type {
 } from '../../contracts';
 import { readAuthEnvironment } from '../env';
 import { createTokenService, type ListTokensInput } from '../domain/tokens/service';
-import { createIdentityServices } from './actors';
+import { createIdentityServices, type BrowserSession } from './actors';
 import type { HttpIdentityStore } from './identity-store';
 import { MemoryRateLimiter } from './rate-limit';
 const state = globalThis as typeof globalThis & {
@@ -35,6 +35,15 @@ function identities() {
 }
 export async function getBrowserActor(request: Request): Promise<ActorContext> {
   return identities().getBrowserActor(request);
+}
+export async function getBrowserSession(request: Request): Promise<BrowserSession> {
+  return identities().resolveBrowserSession(request);
+}
+export async function getBrowserProjectActor(
+  session: BrowserSession,
+  projectId: string | null,
+): Promise<ActorContext> {
+  return identities().resolveBrowserProject(session, projectId);
 }
 export async function getTokenActor(request: Request, scope: Scope | null): Promise<ActorContext> {
   return identities().getTokenActor(request, scope);

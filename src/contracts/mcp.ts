@@ -18,7 +18,13 @@ import {
   PersonSchema,
   RecordDecisionSchema,
 } from './graph';
-import { DerivedLoopSchema, DerivedMilestoneSchema, EngineOutputSchema } from './engine';
+import {
+  DerivedActSchema,
+  DerivedLoopSchema,
+  DerivedMilestoneSchema,
+  EngineOutputSchema,
+} from './engine';
+import { PermalinkSchema, RecordVersionBaseSchema, SourceKindSchema } from './records';
 import { CommitBaseSchema, ProposalSchema, ProposalReviewSchema } from './proposals';
 
 export const ProjectSchema = z.strictObject({
@@ -172,10 +178,17 @@ export const ListLoopsInputSchema = GetGraphInputSchema.extend({
   query: z.string().max(200).optional(),
 });
 export const GetLoopInputSchema = GraphReadInputSchema.extend({ loopId: IdSchema });
+/** Withdrawn versions keep their source but lose context and permalink, like every other view of their text. */
+export const LoopActSchema = DerivedActSchema.extend({
+  context: z.strictObject({ before: z.string().max(300), after: z.string().max(300) }).nullable(),
+  permalink: PermalinkSchema.nullable(),
+  source: SourceKindSchema,
+  sourceLabel: RecordVersionBaseSchema.shape.sourceLabel,
+});
 export const GetLoopResultSchema = z.strictObject({
   ...pageFields,
   T: TimestampSchema,
-  loop: DerivedLoopSchema,
+  loop: DerivedLoopSchema.extend({ acts: z.array(LoopActSchema) }),
 });
 export const ListMilestonesInputSchema = GetGraphInputSchema;
 export const ListMilestonesResultSchema = z.strictObject({
@@ -225,6 +238,7 @@ export type ListLoopsInput = z.infer<typeof ListLoopsInputSchema>;
 export type ListLoopsResult = GetGraphResult;
 export type GetLoopInput = z.infer<typeof GetLoopInputSchema>;
 export type GetLoopResult = z.infer<typeof GetLoopResultSchema>;
+export type LoopAct = z.infer<typeof LoopActSchema>;
 export type ListMilestonesInput = z.infer<typeof ListMilestonesInputSchema>;
 export type ListMilestonesResult = z.infer<typeof ListMilestonesResultSchema>;
 export type ListHistoryInput = z.infer<typeof ListHistoryInputSchema>;

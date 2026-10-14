@@ -5,10 +5,13 @@ import { createDatabase } from './db/client';
 import { DbIdentityStore, type UserCreatedHook } from './db/identity-store';
 import type { Db } from './db/tx';
 import { browserScopes, type HttpIdentityStore } from './http/identity-store';
+import type { BrowserSession } from './http/actors';
 import {
   configureHttpIdentityStore,
   createToken,
   getBrowserActor,
+  getBrowserProjectActor,
+  getBrowserSession,
   getTokenActor,
   listTokens,
   revokeToken,
@@ -55,6 +58,17 @@ export function resetApp(): void {
 export function browserActor(request: Request): Promise<ActorContext> {
   getApp();
   return getBrowserActor(request);
+}
+export function browserSession(request: Request): Promise<BrowserSession> {
+  getApp();
+  return getBrowserSession(request);
+}
+export function browserProjectActor(
+  session: BrowserSession,
+  projectId: string | null,
+): Promise<ActorContext> {
+  getApp();
+  return getBrowserProjectActor(session, projectId);
 }
 export function tokenActor(request: Request, scope: Scope | null): Promise<ActorContext> {
   getApp();
