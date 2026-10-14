@@ -222,9 +222,10 @@ test('an escalation analysis shows verdicts and cited acts, copies and downloads
   expect(refused.status()).toBe(409);
 
   await page.goto(`/projects/${projectId}/escalations`);
-  await expect(page.getByRole('row', { name: new RegExp(COMPLAINT.slice(0, 30)) })).toContainText(
-    'revision 2',
-  );
+  // The sandbox seeds the same complaint with one analysis, so the list holds it twice.
+  const rows = page.getByRole('row', { name: new RegExp(COMPLAINT.slice(0, 30)) });
+  await expect(rows).toHaveCount(2);
+  await expect(rows.filter({ hasText: 'revision 2' })).toHaveCount(1);
 });
 
 test('agent tokens: default scopes, a secret shown once, revocation, and the MCP config snippet', async ({

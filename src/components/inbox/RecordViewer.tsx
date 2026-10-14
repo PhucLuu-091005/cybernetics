@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Alias, InboxState, QuotedRange, SourceKind } from '../../contracts';
 import { createDraft, type Basis } from './api';
-import { SOURCE_LABEL, STATE_LABEL, STATE_TONE } from './links';
+import { activePermalink, SOURCE_LABEL, STATE_LABEL, STATE_TONE } from './links';
 import { formatCite, segmentBody, selectionToCitation } from './selection';
 
 export type ViewedRecord = {
@@ -82,7 +82,7 @@ export function RecordViewer({
   const [pick, setPick] = useState<PickResult | null>(null);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
-  const linkable = record.permalink && (record.source === 'slack' || record.source === 'gmail');
+  const link = activePermalink(record);
 
   // Document-level, so a drag released outside the body and a keyboard selection both count.
   useEffect(() => {
@@ -165,18 +165,26 @@ export function RecordViewer({
         <dt>Source</dt>
         <dd>
           {record.sourceLabel} ({SOURCE_LABEL[record.source]})
-          {linkable ? (
+          {link ? (
             <>
               {' '}
               ·{' '}
               <a
-                href={record.permalink!}
+                href={link}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ color: 'var(--route)', fontWeight: 600 }}
               >
                 Open in {record.source === 'slack' ? 'Slack' : 'Gmail'}
               </a>
+            </>
+          ) : record.permalink ? (
+            <>
+              {' '}
+              ·{' '}
+              <span className="faint" style={{ overflowWrap: 'anywhere' }}>
+                {record.permalink}
+              </span>
             </>
           ) : null}
         </dd>

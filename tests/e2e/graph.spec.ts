@@ -171,7 +171,7 @@ test('list view shows the same loops as the graph with the same filters', async 
 
 const projectIdOf = (page: Page) => new URL(page.url()).pathname.split('/')[2];
 
-test('the loop panel shows each quote inside its surrounding text, with the source and an https permalink', async ({
+test('the loop panel shows each quote inside its surrounding text, with the source and an agent permalink as plain text', async ({
   page,
 }) => {
   await signIn(page);
@@ -185,9 +185,33 @@ test('the loop panel shows each quote inside its surrounding text, with the sour
     .poll(async () => (await block.innerText()).trim().length)
     .toBeGreaterThan(quote.length);
   expect(await block.innerText()).toContain(quote);
-  const open = panel.getByRole('link', { name: /^Open in Slack$/ }).first();
-  await expect(open).toHaveAttribute('href', /^https:\/\//);
+  // SRD 17: the seed arrives through the agent path, so its Slack-shaped permalinks stay inactive text.
+  await expect(
+    panel.getByText(/^https:\/\/fundline-larkspur\.slack\.example\//).first(),
+  ).toBeVisible();
+  await expect(panel.getByRole('link', { name: /^Open in/ })).toHaveCount(0);
   await expect(panel.getByText('#larkspur-it').first()).toBeVisible();
+});
+
+test('a rate-limited loop read shows a short retry note and keeps the bare quotes', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.route(/\/api\/v1\/projects\/[^/]+\/loops\/[^/?]+\?/, (route) =>
+    route.fulfill({
+      status: 429,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        code: 'RATE_LIMITED',
+        message: 'Rate limit exceeded',
+        requestId: 'e2e',
+      }),
+    }),
+  );
+  await page.getByRole('button', { name: /^Loop: Client secret renewal/ }).click();
+  const panel = loopPanel(page);
+  await expect(panel.getByRole('status')).toHaveText('Too many requests — try again in a minute.');
+  await expect(panel.getByTestId('verified-quote').first()).toBeVisible();
 });
 
 test('a project the user cannot see returns 404 with the not-found page', async ({ page }) => {
