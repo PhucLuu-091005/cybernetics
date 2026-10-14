@@ -10,6 +10,8 @@
 
 **Spec:** [SRD v1.1](../specs/2026-10-12-promise-graph-srd.md). **Ownership:** [task packets](../../agent-tasks/2026-10-12-promise-graph-tasks.md).
 
+**Superseded on 13 October after T01:** follow [the continuation plan](2026-10-13-promise-graph-continuation.md) for all remaining work. This file stays as history.
+
 Status: plan only. No application implementation is authorized by this document itself or started in this revision.
 
 ## Global Constraints
@@ -315,7 +317,7 @@ All five Review Focus failure modes have named tests in their owning tasks. No t
 - [ ] Gold deterministic metrics all 100%; measured timing included in README.
 - [ ] Live Railway sign-in, isolation, MCP import/proposal, diff/merge/conflict/revert/restore verified.
 - [ ] Real external-agent walkthrough creates a proposal; no provider key configured in app.
-- [ ] Public repository contains fictional fixtures and no secrets; demo kept awake through 22 Oct.
+- [ ] Private repository contains fictional fixtures and no secrets; demo kept awake through 22 Oct.
 - [ ] Pending evidence, unavailable quotes and stale analyses visibly labeled.
 
 This deliverable is a revised specification and implementation plan. Starting implementation is a separate action; no coding agents are dispatched by the task allocation document.

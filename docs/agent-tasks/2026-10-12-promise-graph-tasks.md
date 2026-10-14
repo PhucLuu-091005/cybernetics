@@ -1,5 +1,7 @@
 # Promise Graph v1.1: task allocation for coding agents
 
+**Superseded on 13 October after T01:** the [continuation plan](../superpowers/plans/2026-10-13-promise-graph-continuation.md) defines the remaining tasks and their order. This allocation stays as history.
+
 Canonical spec: [SRD v1.1](../superpowers/specs/2026-10-12-promise-graph-srd.md).
 Canonical task details, interfaces, files and acceptance tests: [implementation plan](../superpowers/plans/2026-10-12-promise-graph-implementation.md).
 
