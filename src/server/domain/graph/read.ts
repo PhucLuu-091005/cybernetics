@@ -20,7 +20,8 @@ import type { Db, Tx } from '../../db/tx';
 import { requireScope } from '../../http/scopes';
 import { deriveProject } from '../../loops/engine';
 import { countPending } from '../inbox/list';
-import { invalid } from '../records/metadata';
+import { invalid, loadCitationSources } from '../records/metadata';
+import { quoteContext } from '../../../lib/quote-context';
 import { foldForSearch } from '../records/normalize';
 import { evaluationTime, hydrateEngineInput, resolveView, type ResolvedView } from './hydrate';
 import { decodeCursor, encodeCursor, takePage, viewKey } from './paging';
@@ -200,7 +201,25 @@ export async function getLoop(
       (item) => item.loop.id === input.loopId,
     );
     if (!loop) throw new AppError('NOT_FOUND', 'Loop not found');
-    return { ...pageFields(resolved, ctx), T, loop };
+    const sources = await loadCitationSources(
+      tx,
+      resolved.project.id,
+      loop.acts.map((act) => act.citation.recordVersionId),
+    );
+    const acts = loop.acts.map((act) => {
+      const source = sources.get(act.citation.recordVersionId);
+      if (!source) throw new AppError('INTERNAL', 'Cited record version is missing');
+      // A null quote means withdrawn or unverifiable evidence, which shows no surrounding text either.
+      const body = act.quote === null ? null : source.bodyText;
+      return {
+        ...act,
+        context: body === null ? null : quoteContext(body, act.citation.start, act.citation.end),
+        permalink: act.quote === null ? null : source.permalink,
+        source: source.source,
+        sourceLabel: source.sourceLabel,
+      };
+    });
+    return { ...pageFields(resolved, ctx), T, loop: { ...loop, acts } };
   }, READ_ONLY);
 }
 

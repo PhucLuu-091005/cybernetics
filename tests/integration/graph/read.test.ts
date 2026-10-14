@@ -19,6 +19,7 @@ import { createProposal, updateProposal } from '../../../src/server/domain/propo
 import { withdrawRecord } from '../../../src/server/domain/records';
 import {
   GetGraphResultSchema,
+  GetLoopResultSchema,
   GetProjectResultSchema,
   GraphViewSchema,
   SnapshotPageSchema,
@@ -268,6 +269,40 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('graph reads', () => {
     await expect(
       getLoop(t.db, ctx, { projectId, view: { kind: 'main' }, T, loopId: randomUUID() }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+  it('a loop read carries up to 300 characters of context around each quote, the permalink and the source, masked after withdrawal', async () => {
+    const loopId = uuidFromKey('loop:go-live');
+    const reads = await Promise.all(
+      [loopId, uuidFromKey('loop:secret')].map((id) =>
+        getLoop(t.db, ctx, { projectId, view: { kind: 'main' }, T, loopId: id }),
+      ),
+    );
+    for (const read of reads) expect(GetLoopResultSchema.parse(read)).toEqual(read);
+    const acts = reads.flatMap((read) => read.loop.acts);
+    expect(acts.some((act) => act.permalink?.startsWith('https://'))).toBe(true);
+    for (const act of acts) {
+      const input = seed.inputs.get(act.citation.recordVersionId)!;
+      const { before, after } = act.context!;
+      expect(before.length + after.length).toBeLessThanOrEqual(300);
+      expect(
+        input.bodyText.slice(act.citation.start - before.length, act.citation.end + after.length),
+      ).toBe(`${before}${act.quote}${after}`);
+      expect(before.length).toBe(
+        Math.min(act.citation.start, 300 - Math.min(150, input.bodyText.length - act.citation.end)),
+      );
+      expect(act.permalink).toBe(input.permalink ?? null);
+      expect(act).toMatchObject({ source: 'agent', sourceLabel: input.sourceLabel });
+    }
+    await withdraw(citedRecordId);
+    const masked = (
+      await getLoop(t.db, ctx, { projectId, view: { kind: 'main' }, T, loopId })
+    ).loop.acts.find((act) => act.citation.recordVersionId === citedVersionId)!;
+    expect(masked).toMatchObject({
+      quote: null,
+      unavailable: true,
+      context: null,
+      permalink: null,
+    });
   });
   it('snapshot pages cover each collection without loss', async () => {
     const ids: string[] = [];

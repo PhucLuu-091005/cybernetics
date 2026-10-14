@@ -68,6 +68,27 @@ export function zonedStartOfDay(date: string, timeZone: string): string {
     throw new RangeError('Local date does not exist in this time zone');
   return new Date(low).toISOString();
 }
+/** A local wall time to an instant; one correction applies the offset in force at that time when a DST change falls after midnight. */
+export function zonedInstant(date: string, time: string, timeZone: string): string {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time);
+  if (!match) throw new RangeError('Expected HH:mm time');
+  const minutes = Number(match[1]) * 60 + Number(match[2]);
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
+  const wallMinutes = (epoch: number) => {
+    const parts = formatter.formatToParts(epoch);
+    return (
+      Number(parts.find((part) => part.type === 'hour')!.value) * 60 +
+      Number(parts.find((part) => part.type === 'minute')!.value)
+    );
+  };
+  const candidate = Date.parse(zonedStartOfDay(date, timeZone)) + minutes * 60_000;
+  return new Date(candidate + (minutes - wallMinutes(candidate)) * 60_000).toISOString();
+}
 export function resolveDueInstant(due: Due, timeZone: string): string | null {
   if (due === null) return null;
   let day = dateEpoch(due.date);

@@ -56,6 +56,32 @@ export function sessionCookie(value: string, env: AuthEnvironment): string {
 export function clearSessionCookie(): string {
   return `${SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`;
 }
+const LabelSchema = z
+  .string()
+  .regex(/^[a-z0-9-]{1,40}$/, 'Label must be 1 to 40 lowercase letters, digits or hyphens');
+/** A label gives each e2e spec its own local user, so specs do not share the per-user rate limit or sandbox state. */
+async function localLabel(request: Request): Promise<string | undefined> {
+  const type = request.headers.get('content-type') ?? '';
+  let raw: unknown;
+  try {
+    if (type.startsWith('application/json'))
+      raw = ((await request.json()) as { label?: unknown } | null)?.label;
+    else if (
+      type.startsWith('application/x-www-form-urlencoded') ||
+      type.startsWith('multipart/form-data')
+    )
+      raw = (await request.formData()).get('label') ?? undefined;
+  } catch {
+    throw new AppError('VALIDATION', 'Sign-in body must be a form or a JSON object');
+  }
+  if (raw === undefined) return undefined;
+  const parsed = LabelSchema.safeParse(raw);
+  if (!parsed.success)
+    throw new AppError('VALIDATION', 'Invalid local sign-in label', {
+      errors: [{ path: 'label', message: parsed.error.issues[0].message }],
+    });
+  return parsed.data;
+}
 export async function startLocalSession(
   request: Request,
   env: AuthEnvironment,
@@ -65,10 +91,11 @@ export async function startLocalSession(
   if (env.mode !== 'local' || process.env.NODE_ENV === 'production')
     throw new AppError('UNAUTHENTICATED', 'Local authentication unavailable');
   assertRequestOrigin(request, env, true);
+  const label = await localLabel(request);
   const { userId } = await store.provisionUser({
-    subject: 'local:dev',
+    subject: `local:${label ?? 'dev'}`,
     email: null,
-    name: 'Local developer',
+    name: label ? `Local developer (${label})` : 'Local developer',
   });
   return sessionCookie(
     signSession({ userId, expiresAt: now + SESSION_TTL_MS }, env.sessionSecret),
