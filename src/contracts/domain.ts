@@ -1,6 +1,22 @@
 import type { ActorContext } from './identity';
 import type { IngestEnvelope, IngestReceipt, ReadRecordChunkInput, RecordChunk } from './records';
-import type { ApplyRebaseInput, CommitPreview, CommitReceipt, CreateProposalInput, MergeProposalInput, PreviewRebaseInput, PreviewRestoreInput, PreviewRevertInput, Proposal, ProposalReview, RebasePreview, RestoreCommitInput, RevertCommitInput, ReviewProposalInput, UpdateProposalInput } from './proposals';
+import type {
+  ApplyRebaseInput,
+  CommitPreview,
+  CommitReceipt,
+  CreateProposalInput,
+  MergeProposalInput,
+  PreviewRebaseInput,
+  PreviewRestoreInput,
+  PreviewRevertInput,
+  Proposal,
+  ProposalReview,
+  RebasePreview,
+  RestoreCommitInput,
+  RevertCommitInput,
+  ReviewProposalInput,
+  UpdateProposalInput,
+} from './proposals';
 import type { GraphSnapshot, InverseResult, RebaseResult, SnapshotDiff } from './graph';
 import type { EngineInput, EngineOutput } from './engine';
 import type { GraphLayout, LayoutInput, LayoutOptions } from './layout';
@@ -23,7 +39,19 @@ export interface ProposalDomainOperations {
   restoreCommit(ctx: ActorContext, input: RestoreCommitInput): Promise<CommitReceipt>;
 }
 export type DiffSnapshots = (base: GraphSnapshot, candidate: GraphSnapshot) => SnapshotDiff;
-export type ThreeWayRebase = (base: GraphSnapshot, candidate: GraphSnapshot, main: GraphSnapshot) => RebaseResult;
-export type InverseCommit = (parent: GraphSnapshot, target: GraphSnapshot, main: GraphSnapshot) => InverseResult;
+export type ThreeWayRebase = (
+  base: GraphSnapshot,
+  candidate: GraphSnapshot,
+  main: GraphSnapshot,
+) => RebaseResult;
+export type InverseCommit = (
+  parent: GraphSnapshot,
+  target: GraphSnapshot,
+  main: GraphSnapshot,
+) => InverseResult;
 export type DeriveProject = (input: EngineInput) => EngineOutput;
-export type LayoutPromiseGraph = (engine: EngineOutput, input: LayoutInput, options: LayoutOptions) => GraphLayout;
+export type LayoutPromiseGraph = (
+  engine: EngineOutput,
+  input: LayoutInput,
+  options: LayoutOptions,
+) => GraphLayout;
