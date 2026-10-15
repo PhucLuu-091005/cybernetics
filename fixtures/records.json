@@ -2695,7 +2695,7 @@
         "email": "lan.pham@fundline.example"
       },
       "recipients": [],
-      "title": "PG-201: PG-201 CRS form logic",
+      "title": "PG-201 CRS form logic",
       "bodyText": "Field list and rules are attached to this issue. Please build the CRS show and hide logic from the analysis. Only non-US investors see the section.",
       "permalink": "https://linear.app/fundline/issue/PG-201"
     }
@@ -2716,7 +2716,7 @@
         "email": "khoa.le@fundline.example"
       },
       "recipients": [],
-      "title": "PG-201: PG-201 CRS form logic",
+      "title": "PG-201 CRS form logic",
       "bodyText": "Picked this up. I will ship the CRS form logic by 30 September. I will reuse the FATCA pattern from Fund II.",
       "permalink": "https://linear.app/fundline/issue/PG-201"
     }
@@ -2757,7 +2757,7 @@
         "email": "lan.pham@fundline.example"
       },
       "recipients": [],
-      "title": "PG-203: PG-203 Country list field type",
+      "title": "PG-203 Country list field type",
       "bodyText": "An investor can be tax resident in more than one country. We need a multi-select country list field for the CRS tax residencies. The list must follow ISO 3166.",
       "permalink": "https://linear.app/fundline/issue/PG-203"
     }
@@ -2800,7 +2800,7 @@
         "email": "quang.nguyen@fundline.example"
       },
       "recipients": [],
-      "title": "PG-203: PG-203 Country list field type",
+      "title": "PG-203 Country list field type",
       "bodyText": "Makes sense. I will add the country list field type by 6 October. It touches the form engine, so it needs a review.",
       "permalink": "https://linear.app/fundline/issue/PG-203"
     }
@@ -2886,7 +2886,7 @@
         "email": "lan.pham@fundline.example"
       },
       "recipients": [],
-      "title": "PG-202: PG-202 DealCloud mapping for CRS fields",
+      "title": "PG-202 DealCloud mapping for CRS fields",
       "bodyText": "The IR team confirmed the DealCloud field names today. Please map the CRS fields to DealCloud. Mapping sheet is attached.",
       "permalink": "https://linear.app/fundline/issue/PG-202"
     }
@@ -2907,7 +2907,7 @@
         "email": "khoa.le@fundline.example"
       },
       "recipients": [],
-      "title": "PG-202: PG-202 DealCloud mapping for CRS fields",
+      "title": "PG-202 DealCloud mapping for CRS fields",
       "bodyText": "Thanks for the sheet. I will finish the DealCloud mapping by 2 October. I need the sandbox key from Larkspur IT.",
       "permalink": "https://linear.app/fundline/issue/PG-202"
     }
@@ -2928,7 +2928,7 @@
         "email": "khoa.le@fundline.example"
       },
       "recipients": [],
-      "title": "PG-201: PG-201 CRS form logic",
+      "title": "PG-201 CRS form logic",
       "bodyText": "Merged to staging. Shipped: the CRS logic is live on staging. Test investor profiles are in the issue.",
       "permalink": "https://linear.app/fundline/issue/PG-201"
     }
@@ -2949,7 +2949,7 @@
         "email": "lan.pham@fundline.example"
       },
       "recipients": [],
-      "title": "PG-201: PG-201 CRS form logic",
+      "title": "PG-201 CRS form logic",
       "bodyText": "Ran the six test profiles. Checked on staging, it matches the analysis. Closing this one.",
       "permalink": "https://linear.app/fundline/issue/PG-201"
     }
@@ -2991,7 +2991,7 @@
         "email": "khoa.le@fundline.example"
       },
       "recipients": [],
-      "title": "PG-202: PG-202 DealCloud mapping for CRS fields",
+      "title": "PG-202 DealCloud mapping for CRS fields",
       "bodyText": "Sync ran on the sandbox. Done: the CRS fields now sync to DealCloud. Field history is kept.",
       "permalink": "https://linear.app/fundline/issue/PG-202"
     }
@@ -3012,7 +3012,7 @@
         "email": "lan.pham@fundline.example"
       },
       "recipients": [],
-      "title": "PG-202: PG-202 DealCloud mapping for CRS fields",
+      "title": "PG-202 DealCloud mapping for CRS fields",
       "bodyText": "Checked three investors. Confirmed in DealCloud, the values match. Good to go.",
       "permalink": "https://linear.app/fundline/issue/PG-202"
     }
