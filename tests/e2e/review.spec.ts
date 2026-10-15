@@ -299,7 +299,7 @@ test('restore preview lists removed later changes and apply creates a new restor
   await expect(top).toContainText('Larkspur history up to 9 October');
 });
 
-test('Activity uses plain words and logs no duplicate key', async ({ page }) => {
+test('Activity uses plain words and logs no console error', async ({ page }) => {
   const errors: string[] = [];
   page.on('console', (message) => {
     if (message.type() === 'error') errors.push(message.text());
@@ -338,7 +338,7 @@ test('Activity uses plain words and logs no duplicate key', async ({ page }) => 
 
   await page.goto(`/projects/${projectId}/history`);
   await expect(page.getByText(/^Undo "Ignore the out-of-office reply/)).toBeVisible();
-  expect(errors.filter((text) => text.includes('same key'))).toEqual([]);
+  expect(errors).toEqual([]);
 });
 
 test('loop panel edits on main open a proposal first; change type, move and hide then edit that draft; main stays unchanged', async ({

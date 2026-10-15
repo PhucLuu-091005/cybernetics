@@ -1,18 +1,8 @@
 import type { SnapshotDiff } from '../../contracts';
-import { changeClass, entityTitle, newestImage, type Names } from '../review/describe';
+import { changeClass, entityTitle, KIND, newestImage, type Names } from '../review/describe';
 import { ChangeCells } from '../review/DiffView';
 
 const MAX_ROWS = 150;
-export const COLLECTION = {
-  acts: 'Step',
-  loops: 'Loop',
-  annotations: 'Note',
-  recordDecisions: 'Record decision',
-  people: 'Person',
-  departments: 'Department',
-  milestones: 'Milestone',
-  context: 'Project settings',
-} as const;
 
 export function CommitDiff({ diff, names }: { diff: SnapshotDiff; names: Names }) {
   const counts = diff.changes.reduce<Record<string, number>>(
@@ -39,7 +29,7 @@ export function CommitDiff({ diff, names }: { diff: SnapshotDiff; names: Names }
           <tbody>
             {diff.changes.slice(0, MAX_ROWS).map((change) => (
               <tr key={`${change.collection}/${change.id}`}>
-                <td>{COLLECTION[change.collection]}</td>
+                <td>{KIND[change.collection]}</td>
                 <td>
                   {entityTitle(
                     change.collection,
