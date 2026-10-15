@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   loopColor,
+  milestoneLoopCounts,
   problemCounts,
   problemTone,
   TONE_COLOR,
@@ -63,5 +64,22 @@ describe('past problems', () => {
       warning: 0,
       past: 1,
     });
+  });
+});
+
+describe('milestone loop counts', () => {
+  it('counts a finished loop as past, never as broken', () => {
+    expect(
+      milestoneLoopCounts([
+        loop('closed'),
+        loop('closed', []),
+        loop('promised'),
+        loop('promised', []),
+      ]),
+    ).toEqual({ open: 2, broken: 1 });
+  });
+
+  it('shows no broken loop when the only problem loop is closed', () => {
+    expect(milestoneLoopCounts([loop('closed')])).toEqual({ open: 0, broken: 0 });
   });
 });
