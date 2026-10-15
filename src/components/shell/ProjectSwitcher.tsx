@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { RailIcon } from './icons';
+import { useDismissibleDetails } from './Popover';
 
 export type RailProject = { id: string; clientName: string; title: string };
 
@@ -11,8 +12,9 @@ export function ProjectSwitcher({
   current: RailProject;
   projects: RailProject[];
 }) {
+  const ref = useDismissibleDetails();
   return (
-    <details className="proj-switch">
+    <details ref={ref} className="proj-switch">
       <summary
         aria-label={`Project: ${current.clientName}. Switch project`}
         title={current.clientName}

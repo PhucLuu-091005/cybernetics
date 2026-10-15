@@ -31,7 +31,7 @@ export function ThemeToggle() {
       type="button"
       onClick={next}
       aria-label={`Colour theme: ${theme}. Switch theme`}
-      title={`Theme: ${theme}`}
+      data-label={`Theme: ${theme}`}
     >
       <RailIcon name="theme" />
       <span className="rail-label">Theme: {theme}</span>

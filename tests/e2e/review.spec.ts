@@ -176,6 +176,7 @@ test('competing drafts: a stale approve shows the conflict banner and keeps the 
   });
   await phaseOneLink.click();
   await expect(phaseOneLink).toHaveAttribute('aria-current', 'true');
+  await expect(other).toHaveURL(/item=[0-9a-f-]{36}/);
   await expect(setActions(other).getByRole('button', { name: 'Approve' })).toBeEnabled();
   await clickApprove(other);
   await expect(approvedStatus(other)).toBeVisible();

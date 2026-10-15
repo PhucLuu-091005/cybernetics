@@ -2,6 +2,7 @@
 import { BreakdownTypeSchema, LoopStateSchema } from '../../contracts/engine';
 import type { Department, Milestone } from '../../contracts/graph';
 import type { GraphFilters } from './filters';
+import { useDismissibleDetails } from '../shell/Popover';
 import { BREAKDOWN_LABEL, stateLabel } from './labels';
 
 type Props = {
@@ -67,6 +68,7 @@ export function FilterBar({
   onView,
   onQuery,
 }: Props) {
+  const filterPop = useDismissibleDetails();
   const ordered = [...departments].sort((a, b) =>
     a.side === b.side ? a.order - b.order : a.side === 'vendor' ? -1 : 1,
   );
@@ -117,7 +119,7 @@ export function FilterBar({
         </Icon>
         Problems only
       </button>
-      <details className="filter-pop">
+      <details ref={filterPop} className="filter-pop">
         <summary className="btn">
           <Icon>
             <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />

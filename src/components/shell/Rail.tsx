@@ -33,7 +33,7 @@ export function Rail({ projectId, projects, waiting, initial }: Props) {
         href={href}
         aria-current={active ? 'page' : undefined}
         aria-label={name}
-        title={folded ? name : undefined}
+        data-label={name}
         data-dot={count > 0 ? '' : undefined}
       >
         <RailIcon name={icon} />
@@ -64,7 +64,7 @@ export function Rail({ projectId, projects, waiting, initial }: Props) {
           onClick={toggle}
           aria-expanded={!folded}
           aria-label={folded ? 'Expand sidebar' : 'Collapse sidebar'}
-          title={folded ? 'Expand sidebar' : 'Collapse sidebar'}
+          data-label={folded ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           <RailIcon name="panel" />
           <span className="rail-label">Collapse sidebar</span>

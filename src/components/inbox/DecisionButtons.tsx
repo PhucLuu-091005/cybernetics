@@ -11,17 +11,19 @@ type Props = {
   recordVersionId: string;
   state: InboxState;
   proposal: { id: string; revision: number; status: 'draft' | 'merged' | 'closed' } | null;
+  myReview: { id: string; revision: number } | null;
   basis: Basis;
   decision: 'included' | 'ignored' | null;
   citedByVisibleAct: boolean;
 };
 
-/** There is no inbox flag: each decision is a recordDecisions put in a draft proposal, created from main when none is selected. */
+/** There is no inbox flag: each decision is a recordDecisions put in a draft proposal; from the approved graph it goes into "My review", which the first decision creates. */
 export function DecisionButtons({
   projectId,
   recordVersionId,
   state,
   proposal,
+  myReview,
   basis,
   decision,
   citedByVisibleAct,
@@ -43,7 +45,7 @@ export function DecisionButtons({
   const decide = async (disposition: 'included' | 'ignored') => {
     setBusy(true);
     setFailure(null);
-    let target = proposal ?? created;
+    let target = proposal ?? myReview ?? created;
     if (!target) {
       const draft = await createDraft(projectId, basis, MY_REVIEW_TITLE);
       if (!draft.ok) {
@@ -157,7 +159,9 @@ export function DecisionButtons({
       <p className="faint" style={{ fontSize: 12 }}>
         {proposal
           ? 'Decisions go into the selected change set.'
-          : 'Your first decision creates the change set "My review". The graph changes when a person approves it.'}
+          : myReview
+            ? `Your decisions go into your change set "${MY_REVIEW_TITLE}". The graph changes when a person approves it.`
+            : `Your first decision creates the change set "${MY_REVIEW_TITLE}". The graph changes when a person approves it.`}
       </p>
     </div>
   );

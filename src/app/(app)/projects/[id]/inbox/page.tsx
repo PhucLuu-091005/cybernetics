@@ -18,6 +18,7 @@ import {
 } from '../../../../../components/inbox/links';
 import { PasteForm } from '../../../../../components/inbox/PasteForm';
 import { RecordViewer } from '../../../../../components/inbox/RecordViewer';
+import { pickMyReview } from '../../../../../components/review-queue/state';
 import { getApp } from '../../../../../server/app';
 import { readInboxView } from '../../../../../server/domain/inbox';
 import { listProjects } from '../../../../../server/domain/projects';
@@ -92,6 +93,8 @@ export default async function InboxPage({
   const project = projects.find((item) => item.id === id);
   if (!project) notFound();
   const { proposal, page, counts, selected, timeZone } = inbox;
+  const myReview = drafts ? pickMyReview(drafts.items, actor.userId) : null;
+  const target = myReview && { id: myReview.id, revision: myReview.revision };
   const query: InboxQuery = { state, proposal: proposal?.id ?? null };
   const basis = { mainCommitId: inbox.mainCommitId, evidenceRevision: inbox.evidenceRevision };
   const selectedId = selected?.recordVersionId ?? requested ?? null;
@@ -227,7 +230,13 @@ export default async function InboxPage({
                 state={selected?.state ?? null}
                 decision={selected?.decision ?? null}
                 hints={viewed.hints}
-                proposalId={proposal?.status === 'draft' ? proposal.id : null}
+                proposalId={
+                  proposal
+                    ? proposal.status === 'draft'
+                      ? proposal.id
+                      : null
+                    : (target?.id ?? null)
+                }
                 basis={basis}
               >
                 <DecisionButtons
@@ -240,6 +249,7 @@ export default async function InboxPage({
                       ? { id: proposal.id, revision: proposal.revision, status: proposal.status }
                       : null
                   }
+                  myReview={target}
                   basis={basis}
                   decision={selected?.decision?.disposition ?? null}
                   citedByVisibleAct={selected?.citedByVisibleAct ?? false}

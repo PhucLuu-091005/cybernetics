@@ -40,6 +40,7 @@ export function ChangeSetActions({
   const hydrated = useHydrated();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<ApiError | null>(null);
+  const [confirmReject, setConfirmReject] = useState(false);
   const base = `/api/v1/projects/${projectId}/proposals/${proposal.id}`;
   const here = reviewHref(projectId, { tab: 'sets', item: proposal.id });
   const run = async (work: () => Promise<{ ok: true } | { ok: false; error: ApiError }>) => {
@@ -79,9 +80,9 @@ export function ChangeSetActions({
         idempotencyKey: crypto.randomUUID(),
       });
       if (result.ok) {
-        router.push(reviewHref(projectId, { tab: 'sets' }));
+        router.push(`${reviewHref(projectId, { tab: 'sets' })}&rejected=${proposal.id}`);
         router.refresh();
-      }
+      } else setConfirmReject(false);
       return result;
     });
 
@@ -169,14 +170,30 @@ export function ChangeSetActions({
         <Link className="btn" href={editHref}>
           Edit
         </Link>
-        <button
-          className="btn btn-danger"
-          type="button"
-          disabled={!hydrated || busy}
-          onClick={reject}
-        >
-          Reject
-        </button>
+        {confirmReject ? (
+          <>
+            <button className="btn btn-danger" type="button" disabled={busy} onClick={reject}>
+              Confirm reject
+            </button>
+            <button
+              className="btn"
+              type="button"
+              disabled={busy}
+              onClick={() => setConfirmReject(false)}
+            >
+              Cancel
+            </button>
+          </>
+        ) : (
+          <button
+            className="btn btn-danger"
+            type="button"
+            disabled={!hydrated || busy}
+            onClick={() => setConfirmReject(true)}
+          >
+            Reject
+          </button>
+        )}
         <button
           className="btn btn-ink"
           type="button"
