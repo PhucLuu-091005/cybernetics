@@ -19,7 +19,6 @@ export type GraphFilters = {
   q: string;
   view: 'graph' | 'list';
   loopId: string | null;
-  escalationId: string | null;
 };
 
 const id = (value: string | null) => IdSchema.safeParse(value).data ?? null;
@@ -35,7 +34,6 @@ export function parseFilters(search: URLSearchParams): GraphFilters {
     q: (search.get('q') ?? '').trim().slice(0, 200),
     view: search.get('view') === 'list' ? 'list' : 'graph',
     loopId: id(search.get('loop')),
-    escalationId: id(search.get('escalation')),
   };
 }
 
@@ -54,7 +52,6 @@ export function filtersToSearch(
     'q',
     'view',
     'loop',
-    'escalation',
   ])
     search.delete(key);
   if (filters.side) search.set('side', filters.side);
@@ -66,11 +63,10 @@ export function filtersToSearch(
   if (filters.q) search.set('q', filters.q);
   if (filters.view === 'list') search.set('view', 'list');
   if (filters.loopId) search.set('loop', filters.loopId);
-  if (filters.escalationId) search.set('escalation', filters.escalationId);
   return search;
 }
 
-/** Visible loop IDs. Escalation focus never hides a loop; `citedLoops` gives the set the graph keeps at full opacity. */
+/** Visible loop IDs. */
 export function applyFilters(
   engine: EngineOutput,
   filters: GraphFilters,

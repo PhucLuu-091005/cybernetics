@@ -71,7 +71,6 @@ describe('graph filters', () => {
       q: '',
       view: 'graph',
       loopId: null,
-      escalationId: null,
     });
     expect(visible('').size).toBe(36);
     expect(engine.loops).toHaveLength(36);
@@ -98,11 +97,7 @@ describe('graph filters', () => {
     ).toBe(true);
   });
 
-  it('returns the escalation-cited loops as a separate set, so the graph fades the rest instead of hiding them', () => {
-    const escalationId = '6f1c2a8e-4b1d-4c3a-9e2f-0a1b2c3d4e5f';
-    const filters = parseFilters(new URLSearchParams(`escalation=${escalationId}`));
-    expect(filters.escalationId).toBe(escalationId);
-    expect(applyFilters(engine, filters, departments).size).toBe(36);
+  it('citedLoops returns the loops that hold the given acts and ignores unknown act IDs', () => {
     const goLive = engine.loops.find((item) => item.loop.title === 'Go-live date')!;
     const dynamics = engine.loops.find((item) => item.loop.title === 'Dynamics CRM sync scope')!;
     const cited = citedLoops(engine, [
@@ -117,7 +112,7 @@ describe('graph filters', () => {
   it('drops unknown or malformed values and round-trips through the URL', () => {
     const filters = parseFilters(
       new URLSearchParams(
-        'side=both&state=asleep&breakdown=nope&dept=not-a-uuid&milestone=x&view=table&loop=1&escalation=2&q=%20%20',
+        'side=both&state=asleep&breakdown=nope&dept=not-a-uuid&milestone=x&view=table&loop=1&q=%20%20',
       ),
     );
     expect(filters).toEqual(parseFilters(new URLSearchParams('')));

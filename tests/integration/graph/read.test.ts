@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { escalationAnalyses, escalations } from '../../../src/server/db/schema';
 import { createTestDatabase, testActor, type TestDb } from '../../support/db';
 import { mergeSnapshotChange } from '../../support/history';
 import { headOf, larkspurT, seedLarkspur, type LarkspurSeed } from '../../support/seed';
@@ -46,8 +45,6 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('graph reads', () => {
     'graph_commits',
     'graph_proposals',
     'mutation_receipts',
-    'escalations',
-    'escalation_analyses',
     'agent_tokens',
   ];
   const tableCounts = async () =>
@@ -343,34 +340,13 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('graph reads', () => {
       expect.objectContaining({ replyWindowDays: 2, timeZone: 'Asia/Ho_Chi_Minh' }),
     ]);
   });
-  it('project summary reports pending evidence and analysis freshness', async () => {
+  it('project summary reports pending evidence', async () => {
     const summary = await getProject(t.db, ctx, { projectId });
     expect(GetProjectResultSchema.parse(summary)).toEqual(summary);
     expect(summary).toMatchObject({
       project: { id: projectId, mainCommitId: mainId(), evidenceRevision: seed.evidenceRevision },
       pendingEvidenceCount: 4,
-      analysisFreshness: 'none',
     });
-    const author = { kind: 'user' as const, userId: ctx.userId },
-      workspaceId = summary.project.workspaceId;
-    const [escalation] = await t.db
-      .insert(escalations)
-      .values({ workspaceId, projectId, complaint: 'Late report', author })
-      .returning();
-    await t.db.insert(escalationAnalyses).values({
-      workspaceId,
-      projectId,
-      escalationId: escalation.id,
-      revision: 1,
-      graphCommitId: mainId(),
-      evidenceRevision: seed.evidenceRevision,
-      claims: [],
-      answerText: 'Draft',
-      author,
-      contentHash: 'a'.repeat(64),
-    });
-    expect((await getProject(t.db, ctx, { projectId })).analysisFreshness).toBe('current');
-    await withdraw(citedRecordId);
-    expect((await getProject(t.db, ctx, { projectId })).analysisFreshness).toBe('stale');
+    expect(summary).not.toHaveProperty('analysisFreshness');
   });
 });

@@ -16,10 +16,6 @@ const SCOPES: { scope: Scope; text: string; risk?: true }[] = [
     text: 'Lets this token approve and undo without you. Grant it only to an agent that you direct.',
     risk: true,
   },
-  {
-    scope: 'escalations:write',
-    text: 'Save escalation analysis drafts. Agents can never approve an answer.',
-  },
 ];
 export type ExpiryOption = { days: number; label: string };
 

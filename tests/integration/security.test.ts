@@ -22,7 +22,6 @@ import * as proposalsRoute from '../../src/app/api/v1/projects/[projectId]/propo
 import * as commitsRoute from '../../src/app/api/v1/projects/[projectId]/commits/route';
 import * as tokensRoute from '../../src/app/api/v1/projects/[projectId]/agent-tokens/route';
 import * as tokenRoute from '../../src/app/api/v1/projects/[projectId]/agent-tokens/[tokenId]/route';
-import * as escalationsRoute from '../../src/app/api/v1/projects/[projectId]/escalations/route';
 import * as sessionRoute from '../../src/app/api/auth/session/route';
 import { POST as mcpPost } from '../../src/app/mcp/route';
 import type { ActorContext } from '../../src/contracts';
@@ -321,22 +320,22 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
     const p = { projectId: aliceProject };
     for (let write = 1; write <= 20; write++) {
       const opened = await call(
-        escalationsRoute.POST,
+        tokensRoute.POST,
         'POST',
-        `/projects/${aliceProject}/escalations`,
+        `/projects/${aliceProject}/agent-tokens`,
         p,
         alice,
-        { body: { complaint: `Complaint ${write}`, idempotencyKey: `rate-${write}` } },
+        { body: { label: `Write ${write}`, idempotencyKey: `rate-${write}` } },
       );
       expect(opened.status, `write ${write}`).toBe(201);
     }
     const limited = await call(
-      escalationsRoute.POST,
+      tokensRoute.POST,
       'POST',
-      `/projects/${aliceProject}/escalations`,
+      `/projects/${aliceProject}/agent-tokens`,
       p,
       alice,
-      { body: { complaint: 'Complaint 21', idempotencyKey: 'rate-21' } },
+      { body: { label: 'Write 21', idempotencyKey: 'rate-21' } },
     );
     expect(limited).toMatchObject({
       status: 429,
@@ -348,12 +347,12 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
     expect(
       (
         await call(
-          escalationsRoute.POST,
+          tokensRoute.POST,
           'POST',
-          `/projects/${bobProject}/escalations`,
+          `/projects/${bobProject}/agent-tokens`,
           { projectId: bobProject },
           bob,
-          { body: { complaint: 'Other user', idempotencyKey: 'rate-bob' } },
+          { body: { label: 'Other user', idempotencyKey: 'rate-bob' } },
         )
       ).status,
     ).toBe(201);

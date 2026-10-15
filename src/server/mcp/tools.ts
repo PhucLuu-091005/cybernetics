@@ -5,7 +5,6 @@ import {
   CreateProposalInputSchema,
   DiffProposalInputSchema,
   GetCommitInputSchema,
-  GetEscalationInputSchema,
   GetGraphInputSchema,
   GetLoopInputSchema,
   GetProjectInputSchema,
@@ -17,14 +16,12 @@ import {
   ListLoopsInputSchema,
   ListMilestonesInputSchema,
   MergeProposalInputSchema,
-  OpenEscalationInputSchema,
   PreviewRebaseInputSchema,
   PreviewRestoreInputSchema,
   PreviewRevertInputSchema,
   ReadRecordChunkInputSchema,
   RestoreCommitInputSchema,
   RevertCommitInputSchema,
-  SaveEscalationAnalysisInputSchema,
   SearchRecordsInputSchema,
   UpdateProposalInputSchema,
   type ActorContext,
@@ -39,7 +36,6 @@ import {
   restoreCommit,
   revertCommit,
 } from '../domain/commits';
-import { getEscalation, openEscalation, saveEscalationAnalysis } from '../domain/escalations';
 import {
   getGraph,
   getLoop,
@@ -297,26 +293,5 @@ export const MCP_TOOLS: readonly McpTool[] = [
     RestoreCommitInputSchema,
     'Explicitly restore an earlier snapshot as a new commit with the previewed digest and expected revisions. Requires graph:merge; call only when your user directs it.',
     restoreCommit,
-  ),
-  tool(
-    'open_escalation',
-    'escalations:write',
-    OpenEscalationInputSchema,
-    'Open a complaint for analysis. Requires escalations:write.',
-    openEscalation,
-  ),
-  tool(
-    'save_escalation_analysis',
-    'escalations:write',
-    SaveEscalationAnalysisInputSchema,
-    'Save a draft analysis revision pinned to a committed graph and evidence revision: at most 6 claims with supporting/contradicting act IDs and an answer using [act:<id>] markers. Agents cannot approve answers.',
-    saveEscalationAnalysis,
-  ),
-  tool(
-    'get_escalation',
-    'project:read',
-    GetEscalationInputSchema,
-    'Read a complaint with its analysis history, derived verdicts, citations and freshness.',
-    getEscalation,
   ),
 ];

@@ -19,7 +19,6 @@ import {
 } from '../../../src/server/db/schema';
 import { requireProject } from '../../../src/server/domain/access';
 import { listHistory } from '../../../src/server/domain/commits';
-import { getEscalation, listEscalations } from '../../../src/server/domain/escalations';
 import { getGraphView } from '../../../src/server/domain/graph';
 import { listProjects } from '../../../src/server/domain/projects';
 import {
@@ -254,59 +253,6 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('seeded sandbox', () => {
     expect(rebase.conflicts.map((item) => `${item.collection}/${item.id}`)).toEqual([
       `loops/${ids.entityId(uuidFromKey('loop:crm-sync'))}`,
     ]);
-  });
-
-  it('opens the three SRD 15 escalations, each with one current saved analysis whose verdicts equal gold', async () => {
-    const { userId } = await seededStore().provisionUser({
-      subject: `google:${randomUUID()}`,
-      email: null,
-      name: 'G',
-    });
-    const ctx = await actorFor(userId);
-    const [project] = await listProjects(t.db, ctx);
-    const ids = await fixtureIds(project.id);
-    const listed = (await listEscalations(t.db, ctx, { projectId: project.id })).items;
-    expect(listed.map((item) => item.complaint).sort()).toEqual(
-      gold.escalations.map((item) => item.complaint).sort(),
-    );
-    for (const fixture of gold.escalations) {
-      const escalation = listed.find((item) => item.complaint === fixture.complaint)!;
-      expect(escalation.latestAnalysisRevision).toBe(1);
-      const view = await getEscalation(t.db, ctx, {
-        projectId: project.id,
-        escalationId: escalation.id,
-      });
-      expect(view.stale).toBe(false);
-      expect(view.analyses).toHaveLength(1);
-      const [analysis] = view.analyses;
-      expect(analysis).toMatchObject({
-        graphCommitId: project.mainCommitId,
-        evidenceRevision: project.evidenceRevision,
-        approval: null,
-      });
-      expect(
-        analysis.claims.map(({ id, text, verdict, supportingActIds, contradictingActIds }) => ({
-          id,
-          text,
-          verdict,
-          supportingActIds,
-          contradictingActIds,
-        })),
-      ).toEqual(
-        fixture.claims.map((claim) => ({
-          id: ids.entityId(claim.id),
-          text: claim.text,
-          verdict: claim.verdict,
-          supportingActIds: claim.supportingActIds.map(ids.entityId),
-          contradictingActIds: claim.contradictingActIds.map(ids.entityId),
-        })),
-      );
-      for (const actId of analysis.claims.flatMap((claim) => [
-        ...claim.supportingActIds,
-        ...claim.contradictingActIds,
-      ]))
-        expect(analysis.answerText).toContain(`[act:${actId}]`);
-    }
   });
 
   it('runs inside the provisioning transaction, so a failure after the seed leaves no user, project or record', async () => {

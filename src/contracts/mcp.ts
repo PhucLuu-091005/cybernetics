@@ -49,7 +49,6 @@ export const GetProjectResultSchema = z.strictObject({
   project: ProjectSchema,
   context: GraphContextSchema,
   pendingEvidenceCount: RevisionSchema,
-  analysisFreshness: z.enum(['current', 'stale', 'none']),
   requestId: TextSchema,
 });
 export const ViewSelectionSchema = z.discriminatedUnion('kind', [

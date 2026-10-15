@@ -8,18 +8,16 @@ import {
   type ActorReference,
 } from '../../../../../contracts';
 import { GraphHeader, type HeadCommit } from '../../../../../components/graph/GraphHeader';
-import { GraphScreen, type EscalationFocus } from '../../../../../components/graph/GraphScreen';
-import { citedLoops, parseFilters } from '../../../../../components/graph/filters';
+import { GraphScreen } from '../../../../../components/graph/GraphScreen';
+import { parseFilters } from '../../../../../components/graph/filters';
 import { shortStamp } from '../../../../../components/graph/labels';
 import { proposalHighlights } from '../../../../../components/review/describe';
 import { ProposalFrame } from '../../../../../components/review/ProposalFrame';
 import { getApp } from '../../../../../server/app';
 import { listHistory } from '../../../../../server/domain/commits';
-import { getEscalation } from '../../../../../server/domain/escalations';
 import { getGraphView, resolveView } from '../../../../../server/domain/graph';
 import { listProjects } from '../../../../../server/domain/projects';
 import { getProposal } from '../../../../../server/domain/proposals';
-import { AppError } from '../../../../../server/errors';
 import { diffSnapshots } from '../../../../../server/graph/diff';
 import { notFoundOn, requireActor } from '../../../../../server/http/rsc';
 import { reviewQueue } from '../review-count';
@@ -90,35 +88,6 @@ export default async function GraphPage({
         }
       : { id: view.mainCommitId, verb: 'current', at: '', by: null };
 
-  let escalation: EscalationFocus | null = null;
-  if (filters.escalationId) {
-    try {
-      const read = await getEscalation(db, actor, {
-        projectId: id,
-        escalationId: filters.escalationId,
-        limit: 1,
-      });
-      const claims = read.analyses[0]?.claims;
-      escalation = claims
-        ? {
-            state: 'cited',
-            loopIds: [
-              ...citedLoops(
-                view.engine,
-                claims.flatMap((claim) => [
-                  ...claim.supportingActIds,
-                  ...claim.contradictingActIds,
-                ]),
-              ),
-            ],
-          }
-        : { state: 'no-analysis' };
-    } catch (error) {
-      if (!(error instanceof AppError && error.code === 'NOT_FOUND')) throw error;
-      escalation = { state: 'missing' };
-    }
-  }
-
   return (
     <>
       <GraphHeader
@@ -143,7 +112,6 @@ export default async function GraphPage({
         pendingEvidenceCount={queue.pendingRecords}
         sources={view.sources}
         initialFilters={filters}
-        escalation={escalation}
         view={{ kind: 'main' }}
         heading="Approved graph"
         snapshot={view.snapshot}
@@ -248,7 +216,6 @@ async function ProposalGraph({
         pendingEvidenceCount={view.pendingEvidenceCount}
         sources={view.sources}
         initialFilters={filters}
-        escalation={null}
         view={{ kind: 'proposal', proposalId: proposal.id, proposalRevision: proposal.revision }}
         snapshot={view.snapshot}
         edit={{

@@ -12,7 +12,6 @@ export const ScopeSchema = z.enum([
   'records:import',
   'graph:propose',
   'graph:merge',
-  'escalations:write',
 ]);
 export type Scope = z.infer<typeof ScopeSchema>;
 export const DEFAULT_AGENT_SCOPES: readonly Scope[] = [

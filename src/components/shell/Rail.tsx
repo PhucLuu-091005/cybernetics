@@ -48,7 +48,6 @@ export function Rail({ projectId, projects, waiting, initial }: Props) {
       <nav className="rail-nav" aria-label="Project">
         {item('graph', 'graph', 'Graph')}
         {item('review', 'review', 'Review', waiting)}
-        {item('escalations', 'flag', 'Escalations')}
       </nav>
       <div className="rail-foot">
         <p className="rail-note rail-label">

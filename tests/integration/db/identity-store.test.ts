@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { createTestDatabase, testActor, type TestDb } from '../../support/db';
@@ -188,6 +190,17 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('DbIdentityStore', () => {
         revokedAt: '2026-10-16T00:00:00.000Z',
       }),
     ).toBeNull();
+  });
+  it('migration 0002 drops the escalation tables and strips escalations:write from stored tokens', async () => {
+    const { rows } = await t.db.execute(
+      sql`SELECT tablename FROM pg_tables WHERE tablename LIKE 'escalation%'`,
+    );
+    expect(rows).toEqual([]);
+    const migration = readFileSync(
+      join(process.cwd(), 'src/server/db/migrations/0002_remove_escalations.sql'),
+      'utf8',
+    );
+    expect(migration).toContain(`array_remove("scopes", 'escalations:write')`);
   });
   it('keeps the session default workspace stable after joining another workspace', async () => {
     const owner = await testActor(t.db),
