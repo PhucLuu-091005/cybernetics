@@ -517,6 +517,8 @@ export function GraphScreen({
               onResetLayout={hasOffsets(offsets) ? resetLayout : null}
               index={{ entries: indexEntries, only, onToggleOnly: toggleOnly, onShowAll: showAll }}
               onSelectLoop={selectLoop}
+              panelOpen={panelOpen}
+              onClosePanel={close}
               onSelectMilestone={selectMilestone}
               onViewRecord={viewRecord}
               stageRef={stageRef}
