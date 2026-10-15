@@ -4,10 +4,9 @@ import { Fragment, useState } from 'react';
 import type { CommitPreview, CommitReceipt, Proposal } from '../../contracts';
 import { send, type ApiError, type Basis } from '../inbox/api';
 import { ConflictBanner } from '../review/ConflictBanner';
-import { describeEntity, entityTitle, newestImage, type Names } from '../review/describe';
+import { describeEntity, entityTitle, KIND, newestImage, type Names } from '../review/describe';
 import { ChangeCells } from '../review/DiffView';
 import { useHydrated } from '../review/hydrated';
-import { COLLECTION } from './CommitDiff';
 
 export type LaterCommit = { id: string; message: string; keys: string[] };
 type Props = {
@@ -227,7 +226,7 @@ export function RevertRestorePreview({
                   <tbody>
                     {preview.diff.changes.map((change) => (
                       <tr key={`${change.collection}/${change.id}`}>
-                        <td>{COLLECTION[change.collection]}</td>
+                        <td>{KIND[change.collection]}</td>
                         <td>
                           {entityTitle(
                             change.collection,

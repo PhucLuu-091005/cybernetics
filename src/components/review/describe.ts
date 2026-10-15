@@ -52,7 +52,7 @@ const recordName = (id: string, names: Names) => names.records[id] ?? 'Unknown r
 const clip = (text: string, length = 70) =>
   text.length > length ? `${text.slice(0, length - 1)}…` : text;
 
-const KIND: Record<EntityCollection, string> = {
+export const KIND: Record<EntityCollection, string> = {
   acts: 'Step',
   loops: 'Loop',
   annotations: 'Note',
