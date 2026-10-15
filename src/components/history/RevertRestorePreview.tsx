@@ -249,14 +249,14 @@ export function RevertRestorePreview({
                     .
                   </>
                 ) : (
-                  '✓ No later commit changed other entities.'
+                  '✓ No later version changed other items.'
                 )}
               </p>
             </>
           ) : (
             <>
               <p style={{ fontSize: 13 }}>
-                Restore copies this snapshot into a new commit on top of{' '}
+                Going back copies this version into a new version on top of{' '}
                 {preview.mainCommitId.slice(0, 7)}.{' '}
                 {preview.diff.changes.length
                   ? 'It replaces later interpretation:'
@@ -305,8 +305,7 @@ export function RevertRestorePreview({
             <span className="digest">
               {preview.digest.slice(0, 4)}…{preview.digest.slice(-4)}
             </span>
-            , expected head {preview.mainCommitId.slice(0, 7)}, evidence revision{' '}
-            {preview.evidenceRevision}. No evidence and no commit is deleted.
+            , for the expected version and records. No record and no version is deleted.
           </p>
           {!blocked && (
             <div className="row" style={{ alignItems: 'flex-end' }}>
