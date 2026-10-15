@@ -3,9 +3,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Alias, InboxState, QuotedRange, SourceKind } from '../../contracts';
+import { MY_REVIEW_TITLE } from '../review-queue/state';
 import { createDraft, type Basis } from './api';
 import { activePermalink, SOURCE_LABEL, STATE_LABEL, STATE_TONE } from './links';
-import { MY_REVIEW_TITLE } from '../review-queue/state';
 import { formatCite, segmentBody, selectionToCitation } from './selection';
 
 export type ViewedRecord = {
