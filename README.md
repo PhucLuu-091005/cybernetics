@@ -14,7 +14,7 @@ It is for customer success and implementation managers. They must reconstruct a 
 
 ## Screenshots
 
-The screenshots come from a local development server on 15 October 2026, with the seeded sandbox.
+The screenshots come from a local development server on 16 October 2026, with the seeded sandbox.
 
 The approved graph with the loop panel open. The red branch has an `unanswered_request` breakdown, and the panel shows the cited quote in its message:
 
@@ -24,7 +24,7 @@ The Review screen with a change set selected: the change, its effect on the loop
 
 ![Review screen with a change set](docs/screenshots/review-queue.png)
 
-The Settings page: the agent access scopes, the MCP client snippet and a created token:
+The Settings page: the agent permissions, the MCP client snippet and a created token:
 
 ![Settings page with agent access](docs/screenshots/agent-tokens.png)
 
