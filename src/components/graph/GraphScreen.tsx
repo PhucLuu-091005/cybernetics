@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { DerivedLoop, EngineOutput } from '../../contracts/engine';
 import type { GraphContext, GraphSnapshot } from '../../contracts/graph';
 import type { ViewSelection } from '../../contracts/mcp';
@@ -21,6 +21,9 @@ import type { CardInfo } from './CardNode';
 import { ACT_LABEL, loopColor, partyName, shortStamp, type Directory } from './labels';
 import type { IndexEntry } from './LoopIndex';
 import { readDayWidths, withDayWidth, writeDayWidths, type DayWidths } from './day-width-store';
+import { RecordPreview } from './RecordPreview';
+import { ResizeHandle } from './ResizeHandle';
+import { useStoredSize } from './stored-size';
 import {
   browserStore,
   hasOffsets,
@@ -131,6 +134,13 @@ export function GraphScreen({
   const lastFocus = useRef<string | null>(null);
 
   const stageRef = useRef<HTMLDivElement>(null);
+  const [panelWidth, setPanelWidth] = useStoredSize('promise-graph:width:panel', 320, 720);
+  const [preview, setPreview] = useState<{ versionId: string; quote: string | null } | null>(null);
+  const viewRecord = useCallback(
+    (versionId: string, quote: string | null) => setPreview({ versionId, quote }),
+    [],
+  );
+  const closePreview = useCallback(() => setPreview(null), []);
 
   const directory: Directory = useMemo(
     () => ({
@@ -240,6 +250,7 @@ export function GraphScreen({
           ...dayAndTime(shortStamp(act.occurredAt, context.timeZone)),
           person: partyName(act.actor, directory),
           quote: act.quote,
+          recordVersionId: versionId,
           source: actSource(projectId, versionId, sources[versionId]),
         });
       }
@@ -256,7 +267,7 @@ export function GraphScreen({
     ? (engine.milestones.find((item) => item.milestone.id === milestoneId) ?? null)
     : null;
   const relations: LoopRelations = useMemo(() => {
-    if (!selectedLoop) return { parent: null, after: [], tasks: [] };
+    if (!selectedLoop) return { parent: null, after: [], next: [], tasks: [] };
     const related = (id: string): RelatedLoop[] => {
       const item = engine.loops.find((loop) => loop.loop.id === id);
       return item
@@ -266,7 +277,15 @@ export function GraphScreen({
               title: item.loop.title,
               department:
                 directory.departments.get(item.loop.performerDepartmentId)?.name ?? 'Unknown',
+              performer: partyName(item.loop.performer, directory),
               state: item.state,
+              color: loopColor(item),
+              startedAt: item.acts[0]?.occurredAt ?? null,
+              closedAt: item.state === 'closed' ? item.closedAt : null,
+              waitingFor: (item.loop.afterLoopIds ?? []).flatMap((before) => {
+                const other = engine.loops.find((loop) => loop.loop.id === before);
+                return other && other.state !== 'closed' ? [other.loop.title] : [];
+              }),
             },
           ]
         : [];
@@ -275,6 +294,9 @@ export function GraphScreen({
     return {
       parent: parentLoopId ? (related(parentLoopId)[0] ?? null) : null,
       after: afterLoopIds.flatMap(related),
+      next: engine.loops
+        .filter((loop) => loop.loop.afterLoopIds?.includes(selectedLoop.loop.id))
+        .flatMap((loop) => related(loop.loop.id)),
       tasks: engine.loops
         .filter((loop) => loop.loop.parentLoopId === selectedLoop.loop.id)
         .flatMap((loop) => related(loop.loop.id)),
@@ -454,7 +476,30 @@ export function GraphScreen({
         />
       ) : (
         <>
-          <div ref={stageRef} className={`stage${panelOpen ? ' open' : ''}`}>
+          <div
+            ref={stageRef}
+            className={`stage${panelOpen ? ' open' : ''}`}
+            style={panelWidth ? ({ '--panel-w': `${panelWidth}px` } as CSSProperties) : undefined}
+          >
+            {preview && (
+              <RecordPreview
+                projectId={projectId}
+                versionId={preview.versionId}
+                quote={preview.quote}
+                onClose={closePreview}
+              />
+            )}
+            {panelOpen && (
+              <ResizeHandle
+                className="panel-handle"
+                label="Panel width"
+                grow={-1}
+                measure={() =>
+                  stageRef.current?.querySelector('.drawer')?.getBoundingClientRect().width ?? 400
+                }
+                onResize={setPanelWidth}
+              />
+            )}
             <PromiseGraph
               title={title}
               context={context}
@@ -475,6 +520,7 @@ export function GraphScreen({
               index={{ entries: indexEntries, only, onToggleOnly: toggleOnly, onShowAll: showAll }}
               onSelectLoop={selectLoop}
               onSelectMilestone={selectMilestone}
+              onViewRecord={viewRecord}
               stageRef={stageRef}
             />
             {selectedLoop && (
@@ -494,6 +540,7 @@ export function GraphScreen({
                 agentActIds={agentActs}
                 relations={relations}
                 onOpenLoop={selectLoop}
+                onViewRecord={viewRecord}
                 onClose={close}
               />
             )}

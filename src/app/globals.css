@@ -585,6 +585,9 @@
     gap: 4px 16px;
   }
   .stage {
+    /* The canvas and the open panel share one height, so they line up. */
+    --stage-h: max(620px, calc(100dvh - 300px));
+    --panel-w: 400px;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
@@ -592,13 +595,13 @@
     align-items: start;
   }
   .stage.open {
-    grid-template-columns: minmax(0, 1fr) 400px;
+    grid-template-columns: minmax(0, 1fr) var(--panel-w);
   }
   .canvas-stage {
     --lane-col: 132px;
     --axis-h: 28px;
     position: relative;
-    height: max(460px, calc(100dvh - 330px));
+    height: var(--stage-h);
     border: 1px solid var(--rule);
     border-radius: 10px;
     background: var(--surface);
@@ -610,7 +613,8 @@
     top: 0;
     width: var(--lane-col);
     height: var(--axis-h);
-    z-index: 4;
+    /* Above the resize handles, so the axis menu that drops from it stays clickable. */
+    z-index: 8;
     background: var(--surface);
     border-right: 1px solid var(--rule);
     border-bottom: 1px solid var(--rule);
@@ -1045,11 +1049,125 @@
     padding: 12px;
     align-items: stretch;
   }
-  .stage:fullscreen .canvas-stage {
-    height: calc(100dvh - 24px);
+  .stage:fullscreen {
+    --stage-h: calc(100dvh - 24px);
   }
-  .stage:fullscreen .drawer {
-    max-height: calc(100dvh - 24px);
+  .resume-fullscreen {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 8px 8px 14px;
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    font-size: 13px;
+  }
+  .record-preview-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    justify-content: flex-end;
+    background: color-mix(in srgb, var(--ink) 18%, transparent);
+    border-radius: 10px;
+  }
+  .record-preview {
+    width: min(560px, 100%);
+    height: var(--stage-h);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px 18px;
+    background: var(--surface);
+    border-left: 1px solid var(--rule);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    overflow: auto;
+  }
+  .record-preview header {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .record-preview h2 {
+    flex: 1;
+    font-size: 16px;
+  }
+  .record-header {
+    margin: 0;
+    font: 12px/1.5 var(--f-id);
+    color: var(--ink-2);
+    white-space: pre-wrap;
+  }
+  .record-text {
+    white-space: pre-wrap;
+    font-size: 13.5px;
+    line-height: 1.55;
+  }
+  .record-text mark {
+    background: var(--mark);
+    color: inherit;
+  }
+  .record-preview footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-top: auto;
+    padding-top: 10px;
+    border-top: 1px solid var(--rule-2);
+    font-size: 12.5px;
+  }
+  .record-preview footer a {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .link-button {
+    all: unset;
+    cursor: pointer;
+    color: var(--route);
+    font-weight: 600;
+  }
+  .link-button:hover {
+    text-decoration: underline;
+  }
+  .link-button:focus-visible {
+    outline: 2px solid var(--focus);
+  }
+  .resize-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    z-index: 7;
+    cursor: col-resize;
+    touch-action: none;
+  }
+  .resize-handle:hover::after,
+  .resize-handle:active::after {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--focus);
+  }
+  .lane-handle {
+    top: var(--axis-h);
+    left: calc(var(--lane-col) - 4px);
+  }
+  .list-handle {
+    right: calc(var(--list-w) - 4px);
+  }
+  .panel-handle {
+    right: calc(var(--panel-w) + 2px);
+    height: var(--stage-h);
   }
   .legend {
     display: flex;
@@ -1266,21 +1384,100 @@
     font-size: 11.5px;
     margin-bottom: 2px;
   }
-  .work .rel {
+  .work .sub {
     all: unset;
+    box-sizing: border-box;
     display: flex;
-    gap: 6px;
     align-items: center;
-    padding: 3px 0;
+    gap: 8px;
+    width: 100%;
+    padding: 5px 6px;
+    border-radius: 6px;
     font-size: 13px;
     cursor: pointer;
     color: var(--ink);
   }
-  .work .rel:hover {
-    text-decoration: underline;
+  .work .sub:hover {
+    background: var(--rule-2);
   }
-  .work .rel:focus-visible {
+  .work .sub:focus-visible,
+  .rel-chip:focus-visible {
     outline: 2px solid var(--focus);
+  }
+  .work .sub .t {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .work .sub .meta {
+    flex: none;
+    font-size: 11.5px;
+    color: var(--ink-3);
+  }
+  .work .sub .blocked {
+    flex: none;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--caution);
+  }
+  .work ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .work h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .work .progress {
+    flex: 1;
+    max-width: 120px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--rule);
+    overflow: hidden;
+  }
+  .work .progress span {
+    display: block;
+    height: 100%;
+    background: var(--proceed);
+  }
+  .status-icon {
+    flex: none;
+  }
+  .step.relation .g {
+    color: var(--ink-3);
+  }
+  .step.relation .step-h span {
+    font-size: 12.5px;
+    color: var(--ink-2);
+  }
+  .relation-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .rel-chip {
+    all: unset;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 100%;
+    padding: 2px 8px;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    font-size: 11.5px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .rel-chip:hover {
+    background: var(--rule-2);
   }
   .task-row td:first-child {
     padding-left: 22px;
@@ -1300,7 +1497,7 @@
     border-radius: 8px;
     display: flex;
     flex-direction: column;
-    max-height: 640px;
+    height: var(--stage-h);
     min-width: 0;
     position: sticky;
     top: 12px;
@@ -2203,8 +2400,11 @@
       grid-template-columns: minmax(0, 1fr);
     }
     .drawer {
-      max-height: none;
+      height: auto;
       position: static;
+    }
+    .panel-handle {
+      display: none;
     }
   }
   @media (max-width: 600px) {

@@ -50,18 +50,92 @@ type Props = {
   /** The promise a task belongs to, the tasks that hand off to it, and a promise's own tasks. */
   relations: LoopRelations;
   onOpenLoop(loopId: string): void;
+  onViewRecord(recordVersionId: string, quote: string | null): void;
   onClose(): void;
 };
 export type RelatedLoop = {
   id: string;
   title: string;
   department: string;
+  performer: string;
   state: LoopState | null;
+  color: string;
+  startedAt: string | null;
+  closedAt: string | null;
+  /** Titles of the loops it waits for that are not closed yet. */
+  waitingFor: string[];
 };
+/** Like the parent, sub-issues and blocked-by / blocks relations of a ticket tracker. */
 export type LoopRelations = {
   parent: RelatedLoop | null;
+  /** Tasks that must close before this one starts. */
   after: RelatedLoop[];
+  /** Tasks that wait for this one. */
+  next: RelatedLoop[];
   tasks: RelatedLoop[];
+};
+type RelationStep = {
+  at: string | null;
+  kind: 'split' | 'after' | 'handoff' | 'return';
+  text: string;
+  ids: RelatedLoop[];
+};
+
+const list = (items: RelatedLoop[]) => items.map((item) => item.title).join(', ');
+
+/** Where this loop meets its parent, tasks and handoffs, placed among its steps by time. */
+function relationSteps(loop: DerivedLoop, relations: LoopRelations): RelationStep[] {
+  const { parent, after, next, tasks } = relations;
+  const steps: RelationStep[] = [];
+  if (tasks.length) {
+    const starts = tasks.flatMap((task) => (task.startedAt ? [task.startedAt] : [])).sort();
+    const departments = [...new Set(tasks.map((task) => task.department))].join(', ');
+    steps.push({
+      at: starts[0] ?? null,
+      kind: 'split',
+      text: `Split into ${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'} for ${departments}`,
+      ids: tasks,
+    });
+  }
+  if (after.length) {
+    const waiting = after.filter((item) => item.state !== 'closed');
+    steps.push(
+      loop.acts.length
+        ? {
+            at: loop.acts[0].occurredAt,
+            kind: 'after',
+            text: `Handed over from ${list(after)}`,
+            ids: after,
+          }
+        : {
+            at: null,
+            kind: 'after',
+            text: waiting.length ? `Waiting for ${list(waiting)}` : `Ready: ${list(after)} done`,
+            ids: waiting.length ? waiting : after,
+          },
+    );
+  }
+  if (next.length)
+    steps.push(
+      loop.state === 'closed'
+        ? { at: loop.closedAt, kind: 'handoff', text: `Handed off to ${list(next)}`, ids: next }
+        : { at: null, kind: 'handoff', text: `Hands off to ${list(next)} when done`, ids: next },
+    );
+  else if (parent && loop.state === 'closed')
+    steps.push({
+      at: loop.closedAt,
+      kind: 'return',
+      text: `Returned to ${parent.title}`,
+      ids: [parent],
+    });
+  return steps;
+}
+
+const RELATION_ICON: Record<RelationStep['kind'], string[]> = {
+  split: ['M16 3h5v5', 'M8 3H3v5', 'M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3', 'm15 9 6-6'],
+  after: ['m9 18 6-6-6-6'],
+  handoff: ['m16 3 4 4-4 4', 'M20 7H4', 'm8 21-4-4 4-4', 'M4 17h16'],
+  return: ['M6 21V9a9 9 0 0 0 9 9', 'M18 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6'],
 };
 type Evidence = Pick<LoopAct, 'context' | 'permalink' | 'source' | 'sourceLabel'>;
 type StepEdit = { actId: string; action: 'type' | 'move' | 'hide' };
@@ -201,9 +275,11 @@ export function LoopPanel({
   agentActIds,
   relations,
   onOpenLoop,
+  onViewRecord,
   onClose,
 }: Props) {
   const { acts: evidence, rateLimited } = useEvidence(projectId, loop.loop.id, T, view);
+  const steps = relationSteps(loop, relations);
   const edit = useDraftEdit(projectId, target);
   const [stepEdit, setStepEdit] = useState<StepEdit | null>(null);
   const onMain = target.kind === 'main';
@@ -363,16 +439,39 @@ export function LoopPanel({
             </p>
           )}
           {loop.acts.length === 0 ? (
-            <p className="faint" style={{ fontSize: 13 }}>
-              No acts yet at the evaluation time.
-            </p>
+            <>
+              <p className="faint" style={{ fontSize: 13 }}>
+                No acts yet at the evaluation time.
+              </p>
+              {steps.length > 0 && (
+                <ol className="steps" aria-label="Steps">
+                  {steps.map((step) => (
+                    <RelationRow key={step.kind} step={step} onOpenLoop={onOpenLoop} />
+                  ))}
+                </ol>
+              )}
+            </>
           ) : (
             <ol className="steps" aria-label="Steps">
               {loop.acts.map((act, index) => {
+                const before = steps.filter(
+                  (step) =>
+                    step.at !== null &&
+                    Date.parse(step.at) < Date.parse(act.occurredAt) &&
+                    (index === 0 ||
+                      Date.parse(step.at) >= Date.parse(loop.acts[index - 1].occurredAt)),
+                );
                 const detail = evidence?.get(act.id),
                   name = detail ? sourceName(detail) : null,
                   link = detail ? activePermalink(detail) : null;
-                return (
+                return [
+                  ...before.map((step) => (
+                    <RelationRow
+                      key={`${step.kind}-${act.id}`}
+                      step={step}
+                      onOpenLoop={onOpenLoop}
+                    />
+                  )),
                   <li
                     key={act.id}
                     ref={index === currentActIndex ? current : undefined}
@@ -469,14 +568,27 @@ export function LoopPanel({
                           {detail.permalink}
                         </span>
                       ) : null}
-                      <Link href={`/projects/${projectId}/records/${act.citation.recordVersionId}`}>
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={() => onViewRecord(act.citation.recordVersionId, act.quote)}
+                      >
                         View record
-                      </Link>
+                      </button>
                       {detail && <span className="faint">{detail.sourceLabel}</span>}
                     </div>
-                  </li>
-                );
+                  </li>,
+                ];
               })}
+              {steps
+                .filter(
+                  (step) =>
+                    step.at === null ||
+                    Date.parse(step.at) >= Date.parse(loop.acts.at(-1)!.occurredAt),
+                )
+                .map((step) => (
+                  <RelationRow key={`${step.kind}-end`} step={step} onOpenLoop={onOpenLoop} />
+                ))}
             </ol>
           )}
         </div>
@@ -495,19 +607,85 @@ export function LoopPanel({
   );
 }
 
-function RelatedButton({ loop, onOpenLoop }: { loop: RelatedLoop; onOpenLoop(id: string): void }) {
+function RelationRow({ step, onOpenLoop }: { step: RelationStep; onOpenLoop(id: string): void }) {
   return (
-    <button type="button" className="rel" onClick={() => onOpenLoop(loop.id)}>
-      <span
-        className="st"
-        style={
-          { '--c': loop.state ? STATE_COLOR[loop.state] : 'var(--isolated)' } as React.CSSProperties
-        }
-      >
-        {stateLabel(loop.state)}
+    <li className={`step relation ${step.kind}`}>
+      <span className="g" aria-hidden="true">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          {RELATION_ICON[step.kind].map((d) => (
+            <path key={d} d={d} />
+          ))}
+        </svg>
       </span>
-      {loop.title}
-    </button>
+      <div className="step-h">
+        <span>{step.text}</span>
+      </div>
+      <div className="relation-links">
+        {step.ids.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className="rel-chip"
+            onClick={() => onOpenLoop(item.id)}
+          >
+            <StatusIcon loop={item} />
+            {item.title}
+          </button>
+        ))}
+      </div>
+    </li>
+  );
+}
+
+/** A ticket-tracker status circle: dashed with no acts, empty when asked, half when promised, full with a tick when closed. */
+function StatusIcon({ loop }: { loop: RelatedLoop }) {
+  const { state, color } = loop;
+  const ended = state === 'declined' || state === 'cancelled';
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" className="status-icon">
+      <circle
+        cx="7"
+        cy="7"
+        r="5.5"
+        fill={state === 'closed' ? color : 'none'}
+        stroke={color}
+        strokeWidth="1.5"
+        strokeDasharray={state === null ? '2 2' : undefined}
+      />
+      {(state === 'promised' || state === 'change_pending' || state === 'delivered') && (
+        <path d="M7 1.5 A5.5 5.5 0 0 1 7 12.5 Z" fill={color} />
+      )}
+      {state === 'closed' && (
+        <path d="M4.5 7.2 6.3 9 9.6 5.4" fill="none" stroke="var(--surface)" strokeWidth="1.6" />
+      )}
+      {ended && <path d="M3.5 10.5 10.5 3.5" stroke={color} strokeWidth="1.5" />}
+    </svg>
+  );
+}
+
+function SubIssue({ loop, onOpenLoop }: { loop: RelatedLoop; onOpenLoop(id: string): void }) {
+  return (
+    <li>
+      <button type="button" className="sub" onClick={() => onOpenLoop(loop.id)}>
+        <StatusIcon loop={loop} />
+        <span className="t">{loop.title}</span>
+        {loop.waitingFor.length > 0 && (
+          <span className="blocked" title={`Waiting for ${loop.waitingFor.join(', ')}`}>
+            blocked
+          </span>
+        )}
+        <span className="meta">{loop.department}</span>
+      </button>
+    </li>
   );
 }
 
@@ -518,45 +696,64 @@ function LoopWork({
   relations: LoopRelations;
   onOpenLoop(id: string): void;
 }) {
-  const { parent, after, tasks } = relations;
-  if (!parent && !after.length && !tasks.length) return null;
+  const { parent, after, next, tasks } = relations;
+  if (!parent && !after.length && !next.length && !tasks.length) return null;
   const done = tasks.filter((task) => task.state === 'closed').length;
-  const departments = [...new Set(tasks.map((task) => task.department))];
   return (
     <section className="work" aria-label="Tasks and handoffs">
       {parent && (
-        <p>
+        <p className="parent-crumb">
           <small>Part of</small>
-          <RelatedButton loop={parent} onOpenLoop={onOpenLoop} />
-        </p>
-      )}
-      {after.length > 0 && (
-        <p>
-          <small>After</small>
-          {after.map((item) => (
-            <RelatedButton key={item.id} loop={item} onOpenLoop={onOpenLoop} />
-          ))}
+          <button type="button" className="sub" onClick={() => onOpenLoop(parent.id)}>
+            <StatusIcon loop={parent} />
+            <span className="t">{parent.title}</span>
+          </button>
         </p>
       )}
       {tasks.length > 0 && (
-        <>
+        <div className="subissues">
           <h3>
-            Tasks{' '}
+            Sub-issues
+            <span
+              className="progress"
+              role="progressbar"
+              aria-label="Sub-issues done"
+              aria-valuemin={0}
+              aria-valuemax={tasks.length}
+              aria-valuenow={done}
+            >
+              <span style={{ width: `${(done / tasks.length) * 100}%` }} />
+            </span>
             <span className="faint">
               {done} of {tasks.length} done
             </span>
           </h3>
-          {departments.map((department) => (
-            <div key={department}>
-              <small>{department}</small>
-              {tasks
-                .filter((task) => task.department === department)
-                .map((task) => (
-                  <RelatedButton key={task.id} loop={task} onOpenLoop={onOpenLoop} />
-                ))}
-            </div>
-          ))}
-        </>
+          <ul>
+            {tasks.map((task) => (
+              <SubIssue key={task.id} loop={task} onOpenLoop={onOpenLoop} />
+            ))}
+          </ul>
+        </div>
+      )}
+      {after.length > 0 && (
+        <div className="relations">
+          <small>Blocked by</small>
+          <ul>
+            {after.map((item) => (
+              <SubIssue key={item.id} loop={item} onOpenLoop={onOpenLoop} />
+            ))}
+          </ul>
+        </div>
+      )}
+      {next.length > 0 && (
+        <div className="relations">
+          <small>Blocks</small>
+          <ul>
+            {next.map((item) => (
+              <SubIssue key={item.id} loop={item} onOpenLoop={onOpenLoop} />
+            ))}
+          </ul>
+        </div>
       )}
     </section>
   );

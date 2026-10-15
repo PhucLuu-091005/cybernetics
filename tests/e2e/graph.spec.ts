@@ -312,10 +312,10 @@ test('a drag on empty canvas moves it; the lane names stay in their column and f
   const before = await viewport.evaluate(
     (node) => new DOMMatrix(getComputedStyle(node).transform).e,
   );
-  const box = await boxOf(graph(page));
-  await page.mouse.move(box.x + box.width - 60, box.y + box.height - 90);
+  const start = await emptyPoint(page);
+  await page.mouse.move(start.x, start.y);
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width - 360, box.y + box.height - 90, { steps: 8 });
+  await page.mouse.move(start.x - 300, start.y, { steps: 8 });
   await page.mouse.up();
   await expect
     .poll(() => viewport.evaluate((node) => new DOMMatrix(getComputedStyle(node).transform).e))
@@ -467,6 +467,19 @@ test('a press on an event card opens its loop at that act', async ({ page }) => 
   await expect(panel.locator('[aria-current="step"]')).toHaveCount(1);
 });
 
+/** A point on bare canvas, so a drag there pans instead of moving a card or an icon. */
+async function emptyPoint(page: Page) {
+  const box = await boxOf(graph(page));
+  const point = await page.evaluate((area) => {
+    for (let y = area.y + area.height - 40; y > area.y + 20; y -= 23)
+      for (let x = area.x + area.width - 40; x > area.x + 20; x -= 31) {
+        const hit = document.elementFromPoint(x, y);
+        if (hit?.classList.contains('react-flow__pane')) return { x, y };
+      }
+    return null;
+  }, box);
+  return point!;
+}
 const centre = (box: { x: number; y: number; width: number; height: number }) => ({
   x: box.x + box.width / 2,
   y: box.y + box.height / 2,
@@ -611,7 +624,8 @@ test('a promise split into tasks shows its gateways, its waiting note, its task 
   await work.getByRole('button', { name: /PG-201 CRS form logic/ }).click();
   const task = loopPanel(page).getByRole('region', { name: 'Tasks and handoffs' });
   await expect(task).toContainText('Part of');
-  await expect(task).toContainText('After');
+  await expect(task).toContainText('Blocked by');
+  await expect(task).toContainText('Blocks');
   await expect(task.getByRole('button', { name: /CRS tax residency section/ })).toBeVisible();
   await page.keyboard.press('Escape');
   await page
@@ -662,8 +676,8 @@ test('the time axis shows days; weeks and months wait in its menu; a resized day
   await page.getByRole('button', { name: 'Time axis: days' }).click();
   await reset.click();
   await expect
-    .poll(async () => Math.round((await boxOf(column)).width))
-    .toBe(Math.round(before.width));
+    .poll(async () => Math.abs((await boxOf(column)).width - before.width))
+    .toBeLessThan(2);
 });
 
 test('the loop list search narrows the list by title or department and keeps a task with its promise', async ({
@@ -691,6 +705,91 @@ test('the loop list search narrows the list by title or department and keeps a t
   await expect(search).toHaveValue('');
   await expect(rows).toHaveCount(36);
   await expect(branches(page)).toHaveCount(36);
+});
+
+test('the loop panel shows sub-issues and the handoffs among its steps, like a ticket tracker', async ({
+  page,
+}) => {
+  await signIn(page, 'graph-tasks');
+  await openLoop(page.getByRole('button', { name: /^Loop: CRS tax residency section/ }));
+  const panel = loopPanel(page);
+  const work = panel.getByRole('region', { name: 'Tasks and handoffs' });
+  await expect(work.getByRole('progressbar', { name: 'Sub-issues done' })).toHaveAttribute(
+    'aria-valuenow',
+    '3',
+  );
+  await expect(work.getByRole('listitem')).toHaveCount(5);
+  await expect(
+    work.getByRole('listitem').filter({ hasText: 'Test the CRS section end to end' }),
+  ).toContainText('blocked');
+  const steps = panel.getByRole('list', { name: 'Steps' });
+  await expect(steps).toContainText('Split into 5 tasks for');
+
+  await work.getByRole('button', { name: /PG-201 CRS form logic/ }).click();
+  await expect(panel.getByRole('heading', { level: 2 })).toHaveText('PG-201 CRS form logic');
+  await expect(steps).toContainText('Handed over from Analyse the CRS and FATCA rules');
+  await expect(steps).toContainText('Handed off to Test the CRS section end to end');
+  await steps.getByRole('button', { name: /Test the CRS section end to end/ }).click();
+  await expect(steps).toContainText(/Waiting for PG-203 Country list field type/);
+  await expect(work).toContainText('Blocked by');
+});
+
+test('the canvas and the open panel share one height, and the panel, list and department column resize', async ({
+  page,
+}) => {
+  await signIn(page, 'graph-layout');
+  await openLoop(secretRenewal(page));
+  const stage = page.locator('.canvas-stage');
+  const drawer = page.locator('.drawer');
+  expect(Math.abs((await boxOf(stage)).height - (await boxOf(drawer)).height)).toBeLessThan(2);
+
+  const panelWidth = (await boxOf(drawer)).width;
+  const handle = await boxOf(page.getByRole('separator', { name: 'Panel width' }));
+  await drag(page, centre(handle), -100, 0);
+  await expect
+    .poll(async () => Math.abs((await boxOf(drawer)).width - (panelWidth + 100)))
+    .toBeLessThan(2);
+
+  const column = page.getByTestId('lane-column');
+  const columnWidth = (await boxOf(column)).width;
+  await drag(
+    page,
+    centre(await boxOf(page.getByRole('separator', { name: 'Department column width' }))),
+    60,
+    0,
+  );
+  await expect
+    .poll(async () => Math.abs((await boxOf(column)).width - (columnWidth + 60)))
+    .toBeLessThan(2);
+
+  await page.reload();
+  await expect(graph(page)).toHaveAttribute('data-ready', 'true');
+  await expect
+    .poll(async () => Math.abs((await boxOf(column)).width - (columnWidth + 60)))
+    .toBeLessThan(2);
+  await page.getByRole('separator', { name: 'Department column width' }).dblclick();
+  await expect
+    .poll(async () => Math.abs((await boxOf(column)).width - columnWidth))
+    .toBeLessThan(2);
+});
+
+test('View record opens the record inside the stage, so full screen stays on', async ({ page }) => {
+  await signIn(page, 'graph-layout');
+  await openLoop(secretRenewal(page));
+  const url = page.url();
+  const enabled = await page.evaluate(() => document.fullscreenEnabled);
+  if (enabled) await controls(page).getByRole('button', { name: 'Full screen' }).click();
+  await loopPanel(page).getByRole('button', { name: 'View record' }).first().click();
+  const record = page.getByRole('dialog', { name: 'Record' });
+  await expect(record.locator('mark')).toHaveText(/\w+/);
+  expect(page.url()).toBe(url);
+  if (enabled)
+    expect(await page.evaluate(() => document.fullscreenElement?.className ?? '')).toContain(
+      'stage',
+    );
+  await page.keyboard.press('Escape');
+  await expect(record).toBeHidden();
+  await expect(loopPanel(page)).toBeVisible();
 });
 
 test('phone width: no horizontal page scroll on graph, open panel and list; sign out is reachable', async ({
