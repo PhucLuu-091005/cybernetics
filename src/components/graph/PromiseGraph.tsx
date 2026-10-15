@@ -122,6 +122,9 @@ export type PromiseGraphProps = {
     onShowAll(): void;
   };
   onSelectLoop(loopId: string, actId?: string): void;
+  /** The loop list hides while a panel is open. */
+  panelOpen: boolean;
+  onClosePanel(): void;
   onSelectMilestone(milestoneId: string): void;
   onViewRecord(recordVersionId: string, quote: string | null): void;
   /** Where this project's lane heights are remembered. */
@@ -272,6 +275,8 @@ function Graph(props: PromiseGraphProps) {
     onResetLayout,
     index,
     onSelectLoop,
+    panelOpen,
+    onClosePanel,
     onSelectMilestone,
     onViewRecord,
     laneScaleKey,
@@ -359,18 +364,6 @@ function Graph(props: PromiseGraphProps) {
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
-  // SRD 7.2: the first view is 100 % with T at 80 % of the width; the trunk sits at the top (owner, 15 Oct 2026).
-  const placed = useRef(false);
-  useEffect(() => {
-    if (placed.current || size.width === 0) return;
-    placed.current = true;
-    void flow.setViewport({
-      x: size.width * 0.8 - xT,
-      y: TRUNK_VIEW_TOP - layout.trunkY,
-      zoom: 1,
-    });
-  }, [size, flow, xT, layout.trunkY]);
-
   // A browser leaves full screen when a link opens in another tab, and only a click may enter it again,
   // so a link that ends full screen leaves a one-click way back.
   const [resume, setResume] = useState(false);
@@ -415,6 +408,14 @@ function Graph(props: PromiseGraphProps) {
     const view = fitViewport(content, sizeNow());
     void flow.setViewport({ ...view, y: TRUNK_VIEW_TOP - trunkAt(view.zoom) }, { duration: 200 });
   }, [sizeNow, flow, content, trunkAt]);
+  // Direction B, V1: the first view shows the whole project, not 10 days around T.
+  const placed = useRef(false);
+  useEffect(() => {
+    if (placed.current || size.width === 0) return;
+    placed.current = true;
+    const view = fitViewport(content, size);
+    void flow.setViewport({ ...view, y: TRUNK_VIEW_TOP - trunkAt(view.zoom) });
+  }, [size, flow, content, trunkAt]);
   // A second press during the 150 ms animation steps from the target, not from a zoom halfway there.
   const target = useRef<{ view: Viewport; until: number } | null>(null);
   const step = useCallback(
@@ -486,7 +487,12 @@ function Graph(props: PromiseGraphProps) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setListOpen(stored === null ? window.innerWidth >= LIST_MIN_SCREEN : stored === 'open');
   }, []);
+  const listShown = listOpen && !panelOpen;
   const toggleList = useCallback(() => {
+    if (panelOpen && listOpen) {
+      onClosePanel();
+      return;
+    }
     setListOpen((value) => {
       try {
         window.localStorage.setItem(LIST_KEY, value ? 'closed' : 'open');
@@ -495,27 +501,28 @@ function Graph(props: PromiseGraphProps) {
       }
       return !value;
     });
-  }, []);
-  // A loop hidden by "Show only" comes back first; the jump waits for the layout that holds it.
+  }, [panelOpen, listOpen, onClosePanel]);
+  // The jump waits for the panel, which narrows the canvas, and for the layout that holds a loop hidden by "Show only".
   const pendingJump = useRef<string | null>(null);
+  // A list jump zooms to its loop itself; the reveal that follows a selection would cut that zoom short.
+  const jumpedTo = useRef<string | null>(null);
   const jump = useCallback(
     (loopId: string) => {
       setActiveId(loopId);
-      if (layout.branches.some((branch) => branch.loopId === loopId)) zoomToLoop(loopId);
-      else {
-        pendingJump.current = loopId;
-        index.onToggleOnly(loopId);
-      }
+      jumpedTo.current = loopId;
+      pendingJump.current = loopId;
+      onSelectLoop(loopId);
+      if (!layout.branches.some((branch) => branch.loopId === loopId)) index.onToggleOnly(loopId);
     },
-    [layout, zoomToLoop, index],
+    [layout, index, onSelectLoop],
   );
   useEffect(() => {
     const loopId = pendingJump.current;
-    if (loopId && layout.branches.some((branch) => branch.loopId === loopId)) {
+    if (panelOpen && loopId && layout.branches.some((branch) => branch.loopId === loopId)) {
       pendingJump.current = null;
       zoomToLoop(loopId);
     }
-  }, [layout, zoomToLoop]);
+  }, [layout, zoomToLoop, panelOpen]);
 
   const order = useMemo(
     () => [
@@ -561,6 +568,8 @@ function Graph(props: PromiseGraphProps) {
     [pointOfKey, flow],
   );
   useEffect(() => {
+    if (selectedLoopId === jumpedTo.current) return;
+    jumpedTo.current = null;
     if (selectedLoopId && size.width > 0) reveal(loopKey(selectedLoopId));
   }, [selectedLoopId, size.width, reveal]);
 
@@ -935,11 +944,11 @@ function Graph(props: PromiseGraphProps) {
     <GraphUiContext.Provider value={ui}>
       <div
         ref={stageBox}
-        className={`canvas-stage lod-${lod}${viewport.zoom < CARD_MIN_ZOOM ? ' cards-off' : ''}${listOpen ? ' list-open' : ''}`}
+        className={`canvas-stage lod-${lod}${viewport.zoom < CARD_MIN_ZOOM ? ' cards-off' : ''}${listShown ? ' list-open' : ''}`}
         style={
           {
             ...(laneWidth ? { '--lane-col': `${laneWidth}px` } : {}),
-            ...(listOpen && listWidth ? { '--list-w': `${listWidth}px` } : {}),
+            ...(listShown && listWidth ? { '--list-w': `${listWidth}px` } : {}),
           } as CSSProperties
         }
       >
@@ -950,7 +959,7 @@ function Graph(props: PromiseGraphProps) {
           measure={laneMeasure}
           onResize={setLaneWidth}
         />
-        {listOpen && (
+        {listShown && (
           <ResizeHandle
             className="list-handle"
             label="Loop list width"
@@ -1039,7 +1048,7 @@ function Graph(props: PromiseGraphProps) {
           fullscreenEnabled={fullscreenEnabled}
           onFullscreen={toggleFullscreen}
           onResetLayout={onResetLayout}
-          listOpen={listOpen}
+          listOpen={listShown}
           onList={toggleList}
         />
         {resume && (
@@ -1065,7 +1074,7 @@ function Graph(props: PromiseGraphProps) {
             </button>
           </div>
         )}
-        {listOpen && (
+        {listShown && (
           <LoopIndex
             entries={index.entries}
             only={index.only}

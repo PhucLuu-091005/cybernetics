@@ -311,7 +311,7 @@ The graph is a canvas panel with geometric zoom from 2 % to 400 %. The layout us
 - The time axis stays at the top and the department column stays at the left.
 - Floating controls: zoom out, a % menu (Fit the project, Fit this week, Fit this month, 50 %, 100 %, 200 %), zoom in, fit the project, a minimap and full screen.
 - A double-click on a branch zooms to that loop, at 150 % at most.
-- The first view is 100 % with T at 80 % of the width and the trunk at the centre.
+- The first view fits the whole project, with the trunk at the top (direction B, 15 October 2026).
 - Under 60 % the loop titles and milestone names hide.
 - Time axis (revised 15 October 2026): day columns only. A day without events is 64 px at 100 %; a day with events is wide enough that each act has a slot one card wide, in time order, so no two cards of a loop overlap. A user can resize one day column by its right edge (24–480 px; a double-click resets it); the widths stay in the browser per project. A corner menu lists Weeks and Months as "not implemented yet".
 - Focus on a milestone or a branch (Tab) moves the canvas when the item is outside the visible area.
@@ -348,7 +348,7 @@ The graph is a canvas panel with geometric zoom from 2 % to 400 %. The layout us
 
 ### 7.3b Loop list (15 October 2026)
 
-A panel on the right of the canvas lists the loops the filters let through, in start order with tasks under their promise. A title jumps the canvas to that loop. A focus button per loop shows only the chosen loops (a promise keeps its tasks) until "Show all". A search box narrows the list by title or department (accents and case ignored); a matching task keeps its promise above it, dimmed. The search changes the list only, never the graph. The panel opens by default on screens 1,100 px or wider and remembers its open state per browser.
+A panel on the right of the canvas lists the loops the filters let through, in start order with tasks under their promise. A title jumps the canvas to that loop. A focus button per loop shows only the chosen loops (a promise keeps its tasks) until "Show all". A search box narrows the list by title or department (accents and case ignored); a matching task keeps its promise above it, dimmed. The search changes the list only, never the graph. The panel opens by default on screens 1,100 px or wider and remembers its open state per browser. A click on a loop name opens its panel; the list hides while a panel is open and comes back when the panel closes.
 
 ### 7.4 Loop panel
 
