@@ -100,15 +100,10 @@ test('a second approve of the same change set shows a conflict and stays on the 
   await context.close();
 });
 
-test('ignored records from before and after an approval land in one My review set', async ({
+test('a record ignored after another approval still lands in the same My review', async ({
   page,
 }) => {
   const projectId = await signIn(page, 'queue-focus');
-  await page.goto(`/projects/${projectId}/review`);
-  await openSet(page, /Add Sarah's follow-up/);
-  await actions(page).getByRole('button', { name: 'Approve' }).click();
-  await expect(approved(page, /^Approved: Add Sarah's follow-up/)).toBeVisible();
-
   const ignoreRecord = async (title: string) => {
     await page.goto(`/projects/${projectId}/review?tab=records`);
     await page.getByRole('link', { name: new RegExp(title) }).click();
@@ -118,6 +113,12 @@ test('ignored records from before and after an approval land in one My review se
     await expect(page.getByRole('link', { name: new RegExp(title) })).toHaveCount(0);
   };
   await ignoreRecord('Automatic reply: out of office');
+
+  await page.goto(`/projects/${projectId}/review?tab=sets`);
+  await openSet(page, /Add Sarah's follow-up/);
+  await actions(page).getByRole('button', { name: 'Approve' }).click();
+  await expect(approved(page, /^Approved: Add Sarah's follow-up/)).toBeVisible();
+
   await ignoreRecord('Go-live slip');
 
   await page.getByRole('tab', { name: /^Change sets/ }).click();
