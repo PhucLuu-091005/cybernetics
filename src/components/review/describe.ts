@@ -12,6 +12,7 @@ import type {
   RecordDecision,
 } from '../../contracts';
 import { ACT_LABEL, dueLabel, shortDate } from '../graph/labels';
+import { noteText } from '../notes/note-view';
 
 /** Display names gathered on the server from every snapshot a screen compares, so a removed entity still has a name. */
 export type Names = {
@@ -52,6 +53,11 @@ const recordName = (id: string, names: Names) => names.records[id] ?? 'Unknown r
 const clip = (text: string, length = 70) =>
   text.length > length ? `${text.slice(0, length - 1)}…` : text;
 
+const plainNote = (image: Image) => {
+  const note = image as Annotation;
+  return noteText(note.text, note.actIds);
+};
+
 export const KIND: Record<EntityCollection, string> = {
   acts: 'Step',
   loops: 'Loop',
@@ -85,7 +91,7 @@ export function describeEntity(
     case 'loops':
       return { kind, name: (image as Loop).title };
     case 'annotations':
-      return { kind, name: clip((image as Annotation).text) };
+      return { kind, name: clip(plainNote(image)) };
     case 'recordDecisions':
       return { kind, name: recordName((image as RecordDecision).recordVersionId, names) };
     case 'people':
@@ -133,7 +139,8 @@ function fieldValue(
     return `${recordName(citation.recordVersionId, names)}, offsets ${citation.start}–${citation.end}`;
   }
   if (field === 'plannedDate' || field === 'currentDate') return shortDate(value as string);
-  if (field === 'actIds') return `${(value as string[]).length} cited acts`;
+  if (field === 'actIds') return String((value as string[]).length);
+  if (field === 'text' && collection === 'annotations') return noteText(value as string);
   if (typeof value === 'boolean') return value ? 'yes' : 'no';
   if (typeof value === 'string') return clip(value, 120);
   if (Array.isArray(value)) return value.length ? value.join(', ') : 'none';
@@ -150,7 +157,7 @@ const FIELD_LABEL: Record<string, string> = {
   performerDepartmentId: 'department',
   departmentId: 'department',
   recordVersionId: 'record',
-  actIds: 'cited acts',
+  actIds: 'cited steps',
   plannedDate: 'planned',
   currentDate: 'current date',
   reachedAt: 'reached',
@@ -221,7 +228,7 @@ export function summarizeEntity(collection: EntityCollection, image: Image, name
       return `${partyLabel(loop.customer, names)} asks ${partyLabel(loop.performer, names)}, milestone ${milestoneName(loop.milestoneId, names)}`;
     }
     case 'annotations':
-      return clip((image as Annotation).text, 160);
+      return plainNote(image);
     case 'recordDecisions': {
       const decision = image as RecordDecision;
       return decision.disposition === 'included' ? 'included' : `ignored: ${decision.reason}`;
