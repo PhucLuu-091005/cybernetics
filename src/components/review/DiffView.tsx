@@ -72,7 +72,7 @@ export function DiffView({
     <>
       <section className="card pad" aria-labelledby="diff-structural">
         <h2 id="diff-structural" style={{ marginBottom: 8 }}>
-          Structural changes
+          Changes
         </h2>
         {structural.length === 0 ? (
           <p className="faint" style={{ fontSize: 13 }}>
@@ -83,7 +83,7 @@ export function DiffView({
             <table>
               <thead>
                 <tr>
-                  <th>Entity</th>
+                  <th>Item</th>
                   <th>Change</th>
                   <th>Before</th>
                   <th>After</th>

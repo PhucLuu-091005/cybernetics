@@ -256,7 +256,7 @@ export function RebaseConflictView({ projectId, preview, names, kept }: Props) {
         </button>
         <span className="faint" style={{ fontSize: 12 }}>
           {ready
-            ? `Ready. Applying moves the draft base to ${preview.mainCommitId.slice(0, 7)} and its revision to ${preview.proposalRevision + 1}. Then review the fresh diff.`
+            ? 'Ready. Applying updates the change set to the latest approved graph.'
             : 'Choose one side for each conflict. Then check the changes again before you approve.'}
         </span>
       </div>
