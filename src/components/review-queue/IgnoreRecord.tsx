@@ -24,19 +24,21 @@ export function IgnoreRecord({
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<ApiError | null>(null);
+  const [created, setCreated] = useState<{ id: string; revision: number } | null>(null);
 
   const ignore = async () => {
     setBusy(true);
     setFailure(null);
-    let draft = target;
+    let draft = target ?? created;
     if (!draft) {
-      const created = await createDraft(projectId, basis, MY_REVIEW_TITLE);
-      if (!created.ok) {
-        setFailure(created.error);
+      const result = await createDraft(projectId, basis, MY_REVIEW_TITLE);
+      if (!result.ok) {
+        setFailure(result.error);
         setBusy(false);
         return;
       }
-      draft = { id: created.data.id, revision: created.data.revision };
+      draft = { id: result.data.id, revision: result.data.revision };
+      setCreated(draft);
     }
     const result = await updateDraft(projectId, draft, basis.evidenceRevision, [
       {
@@ -50,7 +52,15 @@ export function IgnoreRecord({
       setFailure(result.error);
       return;
     }
+    setCreated(null);
     router.push(reviewHref(projectId, { tab: 'records' }));
+    router.refresh();
+  };
+
+  const reload = () => {
+    if (created && !target) {
+      router.push(reviewHref(projectId, { tab: 'records' }));
+    }
     router.refresh();
   };
 
@@ -66,7 +76,7 @@ export function IgnoreRecord({
           message="Your reason is kept. Reload, then ignore it again."
           error={failure}
           actions={
-            <button className="btn" type="button" onClick={() => router.refresh()}>
+            <button className="btn" type="button" onClick={reload}>
               Reload
             </button>
           }
