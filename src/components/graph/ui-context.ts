@@ -21,9 +21,11 @@ export type GraphUi = {
   navFocus(event: FocusEvent, key: string): void;
   selectLoop(loopId: string, actId?: string): void;
   selectMilestone(milestoneId: string): void;
-  /** A press on an event card or icon: a click opens the loop at that act, a drag moves the act or the branch. */
-  startDrag(event: PointerEvent, glyph: ActGlyph): void;
+  /** A press on an event card or icon: a click opens the loop at that act; a drag moves the card, or the act or its branch. */
+  startDrag(event: PointerEvent, glyph: ActGlyph, target: DragTarget): void;
   zoomToLoop(loopId: string): void;
+  /** Opens a cited record in the stage, so full screen stays on. */
+  viewRecord(recordVersionId: string, quote: string | null): void;
 };
 export const GraphUiContext = createContext<GraphUi | null>(null);
 export function useGraphUi(): GraphUi {
@@ -33,3 +35,9 @@ export function useGraphUi(): GraphUi {
 }
 export const loopKey = (loopId: string) => `l:${loopId}`;
 export const milestoneKey = (milestoneId: string) => `m:${milestoneId}`;
+export type DragTarget = 'icon' | 'card';
+/** One drag step: an act inside its day, a branch inside its lane, or a card on its own. */
+export type DragChange =
+  | { kind: 'acts'; id: string; fraction: number }
+  | { kind: 'loops'; id: string; shift: number }
+  | { kind: 'cards'; id: string; dx: number; dy: number };

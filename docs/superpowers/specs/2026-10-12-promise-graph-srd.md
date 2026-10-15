@@ -305,7 +305,7 @@ Both operations are idempotent. A revert of a revert works by the same delta rul
 
 Revised 14 October 2026 (owner decision, `docs/superpowers/specs/2026-10-14-ui-redesign-decisions.md`, part B).
 
-The graph is a canvas panel with geometric zoom from 10 % to 400 %. The layout uses one base scale (64 px per day, 64 px per row); zoom scales it.
+The graph is a canvas panel with geometric zoom from 2 % to 400 %. The layout uses one base scale (64 px per day, 64 px per row); zoom scales it.
 
 - The wheel scrolls; Shift + wheel scrolls sideways. Ctrl/Cmd + wheel or a pinch zooms around the pointer. A drag on empty canvas moves it. No keyboard shortcuts.
 - The time axis stays at the top and the department column stays at the left.
@@ -313,14 +313,14 @@ The graph is a canvas panel with geometric zoom from 10 % to 400 %. The layout u
 - A double-click on a branch zooms to that loop, at 150 % at most.
 - The first view is 100 % with T at 80 % of the width and the trunk at the centre.
 - Under 60 % the loop titles and milestone names hide.
-- Time axis (revised 15 October 2026): day columns only, 64 px a day at 100 %. A user can resize one day column by its right edge (24–480 px; a double-click resets it); the widths stay in the browser per project. A corner menu lists Weeks and Months as "not implemented yet".
+- Time axis (revised 15 October 2026): day columns only. A day without events is 64 px at 100 %; a day with events is wide enough that each act has a slot one card wide, in time order, so no two cards of a loop overlap. A user can resize one day column by its right edge (24–480 px; a double-click resets it); the widths stay in the browser per project. A corner menu lists Weeks and Months as "not implemented yet".
 - Focus on a milestone or a branch (Tab) moves the canvas when the item is outside the visible area.
 
 ### 7.3 Interactions
 
 - **Select a branch or a glyph:** the loop panel opens on the right (section 7.4). The selected branch is bold and the others fade to 40% opacity.
 - **Event icons and cards (revised 14 October 2026):** each act shows on its branch as a bare type icon. From 45 % zoom a card above the line, with a stem to the exact time, shows the act type, local time, person, the quote (two lines) and the source app with its link. The layout reserves the card shelves above each branch, so cards never overlap. Below 45 % only the icons show; an icon's native tooltip gives its accessible name.
-- **Drag (revised 14 October 2026):** a sideways drag on a card or an icon moves the act inside its local day; a vertical drag moves the whole branch inside its lane. Positions stay in the browser per project; "Reset layout" in the canvas controls removes them. A press without movement opens the loop at that act.
+- **Drag (revised 15 October 2026):** a sideways drag on an icon moves the act inside its local day and never past a neighbouring act of the same loop; a vertical drag on an icon moves the whole branch inside its lane; a card drags on its own and its act stays. Positions stay in the browser per project; "Reset layout" in the canvas controls removes them. A press without movement opens the loop at that act.
 - **Select a milestone:** the graph highlights the loops assigned to it. The panel lists those loops and the milestone status reason.
 - **Filter bar:** side, departments (multiple), loop state, breakdown type, milestone, and a text search over loop titles and quotes. The URL holds the filters.
 - **Escalation focus:** `?escalation=<id>` highlights the loops that the escalation cites and fades the others.
@@ -340,6 +340,16 @@ The graph is a canvas panel with geometric zoom from 10 % to 400 %. The layout u
 - A loop with tasks shows "N tasks · K done" under its title. The loop panel lists the tasks by department, and a task's panel shows "Part of" and "After". The list view puts tasks under their parent.
 - Selecting a promise or a task keeps the whole family at full strength.
 
+### 7.3c Panel layout and relations (15 October 2026)
+
+- The canvas and the open loop panel share one height; the loop panel, the loop list and the department column resize by a drag handle (double-click resets; widths stay per browser).
+- The loop panel shows tasks as sub-issues (progress bar, status circles) and a task's "Part of", "Blocked by" and "Blocks" relations. The steps list places the split, handovers, handoffs and the return among the acts by time.
+- "View record" opens the record inside the stage, so full screen stays on. After a link to another tab ends full screen, the graph offers "Return to full screen".
+
+### 7.3b Loop list (15 October 2026)
+
+A panel on the right of the canvas lists the loops the filters let through, in start order with tasks under their promise. A title jumps the canvas to that loop. A focus button per loop shows only the chosen loops (a promise keeps its tasks) until "Show all". A search box narrows the list by title or department (accents and case ignored); a matching task keeps its promise above it, dimmed. The search changes the list only, never the graph. The panel opens by default on screens 1,100 px or wider and remembers its open state per browser.
+
 ### 7.4 Loop panel
 
 1. Title, state badge, breakdown chips. Each chip shows its generated sentence.
@@ -357,7 +367,7 @@ The graph is a canvas panel with geometric zoom from 10 % to 400 %. The layout u
 
 - React Flow (`@xyflow/react`) gives pan, zoom, selection and keyboard focus. Custom node types: `milestone`, `act`, `laneLabel`. Branch lines are one custom edge type that draws an SVG path from layout output.
 - The layout is a pure function in `src/lib/graph-layout` (section 16). It computes every coordinate. React Flow's own auto-layout is not used.
-- Targets: layout under 50 ms for 300 loops and 3,000 acts; first graph paint under 2 seconds on the seeded project.
+- Targets: layout under 50 ms for 300 loops and 3,000 acts; first graph paint under 2 seconds on the seeded project. The e2e check allows 3 seconds on shared CI runners, which measured 2.0–2.8 seconds for the same build (owner decision, 15 October 2026).
 
 ### 7.6 Version and inbox surfaces
 

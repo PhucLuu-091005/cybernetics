@@ -12,20 +12,32 @@ const DASH: Record<BranchSegment['style'], string | undefined> = {
   dotted: '1.5 4',
 };
 
-// The stem leaves the icon above its 18 px glyph and enters the card at least 12 px inside its edge.
-const ICON_TOP = 10,
+// The stem leaves the icon outside its 18 px glyph and enters the card at least 12 px inside its edge.
+const ICON_EDGE = 10,
   STEM_INSET = 12,
   STEM_BEND = 10;
+const within = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));
+
+/** An elbow from the icon to the nearest side of its card: above, below, or beside it after a card drag. */
 function stemPath(glyph: ActGlyph): string | null {
-  if (!glyph.card) return null;
-  const bottom = glyph.card.y + CARD.height,
-    entry = Math.min(
-      Math.max(glyph.x, glyph.card.x + STEM_INSET),
-      glyph.card.x + CARD.width - STEM_INSET,
-    );
-  return entry === glyph.x
-    ? `M${glyph.x} ${glyph.y - ICON_TOP} V${bottom}`
-    : `M${glyph.x} ${glyph.y - ICON_TOP} V${bottom + STEM_BEND} H${entry} V${bottom}`;
+  const card = glyph.card;
+  if (!card) return null;
+  const { x, y } = glyph,
+    top = card.y,
+    bottom = card.y + CARD.height,
+    entry = within(x, card.x + STEM_INSET, card.x + CARD.width - STEM_INSET);
+  if (bottom <= y - ICON_EDGE)
+    return entry === x
+      ? `M${x} ${y - ICON_EDGE} V${bottom}`
+      : `M${x} ${y - ICON_EDGE} V${bottom + STEM_BEND} H${entry} V${bottom}`;
+  if (top >= y + ICON_EDGE)
+    return entry === x
+      ? `M${x} ${y + ICON_EDGE} V${top}`
+      : `M${x} ${y + ICON_EDGE} V${top - STEM_BEND} H${entry} V${top}`;
+  const right = card.x >= x,
+    side = right ? card.x : card.x + CARD.width,
+    level = within(y, top + STEM_INSET, bottom - STEM_INSET);
+  return `M${x + (right ? ICON_EDGE : -ICON_EDGE)} ${y} H${(x + side) / 2} V${level} H${side}`;
 }
 
 /** Splits the layout path into its fork curve and optional merge curve, so the row between them can carry per-segment styles. */
@@ -174,7 +186,7 @@ export function BranchEdge({ data }: EdgeProps<BranchEdgeType>) {
             cy={y}
             r={11}
             onClick={(event) => event.stopPropagation()}
-            onPointerDown={(event) => ui.startDrag(event, glyph)}
+            onPointerDown={(event) => ui.startDrag(event, glyph, 'icon')}
           >
             <title>{glyph.accessibleName}</title>
           </circle>

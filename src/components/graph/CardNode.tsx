@@ -10,9 +10,12 @@ import { useGraphUi } from './ui-context';
 export type CardInfo = {
   type: ActType;
   label: string;
-  when: string;
+  /** "15 Jun" and "15:10": the date sits in the header, the time beside the person. */
+  day: string;
+  time: string;
   person: string;
   quote: string | null;
+  recordVersionId: string;
   source: ActSource;
 };
 export type CardNodeType = Node<{ glyph: ActGlyph; info: CardInfo; color: string }, 'card'>;
@@ -33,14 +36,17 @@ export function CardNode({ data }: NodeProps<CardNodeType>) {
         ['--tone' as string]: color,
         opacity: faded ? 0.4 : 1,
       }}
-      onPointerDown={(event) => ui.startDrag(event, glyph)}
+      onPointerDown={(event) => ui.startDrag(event, glyph, 'card')}
     >
       <div className="ev-h">
         <ActIcon type={info.type} />
         <b>{info.label}</b>
-        <span className="d">{info.when}</span>
+        <span className="d">{info.day}</span>
       </div>
-      <div className="ev-p">{info.person}</div>
+      <div className="ev-p">
+        <span>{info.person}</span>
+        <span className="d">{info.time}</span>
+      </div>
       <div className={info.quote === null ? 'ev-q unavailable' : 'ev-q'}>
         {info.quote ?? 'Unavailable evidence'}
       </div>
@@ -51,6 +57,11 @@ export function CardNode({ data }: NodeProps<CardNodeType>) {
         rel={link.external ? 'noopener noreferrer' : undefined}
         aria-label={`${link.text}${label ? `: ${label}` : ''}`}
         onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          if (link.external) return;
+          event.preventDefault();
+          ui.viewRecord(info.recordVersionId, info.quote);
+        }}
       >
         {app && <SourceIcon app={app} />}
         <span>{label ?? link.text}</span>

@@ -473,7 +473,10 @@ function buildProject(
         permalink = `https://mail.google.com/mail/u/0/#all/fundline-${channelName}-${String(sequence).padStart(3, '0')}`;
       if (kind === 'linear') {
         permalink = `https://linear.app/fundline/issue/${channelName}`;
-        title = `${channelName}: ${draft.title}`;
+        // A Linear issue title already starts with its key ("PG-201 CRS form logic").
+        title = draft.title.startsWith(channelName)
+          ? draft.title
+          : `${channelName}: ${draft.title}`;
       }
       lastInThread.set(draft.channel, externalId);
     }

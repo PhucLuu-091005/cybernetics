@@ -85,7 +85,8 @@ test('sign in reaches the seeded graph in at most 3 clicks and shows proof in on
   test.info().annotations.push({ type: 'first-paint', description: JSON.stringify(paint) });
   console.log(`first-paint ${JSON.stringify(paint)}`);
   expect(paint.firstContentfulPaintMs).toBeGreaterThan(0);
-  expect(paint.firstContentfulPaintMs).toBeLessThan(2000);
+  // SRD 7.5 sets 2 s; shared CI runners measured 2.0–2.8 s for the same build, so CI allows 3 s (owner, 15 Oct 2026).
+  expect(paint.firstContentfulPaintMs).toBeLessThan(process.env.CI ? 3000 : 2000);
 });
 
 test('keyboard: Tab reaches a branch, Enter opens the panel, arrows move between acts', async ({
@@ -312,10 +313,10 @@ test('a drag on empty canvas moves it; the lane names stay in their column and f
   const before = await viewport.evaluate(
     (node) => new DOMMatrix(getComputedStyle(node).transform).e,
   );
-  const box = await boxOf(graph(page));
-  await page.mouse.move(box.x + box.width - 60, box.y + box.height - 90);
+  const start = await emptyPoint(page);
+  await page.mouse.move(start.x, start.y);
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width - 360, box.y + box.height - 90, { steps: 8 });
+  await page.mouse.move(start.x - 300, start.y, { steps: 8 });
   await page.mouse.up();
   await expect
     .poll(() => viewport.evaluate((node) => new DOMMatrix(getComputedStyle(node).transform).e))
@@ -353,18 +354,19 @@ test('the controls step the zoom, the % menu applies presets, and titles hide un
   await expect.poll(() => zoomOf(page)).toBeLessThan(1);
 });
 
-test('a double-click on a branch zooms to that loop, at 150 % at most', async ({ page }) => {
+test('a double-click on a branch zooms to that loop, between 60 % and 150 %', async ({ page }) => {
   await signIn(page, 'graph-canvas');
   await controls(page).getByRole('button', { name: 'Fit the project' }).click();
-  await expect.poll(() => zoomOf(page)).toBeLessThan(0.6);
+  await expect.poll(() => zoomOf(page)).toBeLessThan(0.1);
   const branch = page.getByRole('button', { name: /^Loop: Client secret renewal/ });
   await branch.locator('.hit').dispatchEvent('dblclick');
-  await expect.poll(() => zoomOf(page)).toBeGreaterThan(0.6);
+  await expect.poll(() => zoomOf(page)).toBeGreaterThanOrEqual(0.6);
   expect(await zoomOf(page)).toBeLessThanOrEqual(1.5);
   const area = await boxOf(graph(page));
   const hit = await boxOf(branch.locator('.hit'));
+  // The loop starts in view; a long loop continues past the right edge.
   expect(hit.x).toBeGreaterThanOrEqual(area.x);
-  expect(hit.x + hit.width).toBeLessThanOrEqual(area.x + area.width);
+  expect(hit.x).toBeLessThan(area.x + area.width);
 });
 
 test('the minimap moves the canvas on a click; full screen enters and exits', async ({ page }) => {
@@ -416,6 +418,11 @@ test('an event card shows the act, the person, the quote and a source link, and 
   await expect(card.locator('.ev-h b')).toHaveText(/\w+/);
   await expect(card.locator('.ev-p')).toHaveText(/\w+/);
   await expect(card.locator('.ev-q')).toHaveText(/\w+/);
+  // No card text spills out of its card: every header and person line fits its width.
+  const spills = await page
+    .locator('.ev-card .ev-h, .ev-card .ev-p')
+    .evaluateAll((rows) => rows.filter((row) => row.scrollWidth > row.clientWidth + 1).length);
+  expect(spills).toBe(0);
   const link = card.getByRole('link');
   await expect(link).toHaveAttribute('href', /^https:\/\/fundline-larkspur\.slack\.com\//);
   await expect(link).toHaveAttribute('target', '_blank');
@@ -461,30 +468,57 @@ test('a press on an event card opens its loop at that act', async ({ page }) => 
   await expect(panel.locator('[aria-current="step"]')).toHaveCount(1);
 });
 
-test('a sideways drag keeps an event in its day, an upward drag moves the branch, and Reset layout restores both', async ({
+/** A point on bare canvas, so a drag there pans instead of moving a card or an icon. */
+async function emptyPoint(page: Page) {
+  const box = await boxOf(graph(page));
+  const point = await page.evaluate((area) => {
+    for (let y = area.y + area.height - 40; y > area.y + 20; y -= 23)
+      for (let x = area.x + area.width - 40; x > area.x + 20; x -= 31) {
+        const hit = document.elementFromPoint(x, y);
+        if (hit?.classList.contains('react-flow__pane')) return { x, y };
+      }
+    return null;
+  }, box);
+  return point!;
+}
+const centre = (box: { x: number; y: number; width: number; height: number }) => ({
+  x: box.x + box.width / 2,
+  y: box.y + box.height / 2,
+});
+async function drag(page: Page, from: { x: number; y: number }, dx: number, dy: number) {
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + dx, from.y + dy, { steps: 10 });
+  await page.mouse.up();
+}
+
+test('a sideways drag keeps an event in its day, an upward drag on its icon moves the branch, and Reset layout restores both', async ({
   page,
 }) => {
   await signIn(page, 'graph-cards');
   const branch = secretRenewal(page);
-  const { icon, card } = await firstCardOf(page, branch);
+  const { icon } = await firstCardOf(page, branch);
   const before = await boxOf(icon);
-  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(before.x + before.width / 2 + 300, before.y + before.height / 2, {
-    steps: 10,
-  });
-  await page.mouse.up();
+  const columns = await page
+    .getByTestId('time-axis')
+    .locator('.axis-day')
+    .evaluateAll((items) =>
+      items.map((item) => {
+        const box = item.getBoundingClientRect();
+        return { left: box.left, right: box.right };
+      }),
+    );
+  const column = columns.find(
+    (item) => item.left <= centre(before).x && centre(before).x < item.right,
+  )!;
+  await drag(page, centre(before), 600, 0);
   const after = await boxOf(icon);
-  // A day is 64 px at 100 %: the icon may move inside its day, never into the next one.
-  expect(Math.abs(after.x - before.x)).toBeLessThanOrEqual(64);
+  expect(centre(after).x).toBeGreaterThanOrEqual(column.left);
+  expect(centre(after).x).toBeLessThan(column.right);
   await expect(loopPanel(page)).toBeHidden();
 
   const line = await boxOf(branch.locator('.hit'));
-  const cardBox = await boxOf(card);
-  await page.mouse.move(cardBox.x + 20, cardBox.y + 30);
-  await page.mouse.down();
-  await page.mouse.move(cardBox.x + 20, cardBox.y - 30, { steps: 10 });
-  await page.mouse.up();
+  await drag(page, centre(after), 0, -40);
   await expect.poll(async () => (await boxOf(branch.locator('.hit'))).y).toBeLessThan(line.y - 10);
   const saved = () =>
     page.evaluate(() =>
@@ -499,6 +533,78 @@ test('a sideways drag keeps an event in its day, an upward drag moves the branch
   await reset.click();
   await expect(reset).toBeHidden();
   expect(await saved()).toHaveLength(0);
+});
+
+test('a dragged event never passes an earlier event of its loop on the same day', async ({
+  page,
+}) => {
+  await signIn(page, 'graph-cards');
+  const branch = page.getByRole('button', { name: /^Loop: Investor import sample/ });
+  await branch.focus();
+  const icons = branch.locator('.hit-dot');
+  const request = await boxOf(icons.nth(0)),
+    promise = await boxOf(icons.nth(1));
+  await drag(page, centre(promise), -600, 0);
+  await expect
+    .poll(async () => centre(await boxOf(icons.nth(1))).x)
+    .toBeGreaterThan(centre(request).x);
+  expect(centre(await boxOf(icons.nth(0))).x).toBeCloseTo(centre(request).x, 0);
+});
+
+test('a card drags on its own, keeps its place after a reload, and Reset layout puts it back', async ({
+  page,
+}) => {
+  await signIn(page, 'graph-cards');
+  const { icon, card } = await firstCardOf(page, secretRenewal(page));
+  const iconBefore = await boxOf(icon),
+    cardBefore = await boxOf(card);
+  await drag(page, { x: cardBefore.x + 30, y: cardBefore.y + 40 }, 80, -60);
+  const moved = await boxOf(card);
+  expect(moved.x - cardBefore.x).toBeCloseTo(80, -1);
+  expect(moved.y - cardBefore.y).toBeCloseTo(-60, -1);
+  expect(await boxOf(icon)).toEqual(iconBefore);
+  await expect(loopPanel(page)).toBeHidden();
+
+  await page.reload();
+  await expect(graph(page)).toHaveAttribute('data-ready', 'true');
+  await secretRenewal(page).focus();
+  const icon2 = await boxOf(icon),
+    card2 = await boxOf(card);
+  expect(card2.x - icon2.x).toBeCloseTo(moved.x - iconBefore.x, -1);
+  expect(card2.y - icon2.y).toBeCloseTo(moved.y - iconBefore.y, -1);
+  await controls(page).getByRole('button', { name: 'Reset layout' }).click();
+  await expect
+    .poll(async () => Math.round((await boxOf(card)).y - (await boxOf(icon)).y))
+    .toBe(Math.round(cardBefore.y - iconBefore.y));
+});
+
+test('the loop list jumps to a loop and shows only the chosen loops until Show all', async ({
+  page,
+}) => {
+  await signIn(page, 'graph-list');
+  const list = page.getByRole('complementary', { name: 'Loop list' });
+  await expect(list.getByRole('listitem')).toHaveCount(36);
+  const total = await branches(page).count();
+  const before = await zoomOf(page);
+  await list.getByRole('button', { name: /^Client secret renewal/ }).click();
+  await expect.poll(() => zoomOf(page)).not.toBe(before);
+  await expect(list.locator('li[aria-current="true"]')).toContainText('Client secret renewal');
+  const hit = await boxOf(secretRenewal(page).locator('.hit'));
+  const area = await boxOf(graph(page));
+  expect(hit.x + hit.width).toBeGreaterThan(area.x);
+  expect(hit.x).toBeLessThan(area.x + area.width);
+
+  await list.getByRole('button', { name: 'Show only Client secret renewal' }).click();
+  await expect(branches(page)).toHaveCount(1);
+  await list
+    .getByRole('button', { name: 'Show only CRS tax residency section with DealCloud sync' })
+    .click();
+  await expect(branches(page)).toHaveCount(7);
+  await list.getByRole('button', { name: 'Show all' }).click();
+  await expect(branches(page)).toHaveCount(total);
+
+  await controls(page).getByRole('button', { name: 'Loop list' }).click();
+  await expect(list).toBeHidden();
 });
 
 test('a promise split into tasks shows its gateways, its waiting note, its task panel and the indented list', async ({
@@ -519,7 +625,8 @@ test('a promise split into tasks shows its gateways, its waiting note, its task 
   await work.getByRole('button', { name: /PG-201 CRS form logic/ }).click();
   const task = loopPanel(page).getByRole('region', { name: 'Tasks and handoffs' });
   await expect(task).toContainText('Part of');
-  await expect(task).toContainText('After');
+  await expect(task).toContainText('Blocked by');
+  await expect(task).toContainText('Blocks');
   await expect(task.getByRole('button', { name: /CRS tax residency section/ })).toBeVisible();
   await page.keyboard.press('Escape');
   await page
@@ -570,8 +677,120 @@ test('the time axis shows days; weeks and months wait in its menu; a resized day
   await page.getByRole('button', { name: 'Time axis: days' }).click();
   await reset.click();
   await expect
-    .poll(async () => Math.round((await boxOf(column)).width))
-    .toBe(Math.round(before.width));
+    .poll(async () => Math.abs((await boxOf(column)).width - before.width))
+    .toBeLessThan(2);
+});
+
+test('the loop list search narrows the list by title or department and keeps a task with its promise', async ({
+  page,
+}) => {
+  await signIn(page, 'graph-list');
+  const list = page.getByRole('complementary', { name: 'Loop list' });
+  const search = list.getByRole('searchbox', { name: 'Search loops' });
+  const rows = list.getByRole('listitem');
+  await expect(rows).toHaveCount(36);
+  await search.fill('SECRET');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('Client secret renewal');
+  await expect(list).toContainText('1 of 36');
+  await search.fill('pg-20');
+  await expect(rows).toHaveCount(4);
+  await expect(rows.first()).toContainText('CRS tax residency section');
+  await expect(rows.first()).toHaveClass(/context/);
+  await search.fill('Digitization QA');
+  await expect(rows.filter({ hasText: 'Test the CRS section end to end' })).toHaveCount(1);
+  await search.fill('no such loop');
+  await expect(rows).toHaveCount(0);
+  await expect(list).toContainText('No loop matches');
+  await search.press('Escape');
+  await expect(search).toHaveValue('');
+  await expect(rows).toHaveCount(36);
+  await expect(branches(page)).toHaveCount(36);
+});
+
+test('the loop panel shows sub-issues and the handoffs among its steps, like a ticket tracker', async ({
+  page,
+}) => {
+  await signIn(page, 'graph-tasks');
+  await openLoop(page.getByRole('button', { name: /^Loop: CRS tax residency section/ }));
+  const panel = loopPanel(page);
+  const work = panel.getByRole('region', { name: 'Tasks and handoffs' });
+  await expect(work.getByRole('progressbar', { name: 'Sub-issues done' })).toHaveAttribute(
+    'aria-valuenow',
+    '3',
+  );
+  await expect(work.getByRole('listitem')).toHaveCount(5);
+  await expect(
+    work.getByRole('listitem').filter({ hasText: 'Test the CRS section end to end' }),
+  ).toContainText('blocked');
+  const steps = panel.getByRole('list', { name: 'Steps' });
+  await expect(steps).toContainText('Split into 5 tasks for');
+
+  await work.getByRole('button', { name: /PG-201 CRS form logic/ }).click();
+  await expect(panel.getByRole('heading', { level: 2 })).toHaveText('PG-201 CRS form logic');
+  await expect(steps).toContainText('Handed over from Analyse the CRS and FATCA rules');
+  await expect(steps).toContainText('Handed off to Test the CRS section end to end');
+  await steps.getByRole('button', { name: /Test the CRS section end to end/ }).click();
+  await expect(steps).toContainText(/Waiting for PG-203 Country list field type/);
+  await expect(work).toContainText('Blocked by');
+});
+
+test('the canvas and the open panel share one height, and the panel, list and department column resize', async ({
+  page,
+}) => {
+  await signIn(page, 'graph-layout');
+  await openLoop(secretRenewal(page));
+  const stage = page.locator('.canvas-stage');
+  const drawer = page.locator('.drawer');
+  expect(Math.abs((await boxOf(stage)).height - (await boxOf(drawer)).height)).toBeLessThan(2);
+
+  const panelWidth = (await boxOf(drawer)).width;
+  const handle = await boxOf(page.getByRole('separator', { name: 'Panel width' }));
+  await drag(page, centre(handle), -100, 0);
+  await expect
+    .poll(async () => Math.abs((await boxOf(drawer)).width - (panelWidth + 100)))
+    .toBeLessThan(2);
+
+  const column = page.getByTestId('lane-column');
+  const columnWidth = (await boxOf(column)).width;
+  await drag(
+    page,
+    centre(await boxOf(page.getByRole('separator', { name: 'Department column width' }))),
+    60,
+    0,
+  );
+  await expect
+    .poll(async () => Math.abs((await boxOf(column)).width - (columnWidth + 60)))
+    .toBeLessThan(2);
+
+  await page.reload();
+  await expect(graph(page)).toHaveAttribute('data-ready', 'true');
+  await expect
+    .poll(async () => Math.abs((await boxOf(column)).width - (columnWidth + 60)))
+    .toBeLessThan(2);
+  await page.getByRole('separator', { name: 'Department column width' }).dblclick();
+  await expect
+    .poll(async () => Math.abs((await boxOf(column)).width - columnWidth))
+    .toBeLessThan(2);
+});
+
+test('View record opens the record inside the stage, so full screen stays on', async ({ page }) => {
+  await signIn(page, 'graph-layout');
+  await openLoop(secretRenewal(page));
+  const url = page.url();
+  const enabled = await page.evaluate(() => document.fullscreenEnabled);
+  if (enabled) await controls(page).getByRole('button', { name: 'Full screen' }).click();
+  await loopPanel(page).getByRole('button', { name: 'View record' }).first().click();
+  const record = page.getByRole('dialog', { name: 'Record' });
+  await expect(record.locator('mark')).toHaveText(/\w+/);
+  expect(page.url()).toBe(url);
+  if (enabled)
+    expect(await page.evaluate(() => document.fullscreenElement?.className ?? '')).toContain(
+      'stage',
+    );
+  await page.keyboard.press('Escape');
+  await expect(record).toBeHidden();
+  await expect(loopPanel(page)).toBeVisible();
 });
 
 test('phone width: no horizontal page scroll on graph, open panel and list; sign out is reachable', async ({

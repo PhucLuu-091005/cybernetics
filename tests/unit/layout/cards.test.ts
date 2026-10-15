@@ -38,7 +38,7 @@ describe('day bounds and the shared branch path', () => {
   it('gives each glyph the bounds of its local day', () => {
     for (const branch of withCards.branches)
       for (const glyph of branch.glyphs) {
-        expect(glyph.dayEndX - glyph.dayStartX).toBeCloseTo(BASE_PX_PER_DAY, 5);
+        expect(glyph.dayEndX - glyph.dayStartX).toBeGreaterThanOrEqual(BASE_PX_PER_DAY);
         expect(glyph.x).toBeGreaterThanOrEqual(glyph.dayStartX);
         expect(glyph.x).toBeLessThanOrEqual(glyph.dayEndX);
       }
@@ -72,8 +72,24 @@ describe('event cards', () => {
     for (const { branch, glyph, card } of cardsOf()) {
       expect(card).toBeDefined();
       expect(card.y + CARD.height).toBeLessThanOrEqual(branch.y - BASE_ROW_HEIGHT / 2 + 0.01);
-      expect(card.x).toBeGreaterThanOrEqual(glyph.x - 14 - 0.01);
+      expect(card.x).toBeGreaterThanOrEqual(glyph.x - CARD.width / 2 - 0.01);
     }
+  });
+  it('makes each day wide enough that every card sits centred over its act, inside its day', () => {
+    for (const { glyph, card } of cardsOf()) {
+      expect(card.x).toBeCloseTo(glyph.x - CARD.width / 2, 1);
+      expect(card.x).toBeGreaterThanOrEqual(glyph.dayStartX - 0.01);
+      expect(card.x + CARD.width).toBeLessThanOrEqual(glyph.dayEndX + 0.01);
+    }
+  });
+  it('keeps the acts of one loop in time order, a slot apart within a day', () => {
+    for (const branch of withCards.branches)
+      for (let i = 1; i < branch.glyphs.length; i++) {
+        const [a, b] = [branch.glyphs[i - 1], branch.glyphs[i]];
+        expect(b.x).toBeGreaterThan(a.x);
+        if (a.dayStartX === b.dayStartX)
+          expect(b.x - a.x).toBeGreaterThanOrEqual(CARD.width + CARD.gap - 0.01);
+      }
   });
   it('never lets two cards overlap, inside a branch or across branches', () => {
     const all = cardsOf().map(({ card }) => card);
