@@ -1,6 +1,7 @@
 'use client';
 import type { DerivedLoop, DerivedMilestone } from '../../contracts/engine';
-import { BREAKDOWN_LABEL, MILESTONE_STATUS_LABEL, shortDate, stateLabel } from './labels';
+import { MILESTONE_STATUS_LABEL, shortDate, stateLabel } from './labels';
+import { ProblemTag } from './ProblemTag';
 
 type Props = {
   milestone: DerivedMilestone;
@@ -73,9 +74,7 @@ export function MilestonePanel({ milestone, loops, onOpenLoop, onClose }: Props)
                     {stateLabel(loop.state)}
                   </span>
                   {loop.breakdowns.map((item) => (
-                    <span key={item.type} className={`bd ${item.severity}`}>
-                      {item.severity === 'broken' ? '✕' : '!'} {BREAKDOWN_LABEL[item.type]}
-                    </span>
+                    <ProblemTag loop={loop} item={item} key={item.type} />
                   ))}
                 </li>
               ))}

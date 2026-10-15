@@ -109,7 +109,7 @@ export function LoopEditor({
           onChange={(event) => setTitle(event.target.value)}
         />
       </label>
-      <SelectField label="Customer">
+      <SelectField label="Requested by">
         {(id) => (
           <select
             id={id}
@@ -121,7 +121,7 @@ export function LoopEditor({
           </select>
         )}
       </SelectField>
-      <SelectField label="Performer">
+      <SelectField label="Done by">
         {(id) => (
           <select
             id={id}
@@ -133,7 +133,7 @@ export function LoopEditor({
           </select>
         )}
       </SelectField>
-      <SelectField label="Performer department">
+      <SelectField label="Department">
         {(id) => (
           <select
             id={id}

@@ -24,15 +24,18 @@ import { Glyph } from './Glyph';
 import {
   ACT_LABEL,
   BREAKDOWN_LABEL,
+  PROBLEM_HEADING,
   STATE_COLOR,
   loopColor,
   dueLabel,
   partyDetail,
   partyName,
+  problemTone,
   shortStamp,
   stateLabel,
   type Directory,
 } from './labels';
+import { ProblemTag } from './ProblemTag';
 
 type Props = {
   projectId: string;
@@ -339,9 +342,7 @@ export function LoopPanel({
               {stateLabel(loop.state)}
             </span>
             {loop.breakdowns.map((item) => (
-              <span key={item.type} className={`bd ${item.severity}`} title={item.sentence}>
-                {item.severity === 'broken' ? '✕' : '!'} {BREAKDOWN_LABEL[item.type]}
-              </span>
+              <ProblemTag loop={loop} item={item} key={item.type} />
             ))}
             {loop.dueSoon && <span className="bd warning">! Due soon</span>}
           </div>
@@ -359,10 +360,9 @@ export function LoopPanel({
         {loop.breakdowns.length > 0 && (
           <div className="bdlist">
             {loop.breakdowns.map((item) => (
-              <div key={item.type} className={`bdrow ${item.severity}`}>
+              <div key={item.type} className={`bdrow ${problemTone(loop, item)}`}>
                 <b style={{ fontSize: 12 }}>
-                  {item.severity === 'broken' ? '✕ Broken' : '! Warning'}:{' '}
-                  {BREAKDOWN_LABEL[item.type]}
+                  {PROBLEM_HEADING[problemTone(loop, item)]}: {BREAKDOWN_LABEL[item.type]}
                 </b>
                 <p>{item.sentence}</p>
               </div>
@@ -371,13 +371,13 @@ export function LoopPanel({
         )}
         <div className="parties">
           <div className="party">
-            <small>Customer</small>
+            <small>Requested by</small>
             <b>{partyName(loop.loop.customer, directory)}</b>
             <br />
             <span className="faint">{partyDetail(loop.loop.customer, directory)}</span>
           </div>
           <div className="party">
-            <small>Performer</small>
+            <small>Done by</small>
             <b>{partyName(loop.loop.performer, directory)}</b>
             <br />
             <span className="faint">{partyDetail(loop.loop.performer, directory)}</span>
