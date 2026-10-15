@@ -120,7 +120,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     'get_project',
     'project:read',
     GetProjectInputSchema,
-    'Read the project context, main commit, evidence revision, pending evidence count and analysis freshness. Start here.',
+    'Read the project context, main commit, evidence revision and pending evidence count. Start here.',
     getProject,
   ),
   tool(
