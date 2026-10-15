@@ -231,6 +231,15 @@ test('a problem on a finished loop reads as past, and the parties read Requested
   const row = table.locator('tbody tr').filter({ hasText: 'Subscription documents' });
   await expect(row).toContainText('Past: Late delivery');
   await expect(row).not.toContainText('✕');
+
+  await page
+    .getByRole('group', { name: /^view$/i })
+    .getByRole('button', { name: 'Graph' })
+    .click();
+  await openLoop(page.getByRole('button', { name: /^Milestone: Documents received/ }));
+  const milestone = page.getByRole('complementary', { name: 'Milestone panel' });
+  await expect(milestone.getByText('Past: Late delivery')).toBeVisible();
+  await expect(milestone).toContainText('0 open, 0 broken');
 });
 
 test('the loop panel shows each quote inside its surrounding text, with the source and a Slack link', async ({

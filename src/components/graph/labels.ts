@@ -146,6 +146,13 @@ export function problemCounts(loops: readonly DerivedLoop[]) {
   };
 }
 
+export function milestoneLoopCounts(loops: readonly DerivedLoop[]) {
+  return {
+    open: loops.filter((loop) => !isEnded(loop.state)).length,
+    broken: problemCounts(loops).broken,
+  };
+}
+
 /** The colour of a loop as a whole: a finished loop shows its end; an open one shows its worst problem. */
 export function loopColor(loop: DerivedLoop): string {
   if (loop.state === 'closed') return TONE_COLOR.green;

@@ -1,6 +1,6 @@
 'use client';
 import type { DerivedLoop, DerivedMilestone } from '../../contracts/engine';
-import { MILESTONE_STATUS_LABEL, shortDate, stateLabel } from './labels';
+import { MILESTONE_STATUS_LABEL, milestoneLoopCounts, shortDate, stateLabel } from './labels';
 import { ProblemTag } from './ProblemTag';
 
 type Props = {
@@ -19,6 +19,7 @@ const STATUS_COLOR = {
 export function MilestonePanel({ milestone, loops, onOpenLoop, onClose }: Props) {
   const { milestone: entity, status, reason, currentDate } = milestone;
   const assigned = loops.filter((loop) => milestone.loopIds.includes(loop.loop.id));
+  const counts = milestoneLoopCounts(assigned);
   return (
     <aside className="drawer" role="complementary" aria-label="Milestone panel">
       <div className="drawer-h">
@@ -49,7 +50,7 @@ export function MilestonePanel({ milestone, loops, onOpenLoop, onClose }: Props)
           </dd>
           <dt>Loops</dt>
           <dd>
-            {milestone.openLoopCount} open, {milestone.brokenLoopCount} broken
+            {counts.open} open, {counts.broken} broken
           </dd>
         </dl>
         <div>
