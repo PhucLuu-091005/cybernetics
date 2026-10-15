@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import {
   ActTypeSchema,
   type ActType,
+  type Annotation,
   type DerivedAct,
   type DerivedLoop,
   type GraphOperation,
@@ -15,6 +16,7 @@ import {
 } from '../../contracts';
 import { activePermalink } from '../inbox/links';
 import { SOURCE_APP_NAME, sourceApp } from '../../lib/source-app';
+import { NoteText } from '../notes/NoteText';
 import { ConflictBanner } from '../review/ConflictBanner';
 import { useDraftEdit, type EditTarget } from '../review/draft-edit';
 import { changeActType, hideAct, moveAct, setLoopMilestone, toAct } from '../review/operations';
@@ -45,6 +47,10 @@ type Props = {
   edit: EditTarget;
   loops: readonly { id: string; title: string }[];
   snapshot: Pick<GraphSnapshot, 'acts' | 'recordDecisions'>;
+  notes: readonly Annotation[];
+  /** Act ID to the ID of the loop that holds it in this view; a cite to an absent step shows grey. */
+  actLoop: ReadonlyMap<string, string>;
+  onCite(loopId: string, actId: string): void;
   /** Acts added or changed by an agent-authored proposal; only a proposal view can derive this. */
   agentActIds: ReadonlySet<string>;
   /** The promise a task belongs to, the tasks that hand off to it, and a promise's own tasks. */
@@ -272,6 +278,9 @@ export function LoopPanel({
   edit: target,
   loops,
   snapshot,
+  notes,
+  actLoop,
+  onCite,
   agentActIds,
   relations,
   onOpenLoop,
@@ -374,6 +383,14 @@ export function LoopPanel({
             <span className="faint">{partyDetail(loop.loop.performer, directory)}</span>
           </div>
         </div>
+        {notes.length > 0 && (
+          <section className="panel-notes" aria-label="Loop notes">
+            <small>Notes</small>
+            {notes.map((note) => (
+              <NoteText key={note.id} note={note} actLoop={actLoop} onCite={onCite} />
+            ))}
+          </section>
+        )}
         <LoopWork relations={relations} onOpenLoop={onOpenLoop} />
         <dl className="kv">
           <dt>Original due</dt>
