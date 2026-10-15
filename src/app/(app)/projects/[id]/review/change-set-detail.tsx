@@ -22,10 +22,18 @@ type Props = {
   proposalId: string;
   actor: ActorContext;
   current: { mainCommitId: string; evidenceRevision: number; snapshot: GraphSnapshot };
+  pendingRecords: number;
   timeZone: string;
 };
 
-export async function ChangeSetDetail({ projectId, proposalId, actor, current, timeZone }: Props) {
+export async function ChangeSetDetail({
+  projectId,
+  proposalId,
+  actor,
+  current,
+  pendingRecords,
+  timeZone,
+}: Props) {
   const db = getApp().db;
   const proposal = await notFoundOn(getProposal(db, actor, { projectId, proposalId }));
   if (proposal.status !== 'draft')
@@ -70,7 +78,6 @@ export async function ChangeSetDetail({ projectId, proposalId, actor, current, t
     [proposal.candidate, base, current.snapshot],
     Object.fromEntries([...cited].map(([versionId, record]) => [versionId, record.title])),
   );
-  const pending = review?.pendingEvidenceCount ?? 0;
 
   return (
     <>
@@ -119,10 +126,10 @@ export async function ChangeSetDetail({ projectId, proposalId, actor, current, t
             <h3 id="quotes">Quotes</h3>
             <CitedSources acts={changedActs} cited={cited} names={names} timeZone={timeZone} />
           </section>
-          {pending > 0 && (
+          {pendingRecords > 0 && (
             <p className="faint" style={{ fontSize: 13 }}>
-              {pending} new {pending === 1 ? 'record is' : 'records are'} not reviewed yet. You can
-              approve this change set before them.
+              {pendingRecords} new {pendingRecords === 1 ? 'record is' : 'records are'} not reviewed
+              yet. You can approve this change set before them.
             </p>
           )}
           <details key={proposal.id} className="tech">

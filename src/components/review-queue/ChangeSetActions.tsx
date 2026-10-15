@@ -46,13 +46,16 @@ export function ChangeSetActions({
     setBusy(true);
     setFailure(null);
     const result = await work();
-    setBusy(false);
-    if (!result.ok) setFailure(result.error);
+    // A success navigates or remounts this component, so the buttons stay off until then.
+    if (!result.ok) {
+      setBusy(false);
+      setFailure(result.error);
+    }
   };
 
   const approve = () =>
+    review &&
     run(async () => {
-      if (!review) return { ok: true };
       const result = await send<CommitReceipt>(`${base}/merge`, 'POST', {
         expectedMainCommitId: review.mainCommitId,
         expectedProposalRevision: review.proposalRevision,
@@ -135,6 +138,13 @@ export function ChangeSetActions({
         >
           Resolve conflict
         </Link>
+      </div>
+    ) : state === 'ready' && review === null ? (
+      <div className="banner warn" role="status">
+        <span>This change set changed while the page loaded. Reload.</span>
+        <button className="btn btn-ink" type="button" onClick={() => router.refresh()}>
+          Reload
+        </button>
       </div>
     ) : state === 'needs-refresh' ? (
       <div className="banner warn" role="status">

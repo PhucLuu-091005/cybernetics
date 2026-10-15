@@ -10,14 +10,14 @@ import { QueueList, type SetRow } from '../../../../../components/review-queue/Q
 import {
   changeSetState,
   parseReviewQuery,
-  pickMyReview,
   reviewHref,
 } from '../../../../../components/review-queue/state';
 import { getApp } from '../../../../../server/app';
-import { resolveView } from '../../../../../server/domain/graph';
 import { readInboxView } from '../../../../../server/domain/inbox';
-import { getProposal, listProposals } from '../../../../../server/domain/proposals';
+import { getProposal } from '../../../../../server/domain/proposals';
+import { AppError } from '../../../../../server/errors';
 import { notFoundOn, requireActor } from '../../../../../server/http/rsc';
+import { reviewQueue } from '../review-count';
 import { ChangeSetDetail } from './change-set-detail';
 import { RecordDetail } from './record-detail';
 
@@ -36,10 +36,7 @@ export default async function ReviewPage({
   if (!IdSchema.safeParse(id).success) notFound();
   const actor = await requireActor(`/projects/${id}/review`);
   const db = getApp().db;
-  const [main, drafts] = await Promise.all([
-    notFoundOn(resolveView(db, actor, id, { kind: 'main' })),
-    notFoundOn(listProposals(db, actor, { projectId: id, status: 'draft', limit: 50 })),
-  ]);
+  const { main, drafts, myReview, pendingRecords } = await notFoundOn(reviewQueue(db, actor, id));
   const current = {
     mainCommitId: main.project.mainCommitId,
     evidenceRevision: main.project.evidenceRevision,
@@ -47,8 +44,6 @@ export default async function ReviewPage({
   };
   const timeZone = main.snapshot.context.timeZone;
   const query = parseReviewQuery(raw, drafts.items.length > 0);
-  const myReview = pickMyReview(drafts.items, actor.userId);
-  // Records already decided in "My review" leave the queue before that change set is approved.
   const inbox = await notFoundOn(
     readInboxView(db, actor, {
       projectId: id,
@@ -77,7 +72,10 @@ export default async function ReviewPage({
       ? raw.approved
       : null;
   const approved = approvedId
-    ? await getProposal(db, actor, { projectId: id, proposalId: approvedId }).catch(() => null)
+    ? await getProposal(db, actor, { projectId: id, proposalId: approvedId }).catch((error) => {
+        if (error instanceof AppError && error.code === 'NOT_FOUND') return null;
+        throw error;
+      })
     : null;
 
   return (
@@ -101,7 +99,7 @@ export default async function ReviewPage({
           </div>
         </details>
       </header>
-      {approved && (
+      {approved?.status === 'merged' && (
         <p className="card pad notice-draft queue-notice" role="status">
           Approved: {approved.title}.{' '}
           <Link className="lnk" href={`/projects/${id}/graph`}>
@@ -119,7 +117,7 @@ export default async function ReviewPage({
           projectId={id}
           query={query}
           sets={sets}
-          recordCount={inbox.counts.pending}
+          recordCount={pendingRecords}
           records={
             <InboxList
               projectId={id}
@@ -128,6 +126,7 @@ export default async function ReviewPage({
               selectedId={inbox.selected?.recordVersionId ?? null}
               timeZone={timeZone}
               hrefFor={(r) => reviewHref(id, { tab: 'records', r })}
+              emptyText="No new records. Everything is decided."
             />
           }
         />
@@ -139,6 +138,7 @@ export default async function ReviewPage({
                 proposalId={item}
                 actor={actor}
                 current={current}
+                pendingRecords={pendingRecords}
                 timeZone={timeZone}
               />
             ) : (
