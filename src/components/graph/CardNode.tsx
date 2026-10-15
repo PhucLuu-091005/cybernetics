@@ -15,6 +15,7 @@ export type CardInfo = {
   time: string;
   person: string;
   quote: string | null;
+  recordVersionId: string;
   source: ActSource;
 };
 export type CardNodeType = Node<{ glyph: ActGlyph; info: CardInfo; color: string }, 'card'>;
@@ -56,6 +57,11 @@ export function CardNode({ data }: NodeProps<CardNodeType>) {
         rel={link.external ? 'noopener noreferrer' : undefined}
         aria-label={`${link.text}${label ? `: ${label}` : ''}`}
         onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          if (link.external) return;
+          event.preventDefault();
+          ui.viewRecord(info.recordVersionId, info.quote);
+        }}
       >
         {app && <SourceIcon app={app} />}
         <span>{label ?? link.text}</span>

@@ -24,6 +24,8 @@ export type GraphUi = {
   /** A press on an event card or icon: a click opens the loop at that act; a drag moves the card, or the act or its branch. */
   startDrag(event: PointerEvent, glyph: ActGlyph, target: DragTarget): void;
   zoomToLoop(loopId: string): void;
+  /** Opens a cited record in the stage, so full screen stays on. */
+  viewRecord(recordVersionId: string, quote: string | null): void;
 };
 export const GraphUiContext = createContext<GraphUi | null>(null);
 export function useGraphUi(): GraphUi {

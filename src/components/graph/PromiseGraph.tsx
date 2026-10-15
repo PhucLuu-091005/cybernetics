@@ -17,6 +17,7 @@ import {
   useState,
   type FocusEvent,
   type KeyboardEvent,
+  type CSSProperties,
   type PointerEvent,
   type RefObject,
 } from 'react';
@@ -47,6 +48,8 @@ import { GATEWAY_SIZE, GatewayNode, type GatewayNodeType } from './GatewayNode';
 import { LaneColumn } from './LaneColumn';
 import { LaneLabel, type LaneLabelNode } from './LaneLabel';
 import { LoopIndex, type IndexEntry } from './LoopIndex';
+import { ResizeHandle } from './ResizeHandle';
+import { useStoredSize } from './stored-size';
 import { MilestoneNode, MILESTONE_NODE, type MilestoneNodeType } from './MilestoneNode';
 import { Minimap } from './Minimap';
 import { TimeAxis } from './TimeAxis';
@@ -81,6 +84,8 @@ const NO_PAN = 'pg-no-pan:not(.react-flow__edge)';
 // Zoom to a loop stops between 60 % (titles readable) and 150 % (text at a normal reading size).
 const JUMP_MIN_ZOOM = 0.6,
   JUMP_PADDING = 48;
+// A full screen exit this soon after a link click counts as caused by the link.
+const RESUME_WINDOW_MS = 5000;
 const LIST_KEY = 'promise-graph:loop-list',
   // Below this screen width the list starts closed, so the canvas keeps its room.
   LIST_MIN_SCREEN = 1100;
@@ -115,6 +120,7 @@ export type PromiseGraphProps = {
   };
   onSelectLoop(loopId: string, actId?: string): void;
   onSelectMilestone(milestoneId: string): void;
+  onViewRecord(recordVersionId: string, quote: string | null): void;
 };
 
 function Backdrop({ layout, content }: Pick<PromiseGraphProps, 'layout'> & { content: Box }) {
@@ -260,6 +266,7 @@ function Graph(props: PromiseGraphProps) {
     index,
     onSelectLoop,
     onSelectMilestone,
+    onViewRecord,
   } = props;
   const flow = useReactFlow<GraphNode, BranchEdgeType>();
   const viewport = useViewport();
@@ -326,13 +333,35 @@ function Graph(props: PromiseGraphProps) {
     });
   }, [size, flow, xT, layout.trunkY]);
 
+  // A browser leaves full screen when a link opens in another tab, and only a click may enter it again,
+  // so a link that ends full screen leaves a one-click way back.
+  const [resume, setResume] = useState(false);
+  const linkOpenedAt = useRef(0);
   useEffect(() => {
     // iPhone Safari has no element full screen; the button then stays hidden.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setFullscreenEnabled(document.fullscreenEnabled === true);
-    const onChange = () => setFullscreen(document.fullscreenElement === stageRef.current);
+    const stage = stageRef.current;
+    const onLink = (event: MouseEvent) => {
+      if (
+        document.fullscreenElement &&
+        event.target instanceof Element &&
+        event.target.closest('a[target="_blank"]')
+      )
+        linkOpenedAt.current = Date.now();
+    };
+    const onChange = () => {
+      const on = document.fullscreenElement === stageRef.current;
+      setFullscreen(on);
+      if (on) setResume(false);
+      else if (Date.now() - linkOpenedAt.current < RESUME_WINDOW_MS) setResume(true);
+    };
+    stage?.addEventListener('click', onLink, true);
     document.addEventListener('fullscreenchange', onChange);
-    return () => document.removeEventListener('fullscreenchange', onChange);
+    return () => {
+      stage?.removeEventListener('click', onLink, true);
+      document.removeEventListener('fullscreenchange', onChange);
+    };
   }, [stageRef]);
   const toggleFullscreen = useCallback(() => {
     if (document.fullscreenElement) void document.exitFullscreen();
@@ -401,6 +430,17 @@ function Graph(props: PromiseGraphProps) {
     [layout, sizeNow, flow],
   );
 
+  const stageBox = useRef<HTMLDivElement>(null);
+  const [laneWidth, setLaneWidth] = useStoredSize('promise-graph:width:lane-column', 88, 320);
+  const [listWidth, setListWidth] = useStoredSize('promise-graph:width:loop-list', 200, 480);
+  const laneMeasure = useCallback(
+    () => stageBox.current?.querySelector('.lane-col')?.getBoundingClientRect().width ?? 132,
+    [],
+  );
+  const listMeasure = useCallback(
+    () => stageBox.current?.querySelector('.loop-index')?.getBoundingClientRect().width ?? 268,
+    [],
+  );
   // The loop list: open by default where the canvas has room, remembered per browser.
   const [listOpen, setListOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -593,6 +633,7 @@ function Graph(props: PromiseGraphProps) {
       selectMilestone: onSelectMilestone,
       startDrag,
       zoomToLoop,
+      viewRecord: onViewRecord,
     }),
     [
       selectedLoopId,
@@ -607,6 +648,7 @@ function Graph(props: PromiseGraphProps) {
       onSelectMilestone,
       startDrag,
       zoomToLoop,
+      onViewRecord,
     ],
   );
 
@@ -718,8 +760,31 @@ function Graph(props: PromiseGraphProps) {
   return (
     <GraphUiContext.Provider value={ui}>
       <div
+        ref={stageBox}
         className={`canvas-stage lod-${lod}${viewport.zoom < CARD_MIN_ZOOM ? ' cards-off' : ''}${listOpen ? ' list-open' : ''}`}
+        style={
+          {
+            ...(laneWidth ? { '--lane-col': `${laneWidth}px` } : {}),
+            ...(listOpen && listWidth ? { '--list-w': `${listWidth}px` } : {}),
+          } as CSSProperties
+        }
       >
+        <ResizeHandle
+          className="lane-handle"
+          label="Department column width"
+          grow={1}
+          measure={laneMeasure}
+          onResize={setLaneWidth}
+        />
+        {listOpen && (
+          <ResizeHandle
+            className="list-handle"
+            label="Loop list width"
+            grow={-1}
+            measure={listMeasure}
+            onResize={setListWidth}
+          />
+        )}
         <div className="canvas-corner">
           <AxisMenu onResetWidths={onResetDayWidths} />
         </div>
@@ -800,6 +865,29 @@ function Graph(props: PromiseGraphProps) {
           listOpen={listOpen}
           onList={toggleList}
         />
+        {resume && (
+          <div className="resume-fullscreen" role="status">
+            <span>The link left full screen.</span>
+            <button
+              type="button"
+              className="btn btn-ink"
+              onClick={() => {
+                setResume(false);
+                toggleFullscreen();
+              }}
+            >
+              Return to full screen
+            </button>
+            <button
+              type="button"
+              className="btn btn-quiet"
+              aria-label="Dismiss"
+              onClick={() => setResume(false)}
+            >
+              ✕
+            </button>
+          </div>
+        )}
         {listOpen && (
           <LoopIndex
             entries={index.entries}

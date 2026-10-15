@@ -340,6 +340,12 @@ The graph is a canvas panel with geometric zoom from 2 % to 400 %. The layout us
 - A loop with tasks shows "N tasks · K done" under its title. The loop panel lists the tasks by department, and a task's panel shows "Part of" and "After". The list view puts tasks under their parent.
 - Selecting a promise or a task keeps the whole family at full strength.
 
+### 7.3c Panel layout and relations (15 October 2026)
+
+- The canvas and the open loop panel share one height; the loop panel, the loop list and the department column resize by a drag handle (double-click resets; widths stay per browser).
+- The loop panel shows tasks as sub-issues (progress bar, status circles) and a task's "Part of", "Blocked by" and "Blocks" relations. The steps list places the split, handovers, handoffs and the return among the acts by time.
+- "View record" opens the record inside the stage, so full screen stays on. After a link to another tab ends full screen, the graph offers "Return to full screen".
+
 ### 7.3b Loop list (15 October 2026)
 
 A panel on the right of the canvas lists the loops the filters let through, in start order with tasks under their promise. A title jumps the canvas to that loop. A focus button per loop shows only the chosen loops (a promise keeps its tasks) until "Show all". A search box narrows the list by title or department (accents and case ignored); a matching task keeps its promise above it, dimmed. The search changes the list only, never the graph. The panel opens by default on screens 1,100 px or wider and remembers its open state per browser.
