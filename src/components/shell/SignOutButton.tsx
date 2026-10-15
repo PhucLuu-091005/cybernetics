@@ -1,5 +1,6 @@
 'use client';
 import { useRouter } from 'next/navigation';
+import { RailIcon } from './icons';
 
 export function SignOutButton() {
   const router = useRouter();
@@ -9,8 +10,15 @@ export function SignOutButton() {
     router.refresh();
   };
   return (
-    <button className="btn btn-quiet" type="button" onClick={signOut}>
-      Sign out
+    <button
+      className="rail-item"
+      type="button"
+      onClick={signOut}
+      aria-label="Sign out"
+      title="Sign out"
+    >
+      <RailIcon name="signOut" />
+      <span className="rail-label">Sign out</span>
     </button>
   );
 }
