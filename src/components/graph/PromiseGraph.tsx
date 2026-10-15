@@ -78,6 +78,9 @@ const DRAG_START_PX = 4;
 const NO_HALO: ReadonlySet<string> = new Set();
 const DASH = { solid: undefined, dashed: '7 5', dotted: '1.5 4' } as const;
 const NO_PAN = 'pg-no-pan:not(.react-flow__edge)';
+// Zoom to a loop stops between 60 % (titles readable) and 150 % (text at a normal reading size).
+const JUMP_MIN_ZOOM = 0.6,
+  JUMP_PADDING = 48;
 const LIST_KEY = 'promise-graph:loop-list',
   // Below this screen width the list starts closed, so the canvas keeps its room.
   LIST_MIN_SCREEN = 1100;
@@ -382,7 +385,18 @@ function Graph(props: PromiseGraphProps) {
         y0: Math.min(branch.y - 30, ...cards.map((card) => card.y)),
         y1: branch.y + 30,
       };
-      void flow.setViewport(fitViewport(box, sizeNow(), 48, 1.5), { duration: 200 });
+      const canvas = sizeNow(),
+        fit = fitViewport(box, canvas, JUMP_PADDING, 1.5);
+      // A long loop would fit only at an unreadable zoom; show its start at a reading zoom instead.
+      const view =
+        fit.zoom >= JUMP_MIN_ZOOM
+          ? fit
+          : {
+              zoom: JUMP_MIN_ZOOM,
+              x: JUMP_PADDING - box.x0 * JUMP_MIN_ZOOM,
+              y: (canvas.height - (box.y1 - box.y0) * JUMP_MIN_ZOOM) / 2 - box.y0 * JUMP_MIN_ZOOM,
+            };
+      void flow.setViewport(view, { duration: 200 });
     },
     [layout, sizeNow, flow],
   );

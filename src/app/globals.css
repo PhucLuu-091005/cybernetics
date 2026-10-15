@@ -1143,20 +1143,30 @@
     flex: none;
   }
   .ev-h b {
+    min-width: 0;
     font-weight: 600;
     color: var(--ink);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .ev-h .d {
+  .ev-h .d,
+  .ev-p .d {
+    flex: none;
     margin-left: auto;
     color: var(--ink-3);
     font-size: 11px;
-    font-family: var(--f-id);
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
   .ev-p {
+    display: flex;
+    gap: 6px;
     color: var(--ink-2);
     margin: 2px 0 3px;
+  }
+  .ev-p span:first-child {
+    min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

@@ -353,19 +353,19 @@ test('the controls step the zoom, the % menu applies presets, and titles hide un
   await expect.poll(() => zoomOf(page)).toBeLessThan(1);
 });
 
-test('a double-click on a branch zooms to that loop, at 150 % at most', async ({ page }) => {
+test('a double-click on a branch zooms to that loop, between 60 % and 150 %', async ({ page }) => {
   await signIn(page, 'graph-canvas');
   await controls(page).getByRole('button', { name: 'Fit the project' }).click();
   await expect.poll(() => zoomOf(page)).toBeLessThan(0.1);
-  const fit = await zoomOf(page);
   const branch = page.getByRole('button', { name: /^Loop: Client secret renewal/ });
   await branch.locator('.hit').dispatchEvent('dblclick');
-  await expect.poll(() => zoomOf(page)).toBeGreaterThan(fit * 2);
+  await expect.poll(() => zoomOf(page)).toBeGreaterThanOrEqual(0.6);
   expect(await zoomOf(page)).toBeLessThanOrEqual(1.5);
   const area = await boxOf(graph(page));
   const hit = await boxOf(branch.locator('.hit'));
+  // The loop starts in view; a long loop continues past the right edge.
   expect(hit.x).toBeGreaterThanOrEqual(area.x);
-  expect(hit.x + hit.width).toBeLessThanOrEqual(area.x + area.width);
+  expect(hit.x).toBeLessThan(area.x + area.width);
 });
 
 test('the minimap moves the canvas on a click; full screen enters and exits', async ({ page }) => {
@@ -417,6 +417,11 @@ test('an event card shows the act, the person, the quote and a source link, and 
   await expect(card.locator('.ev-h b')).toHaveText(/\w+/);
   await expect(card.locator('.ev-p')).toHaveText(/\w+/);
   await expect(card.locator('.ev-q')).toHaveText(/\w+/);
+  // No card text spills out of its card: every header and person line fits its width.
+  const spills = await page
+    .locator('.ev-card .ev-h, .ev-card .ev-p')
+    .evaluateAll((rows) => rows.filter((row) => row.scrollWidth > row.clientWidth + 1).length);
+  expect(spills).toBe(0);
   const link = card.getByRole('link');
   await expect(link).toHaveAttribute('href', /^https:\/\/fundline-larkspur\.slack\.com\//);
   await expect(link).toHaveAttribute('target', '_blank');
