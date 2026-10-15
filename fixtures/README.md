@@ -16,9 +16,9 @@ The builder imports only types from `src`, so plain Node runs it without a TypeS
 
 | File | Content |
 |---|---|
-| `story-source.json` | Narrative: people, departments, milestones, 30 loops with events, no-act records, history, proposals, isolation project. Every `expect` field is hand-written from SRD 15. |
-| `records.json` | 121 Larkspur records (source `agent`) and 3 isolation records (source `paste`). `sourceLabel` is the channel. Larkspur records are in chronological order. |
-| `main-snapshot.json` | The initial Larkspur commit: 30 loops, 114 acts, 114 included and 3 ignored record decisions. 4 records stay pending. |
+| `story-source.json` | Narrative: people, departments, milestones, 36 loops with events, no-act records, history, proposals, isolation project. Every `expect` field is hand-written from SRD 15. |
+| `records.json` | 137 Larkspur records (source `agent`) and 3 isolation records (source `paste`). `sourceLabel` is the channel. Larkspur records are in chronological order. |
+| `main-snapshot.json` | The initial Larkspur commit: 36 loops, 130 acts, 130 included and 3 ignored record decisions. 4 records stay pending. |
 | `history.json` | Snapshots to commit after the initial one, in order: a merge, a later unrelated merge, a revert of the first merge, and a merge that adds the project summary note. Each entry has `expectedDiff`. |
 | `proposals.json` | Drafts based on the last history commit: two competing loop-title proposals and one agent proposal. Each has `operations`, `candidate` and `expectedDiff`. |
 | `gold.json` | Owner-facing expectations at `T = 2026-10-09T18:00:00+07:00`: loop state and breakdowns keyed by loop UUID, milestone status by name, and the isolation loop. |
@@ -45,6 +45,10 @@ The builder imports only types from `src`, so plain Node runs it without a TypeS
 | `incident-report` | promised | `silent_overdue` |
 | `side-letter` | delivered | `unconfirmed_delivery` |
 | `branding` | change_pending | `unilateral_change` |
+| `crs` | promised | none |
+| `crs-analysis`, `crs-form-logic`, `crs-dealcloud` (tasks of `crs`) | closed | none |
+| `crs-country-field` (task of `crs`) | promised | `silent_overdue` |
+| `crs-qa` (task of `crs`) | no act yet | none |
 | 22 other loops | closed | none |
 
 Milestones at T: Kickoff to CRM integration live are `reached`, Go-live and first close is `at_risk` (its current date follows the agreed change to 15 October), and Hypercare end is `on_track`.
@@ -85,7 +89,7 @@ Proposals, all based on commit 4:
 
 ## Engine and gold decisions
 
-The engine matched the hand-written gold for all 30 loops and all 7 milestones on the first run. No engine change and no gold change was necessary. Story data decisions:
+The engine matched the hand-written gold for all 36 loops and all 7 milestones on the first run. No engine change and no gold change was necessary. Story data decisions:
 
 1. Loop keys `dynamics`, `incident` and `mapping` became `crm-sync`, `incident-report` and `side-letter`, to match the plan's names.
 2. The `secret` loop keeps its 25 September follow-up. Under SRD v1.2 the sentence counts from the first request (22 September to 9 October), which gives 13 business days. The rule threshold uses the follow-up.

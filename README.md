@@ -30,7 +30,7 @@ The Settings page: the agent access scopes, the MCP client snippet and a created
 
 The design file is [docs/design/2026-10-13-promise-graph-ui.html](docs/design/2026-10-13-promise-graph-ui.html). Open it in a browser to see every screen. The requirements are in [docs/superpowers/specs/2026-10-12-promise-graph-srd.md](docs/superpowers/specs/2026-10-12-promise-graph-srd.md).
 
-Your first sign-in creates a private sandbox: a copy of the fictional Larkspur Capital onboarding project with 121 records and 30 reviewed loops ([fixtures/README.md](fixtures/README.md)).
+Your first sign-in creates a private sandbox: a copy of the fictional Larkspur Capital onboarding project with 137 records and 36 reviewed loops ([fixtures/README.md](fixtures/README.md)).
 
 ## Connect an agent
 
@@ -183,9 +183,9 @@ On this budget the first sign-in, which seeds the sandbox, can take about 10 sec
 Offline evaluation (`pnpm eval`) on the hand-written gold fixtures:
 
 ```
-transition/breakdown accuracy: 100.0% (30/30)
-quote validity: 100.0% (116/116)
-expected diff matches: 100.0% (6/6)
+transition/breakdown accuracy: 100.0% (36/36)
+quote validity: 100.0% (132/132)
+expected diff matches: 100.0% (7/7)
 conflict detection: 100.0% (6/6)
 revert/restore correctness: 100.0% (4/4)
 ```
