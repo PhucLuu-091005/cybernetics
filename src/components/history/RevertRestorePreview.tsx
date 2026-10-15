@@ -7,6 +7,7 @@ import { ConflictBanner } from '../review/ConflictBanner';
 import { describeEntity, entityTitle, newestImage, type Names } from '../review/describe';
 import { ChangeCells } from '../review/DiffView';
 import { useHydrated } from '../review/hydrated';
+import { COLLECTION } from './CommitDiff';
 
 export type LaterCommit = { id: string; message: string; keys: string[] };
 type Props = {
@@ -174,7 +175,7 @@ export function RevertRestorePreview({
               <p style={{ fontSize: 13 }}>
                 <b className="bad">The {preview.kind} conflicts with later changes.</b>{' '}
                 {preview.conflicts.length}{' '}
-                {preview.conflicts.length === 1 ? 'entity blocks' : 'entities block'} the apply:
+                {preview.conflicts.length === 1 ? 'item blocks' : 'items block'} the apply:
               </p>
               <ul className="plain-list">
                 {preview.conflicts.map((conflict) => (
@@ -201,7 +202,7 @@ export function RevertRestorePreview({
                   </button>
                   <span className="faint" style={{ fontSize: 12 }}>
                     The change set undoes what is safe to undo and keeps the approved graph for each
-                    conflicting entity, so you resolve them explicitly before an approval.
+                    conflicting item, so you resolve them explicitly before an approval.
                   </span>
                 </div>
               )}
@@ -209,15 +210,16 @@ export function RevertRestorePreview({
           ) : preview.kind === 'revert' ? (
             <>
               <p style={{ fontSize: 13 }}>
-                Touched entities: {preview.diff.changes.length}. The approved graph still matches
-                this version&apos;s result for every touched entity, so the inverse applies without
+                Touched items: {preview.diff.changes.length}. The approved graph still matches this
+                version&apos;s result for every touched item, so the inverse applies without
                 conflict.
               </p>
               <div className="tablewrap" style={{ border: 0 }}>
-                <table aria-label="Touched entities">
+                <table aria-label="Touched items">
                   <thead>
                     <tr>
-                      <th>Entity</th>
+                      <th>Kind</th>
+                      <th>Item</th>
                       <th>Approved graph now</th>
                       <th>After undo</th>
                     </tr>
@@ -225,6 +227,7 @@ export function RevertRestorePreview({
                   <tbody>
                     {preview.diff.changes.map((change) => (
                       <tr key={`${change.collection}/${change.id}`}>
+                        <td>{COLLECTION[change.collection]}</td>
                         <td>
                           {entityTitle(
                             change.collection,

@@ -239,7 +239,7 @@ test('revert preview: a conflicting inverse becomes a proposal, an unrelated lat
   await preview.getByRole('button', { name: 'Create a change set that undoes it' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/proposals/[0-9a-f-]{36}$`));
   await expect(
-    page.getByRole('heading', { level: 1, name: /^Revert: Ignore the out-of-office reply/ }),
+    page.getByRole('heading', { level: 1, name: /^Undo: Ignore the out-of-office reply/ }),
   ).toBeVisible();
 
   await page.goto(`/projects/${projectId}/history`);
@@ -250,7 +250,7 @@ test('revert preview: a conflicting inverse becomes a proposal, an unrelated lat
     page.getByRole('heading', { level: 2, name: /^Note the SOW phase 2 scope/ }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Preview undo' }).click();
-  await expect(preview.getByRole('table', { name: 'Touched entities' })).toContainText('Note:');
+  await expect(preview.getByRole('table', { name: 'Touched items' })).toContainText('Note:');
   await expect(preview.getByTestId('preserved')).toContainText('Unrelated later work stays');
   await expect(preview.getByTestId('preserved')).toContainText(
     'Undo "Ignore the out-of-office reply',
@@ -297,6 +297,48 @@ test('restore preview lists removed later changes and apply creates a new restor
   const top = commits(page).getByRole('link').first();
   await expect(top).toContainText('Go back');
   await expect(top).toContainText('Larkspur history up to 9 October');
+});
+
+test('Activity uses plain words and logs no duplicate key', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  const projectId = await signIn(page, 'review-activity');
+  await page.goto(`/projects/${projectId}/history`);
+  await expect(page.getByRole('columnheader', { name: 'Kind' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Item' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Collection' })).toHaveCount(0);
+  await expect(page.getByRole('columnheader', { name: 'Entity' })).toHaveCount(0);
+  await expect(page.getByRole('table', { name: 'Changes in this version' })).toBeVisible();
+  await expect(page.getByText(/^\d+ items?: \d+ added/)).toBeVisible();
+
+  await commits(page)
+    .getByRole('link', { name: /^Ignore the out-of-office reply/ })
+    .click();
+  await expect(
+    page.getByRole('heading', { level: 2, name: /^Ignore the out-of-office reply/ }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Preview undo' }).click();
+  await expect(page.getByRole('region', { name: /Undo preview/ })).toBeVisible();
+  await page.getByText('Technical details').last().click();
+
+  await commits(page)
+    .getByRole('link', { name: /^Note the SOW phase 2 scope/ })
+    .click();
+  await expect(
+    page.getByRole('heading', { level: 2, name: /^Note the SOW phase 2 scope/ }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Preview undo' }).click();
+  const table = page.getByRole('table', { name: 'Touched items' });
+  await expect(table.getByRole('columnheader', { name: 'Item' })).toBeVisible();
+  await expect(table.getByRole('columnheader', { name: 'Entity' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Preview go back' }).click();
+  await expect(page.getByRole('region', { name: /Go back preview/ })).toBeVisible();
+
+  await page.goto(`/projects/${projectId}/history`);
+  await expect(page.getByText(/^Undo "Ignore the out-of-office reply/)).toBeVisible();
+  expect(errors.filter((text) => text.includes('same key'))).toEqual([]);
 });
 
 test('loop panel edits on main open a proposal first; change type, move and hide then edit that draft; main stays unchanged', async ({
