@@ -213,7 +213,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     'update_proposal',
     'graph:propose',
     UpdateProposalInputSchema,
-    `Apply a bounded operation batch to a draft at the expected proposal and evidence revisions. Every act needs a quote equal to its cited range. Returns the new revision or VALIDATION errors. ${NO_CANDIDATE}`,
+    `Apply a bounded operation batch to a draft at the expected proposal and evidence revisions. Every act needs a quote equal to its cited range. Returns the new revision or VALIDATION errors. ${NO_CANDIDATE} A note (annotations) may cite steps as [act:<id>]; every cited id must be in its actIds.`,
     updateProposal,
     withoutCandidate,
   ),

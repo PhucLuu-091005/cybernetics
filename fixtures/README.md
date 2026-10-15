@@ -16,12 +16,12 @@ The builder imports only types from `src`, so plain Node runs it without a TypeS
 
 | File | Content |
 |---|---|
-| `story-source.json` | Narrative: people, departments, milestones, 30 loops with events, no-act records, escalations, history, proposals, isolation project. Every `expect` field is hand-written from SRD 15. |
+| `story-source.json` | Narrative: people, departments, milestones, 30 loops with events, no-act records, history, proposals, isolation project. Every `expect` field is hand-written from SRD 15. |
 | `records.json` | 121 Larkspur records (source `agent`) and 3 isolation records (source `paste`). `sourceLabel` is the channel. Larkspur records are in chronological order. |
 | `main-snapshot.json` | The initial Larkspur commit: 30 loops, 114 acts, 114 included and 3 ignored record decisions. 4 records stay pending. |
 | `history.json` | Snapshots to commit after the initial one, in order: a merge, a later unrelated merge, a revert of the first merge, and a merge that adds the project summary note. Each entry has `expectedDiff`. |
 | `proposals.json` | Drafts based on the last history commit: two competing loop-title proposals and one agent proposal. Each has `operations`, `candidate` and `expectedDiff`. |
-| `gold.json` | Owner-facing expectations at `T = 2026-10-09T18:00:00+07:00`: loop state and breakdowns keyed by loop UUID, milestone status by name, escalation claims with verdicts, and the isolation loop. |
+| `gold.json` | Owner-facing expectations at `T = 2026-10-09T18:00:00+07:00`: loop state and breakdowns keyed by loop UUID, milestone status by name, and the isolation loop. |
 | `project.json` | Project metadata, side rules, source labels and pending version IDs. `isolation.snapshot` is the isolation project graph. |
 
 ## Stable IDs
@@ -30,7 +30,7 @@ The builder imports only types from `src`, so plain Node runs it without a TypeS
 
 - `loop:<loop>`, `act:<loop>:<event index>`, `act:nonact:<record>`, `act:<proposal act key>`
 - `record-version:<loop>:<event index>`, `record-version:nonact:<record>`
-- `person:<name slug>`, `department:<name slug>`, `milestone:<name slug>`, `annotation:<key>`, `proposal:<key>`, `claim:<escalation>:<index>`, `project:larkspur`, `project:isolation`
+- `person:<name slug>`, `department:<name slug>`, `milestone:<name slug>`, `annotation:<key>`, `proposal:<key>`, `project:larkspur`, `project:isolation`
 - The isolation project prefixes each key with `isolation:`.
 
 ## Story loops at T
@@ -56,7 +56,7 @@ Milestones at T: Kickoff to CRM integration live are `reached`, Go-live and firs
 - Attachment with no imported document: `Fund III side letter v3.pdf` on Priya's 20 August email.
 - Vietnamese diacritics and astral emoji in at least 6 bodies, so UTF-16 offsets differ from code point offsets.
 - Ignored records (3): weekly meeting note, onboarding plan, injection email.
-- Pending records (4): the three escalation emails and Tom's out-of-office reply.
+- Pending records (4): the three client complaint emails (go-live, Dynamics scope and sync incident) and Tom's out-of-office reply.
 
 ## History and proposals
 
@@ -68,7 +68,7 @@ Milestones at T: Kickoff to CRM integration live are `reached`, Go-live and firs
 Proposals, all based on commit 4:
 
 - `crm-sync-title-phase-one` and `crm-sync-title-sow-scope` change the title of the same loop. After one merges, a rebase of the other reports one conflict on that loop.
-- `agent-incident-follow-up` (origin `agent`) adds Sarah's follow-up from the pending escalation-three email to the incident report loop and includes that record. Loop states and breakdowns stay the same. The incident loop gets one nudge.
+- `agent-incident-follow-up` (origin `agent`) adds Sarah's follow-up from the pending sync incident complaint email to the incident report loop and includes that record. Loop states and breakdowns stay the same. The incident loop gets one nudge.
 
 ## Sandbox seed
 
@@ -89,7 +89,7 @@ The engine matched the hand-written gold for all 30 loops and all 7 milestones o
 
 1. Loop keys `dynamics`, `incident` and `mapping` became `crm-sync`, `incident-report` and `side-letter`, to match the plan's names.
 2. The `secret` loop keeps its 25 September follow-up. Under SRD v1.2 the sentence counts from the first request (22 September to 9 October), which gives 13 business days. The rule threshold uses the follow-up.
-3. The SOW record author changed from Priya Shah to Minh Trần, because Fundline wrote the statement of work. The record has an unassigned `promise` act (no loop). Escalation 2 cites it as the contradicting act, so the derived verdict is `contested` as SRD 15 requires. The act changes no loop state.
+3. The SOW record author changed from Priya Shah to Minh Trần, because Fundline wrote the statement of work. The record has an unassigned `promise` act (no loop). The act changes no loop state.
 4. Tom's out-of-office reply is a new no-act record. It makes the pending count 4 and gives the history revert a decision to restore to pending.
 5. The injection quote is the exact brief text. The "untrusted content" note is in the ignore reason, not in the email body.
 6. The `incident-report` action is "to send the sync root cause report", so the `silent_overdue` sentence reads correctly.
