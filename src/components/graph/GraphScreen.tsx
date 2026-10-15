@@ -471,7 +471,8 @@ export function GraphScreen({
         {engine.unavailableEvidenceCount > 0 && (
           <span>
             {engine.unavailableEvidenceCount}{' '}
-            {engine.unavailableEvidenceCount === 1 ? 'act cites' : 'acts cite'} withdrawn evidence.
+            {engine.unavailableEvidenceCount === 1 ? 'step cites' : 'steps cite'} withdrawn
+            evidence.
           </span>
         )}
       </p>

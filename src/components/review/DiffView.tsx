@@ -73,7 +73,7 @@ export function DiffView({
       <div className="card pad">
         {structural.length === 0 ? (
           <p className="faint" style={{ fontSize: 13 }}>
-            No entity changes.
+            No changes.
           </p>
         ) : (
           <div className="tablewrap" style={{ border: 0 }}>
