@@ -53,7 +53,7 @@ export function CitedSources({
       })}
       {acts.length > MAX_SOURCES && (
         <p className="faint" style={{ fontSize: 12 }}>
-          {acts.length - MAX_SOURCES} more cited acts are not shown.
+          {acts.length - MAX_SOURCES} more cited steps are not shown.
         </p>
       )}
     </div>
