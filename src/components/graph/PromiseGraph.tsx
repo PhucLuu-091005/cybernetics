@@ -30,7 +30,6 @@ import {
   MAX_ZOOM,
   MIN_ZOOM,
   fitViewport,
-  fitWidth,
   lodOf,
   nextZoom,
   zoomAround,
@@ -41,8 +40,7 @@ import {
 } from '../../lib/graph-layout';
 import { ActNode, ACT_NODE_SIZE, type ActNodeType } from './ActNode';
 import { BranchEdge, type BranchEdgeType } from './BranchEdge';
-import { AxisMenu } from './AxisMenu';
-import { CanvasControls, type Preset } from './CanvasControls';
+import { CanvasControls } from './CanvasControls';
 import { CardNode, type CardInfo, type CardNodeType } from './CardNode';
 import { GATEWAY_SIZE, GatewayNode, type GatewayNodeType } from './GatewayNode';
 import { LaneColumn } from './LaneColumn';
@@ -51,7 +49,6 @@ import { LoopIndex, type IndexEntry } from './LoopIndex';
 import { ResizeHandle } from './ResizeHandle';
 import { useStoredSize } from './stored-size';
 import { MilestoneNode, MILESTONE_NODE, type MilestoneNodeType } from './MilestoneNode';
-import { Minimap } from './Minimap';
 import { TimeAxis } from './TimeAxis';
 import { TONE_COLOR, shortStamp } from './labels';
 import {
@@ -108,9 +105,6 @@ export type PromiseGraphProps = {
   /** A drag in progress (`done` false) or finished; `kind` says what moves: one act in its day or the whole branch. */
   onDrag(change: DragChange, done: boolean): void;
   onResetLayout: (() => void) | null;
-  /** Day columns the user resized; see the time axis. */
-  onDayWidth(date: string, width: number | null, done: boolean): void;
-  onResetDayWidths: (() => void) | null;
   /** The loop list on the right of the canvas. */
   index: {
     entries: readonly IndexEntry[];
@@ -261,8 +255,6 @@ function Graph(props: PromiseGraphProps) {
     offsets,
     onDrag,
     onResetLayout,
-    onDayWidth,
-    onResetDayWidths,
     index,
     onSelectLoop,
     onSelectMilestone,
@@ -273,7 +265,6 @@ function Graph(props: PromiseGraphProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
   const [activeKey, setActiveKey] = useState<string | null>(null);
-  const [minimap, setMinimap] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenEnabled, setFullscreenEnabled] = useState(false);
   const content: Box = useMemo(
@@ -281,20 +272,6 @@ function Graph(props: PromiseGraphProps) {
     [layout],
   );
   const { xT } = layout;
-  // x range of the days from `before` days before T to `after` days after it.
-  const daysAroundT = useCallback(
-    (before: number, after: number): [number, number] => {
-      const { days } = layout,
-        at = Math.max(
-          0,
-          days.findIndex((day) => xT >= day.x && xT < day.x + day.width),
-        );
-      const first = days[Math.max(0, at - before)],
-        last = days[Math.min(days.length - 1, at + after)];
-      return [first.x, last.x + last.width];
-    },
-    [layout, xT],
-  );
   // Read at call time, so the handlers below never change with the size and never rebuild every node.
   const sizeNow = useCallback((): Size => {
     const box = wrapRef.current?.getBoundingClientRect();
@@ -368,21 +345,9 @@ function Graph(props: PromiseGraphProps) {
     else void stageRef.current?.requestFullscreen().catch(() => undefined);
   }, [stageRef]);
 
-  const applyPreset = useCallback(
-    (preset: Preset) => {
-      const canvas = sizeNow(),
-        current = flow.getViewport();
-      const view =
-        preset === 'project'
-          ? fitViewport(content, canvas)
-          : preset === 'week'
-            ? fitWidth(...daysAroundT(4, 3), layout.trunkY, canvas)
-            : preset === 'month'
-              ? fitWidth(...daysAroundT(25, 5), layout.trunkY, canvas)
-              : zoomAround(current, preset, { x: canvas.width / 2, y: canvas.height / 2 });
-      void flow.setViewport(view, { duration: 200 });
-    },
-    [sizeNow, flow, content, daysAroundT, layout.trunkY],
+  const fit = useCallback(
+    () => void flow.setViewport(fitViewport(content, sizeNow()), { duration: 200 }),
+    [sizeNow, flow, content],
   );
   // A second press during the 150 ms animation steps from the target, not from a zoom halfway there.
   const target = useRef<{ view: Viewport; until: number } | null>(null);
@@ -785,14 +750,11 @@ function Graph(props: PromiseGraphProps) {
             onResize={setListWidth}
           />
         )}
-        <div className="canvas-corner">
-          <AxisMenu onResetWidths={onResetDayWidths} />
-        </div>
+        <div className="canvas-corner" />
         <div className="canvas-axis">
           <TimeAxis
             days={layout.days}
             xT={xT}
-            onResize={onDayWidth}
             tLabel={shortStamp(T, context.timeZone)}
             viewport={viewport}
             width={size.width}
@@ -843,21 +805,10 @@ function Graph(props: PromiseGraphProps) {
             </ViewportPortal>
           </ReactFlow>
         </div>
-        {minimap && size.width > 0 && (
-          <Minimap
-            layout={layout}
-            content={content}
-            viewport={viewport}
-            canvas={size}
-            onMove={(view) => void flow.setViewport(view)}
-          />
-        )}
         <CanvasControls
           zoom={viewport.zoom}
           onStep={step}
-          onPreset={applyPreset}
-          minimap={minimap}
-          onMinimap={() => setMinimap((value) => !value)}
+          onFit={fit}
           fullscreen={fullscreen}
           fullscreenEnabled={fullscreenEnabled}
           onFullscreen={toggleFullscreen}
