@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { markerErrors } from './markers';
 import {
   DateSchema,
   IdSchema,
@@ -95,11 +96,16 @@ export const RecordDecisionSchema = z
     (value) => value.disposition !== 'ignored' || value.reason.trim().length > 0,
     'Ignored decisions require a reason',
   );
-export const AnnotationSchema = z.strictObject({
-  id: IdSchema,
-  text: z.string().min(1).max(10000),
-  actIds: z.array(IdSchema).max(3000),
-});
+export const AnnotationSchema = z
+  .strictObject({
+    id: IdSchema,
+    text: z.string().min(1).max(10000),
+    actIds: z.array(IdSchema).max(3000),
+  })
+  .superRefine((value, ctx) => {
+    for (const message of markerErrors(value.text, value.actIds))
+      ctx.addIssue({ code: 'custom', path: ['text'], message });
+  });
 export const GraphContextSchema = z
   .strictObject({
     timeZone: TimeZoneSchema,

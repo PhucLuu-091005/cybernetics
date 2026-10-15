@@ -2,6 +2,7 @@ export * from './primitives';
 export * from './identity';
 export * from './records';
 export * from './graph';
+export * from './markers';
 export * from './proposals';
 export * from './engine';
 export * from './layout';

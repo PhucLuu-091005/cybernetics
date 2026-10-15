@@ -6,7 +6,7 @@ import history from '../../../fixtures/history.json';
 import proposals from '../../../fixtures/proposals.json';
 import records from '../../../fixtures/records.json';
 import { uuidFromKey } from '../../../scripts/build-fixtures';
-import type { ActorContext, GraphSnapshot } from '../../../src/contracts';
+import { ACT_MARKER, type ActorContext, type GraphSnapshot } from '../../../src/contracts';
 import { canonicalHash } from '../../../src/lib/canonical-json';
 import { seedOnUserCreated } from '../../../src/server/app';
 import { DbIdentityStore } from '../../../src/server/db/identity-store';
@@ -125,7 +125,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('seeded sandbox', () => {
     expect([...ids.versionIds.values()].every(Boolean)).toBe(true);
     const main = await mainSnapshot(project.id);
     expect(canonicalHash(main)).toBe(
-      canonicalHash(rekeyFixture(history[2].snapshot as GraphSnapshot, ids)),
+      canonicalHash(rekeyFixture(history.at(-1)!.snapshot as GraphSnapshot, ids)),
     );
     expect(main.loops.map((loop) => loop.id)).not.toContain(uuidFromKey('loop:go-live'));
 
@@ -136,12 +136,17 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('seeded sandbox', () => {
       'merge',
       'merge',
       'revert',
+      'merge',
     ]);
     expect(commits.map((commit) => commit.message).slice(2)).toEqual(
       history.map((item) => item.message),
     );
     expect(commits[4].targetCommitId).toBe(commits[2].id);
-    expect(commits.slice(1, 4).every((commit) => commit.proposalId !== null)).toBe(true);
+    expect(
+      commits
+        .filter((commit) => commit.kind === 'merge')
+        .every((commit) => commit.proposalId !== null),
+    ).toBe(true);
 
     const graph = await getGraphView(t.db, ctx, { projectId: project.id, view: { kind: 'main' } });
     const derived = graph.engine.loops
@@ -161,6 +166,23 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('seeded sandbox', () => {
     expect(derived).toEqual(expected);
     expect(graph.engine.unavailableEvidenceCount).toBe(1);
     expect(graph.pendingEvidenceCount).toBe(4);
+  });
+
+  it('main holds the summary note with markers rekeyed to the sandbox acts', async () => {
+    const { userId } = await seededStore().provisionUser({
+      subject: `google:${randomUUID()}`,
+      email: null,
+      name: 'G',
+    });
+    const ctx = await actorFor(userId);
+    const [project] = await listProjects(t.db, ctx);
+    const main = await mainSnapshot(project.id);
+    const note = main.annotations.at(-1)!;
+    expect(note.text).toMatch(/^As of 9 October, 27 of 36 loops are closed\./);
+    const acts = new Set(main.acts.map((act) => act.id));
+    const markers = [...note.text.matchAll(ACT_MARKER)].map((match) => match[1]);
+    expect(markers).toEqual(note.actIds);
+    for (const actId of markers) expect(acts.has(actId)).toBe(true);
   });
 
   it('withdraws one cited record of a healthy closed loop, never a pending one', async () => {

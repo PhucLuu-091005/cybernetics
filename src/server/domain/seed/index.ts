@@ -6,16 +6,17 @@ import projectFixture from '../../../../fixtures/project.json' with { type: 'jso
 import proposalsFixture from '../../../../fixtures/proposals.json' with { type: 'json' };
 import recordsFixture from '../../../../fixtures/records.json' with { type: 'json' };
 import { uuidFromKey } from '../../../../scripts/build-fixtures';
-import type {
-  Act,
-  ActorContext,
-  CommitReceipt,
-  GraphContext,
-  GraphOperation,
-  GraphSnapshot,
-  IngestEnvelope,
-  Project,
-  RecordInput,
+import {
+  ACT_MARKER,
+  type Act,
+  type ActorContext,
+  type CommitReceipt,
+  type GraphContext,
+  type GraphOperation,
+  type GraphSnapshot,
+  type IngestEnvelope,
+  type Project,
+  type RecordInput,
 } from '../../../contracts';
 import { canonicalHash } from '../../../lib/canonical-json';
 import { graphCommits, projects } from '../../db/schema';
@@ -63,10 +64,13 @@ export type LarkspurSeed = {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export function rekeyFixture<T>(value: T, ids: FixtureIds): T {
+  const rekey = (id: string) => ids.versionIds.get(id) ?? ids.entityId(id);
   return JSON.parse(JSON.stringify(value), (_key, item) =>
-    typeof item === 'string' && UUID.test(item)
-      ? (ids.versionIds.get(item) ?? ids.entityId(item))
-      : item,
+    typeof item !== 'string'
+      ? item
+      : UUID.test(item)
+        ? rekey(item)
+        : item.replace(ACT_MARKER, (_match, id: string) => `[act:${rekey(id)}]`),
   ) as T;
 }
 export async function headOf(
@@ -269,7 +273,7 @@ export async function seedLarkspur(
     ctx,
     project.id,
     operationsBetween(initial, snapshot, bodies),
-    'Seed Larkspur main snapshot',
+    'Larkspur history up to 9 October',
   );
   const pendingVersionIds = projectFixture.larkspur.pendingRecordVersionIds.map((id) =>
     versionIds.get(id)!,
