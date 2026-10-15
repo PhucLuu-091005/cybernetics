@@ -1,3 +1,4 @@
+'use client';
 import Link from 'next/link';
 import { RailIcon } from './icons';
 
@@ -31,6 +32,7 @@ export function ProjectSwitcher({
         {projects.map((project) => (
           <li key={project.id}>
             <Link
+              onClick={(event) => event.currentTarget.closest('details')?.removeAttribute('open')}
               href={`/projects/${project.id}/graph`}
               aria-current={project.id === current.id ? 'true' : undefined}
             >
