@@ -50,6 +50,7 @@ export const AgentTokenSchema = z.strictObject({
   createdAt: TimestampSchema,
   expiresAt: TimestampSchema,
   revokedAt: TimestampSchema.nullable(),
+  lastUsedAt: TimestampSchema.nullable(),
 });
 export type AgentToken = z.infer<typeof AgentTokenSchema>;
 export const CreateAgentTokenInputSchema = z.strictObject({

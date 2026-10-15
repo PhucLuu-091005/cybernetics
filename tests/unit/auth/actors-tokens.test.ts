@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createHash, randomUUID } from 'node:crypto';
+import type { Scope } from '../../../src/contracts';
 import { createIdentityServices } from '../../../src/server/http/actors';
 import { createTokenService } from '../../../src/server/domain/tokens/service';
 import { signSession } from '../../../src/server/http/session';
@@ -409,5 +410,75 @@ describe('hashed project agent tokens', () => {
     await expect(
       s.services.getTokenActor(s.request(created.secret), 'project:read'),
     ).rejects.toMatchObject({ code: 'RATE_LIMITED' });
+  });
+});
+
+describe('last call of a token', () => {
+  async function lastCallSetup(scopes?: Scope[]) {
+    const s = await setup();
+    let clock = now;
+    const services = createIdentityServices({ store: s.store, env, now: () => clock });
+    const created = await s.tokens.createToken(s.ctx, {
+      projectId: s.projectId,
+      label: 'Agent',
+      idempotencyKey: 'last-call',
+      ...(scopes ? { scopes } : {}),
+    });
+    const stored = () =>
+      s.store.tokens.get(createHash('sha256').update(created.secret).digest('hex'))!;
+    return {
+      ...s,
+      services,
+      created,
+      stored,
+      advance: (ms: number) => (clock += ms),
+      call: (scope: Scope | null = 'project:read') =>
+        services.getTokenActor(s.request(created.secret), scope),
+    };
+  }
+  it('starts as never and records the first authenticated call', async () => {
+    const s = await lastCallSetup();
+    expect(s.created.token.lastUsedAt).toBeNull();
+    expect(s.stored().lastUsedAt).toBeNull();
+    await s.call();
+    expect(s.stored().lastUsedAt).toBe('2026-10-13T00:00:00.000Z');
+  });
+  it('records the last call at most once a minute', async () => {
+    const s = await lastCallSetup();
+    await s.call();
+    const first = s.stored().lastUsedAt;
+    expect(first).not.toBeNull();
+    s.advance(30_000);
+    await s.call();
+    expect(s.stored().lastUsedAt).toBe(first);
+    s.advance(31_000);
+    await s.call();
+    expect(s.stored().lastUsedAt).toBe('2026-10-13T00:01:01.000Z');
+  });
+  it('records a call that fails on scope, because the agent still reached the app', async () => {
+    const s = await lastCallSetup(['project:read']);
+    await expect(s.call('graph:merge')).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(s.stored().lastUsedAt).toBe('2026-10-13T00:00:00.000Z');
+  });
+  it('records a call that passes no scope', async () => {
+    const s = await lastCallSetup();
+    await s.call(null);
+    expect(s.stored().lastUsedAt).toBe('2026-10-13T00:00:00.000Z');
+  });
+  it('does not record a call that fails authentication', async () => {
+    const s = await lastCallSetup();
+    await s.tokens.revokeToken(s.ctx, {
+      projectId: s.projectId,
+      tokenId: s.created.token.id,
+      idempotencyKey: 'revoke-last-call',
+    });
+    await expect(s.call()).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+    expect(s.stored().lastUsedAt).toBeNull();
+  });
+  it('lists the last call of each token', async () => {
+    const s = await lastCallSetup();
+    await s.call();
+    const listed = await s.tokens.listTokens(s.ctx, { projectId: s.projectId });
+    expect(listed.items[0].lastUsedAt).toBe('2026-10-13T00:00:00.000Z');
   });
 });

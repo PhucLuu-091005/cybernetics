@@ -285,6 +285,7 @@ export const agentTokens = pgTable(
     createdAt: createdAt(),
     expiresAt: tz('expires_at').notNull(),
     revokedAt: tz('revoked_at'),
+    lastUsedAt: tz('last_used_at'),
     revokeKey: text('revoke_key'),
   },
   (table) => [

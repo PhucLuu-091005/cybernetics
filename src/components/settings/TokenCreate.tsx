@@ -5,18 +5,9 @@ import { DEFAULT_AGENT_SCOPES, type Scope, type TokenCreated } from '../../contr
 import { send, type ApiError } from '../inbox/api';
 import { ConflictBanner } from '../review/ConflictBanner';
 import { useHydrated } from '../review/hydrated';
+import { SCOPES } from './scopes';
 import { SecretReveal } from './SecretReveal';
 
-const SCOPES: { scope: Scope; text: string; risk?: true }[] = [
-  { scope: 'project:read', text: 'Read records, the graph, activity and change sets.' },
-  { scope: 'records:import', text: 'Import records. The graph does not change.' },
-  { scope: 'graph:propose', text: 'Create and edit change sets. A person still approves.' },
-  {
-    scope: 'graph:merge',
-    text: 'Lets this token approve and undo without you. Grant it only to an agent that you direct.',
-    risk: true,
-  },
-];
 export type ExpiryOption = { days: number; label: string };
 
 export function TokenCreate({
@@ -89,9 +80,9 @@ export function TokenCreate({
       </label>
       <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
         <legend className="field" style={{ marginBottom: 6 }}>
-          Scopes
+          Permissions
         </legend>
-        {SCOPES.map(({ scope, text, risk }) => (
+        {SCOPES.map(({ scope, title, text, risk }) => (
           <label key={scope} className={risk ? 'scope-row risk' : 'scope-row'}>
             <input
               type="checkbox"
@@ -100,7 +91,7 @@ export function TokenCreate({
               onChange={(event) => toggle(scope, event.target.checked)}
             />
             <span>
-              <b>{scope}</b>
+              <b>{title}</b> <span className="id faint">{scope}</span>
               <br />
               <span className={risk ? undefined : 'faint'} style={{ fontSize: 12 }}>
                 {text}

@@ -53,6 +53,7 @@ export function createTokenService(store: HttpIdentityStore, now: () => number =
         createdAt,
         expiresAt,
         revokedAt: null,
+        lastUsedAt: null,
       };
       await store.insertToken({
         ...token,
