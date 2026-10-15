@@ -1,5 +1,6 @@
 import type { Edge, EdgeProps } from '@xyflow/react';
-import type { BranchLayout, BranchSegment } from '../../contracts/layout';
+import type { ActGlyph, BranchLayout, BranchSegment } from '../../contracts/layout';
+import { CARD } from '../../lib/graph-layout';
 import { TONE_COLOR } from './labels';
 import { loopKey, useGraphUi } from './ui-context';
 
@@ -10,6 +11,22 @@ const DASH: Record<BranchSegment['style'], string | undefined> = {
   dashed: '7 5',
   dotted: '1.5 4',
 };
+
+// The stem leaves the icon above its 18 px glyph and enters the card at least 12 px inside its edge.
+const ICON_TOP = 10,
+  STEM_INSET = 12,
+  STEM_BEND = 10;
+function stemPath(glyph: ActGlyph): string | null {
+  if (!glyph.card) return null;
+  const bottom = glyph.card.y + CARD.height,
+    entry = Math.min(
+      Math.max(glyph.x, glyph.card.x + STEM_INSET),
+      glyph.card.x + CARD.width - STEM_INSET,
+    );
+  return entry === glyph.x
+    ? `M${glyph.x} ${glyph.y - ICON_TOP} V${bottom}`
+    : `M${glyph.x} ${glyph.y - ICON_TOP} V${bottom + STEM_BEND} H${entry} V${bottom}`;
+}
 
 /** Splits the layout path into its fork curve and optional merge curve, so the row between them can carry per-segment styles. */
 function curves(branch: BranchLayout): { fork: string; merge: string | null } {
@@ -65,6 +82,30 @@ export function BranchEdge({ data }: EdgeProps<BranchEdgeType>) {
           strokeWidth={3}
         />
       )}
+      {branch.glyphs.map((glyph) => {
+        const stem = stemPath(glyph);
+        return (
+          stem && (
+            <path
+              key={`stem-${glyph.id}`}
+              className="stem"
+              d={stem}
+              fill="none"
+              stroke={
+                glyph.type === 'reject'
+                  ? 'var(--danger)'
+                  : TONE_COLOR[
+                      (
+                        branch.segments.find(
+                          (segment) => segment.startX <= glyph.x && glyph.x <= segment.endX,
+                        ) ?? last
+                      ).tone
+                    ]
+              }
+            />
+          )
+        );
+      })}
       {branch.endKind === 'cap' && (
         <rect x={branch.xEnd - 1} y={y - 6} width={8} height={12} fill="var(--isolated)" />
       )}
@@ -122,17 +163,15 @@ export function BranchEdge({ data }: EdgeProps<BranchEdgeType>) {
           <circle
             key={glyph.id}
             className="hit-dot"
+            data-act={glyph.id}
             cx={glyph.x}
             cy={y}
-            r={9}
-            onClick={(event) => {
-              event.stopPropagation();
-              ui.selectLoop(branch.loopId, glyph.id);
-            }}
-            onMouseEnter={(event) => ui.hoverAct(glyph, event)}
-            onMouseMove={(event) => ui.hoverAct(glyph, event)}
-            onMouseLeave={() => ui.hoverAct(null)}
-          />
+            r={11}
+            onClick={(event) => event.stopPropagation()}
+            onPointerDown={(event) => ui.startDrag(event, glyph)}
+          >
+            <title>{glyph.accessibleName}</title>
+          </circle>
         ))}
       </g>
     </g>

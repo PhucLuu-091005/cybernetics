@@ -29,8 +29,9 @@ const preset = async (page: Page, name: string) => {
   await page.getByRole('menuitem', { name }).click();
 };
 
-async function signIn(page: Page) {
-  await page.goto('/signin?label=graph');
+// The canvas and card tests sign in as their own users, so the spec stays under the per-user read limit of 60 a minute.
+async function signIn(page: Page, label = 'graph') {
+  await page.goto(`/signin?label=${label}`);
   await page.getByRole('button', { name: /continue/i }).click();
   await expect(page.getByText(PROJECT)).toBeVisible();
   // Keyboard and wheel handlers attach on hydration; data-ready appears once the client has measured the graph.
@@ -182,7 +183,7 @@ test('list view shows the same loops as the graph with the same filters', async 
 
 const projectIdOf = (page: Page) => new URL(page.url()).pathname.split('/')[2];
 
-test('the loop panel shows each quote inside its surrounding text, with the source and an agent permalink as plain text', async ({
+test('the loop panel shows each quote inside its surrounding text, with the source and a Slack link', async ({
   page,
 }) => {
   await signIn(page);
@@ -196,11 +197,10 @@ test('the loop panel shows each quote inside its surrounding text, with the sour
     .poll(async () => (await block.innerText()).trim().length)
     .toBeGreaterThan(quote.length);
   expect(await block.innerText()).toContain(quote);
-  // SRD 17: the seed arrives through the agent path, so its Slack-shaped permalinks stay inactive text.
-  await expect(
-    panel.getByText(/^https:\/\/fundline-larkspur\.slack\.example\//).first(),
-  ).toBeVisible();
-  await expect(panel.getByRole('link', { name: /^Open in/ })).toHaveCount(0);
+  // SRD 17: an agent permalink on a Slack host is an active link that opens in a new tab.
+  const link = panel.getByRole('link', { name: 'Open in Slack' }).first();
+  await expect(link).toHaveAttribute('href', /^https:\/\/fundline-larkspur\.slack\.com\//);
+  await expect(link).toHaveAttribute('target', '_blank');
   await expect(panel.getByText('#larkspur-it').first()).toBeVisible();
 });
 
@@ -284,7 +284,7 @@ test('the canvas opens at 100 %, the wheel moves it, and Ctrl + wheel or a pinch
   // d3-zoom registers touch listeners only when the page starts on a touch device.
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
-  await signIn(page);
+  await signIn(page, 'graph-canvas');
   expect(await zoomOf(page)).toBe(1);
   const box = await boxOf(graph(page));
   const trunk = page.locator('.react-flow__viewport');
@@ -324,7 +324,7 @@ test('the canvas opens at 100 %, the wheel moves it, and Ctrl + wheel or a pinch
 test('a drag on empty canvas moves it; the lane names stay in their column and follow the zoom', async ({
   page,
 }) => {
-  await signIn(page);
+  await signIn(page, 'graph-canvas');
   const column = page.getByTestId('lane-column');
   const name = column.locator('[data-lane]').filter({ hasText: 'Engineering' });
   const nameBefore = await boxOf(name);
@@ -348,7 +348,7 @@ test('a drag on empty canvas moves it; the lane names stay in their column and f
 test('the controls step the zoom, the % menu applies presets, and titles hide under 60 %', async ({
   page,
 }) => {
-  await signIn(page);
+  await signIn(page, 'graph-canvas');
   await expect(page.locator('text.br-title').first()).toBeAttached();
   await controls(page).getByRole('button', { name: 'Zoom in' }).click();
   await expect.poll(() => zoomOf(page)).toBe(1.25);
@@ -374,7 +374,7 @@ test('the controls step the zoom, the % menu applies presets, and titles hide un
 });
 
 test('a double-click on a branch zooms to that loop, at 150 % at most', async ({ page }) => {
-  await signIn(page);
+  await signIn(page, 'graph-canvas');
   await controls(page).getByRole('button', { name: 'Fit the project' }).click();
   await expect.poll(() => zoomOf(page)).toBeLessThan(0.6);
   const branch = page.getByRole('button', { name: /^Loop: Client secret renewal/ });
@@ -388,7 +388,7 @@ test('a double-click on a branch zooms to that loop, at 150 % at most', async ({
 });
 
 test('the minimap moves the canvas on a click; full screen enters and exits', async ({ page }) => {
-  await signIn(page);
+  await signIn(page, 'graph-canvas');
   await controls(page).getByRole('button', { name: 'Minimap' }).click();
   const map = page.getByRole('img', { name: 'Minimap' });
   await expect(map).toBeVisible();
@@ -413,6 +413,112 @@ test('the minimap moves the canvas on a click; full screen enters and exits', as
     .toContain('stage');
   await controls(page).getByRole('button', { name: 'Exit full screen' }).click();
   await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeNull();
+});
+
+const secretRenewal = (page: Page) =>
+  page.getByRole('button', { name: /^Loop: Client secret renewal/ });
+async function firstCardOf(page: Page, branch: Locator) {
+  await branch.focus();
+  const actId = (await branch.locator('.hit-dot').first().getAttribute('data-act'))!;
+  return {
+    actId,
+    card: page.locator(`.ev-card[data-act="${actId}"]`),
+    icon: branch.locator(`.hit-dot[data-act="${actId}"]`),
+  };
+}
+
+test('an event card shows the act, the person, the quote and a source link, and hides under 45 %', async ({
+  page,
+}) => {
+  await signIn(page, 'graph-cards');
+  const { card } = await firstCardOf(page, secretRenewal(page));
+  await expect(card).toBeVisible();
+  await expect(card.locator('.ev-h b')).toHaveText(/\w+/);
+  await expect(card.locator('.ev-p')).toHaveText(/\w+/);
+  await expect(card.locator('.ev-q')).toHaveText(/\w+/);
+  const link = card.getByRole('link');
+  await expect(link).toHaveAttribute('href', /^https:\/\/fundline-larkspur\.slack\.com\//);
+  await expect(link).toHaveAttribute('target', '_blank');
+  await controls(page).getByRole('button', { name: 'Fit the project' }).click();
+  await expect.poll(() => zoomOf(page)).toBeLessThan(0.45);
+  await expect(card).toBeHidden();
+});
+
+for (const target of ['card', 'icon'] as const)
+  test(`a pinch over an event ${target} zooms the canvas`, async ({ page }) => {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
+    await signIn(page, 'graph-cards');
+    const found = await firstCardOf(page, secretRenewal(page));
+    const box = await boxOf(found[target]);
+    const x = box.x + box.width / 2,
+      y = box.y + box.height / 2;
+    const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', spread: number) =>
+      cdp.send('Input.dispatchTouchEvent', {
+        type,
+        touchPoints:
+          type === 'touchEnd'
+            ? []
+            : [
+                { x: x - spread, y, id: 1 },
+                { x: x + spread, y, id: 2 },
+              ],
+      });
+    // Both fingers start on the target: an icon is about 22 px wide at 100 %.
+    const start = target === 'icon' ? 4 : 20;
+    await touch('touchStart', start);
+    for (const spread of [start + 20, start + 40, start + 60]) await touch('touchMove', spread);
+    await touch('touchEnd', 0);
+    await expect.poll(() => zoomOf(page)).toBeGreaterThan(1);
+  });
+
+test('a press on an event card opens its loop at that act', async ({ page }) => {
+  await signIn(page, 'graph-cards');
+  const { card } = await firstCardOf(page, secretRenewal(page));
+  await card.locator('.ev-p').click();
+  const panel = loopPanel(page);
+  await expect(panel).toBeVisible();
+  await expect(panel.locator('[aria-current="step"]')).toHaveCount(1);
+});
+
+test('a sideways drag keeps an event in its day, an upward drag moves the branch, and Reset layout restores both', async ({
+  page,
+}) => {
+  await signIn(page, 'graph-cards');
+  const branch = secretRenewal(page);
+  const { icon, card } = await firstCardOf(page, branch);
+  const before = await boxOf(icon);
+  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(before.x + before.width / 2 + 300, before.y + before.height / 2, {
+    steps: 10,
+  });
+  await page.mouse.up();
+  const after = await boxOf(icon);
+  // A day is 18 px at 100 %: the icon may move inside its day, never into the next one.
+  expect(Math.abs(after.x - before.x)).toBeLessThanOrEqual(18);
+  await expect(loopPanel(page)).toBeHidden();
+
+  const line = await boxOf(branch.locator('.hit'));
+  const cardBox = await boxOf(card);
+  await page.mouse.move(cardBox.x + 20, cardBox.y + 30);
+  await page.mouse.down();
+  await page.mouse.move(cardBox.x + 20, cardBox.y - 30, { steps: 10 });
+  await page.mouse.up();
+  await expect.poll(async () => (await boxOf(branch.locator('.hit'))).y).toBeLessThan(line.y - 10);
+  const saved = () =>
+    page.evaluate(() =>
+      Object.keys(localStorage).filter((key) => key.startsWith('promise-graph:layout:v1:')),
+    );
+  expect(await saved()).toHaveLength(1);
+
+  await page.reload();
+  await expect(graph(page)).toHaveAttribute('data-ready', 'true');
+  const reset = controls(page).getByRole('button', { name: 'Reset layout' });
+  await expect(reset).toBeVisible();
+  await reset.click();
+  await expect(reset).toBeHidden();
+  expect(await saved()).toHaveLength(0);
 });
 
 test('phone width: no horizontal page scroll on graph, open panel and list; sign out is reachable', async ({

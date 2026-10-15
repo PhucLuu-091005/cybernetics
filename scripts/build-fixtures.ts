@@ -449,7 +449,8 @@ function buildProject(
       threadExternalId = root ?? externalId;
       parentExternalId = root;
       if (!root) threadRoots.set(`${draft.channel}/${draft.threadKey}`, externalId);
-      permalink = `https://fundline-larkspur.slack.example/archives/${channelId}/p${epoch}${String(sequence).padStart(6, '0')}`;
+      // A real Slack host with a fictional workspace, so the graph shows the Slack icon and the link.
+      permalink = `https://fundline-larkspur.slack.com/archives/${channelId}/p${epoch}${String(sequence).padStart(6, '0')}`;
       title = `${draft.channel}: ${draft.title}`;
     } else if (kind === 'notion') {
       externalId = `notion:${channelName}:${draft.threadKey}`;
@@ -460,6 +461,8 @@ function buildProject(
       threadExternalId = draft.channel;
       parentExternalId = previous;
       if (previous && kind === 'gmail') title = `Re: ${draft.title}`;
+      if (kind === 'gmail')
+        permalink = `https://mail.google.com/mail/u/0/#all/fundline-${channelName}-${String(sequence).padStart(3, '0')}`;
       lastInThread.set(draft.channel, externalId);
     }
     if (externalIds.has(externalId)) fail(`Duplicate external ID ${externalId}`);

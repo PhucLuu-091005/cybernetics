@@ -1,12 +1,13 @@
 import type { Node, NodeProps } from '@xyflow/react';
 import type { ActGlyph } from '../../contracts/layout';
-import { Glyph } from './Glyph';
+import { ActIconAt } from './icons';
 import { useGraphUi } from './ui-context';
 
 export type ActNodeType = Node<{ glyph: ActGlyph; color: string }, 'act'>;
-export const ACT_NODE_SIZE = 22;
+export const ACT_NODE_SIZE = 24;
+const ICON = 18;
 
-/** Visual only: BranchEdge owns the hit targets so one click target covers a branch and its glyphs. */
+/** Visual only: BranchEdge owns the hit targets so one click target covers a branch and its icons. */
 export function ActNode({ data }: NodeProps<ActNodeType>) {
   const ui = useGraphUi();
   const { glyph, color } = data,
@@ -20,6 +21,7 @@ export function ActNode({ data }: NodeProps<ActNodeType>) {
         height: ACT_NODE_SIZE,
         opacity: faded ? 0.4 : 1,
         transition: 'opacity .15s',
+        color: glyph.type === 'reject' ? 'var(--danger)' : color,
       }}
     >
       <svg
@@ -29,7 +31,8 @@ export function ActNode({ data }: NodeProps<ActNodeType>) {
         aria-hidden="true"
         style={{ overflow: 'visible', display: 'block' }}
       >
-        <Glyph type={glyph.type} x={half} y={half} color={color} />
+        <circle cx={half} cy={half} r={ICON / 2 + 1} fill="var(--surface)" />
+        <ActIconAt type={glyph.type} x={half} y={half} size={ICON} />
       </svg>
     </div>
   );

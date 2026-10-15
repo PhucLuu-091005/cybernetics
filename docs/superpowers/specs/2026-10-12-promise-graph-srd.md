@@ -318,7 +318,8 @@ The graph is a canvas panel with geometric zoom from 10 % to 400 %. The layout u
 ### 7.3 Interactions
 
 - **Select a branch or a glyph:** the loop panel opens on the right (section 7.4). The selected branch is bold and the others fade to 40% opacity.
-- **Hover a glyph:** a tooltip shows act type, person, local time and the first 140 characters of the quote.
+- **Event icons and cards (revised 14 October 2026):** each act shows on its branch as a bare type icon. From 45 % zoom a card above the line, with a stem to the exact time, shows the act type, local time, person, the quote (two lines) and the source app with its link. The layout reserves the card shelves above each branch, so cards never overlap. Below 45 % only the icons show; an icon's native tooltip gives its accessible name.
+- **Drag (revised 14 October 2026):** a sideways drag on a card or an icon moves the act inside its local day; a vertical drag moves the whole branch inside its lane. Positions stay in the browser per project; "Reset layout" in the canvas controls removes them. A press without movement opens the loop at that act.
 - **Select a milestone:** the graph highlights the loops assigned to it. The panel lists those loops and the milestone status reason.
 - **Filter bar:** side, departments (multiple), loop state, breakdown type, milestone, and a text search over loop titles and quotes. The URL holds the filters.
 - **Escalation focus:** `?escalation=<id>` highlights the loops that the escalation cites and fades the others.
@@ -644,7 +645,7 @@ Proposal update batches at most 100 operations/1 MiB, can be applied in several 
 
 ## 17. Security and operational limits
 
-HTTPS, signed session checks, project-token checks, Origin checks on browser mutations, Zod validation on every boundary, protected `private, no-store` responses. No browser DB access. Disable raw HTML in Markdown; record text is rendered as text. Only stored Slack/Gmail permalinks are active external links; no server URL fetching from content.
+HTTPS, signed session checks, project-token checks, Origin checks on browser mutations, Zod validation on every boundary, protected `private, no-store` responses. No browser DB access. Disable raw HTML in Markdown; record text is rendered as text. Active external links: stored https permalinks of native Slack/Gmail records, and agent or pasted permalinks whose host is `slack.com` (or a subdomain), `mail.google.com` or `linear.app` (https, no credentials, no port; owner decision of 14 October 2026). Any other URL stays plain text. No server URL fetching from content.
 
 Rate limits: 60 reads and 20 writes/minute/browser user; 60 calls/minute/token. Logs contain request IDs/counts, not evidence, prompts, tokens or credentials. Atomic snapshot saves and head updates, bounded reads, rollback on conflict and idempotency are mandatory. No background merge or retry that changes expected revisions.
 

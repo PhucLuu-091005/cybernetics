@@ -8,6 +8,10 @@ export const ZOOM_STEPS = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4] as const
 // The canvas scale at 100 %: a day, a row and an act node in layout px.
 export const BASE_PX_PER_DAY = 18,
   BASE_ROW_HEIGHT = 64;
+/** Event card size in layout px (owner decision, 14 Oct 2026). */
+export const CARD = { width: 176, height: 108, gap: 10 } as const;
+// Cards are unreadable below this zoom; only the event icons show.
+export const CARD_MIN_ZOOM = 0.45;
 const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));
 
 export function fitViewport(box: Box, size: Size, padding = 32, maxZoom = MAX_ZOOM): Viewport {

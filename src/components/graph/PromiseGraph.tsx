@@ -17,7 +17,7 @@ import {
   useState,
   type FocusEvent,
   type KeyboardEvent,
-  type MouseEvent,
+  type PointerEvent,
   type RefObject,
 } from 'react';
 import type { MilestoneStatus } from '../../contracts/engine';
@@ -25,6 +25,8 @@ import type { GraphContext } from '../../contracts/graph';
 import type { ActGlyph, GraphLayout } from '../../contracts/layout';
 import {
   BASE_PX_PER_DAY,
+  CARD,
+  CARD_MIN_ZOOM,
   MAX_ZOOM,
   MIN_ZOOM,
   createTimeScale,
@@ -34,12 +36,14 @@ import {
   nextZoom,
   zoomAround,
   type Box,
+  type LayoutOffsets,
   type Size,
   type Viewport,
 } from '../../lib/graph-layout';
 import { ActNode, ACT_NODE_SIZE, type ActNodeType } from './ActNode';
 import { BranchEdge, type BranchEdgeType } from './BranchEdge';
 import { CanvasControls, type Preset } from './CanvasControls';
+import { CardNode, type CardInfo, type CardNodeType } from './CardNode';
 import { LaneColumn } from './LaneColumn';
 import { LaneLabel, type LaneLabelNode } from './LaneLabel';
 import { MilestoneNode, MILESTONE_NODE, type MilestoneNodeType } from './MilestoneNode';
@@ -52,10 +56,13 @@ const CURVE = 16,
   PAN_MARGIN = 400,
   // Wide enough that the stripes never end inside the view, even at 10 %.
   STRIPE_OVERHANG = 20_000;
-const nodeTypes = { act: ActNode, milestone: MilestoneNode, laneLabel: LaneLabel };
+const nodeTypes = { act: ActNode, card: CardNode, milestone: MilestoneNode, laneLabel: LaneLabel };
 const edgeTypes = { branch: BranchEdge };
-type GraphNode = ActNodeType | MilestoneNodeType | LaneLabelNode;
+type GraphNode = ActNodeType | CardNodeType | MilestoneNodeType | LaneLabelNode;
+// A press that moves less than this is a click; a longer one picks its axis once.
+const DRAG_START_PX = 4;
 const NO_HALO: ReadonlySet<string> = new Set();
+const NO_PAN = 'pg-no-pan:not(.react-flow__edge)';
 
 export type PromiseGraphProps = {
   title: string;
@@ -70,9 +77,13 @@ export type PromiseGraphProps = {
   currentActId: string | null;
   /** The element that goes full screen: the canvas and the open panel together. */
   stageRef: RefObject<HTMLDivElement | null>;
+  cards: ReadonlyMap<string, CardInfo>;
+  offsets: LayoutOffsets;
+  /** A drag in progress (`done` false) or finished; `kind` says what moves: one act in its day or the whole branch. */
+  onDrag(kind: 'acts' | 'loops', id: string, value: number, done: boolean): void;
+  onResetLayout: (() => void) | null;
   onSelectLoop(loopId: string, actId?: string): void;
   onSelectMilestone(milestoneId: string): void;
-  onHoverAct(glyph: ActGlyph | null, event?: MouseEvent): void;
 };
 
 function Backdrop({
@@ -195,9 +206,12 @@ function Graph(props: PromiseGraphProps) {
     halo = NO_HALO,
     currentActId,
     stageRef,
+    cards,
+    offsets,
+    onDrag,
+    onResetLayout,
     onSelectLoop,
     onSelectMilestone,
-    onHoverAct,
   } = props;
   const flow = useReactFlow<GraphNode, BranchEdgeType>();
   const viewport = useViewport();
@@ -218,6 +232,17 @@ function Graph(props: PromiseGraphProps) {
     return { width: box?.width ?? 0, height: box?.height ?? 0 };
   }, []);
 
+  // A mouse press on an event card or icon drags it, not the canvas. Touches still reach the canvas, so a pinch over any element zooms.
+  useEffect(() => {
+    const element = wrapRef.current;
+    if (!element) return;
+    const keep = (event: MouseEvent) => {
+      if (event.target instanceof Element && event.target.closest('.hit-dot, .ev-card'))
+        event.stopPropagation();
+    };
+    element.addEventListener('mousedown', keep, { capture: true });
+    return () => element.removeEventListener('mousedown', keep, { capture: true });
+  }, []);
   useEffect(() => {
     const element = wrapRef.current;
     if (!element) return;
@@ -291,11 +316,12 @@ function Graph(props: PromiseGraphProps) {
     (loopId: string) => {
       const branch = layout.branches.find((item) => item.loopId === loopId);
       if (!branch) return;
+      const cards = branch.glyphs.flatMap((glyph) => (glyph.card ? [glyph.card] : []));
       const box = {
-        x0: branch.xStart - CURVE,
-        x1: branch.xEnd + CURVE,
-        y0: Math.min(branch.y, layout.trunkY) - 30,
-        y1: Math.max(branch.y, layout.trunkY) + 30,
+        x0: Math.min(branch.xStart - CURVE, ...cards.map((card) => card.x)),
+        x1: Math.max(branch.xEnd + CURVE, ...cards.map((card) => card.x + CARD.width)),
+        y0: Math.min(branch.y - 30, ...cards.map((card) => card.y)),
+        y1: branch.y + 30,
       };
       void flow.setViewport(fitViewport(box, sizeNow(), 48, 1.5), { duration: 200 });
     },
@@ -349,6 +375,71 @@ function Graph(props: PromiseGraphProps) {
     if (selectedLoopId && size.width > 0) reveal(loopKey(selectedLoopId));
   }, [selectedLoopId, size.width, reveal]);
 
+  // Read at press time through a ref, so a drag never rebuilds the context that every node reads.
+  const offsetsRef = useRef(offsets);
+  useEffect(() => {
+    offsetsRef.current = offsets;
+  }, [offsets]);
+  const startDrag = useCallback(
+    (event: PointerEvent, glyph: ActGlyph) => {
+      if (event.button !== 0) return;
+      event.stopPropagation();
+      // On touch the canvas owns movement (pan and pinch); a tap still opens the loop.
+      const touch = event.pointerType === 'touch';
+      const zoom = flow.getViewport().zoom,
+        x0 = event.clientX,
+        y0 = event.clientY,
+        dayWidth = glyph.dayEndX - glyph.dayStartX,
+        fraction0 = (glyph.x - glyph.dayStartX) / dayWidth,
+        shift0 = offsetsRef.current.loops[glyph.loopId] ?? 0;
+      let axis: 'x' | 'y' | null = null,
+        last = 0;
+      const valueAt = (moveEvent: globalThis.PointerEvent) =>
+        axis === 'x'
+          ? Math.min(1, Math.max(0, fraction0 + (moveEvent.clientX - x0) / zoom / dayWidth))
+          : shift0 + (moveEvent.clientY - y0) / zoom;
+      const onMove = (moveEvent: globalThis.PointerEvent) => {
+        if (touch) {
+          if (Math.hypot(moveEvent.clientX - x0, moveEvent.clientY - y0) >= DRAG_START_PX)
+            axis = 'x';
+          return;
+        }
+        if (!axis) {
+          const dx = moveEvent.clientX - x0,
+            dy = moveEvent.clientY - y0;
+          if (Math.hypot(dx, dy) < DRAG_START_PX) return;
+          axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+        }
+        last = valueAt(moveEvent);
+        onDrag(
+          axis === 'x' ? 'acts' : 'loops',
+          axis === 'x' ? glyph.id : glyph.loopId,
+          last,
+          false,
+        );
+      };
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onUp);
+        if (!axis) {
+          onSelectLoop(glyph.loopId, glyph.id);
+          return;
+        }
+        if (touch) return;
+        onDrag(axis === 'x' ? 'acts' : 'loops', axis === 'x' ? glyph.id : glyph.loopId, last, true);
+        // The browser still sends a click to the common ancestor; it must not open the loop.
+        const swallow = (clickEvent: MouseEvent) => clickEvent.stopPropagation();
+        window.addEventListener('click', swallow, { capture: true, once: true });
+        setTimeout(() => window.removeEventListener('click', swallow, { capture: true }), 0);
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+    },
+    [flow, onDrag, onSelectLoop],
+  );
+
   const ui: GraphUi = useMemo(
     () => ({
       selectedLoopId,
@@ -381,7 +472,7 @@ function Graph(props: PromiseGraphProps) {
       },
       selectLoop: onSelectLoop,
       selectMilestone: onSelectMilestone,
-      hoverAct: onHoverAct,
+      startDrag,
       zoomToLoop,
     }),
     [
@@ -395,7 +486,7 @@ function Graph(props: PromiseGraphProps) {
       reveal,
       onSelectLoop,
       onSelectMilestone,
-      onHoverAct,
+      startDrag,
       zoomToLoop,
     ],
   );
@@ -449,8 +540,33 @@ function Graph(props: PromiseGraphProps) {
         };
       }),
     );
-    return [...lanes, ...milestones, ...acts];
-  }, [layout, milestoneStatus]);
+    const cardNodes: CardNodeType[] = layout.branches.flatMap((branch) =>
+      branch.glyphs.flatMap((glyph) => {
+        const info = cards.get(glyph.id);
+        if (!glyph.card || !info) return [];
+        const segment =
+          branch.segments.find((item) => item.startX <= glyph.x && glyph.x <= item.endX) ??
+          branch.segments.at(-1)!;
+        return [
+          {
+            ...fixed,
+            id: `card:${glyph.id}`,
+            type: 'card' as const,
+            style: { pointerEvents: 'all' as const },
+            position: { x: glyph.card.x, y: glyph.card.y },
+            width: CARD.width,
+            height: CARD.height,
+            data: {
+              glyph,
+              info,
+              color: glyph.type === 'reject' ? 'var(--danger)' : TONE_COLOR[segment.tone],
+            },
+          },
+        ];
+      }),
+    );
+    return [...lanes, ...milestones, ...acts, ...cardNodes];
+  }, [layout, milestoneStatus, cards]);
   const edges = useMemo<BranchEdgeType[]>(
     () =>
       layout.branches.map((branch) => ({
@@ -472,7 +588,9 @@ function Graph(props: PromiseGraphProps) {
   const lod = lodOf(viewport.zoom);
   return (
     <GraphUiContext.Provider value={ui}>
-      <div className={`canvas-stage lod-${lod}`}>
+      <div
+        className={`canvas-stage lod-${lod}${viewport.zoom < CARD_MIN_ZOOM ? ' cards-off' : ''}`}
+      >
         <div className="canvas-corner" aria-hidden="true" />
         <div className="canvas-axis">
           <TimeAxis
@@ -516,6 +634,10 @@ function Graph(props: PromiseGraphProps) {
             zoomOnPinch
             zoomActivationKeyCode={['Meta', 'Control']}
             zoomOnDoubleClick={false}
+            // React Flow adds this class to every edge and tests it with `closest('.' + name)`. The `:not` makes
+            // that test never match, so a touch pan or pinch over a branch works; the mousedown capture above
+            // still keeps mouse drags on cards and icons.
+            noPanClassName={NO_PAN}
             preventScrolling
             proOptions={{ hideAttribution: true }}
           >
@@ -542,6 +664,7 @@ function Graph(props: PromiseGraphProps) {
           fullscreen={fullscreen}
           fullscreenEnabled={fullscreenEnabled}
           onFullscreen={toggleFullscreen}
+          onResetLayout={onResetLayout}
         />
       </div>
     </GraphUiContext.Provider>
