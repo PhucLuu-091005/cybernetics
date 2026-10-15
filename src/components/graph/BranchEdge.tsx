@@ -162,7 +162,7 @@ export function BranchEdge({ data }: EdgeProps<BranchEdgeType>) {
         {branch.glyphs.map((glyph) => (
           <circle
             key={glyph.id}
-            className="hit-dot nopan"
+            className="hit-dot"
             data-act={glyph.id}
             cx={glyph.x}
             cy={y}
