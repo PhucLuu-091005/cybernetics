@@ -19,6 +19,7 @@ import { FilterBar } from './FilterBar';
 import { applyFilters, filtersToSearch, type GraphFilters } from './filters';
 import type { CardInfo } from './CardNode';
 import { ACT_LABEL, partyName, shortStamp, type Directory } from './labels';
+import { readDayWidths, withDayWidth, writeDayWidths, type DayWidths } from './day-width-store';
 import { browserStore, hasOffsets, readOffsets, withOffset, writeOffsets } from './offset-store';
 import { actSource } from './source-link';
 import { Legend } from './Legend';
@@ -95,9 +96,24 @@ export function GraphScreen({
   const [actId, setActId] = useState<string | null>(null);
   const [offsets, setOffsets] = useState<LayoutOffsets>(NO_OFFSETS);
   // Browser storage exists only after hydration, so saved positions load in an effect.
+  const [dayWidths, setDayWidths] = useState<DayWidths>({});
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOffsets(readOffsets(browserStore(), projectId));
+    setDayWidths(readDayWidths(browserStore(), projectId));
+  }, [projectId]);
+  const onDayWidth = useCallback(
+    (date: string, width: number | null, done: boolean) =>
+      setDayWidths((previous) => {
+        const next = withDayWidth(previous, date, width, BASE_PX_PER_DAY);
+        if (done) writeDayWidths(browserStore(), projectId, next);
+        return next;
+      }),
+    [projectId],
+  );
+  const resetDayWidths = useCallback(() => {
+    writeDayWidths(browserStore(), projectId, {});
+    setDayWidths({});
   }, [projectId]);
   const lastFocus = useRef<string | null>(null);
 
@@ -123,9 +139,9 @@ export function GraphScreen({
       layoutPromiseGraph(
         { ...engine, loops: visibleLoops },
         { context },
-        { pxPerDay: BASE_PX_PER_DAY, rowHeight: BASE_ROW_HEIGHT, cards: CARD },
+        { pxPerDay: BASE_PX_PER_DAY, rowHeight: BASE_ROW_HEIGHT, cards: CARD, dayWidths },
       ),
-    [engine, visibleLoops, context],
+    [engine, visibleLoops, context, dayWidths],
   );
   const layout = useMemo(
     () => applyLayoutOffsets(baseLayout, offsets, BASE_ROW_HEIGHT),
@@ -388,6 +404,9 @@ export function GraphScreen({
               offsets={offsets}
               onDrag={onDrag}
               onResetLayout={hasOffsets(offsets) ? resetLayout : null}
+              dayWidths={dayWidths}
+              onDayWidth={onDayWidth}
+              onResetDayWidths={Object.keys(dayWidths).length ? resetDayWidths : null}
               onSelectLoop={selectLoop}
               onSelectMilestone={selectMilestone}
               stageRef={stageRef}

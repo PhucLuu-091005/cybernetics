@@ -38,12 +38,15 @@ import {
   type Box,
   type LayoutOffsets,
   type Size,
+  type TimeScale,
   type Viewport,
 } from '../../lib/graph-layout';
 import { ActNode, ACT_NODE_SIZE, type ActNodeType } from './ActNode';
 import { BranchEdge, type BranchEdgeType } from './BranchEdge';
+import { AxisMenu } from './AxisMenu';
 import { CanvasControls, type Preset } from './CanvasControls';
 import { CardNode, type CardInfo, type CardNodeType } from './CardNode';
+import type { DayWidths } from './day-width-store';
 import { GATEWAY_SIZE, GatewayNode, type GatewayNodeType } from './GatewayNode';
 import { LaneColumn } from './LaneColumn';
 import { LaneLabel, type LaneLabelNode } from './LaneLabel';
@@ -71,6 +74,8 @@ const DRAG_START_PX = 4;
 const NO_HALO: ReadonlySet<string> = new Set();
 const DASH = { solid: undefined, dashed: '7 5', dotted: '1.5 4' } as const;
 const NO_PAN = 'pg-no-pan:not(.react-flow__edge)';
+const daysFrom = (instant: string, days: number) =>
+  new Date(Date.parse(instant) + days * 86_400_000).toISOString();
 
 export type PromiseGraphProps = {
   title: string;
@@ -90,6 +95,10 @@ export type PromiseGraphProps = {
   /** A drag in progress (`done` false) or finished; `kind` says what moves: one act in its day or the whole branch. */
   onDrag(kind: 'acts' | 'loops', id: string, value: number, done: boolean): void;
   onResetLayout: (() => void) | null;
+  /** Day columns the user resized; see the time axis. */
+  dayWidths: DayWidths;
+  onDayWidth(date: string, width: number | null, done: boolean): void;
+  onResetDayWidths: (() => void) | null;
   onSelectLoop(loopId: string, actId?: string): void;
   onSelectMilestone(milestoneId: string): void;
 };
@@ -99,9 +108,16 @@ function Backdrop({
   context,
   T,
   content,
-}: Pick<PromiseGraphProps, 'layout' | 'context' | 'T'> & { content: Box }) {
-  const scale = createTimeScale(context, BASE_PX_PER_DAY);
+  scale,
+}: Pick<PromiseGraphProps, 'layout' | 'context' | 'T'> & { content: Box; scale: TimeScale }) {
   const xT = scale.x(T);
+  const days: string[] = [];
+  for (let date = context.windowStart; date <= context.windowEnd;) {
+    days.push(date);
+    const next = new Date(`${date}T00:00:00Z`);
+    next.setUTCDate(next.getUTCDate() + 1);
+    date = next.toISOString().slice(0, 10);
+  }
   const months: string[] = [];
   for (
     let [year, month] = context.windowStart.split('-').map(Number);
@@ -142,9 +158,19 @@ function Backdrop({
           fill={lane.order % 2 ? 'var(--stripe)' : 'transparent'}
         />
       ))}
+      {days.map((date) => (
+        <line
+          key={date}
+          className="day-line"
+          x1={scale.dateStartX(date)}
+          y1={0}
+          x2={scale.dateStartX(date)}
+          y2={layout.height}
+        />
+      ))}
       {[context.windowStart, ...months, context.windowEnd].map((date, index, all) => {
         const end = index === all.length - 1,
-          x = end ? scale.dateEndX(date) : scale.dateEndX(date) - BASE_PX_PER_DAY;
+          x = end ? scale.dateEndX(date) : scale.dateStartX(date);
         return (
           <line
             key={`${date}-${index}`}
@@ -240,6 +266,9 @@ function Graph(props: PromiseGraphProps) {
     offsets,
     onDrag,
     onResetLayout,
+    dayWidths,
+    onDayWidth,
+    onResetDayWidths,
     onSelectLoop,
     onSelectMilestone,
   } = props;
@@ -255,7 +284,11 @@ function Graph(props: PromiseGraphProps) {
     () => ({ x0: -CURVE, x1: layout.width + CURVE, y0: 0, y1: layout.height }),
     [layout],
   );
-  const xT = useMemo(() => createTimeScale(context, BASE_PX_PER_DAY).x(T), [context, T]);
+  const scale = useMemo(
+    () => createTimeScale(context, BASE_PX_PER_DAY, dayWidths),
+    [context, dayWidths],
+  );
+  const xT = useMemo(() => scale.x(T), [scale, T]);
   // Read at call time, so the handlers below never change with the size and never rebuild every node.
   const sizeNow = useCallback((): Size => {
     const box = wrapRef.current?.getBoundingClientRect();
@@ -315,13 +348,13 @@ function Graph(props: PromiseGraphProps) {
         preset === 'project'
           ? fitViewport(content, canvas)
           : preset === 'week'
-            ? fitWidth(xT - 4 * BASE_PX_PER_DAY, xT + 3 * BASE_PX_PER_DAY, layout.trunkY, canvas)
+            ? fitWidth(scale.x(daysFrom(T, -4)), scale.x(daysFrom(T, 3)), layout.trunkY, canvas)
             : preset === 'month'
-              ? fitWidth(xT - 25 * BASE_PX_PER_DAY, xT + 5 * BASE_PX_PER_DAY, layout.trunkY, canvas)
+              ? fitWidth(scale.x(daysFrom(T, -25)), scale.x(daysFrom(T, 5)), layout.trunkY, canvas)
               : zoomAround(current, preset, { x: canvas.width / 2, y: canvas.height / 2 });
       void flow.setViewport(view, { duration: 200 });
     },
-    [sizeNow, flow, content, xT, layout.trunkY],
+    [sizeNow, flow, content, scale, T, layout.trunkY],
   );
   // A second press during the 150 ms animation steps from the target, not from a zoom halfway there.
   const target = useRef<{ view: Viewport; until: number } | null>(null);
@@ -631,10 +664,14 @@ function Graph(props: PromiseGraphProps) {
       <div
         className={`canvas-stage lod-${lod}${viewport.zoom < CARD_MIN_ZOOM ? ' cards-off' : ''}`}
       >
-        <div className="canvas-corner" aria-hidden="true" />
+        <div className="canvas-corner">
+          <AxisMenu onResetWidths={onResetDayWidths} />
+        </div>
         <div className="canvas-axis">
           <TimeAxis
             context={context}
+            scale={scale}
+            onResize={onDayWidth}
             T={T}
             tLabel={shortStamp(T, context.timeZone)}
             viewport={viewport}
@@ -682,7 +719,7 @@ function Graph(props: PromiseGraphProps) {
             proOptions={{ hideAttribution: true }}
           >
             <ViewportPortal>
-              <Backdrop layout={layout} context={context} T={T} content={content} />
+              <Backdrop layout={layout} context={context} T={T} content={content} scale={scale} />
             </ViewportPortal>
           </ReactFlow>
         </div>

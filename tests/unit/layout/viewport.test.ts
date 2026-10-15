@@ -7,7 +7,6 @@ import {
   lodOf,
   minimapViewport,
   nextZoom,
-  tickStep,
   zoomAround,
 } from '../../../src/lib/graph-layout';
 
@@ -41,15 +40,6 @@ describe('viewport helpers', () => {
     const v = zoomAround({ x: 10, y: 20, zoom: 1 }, 2, { x: 110, y: 220 });
     expect(v).toEqual({ x: -90, y: -180, zoom: 2 });
     expect(zoomAround({ x: 0, y: 0, zoom: 1 }, 99, { x: 0, y: 0 }).zoom).toBe(MAX_ZOOM);
-  });
-  it('labels days, weeks or months by the screen width of a day', () => {
-    expect([tickStep(72), tickStep(56), tickStep(20), tickStep(8), tickStep(5)]).toEqual([
-      'day',
-      'day',
-      'week',
-      'week',
-      'month',
-    ]);
   });
   it('shows titles from 60 % and labels from 80 %', () => {
     expect([lodOf(0.4), lodOf(0.6), lodOf(0.79), lodOf(0.8), lodOf(2)]).toEqual([0, 1, 1, 2, 2]);
