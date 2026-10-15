@@ -53,14 +53,14 @@ const clip = (text: string, length = 70) =>
   text.length > length ? `${text.slice(0, length - 1)}…` : text;
 
 const KIND: Record<EntityCollection, string> = {
-  acts: 'Act',
+  acts: 'Step',
   loops: 'Loop',
   annotations: 'Note',
   recordDecisions: 'Record decision',
   people: 'Person',
   departments: 'Department',
   milestones: 'Milestone',
-  context: 'Context',
+  context: 'Project settings',
 };
 
 /** One image is enough to name an entity; callers pass the newest non-null one. */

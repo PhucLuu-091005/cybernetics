@@ -181,7 +181,7 @@ export async function HistoryScreen({
                   {shortStamp(commit.createdAt, timeZone)} {timeZone}
                 </dd>
               </dl>
-              <details key={commit.id} className="tech">
+              <details key={`tech-${commit.id}`} className="tech">
                 <summary>Technical details</summary>
                 <dl className="kv">
                   <dt>Version id</dt>

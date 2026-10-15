@@ -3,15 +3,15 @@ import { changeClass, entityTitle, newestImage, type Names } from '../review/des
 import { ChangeCells } from '../review/DiffView';
 
 const MAX_ROWS = 150;
-const COLLECTION = {
-  acts: 'acts',
-  loops: 'loops',
-  annotations: 'annotations',
-  recordDecisions: 'record decisions',
-  people: 'people',
-  departments: 'departments',
-  milestones: 'milestones',
-  context: 'context',
+export const COLLECTION = {
+  acts: 'Step',
+  loops: 'Loop',
+  annotations: 'Note',
+  recordDecisions: 'Record decision',
+  people: 'Person',
+  departments: 'Department',
+  milestones: 'Milestone',
+  context: 'Project settings',
 } as const;
 
 export function CommitDiff({ diff, names }: { diff: SnapshotDiff; names: Names }) {
@@ -22,15 +22,15 @@ export function CommitDiff({ diff, names }: { diff: SnapshotDiff; names: Names }
   return (
     <div className="stack" style={{ gap: 6 }}>
       <p className="faint" style={{ fontSize: 12 }}>
-        {diff.changes.length} {diff.changes.length === 1 ? 'entity' : 'entities'}:{' '}
-        {counts.added ?? 0} added, {counts.changed ?? 0} changed, {counts.removed ?? 0} removed.
+        {diff.changes.length} {diff.changes.length === 1 ? 'item' : 'items'}: {counts.added ?? 0}{' '}
+        added, {counts.changed ?? 0} changed, {counts.removed ?? 0} removed.
       </p>
       <div className="tablewrap" style={{ border: 0 }}>
-        <table aria-label="Commit changes">
+        <table aria-label="Changes in this version">
           <thead>
             <tr>
-              <th>Collection</th>
-              <th>Entity</th>
+              <th>Kind</th>
+              <th>Item</th>
               <th>Change</th>
               <th>Before</th>
               <th>After</th>
