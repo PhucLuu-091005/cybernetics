@@ -55,7 +55,7 @@ const clip = (text: string, length = 70) =>
 const KIND: Record<EntityCollection, string> = {
   acts: 'Act',
   loops: 'Loop',
-  annotations: 'Annotation',
+  annotations: 'Note',
   recordDecisions: 'Record decision',
   people: 'Person',
   departments: 'Department',

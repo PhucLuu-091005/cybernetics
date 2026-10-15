@@ -14,6 +14,7 @@ import {
   loopShiftRange,
   type LayoutOffsets,
 } from '../../lib/graph-layout';
+import { NotesCard } from '../notes/NotesCard';
 import type { EditTarget } from '../review/draft-edit';
 import { FilterBar } from './FilterBar';
 import { applyFilters, filtersToSearch, type GraphFilters } from './filters';
@@ -49,7 +50,7 @@ export type GraphScreenProps = {
   initialFilters: GraphFilters;
   view: ViewSelection;
   edit: EditTarget;
-  snapshot: Pick<GraphSnapshot, 'acts' | 'recordDecisions'>;
+  snapshot: Pick<GraphSnapshot, 'acts' | 'recordDecisions' | 'annotations'>;
   /** Source of each cited record version, keyed by version ID. */
   sources: Record<string, GraphSource>;
   /** Loops and acts a proposal changes against its base: halo on the branch, agent badge on the step. */
@@ -283,6 +284,22 @@ export function GraphScreen({
   }, [selectedLoop, engine, directory]);
   const actIndex =
     selectedLoop && actId ? selectedLoop.acts.findIndex((act) => act.id === actId) : -1;
+  const actLoop = useMemo(
+    () =>
+      new Map(
+        engine.loops.flatMap((item) => item.acts.map((act) => [act.id, item.loop.id] as const)),
+      ),
+    [engine],
+  );
+  const loopNotes = useMemo(
+    () =>
+      selectedLoop
+        ? snapshot.annotations.filter((note) =>
+            note.actIds.some((id) => actLoop.get(id) === selectedLoop.loop.id),
+          )
+        : [],
+    [snapshot.annotations, actLoop, selectedLoop],
+  );
 
   // SRD 7.3: a selection keeps its loops at full opacity.
   const faded = useMemo(() => {
@@ -396,7 +413,11 @@ export function GraphScreen({
   const panelOpen = view === 'graph' && (selectedLoop !== null || selectedMilestone !== null);
 
   return (
-    <section className="screen" aria-labelledby="graph-heading" style={{ paddingTop: 0 }}>
+    <section
+      className={`screen${snapshot.annotations.length ? ' has-notes' : ''}`}
+      aria-labelledby="graph-heading"
+      style={{ paddingTop: 0 }}
+    >
       <Heading id="graph-heading" className="sr">
         {heading}
       </Heading>
@@ -409,6 +430,7 @@ export function GraphScreen({
         onView={setView}
         onQuery={onQuery}
       />
+      <NotesCard notes={snapshot.annotations} actLoop={actLoop} onCite={selectLoop} />
       <p className="coverage">
         <span>
           <b>
@@ -501,6 +523,9 @@ export function GraphScreen({
                 edit={edit}
                 loops={loopTargets}
                 snapshot={snapshot}
+                notes={loopNotes}
+                actLoop={actLoop}
+                onCite={selectLoop}
                 agentActIds={agentActs}
                 relations={relations}
                 onOpenLoop={selectLoop}

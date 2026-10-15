@@ -250,9 +250,7 @@ test('revert preview: a conflicting inverse becomes a proposal, an unrelated lat
     page.getByRole('heading', { level: 2, name: /^Note the SOW phase 2 scope/ }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Preview undo' }).click();
-  await expect(preview.getByRole('table', { name: 'Touched entities' })).toContainText(
-    'Annotation',
-  );
+  await expect(preview.getByRole('table', { name: 'Touched entities' })).toContainText('Note:');
   await expect(preview.getByTestId('preserved')).toContainText('Unrelated later work stays');
   await expect(preview.getByTestId('preserved')).toContainText(
     'Undo "Ignore the out-of-office reply',
@@ -291,7 +289,7 @@ test('restore preview lists removed later changes and apply creates a new restor
   ).toBeVisible();
   await page.getByRole('button', { name: 'Preview go back' }).click();
   const preview = page.getByRole('region', { name: /Go back preview/ });
-  await expect(preview.getByTestId('removed-later')).toContainText('Removes annotation');
+  await expect(preview.getByTestId('removed-later')).toContainText('Removes note');
   await expect(preview.getByTestId('removed-later')).toContainText('Note the SOW phase 2 scope');
   await preview.getByRole('button', { name: 'Apply go back as a new version' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/history/[0-9a-f-]{36}$`));
