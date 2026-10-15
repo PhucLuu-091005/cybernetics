@@ -204,6 +204,35 @@ test('list view shows the same loops as the graph with the same filters', async 
   await expect.poll(() => branchTitles(page)).toEqual(graphTitles);
 });
 
+test('a problem on a finished loop reads as past, and the parties read Requested by and Done by', async ({
+  page,
+}) => {
+  await signIn(page, 'graph-past');
+  const coverage = page.locator('p.coverage');
+  await expect(coverage).toContainText('✕ 4 broken');
+  await expect(coverage).toContainText('! 2 warning');
+  await expect(coverage).toContainText('2 finished loops had a problem earlier.');
+
+  await openLoop(page.getByRole('button', { name: /^Loop: Subscription documents/ }));
+  const panel = loopPanel(page);
+  await expect(panel.getByText('Past: Late delivery')).toBeVisible();
+  await expect(panel.getByText('Past problem: Late delivery')).toBeVisible();
+  await expect(panel.getByText('Broken')).toHaveCount(0);
+  await expect(panel.getByText('Requested by', { exact: true })).toBeVisible();
+  await expect(panel.getByText('Done by', { exact: true })).toBeVisible();
+
+  await page
+    .getByRole('group', { name: /^view$/i })
+    .getByRole('button', { name: 'List' })
+    .click();
+  const table = page.getByRole('table', { name: /loops/i });
+  await expect(table.getByRole('columnheader', { name: 'Requested by' })).toBeVisible();
+  await expect(table.getByRole('columnheader', { name: 'Department' })).toBeVisible();
+  const row = table.locator('tbody tr').filter({ hasText: 'Subscription documents' });
+  await expect(row).toContainText('Past: Late delivery');
+  await expect(row).not.toContainText('✕');
+});
+
 test('the loop panel shows each quote inside its surrounding text, with the source and a Slack link', async ({
   page,
 }) => {

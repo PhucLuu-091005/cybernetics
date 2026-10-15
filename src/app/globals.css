@@ -409,6 +409,10 @@
     color: var(--caution);
     background: var(--caution-bg);
   }
+  .bd.past {
+    color: var(--ink-2);
+    background: var(--rule-2);
+  }
   .pill {
     display: inline-flex;
     align-items: center;
@@ -1580,6 +1584,10 @@
   .bdrow.warning {
     --c: var(--caution);
     background: var(--caution-bg);
+  }
+  .bdrow.past {
+    --c: var(--isolated);
+    background: var(--rule-2);
   }
   .bdrow p {
     font-size: 13px;

@@ -3,7 +3,6 @@ import type { DerivedLoop } from '../../contracts/engine';
 import type { Milestone } from '../../contracts/graph';
 import {
   ACT_LABEL,
-  BREAKDOWN_LABEL,
   STATE_COLOR,
   dueLabel,
   partyName,
@@ -11,6 +10,7 @@ import {
   stateLabel,
   type Directory,
 } from './labels';
+import { ProblemTag } from './ProblemTag';
 
 type Props = {
   loops: readonly DerivedLoop[];
@@ -52,8 +52,8 @@ export function LoopList({ loops, directory, milestones, timeZone, onOpen }: Pro
         <thead>
           <tr>
             <th scope="col">Title</th>
-            <th scope="col">Performer department</th>
-            <th scope="col">Customer</th>
+            <th scope="col">Department</th>
+            <th scope="col">Requested by</th>
             <th scope="col">Due</th>
             <th scope="col">State</th>
             <th scope="col">Problems</th>
@@ -102,13 +102,7 @@ export function LoopList({ loops, directory, milestones, timeZone, onOpen }: Pro
                   <div className="row" style={{ gap: 4 }}>
                     {loop.breakdowns.length ? (
                       loop.breakdowns.map((item) => (
-                        <span
-                          key={item.type}
-                          className={`bd ${item.severity}`}
-                          title={item.sentence}
-                        >
-                          {item.severity === 'broken' ? '✕' : '!'} {BREAKDOWN_LABEL[item.type]}
-                        </span>
+                        <ProblemTag loop={loop} item={item} key={item.type} />
                       ))
                     ) : (
                       <span className="faint">none</span>

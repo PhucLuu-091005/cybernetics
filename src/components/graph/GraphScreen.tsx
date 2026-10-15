@@ -19,7 +19,14 @@ import type { EditTarget } from '../review/draft-edit';
 import { FilterBar } from './FilterBar';
 import { NO_FILTERS, applyFilters, filtersToSearch, type GraphFilters } from './filters';
 import type { CardInfo } from './CardNode';
-import { ACT_LABEL, loopColor, partyName, shortStamp, type Directory } from './labels';
+import {
+  ACT_LABEL,
+  loopColor,
+  partyName,
+  problemCounts,
+  shortStamp,
+  type Directory,
+} from './labels';
 import type { IndexEntry } from './LoopIndex';
 import { RecordPreview } from './RecordPreview';
 import { ResizeHandle } from './ResizeHandle';
@@ -409,18 +416,16 @@ export function GraphScreen({
   }, [selectedLoop, selectedMilestone, actIndex, close, view]);
 
   const counts = useMemo(() => {
-    const broken = visibleLoops.filter((loop) =>
-      loop.breakdowns.some((item) => item.severity === 'broken'),
-    ).length;
-    const warning = visibleLoops.filter(
-      (loop) =>
-        loop.breakdowns.length && !loop.breakdowns.some((item) => item.severity === 'broken'),
-    ).length;
     const closed = visibleLoops.filter((loop) => loop.state === 'closed').length;
     const ended = visibleLoops.filter(
       (loop) => loop.state === 'declined' || loop.state === 'cancelled',
     ).length;
-    return { broken, warning, closed, ended, open: visibleLoops.length - closed - ended };
+    return {
+      ...problemCounts(visibleLoops),
+      closed,
+      ended,
+      open: visibleLoops.length - closed - ended,
+    };
   }, [visibleLoops]);
   const panelOpen = view === 'graph' && (selectedLoop !== null || selectedMilestone !== null);
 
@@ -452,6 +457,11 @@ export function GraphScreen({
           <span className="warn">! {counts.warning} warning</span>, {counts.open} open,{' '}
           {counts.closed} closed, {counts.ended} declined or cancelled
         </span>
+        {counts.past > 0 && (
+          <span>
+            {counts.past} finished {counts.past === 1 ? 'loop' : 'loops'} had a problem earlier.
+          </span>
+        )}
         {pendingEvidenceCount > 0 && (
           <span>
             {pendingEvidenceCount} {pendingEvidenceCount === 1 ? 'record waits' : 'records wait'}{' '}

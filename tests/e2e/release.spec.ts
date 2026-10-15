@@ -343,8 +343,8 @@ test('4 and 5: a proposal cites the exact quote, a wrong link is corrected, the 
   await editor.getByLabel('Act type').selectOption({ label: 'Promise' });
   await editor.getByLabel('Actor').selectOption({ label: 'Tom Becker' });
   await editor.getByLabel('Loop').selectOption({ label: 'Investor portal branding' });
-  await editor.getByLabel('Customer').selectOption({ label: 'Quang Nguyễn' });
-  await editor.getByLabel('Performer').selectOption({ label: 'Tom Becker' });
+  await editor.getByLabel('Requested by').selectOption({ label: 'Quang Nguyễn' });
+  await editor.getByLabel('Done by').selectOption({ label: 'Tom Becker' });
   await editor.getByLabel('Action').fill('Renew the Azure client secret for the sync app');
   await editor.getByLabel('Due date').fill('2026-10-12');
   await editor.getByRole('button', { name: 'Save act to change set' }).click();

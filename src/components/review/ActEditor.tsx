@@ -157,7 +157,7 @@ export function ActEditor({
           </select>
         )}
       </SelectField>
-      <SelectField label="Customer">
+      <SelectField label="Requested by">
         {(id) => (
           <select
             id={id}
@@ -169,7 +169,7 @@ export function ActEditor({
           </select>
         )}
       </SelectField>
-      <SelectField label="Performer">
+      <SelectField label="Done by">
         {(id) => (
           <select
             id={id}
