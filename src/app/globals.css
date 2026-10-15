@@ -613,8 +613,6 @@
     top: 0;
     width: var(--lane-col);
     height: var(--axis-h);
-    /* Above the resize handles, so the axis menu that drops from it stays clickable. */
-    z-index: 8;
     background: var(--surface);
     border-right: 1px solid var(--rule);
     border-bottom: 1px solid var(--rule);
@@ -659,27 +657,6 @@
   .axis-day span {
     pointer-events: none;
   }
-  .axis-handle {
-    position: absolute;
-    top: 0;
-    right: -4px;
-    width: 8px;
-    height: 100%;
-    z-index: 1;
-    cursor: col-resize;
-    touch-action: none;
-  }
-  .axis-handle:hover::after,
-  .axis-handle:active::after {
-    content: '';
-    position: absolute;
-    left: 3px;
-    top: 4px;
-    bottom: 4px;
-    width: 2px;
-    border-radius: 1px;
-    background: var(--focus);
-  }
   .axis-t {
     position: absolute;
     top: 5px;
@@ -705,55 +682,6 @@
   }
   .lod-0 .day-line {
     display: none;
-  }
-  .axis-menu-wrap {
-    position: relative;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    padding: 0 6px;
-  }
-  .axis-menu-button {
-    all: unset;
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--ink-2);
-    padding: 2px 6px;
-    border-radius: 6px;
-  }
-  .axis-menu-button:hover,
-  .axis-menu-button[aria-expanded='true'] {
-    background: var(--rule-2);
-    color: var(--ink);
-  }
-  .axis-menu-button:focus-visible {
-    outline: 2px solid var(--focus);
-  }
-  .canvas-menu.axis-menu {
-    top: calc(var(--axis-h) + 2px);
-    left: 6px;
-    right: auto;
-    bottom: auto;
-    min-width: 240px;
-    z-index: 8;
-  }
-  .canvas-menu button[aria-disabled='true'] {
-    color: var(--ink-3);
-    cursor: not-allowed;
-  }
-  .canvas-menu button[aria-disabled='true']:hover {
-    background: transparent;
-  }
-  .canvas-menu small {
-    margin-left: auto;
-    padding-left: 12px;
-    font-size: 11px;
-    color: var(--ink-3);
-  }
-  .canvas-menu [role='menuitemradio'][aria-checked='true']::after {
-    content: '✓';
-    margin-left: auto;
   }
   .gwrap {
     position: absolute;
@@ -818,8 +746,7 @@
     border-radius: 10px;
     box-shadow: var(--shadow);
   }
-  .canvas-controls button,
-  .canvas-menu button {
+  .canvas-controls button {
     all: unset;
     box-sizing: border-box;
     min-width: 30px;
@@ -833,16 +760,18 @@
     color: var(--ink);
   }
   .canvas-controls button:hover,
-  .canvas-controls button[aria-pressed='true'],
-  .canvas-menu button:hover {
+  .canvas-controls button[aria-pressed='true'] {
     background: var(--rule-2);
   }
-  .canvas-controls button:focus-visible,
-  .canvas-menu button:focus-visible {
+  .canvas-controls button:focus-visible {
     outline: 2px solid var(--focus);
   }
   .canvas-controls .pct {
     min-width: 56px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-2);
     font-family: var(--f-id);
     font-size: 12px;
   }
@@ -850,28 +779,6 @@
     width: 1px;
     margin: 4px 2px;
     background: var(--rule);
-  }
-  .canvas-menu {
-    position: absolute;
-    right: 0;
-    bottom: 46px;
-    min-width: 170px;
-    padding: 4px;
-    background: var(--surface);
-    border: 1px solid var(--rule);
-    border-radius: 10px;
-    box-shadow: var(--shadow);
-  }
-  .canvas-menu button {
-    display: flex;
-    width: 100%;
-    justify-content: flex-start;
-    font-size: 13px;
-  }
-  .canvas-menu hr {
-    border: 0;
-    border-top: 1px solid var(--rule);
-    margin: 4px 0;
   }
   .canvas-stage {
     --list-w: 0px;
@@ -883,8 +790,7 @@
   .canvas-stage .canvas-axis {
     right: var(--list-w);
   }
-  .canvas-stage .canvas-controls-wrap,
-  .canvas-stage .minimap {
+  .canvas-stage .canvas-controls-wrap {
     margin-right: var(--list-w);
   }
   .loop-index {
@@ -1026,23 +932,6 @@
   }
   .loop-index button:focus-visible {
     outline: 2px solid var(--focus);
-  }
-  .minimap {
-    position: absolute;
-    right: 12px;
-    bottom: 58px;
-    z-index: 5;
-    background: var(--surface);
-    border: 1px solid var(--rule);
-    border-radius: 10px;
-    box-shadow: var(--shadow);
-    cursor: pointer;
-    touch-action: none;
-  }
-  .minimap .view {
-    fill: color-mix(in srgb, var(--ink) 8%, transparent);
-    stroke: var(--ink);
-    stroke-width: 1.5;
   }
   .stage:fullscreen {
     background: var(--panel);
