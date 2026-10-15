@@ -19,25 +19,14 @@ type Props = {
   pendingEvidenceCount: number;
 };
 
-function LockIcon() {
-  return (
-    <svg className="ic" viewBox="0 0 16 16" aria-hidden="true">
-      <rect x="3" y="7" width="10" height="7" rx="1" fill="currentColor" />
-      <path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
-}
-
 export function GraphHeader({
   projectId,
   title,
-  clientName,
   timeZone,
   windowStart,
   T,
   explicitT,
   head,
-  evidenceRevision,
   pendingEvidenceCount,
 }: Props) {
   const router = useRouter();
@@ -64,44 +53,32 @@ export function GraphHeader({
       <header className="topbar">
         <div className="proj">
           <b>{title}</b>
-          <small>
-            {clientName} project, time zone {timeZone}
-          </small>
+          <small>Time zone {timeZone}</small>
         </div>
         <span className="sp" />
-        <span className="faint" style={{ fontSize: 12 }}>
-          Keyboard: Tab moves through milestones then loops, Enter opens, ← → step through acts, Esc
-          closes
-        </span>
+        {pendingEvidenceCount > 0 && (
+          <Link className="pill" href={`/projects/${projectId}/review?tab=records`}>
+            {pendingEvidenceCount} new {pendingEvidenceCount === 1 ? 'record' : 'records'} to review
+          </Link>
+        )}
       </header>
       <div className="status head">
         <span className="badge b-main" data-testid="main-badge">
-          <LockIcon />
-          Main, read-only
+          Approved graph
         </span>
         <span>
-          <span className="k">Head commit </span>
-          <span className="id v" title={head.id} data-testid="head-commit">
-            {head.id.slice(0, 7)}
-          </span>{' '}
           <span className="k">
-            {head.verb} {head.at}
-            {head.by ? ` by ${head.by}` : ''}
+            Last change {head.at}
+            {head.by ? ` by ${head.by}` : ''} ·{' '}
+          </span>
+          <Link href={`/projects/${projectId}/history`}>Activity</Link>
+          <span className="sr" title={head.id} data-testid="head-commit">
+            {head.id}
           </span>
         </span>
-        <span>
-          <span className="k">Evidence revision </span>
-          <span className="v">{evidenceRevision}</span>
-        </span>
-        {pendingEvidenceCount > 0 && (
-          <Link className="pill" href={`/projects/${projectId}/inbox`}>
-            {pendingEvidenceCount} new {pendingEvidenceCount === 1 ? 'record' : 'records'} awaiting
-            review
-          </Link>
-        )}
         <span style={{ flex: 1 }} />
         <form className="tctl" onSubmit={commit}>
-          <label htmlFor="evaluate-at">Evaluate at</label>
+          <label htmlFor="evaluate-at">As of</label>
           <input
             id="evaluate-at"
             type="datetime-local"
@@ -121,9 +98,6 @@ export function GraphHeader({
             </button>
           )}
         </form>
-        <Link className="btn btn-ink" href={`/projects/${projectId}/proposals`}>
-          Create proposal
-        </Link>
       </div>
     </>
   );

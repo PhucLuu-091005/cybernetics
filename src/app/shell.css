@@ -201,3 +201,28 @@
     display: none;
   }
 }
+
+.filter-pop {
+  position: relative;
+}
+.filter-pop > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.filter-pop > summary::-webkit-details-marker {
+  display: none;
+}
+.filter-pop[open] > .filter-body {
+  position: absolute;
+  z-index: 25;
+  top: calc(100% + 6px);
+  left: 0;
+  display: grid;
+  gap: 10px;
+  width: min(340px, 90vw);
+  padding: 12px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}

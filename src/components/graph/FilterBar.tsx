@@ -56,6 +56,12 @@ export function FilterBar({
   const selected = new Set(
     filters.departmentIds.length ? filters.departmentIds : ordered.map((item) => item.id),
   );
+  const activeCount =
+    (filters.side ? 1 : 0) +
+    (filters.departmentIds.length > 0 ? 1 : 0) +
+    (filters.state ? 1 : 0) +
+    (filters.breakdown ? 1 : 0) +
+    (filters.milestoneId ? 1 : 0);
   const toggle = (id: string) => {
     const next = new Set(selected);
     if (next.has(id)) next.delete(id);
@@ -72,96 +78,6 @@ export function FilterBar({
   return (
     <div className="filters" role="group" aria-label="Filters">
       <div className="grp">
-        <span className="lbl" aria-hidden="true">
-          Side
-        </span>
-        <Segmented
-          label="Side"
-          value={filters.side ?? 'all'}
-          options={
-            [
-              ['all', 'All'],
-              ['vendor', 'Vendor'],
-              ['client', 'Client'],
-            ] as const
-          }
-          onSelect={(value) => onChange({ side: value === 'all' ? null : value })}
-        />
-      </div>
-      <div className="grp" role="group" aria-label="Departments">
-        <span className="lbl" aria-hidden="true">
-          Departments
-        </span>
-        {ordered.map((department) => (
-          <button
-            key={department.id}
-            type="button"
-            className="chip toggle"
-            aria-pressed={selected.has(department.id)}
-            onClick={() => toggle(department.id)}
-          >
-            {department.name}
-          </button>
-        ))}
-      </div>
-      <div className="grp">
-        <label className="lbl" htmlFor="filter-state">
-          State
-        </label>
-        <select
-          id="filter-state"
-          value={filters.state ?? ''}
-          onChange={(event) =>
-            onChange({ state: LoopStateSchema.safeParse(event.target.value).data ?? null })
-          }
-        >
-          <option value="">Any</option>
-          {LoopStateSchema.options.map((state) => (
-            <option key={state} value={state}>
-              {stateLabel(state)}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="grp">
-        <label className="lbl" htmlFor="filter-breakdown">
-          Breakdown
-        </label>
-        <select
-          id="filter-breakdown"
-          value={filters.breakdown ?? ''}
-          onChange={(event) =>
-            onChange({ breakdown: BreakdownTypeSchema.safeParse(event.target.value).data ?? null })
-          }
-        >
-          <option value="">Any</option>
-          {BreakdownTypeSchema.options.map((type) => (
-            <option key={type} value={type}>
-              {BREAKDOWN_LABEL[type]}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="grp">
-        <label className="lbl" htmlFor="filter-milestone">
-          Milestone
-        </label>
-        <select
-          id="filter-milestone"
-          value={filters.milestoneId ?? ''}
-          onChange={(event) => onChange({ milestoneId: event.target.value || null })}
-        >
-          <option value="">Any</option>
-          {[...milestones]
-            .sort((a, b) => a.order - b.order)
-            .map((milestone) => (
-              <option key={milestone.id} value={milestone.id}>
-                {milestone.name}
-              </option>
-            ))}
-        </select>
-      </div>
-      <div className="grp">
         <input
           type="search"
           value={query}
@@ -171,6 +87,127 @@ export function FilterBar({
           maxLength={200}
         />
       </div>
+      <button
+        type="button"
+        className="chip toggle"
+        aria-pressed={filters.problems}
+        onClick={() => onChange({ problems: !filters.problems })}
+      >
+        Problems only
+      </button>
+      <details className="filter-pop">
+        <summary className="btn">Filter{activeCount > 0 ? ` (${activeCount})` : ''}</summary>
+        <div className="filter-body">
+          <div className="grp">
+            <span className="lbl" aria-hidden="true">
+              Side
+            </span>
+            <Segmented
+              label="Side"
+              value={filters.side ?? 'all'}
+              options={
+                [
+                  ['all', 'All'],
+                  ['vendor', 'Vendor'],
+                  ['client', 'Client'],
+                ] as const
+              }
+              onSelect={(value) => onChange({ side: value === 'all' ? null : value })}
+            />
+          </div>
+          <div className="grp" role="group" aria-label="Departments">
+            <span className="lbl" aria-hidden="true">
+              Departments
+            </span>
+            {ordered.map((department) => (
+              <button
+                key={department.id}
+                type="button"
+                className="chip toggle"
+                aria-pressed={selected.has(department.id)}
+                onClick={() => toggle(department.id)}
+              >
+                {department.name}
+              </button>
+            ))}
+          </div>
+          <div className="grp">
+            <label className="lbl" htmlFor="filter-state">
+              State
+            </label>
+            <select
+              id="filter-state"
+              value={filters.state ?? ''}
+              onChange={(event) =>
+                onChange({ state: LoopStateSchema.safeParse(event.target.value).data ?? null })
+              }
+            >
+              <option value="">Any</option>
+              {LoopStateSchema.options.map((state) => (
+                <option key={state} value={state}>
+                  {stateLabel(state)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grp">
+            <label className="lbl" htmlFor="filter-breakdown">
+              Problem type
+            </label>
+            <select
+              id="filter-breakdown"
+              value={filters.breakdown ?? ''}
+              onChange={(event) =>
+                onChange({
+                  breakdown: BreakdownTypeSchema.safeParse(event.target.value).data ?? null,
+                })
+              }
+            >
+              <option value="">Any</option>
+              {BreakdownTypeSchema.options.map((type) => (
+                <option key={type} value={type}>
+                  {BREAKDOWN_LABEL[type]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grp">
+            <label className="lbl" htmlFor="filter-milestone">
+              Milestone
+            </label>
+            <select
+              id="filter-milestone"
+              value={filters.milestoneId ?? ''}
+              onChange={(event) => onChange({ milestoneId: event.target.value || null })}
+            >
+              <option value="">Any</option>
+              {[...milestones]
+                .sort((a, b) => a.order - b.order)
+                .map((milestone) => (
+                  <option key={milestone.id} value={milestone.id}>
+                    {milestone.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            className="btn btn-quiet"
+            onClick={() =>
+              onChange({
+                side: null,
+                departmentIds: [],
+                state: null,
+                breakdown: null,
+                milestoneId: null,
+                problems: false,
+              })
+            }
+          >
+            Clear
+          </button>
+        </div>
+      </details>
       <div className="grp" style={{ marginLeft: 'auto' }}>
         <Segmented
           label="View"
