@@ -22,6 +22,7 @@ import { getProposal } from '../../../../../server/domain/proposals';
 import { AppError } from '../../../../../server/errors';
 import { diffSnapshots } from '../../../../../server/graph/diff';
 import { notFoundOn, requireActor } from '../../../../../server/http/rsc';
+import { reviewQueue } from '../review-count';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Graph · Promise Graph' };
@@ -67,12 +68,13 @@ export default async function GraphPage({
     filters = parseFilters(search);
   const t = search.get('t'),
     T = t && TimestampSchema.safeParse(t).success ? t : undefined;
-  const [view, projects, history] = await Promise.all([
+  const [view, projects, history, queue] = await Promise.all([
     notFoundOn(
       getGraphView(db, actor, { projectId: id, view: { kind: 'main' }, ...(T ? { T } : {}) }),
     ),
     listProjects(db, actor),
     notFoundOn(listHistory(db, actor, { projectId: id, limit: 1 })),
+    notFoundOn(reviewQueue(db, actor, id)),
   ]);
   const project = projects.find((item) => item.id === id);
   if (!project) notFound();
@@ -130,7 +132,7 @@ export default async function GraphPage({
         explicitT={T !== undefined}
         head={head}
         evidenceRevision={view.evidenceRevision}
-        pendingEvidenceCount={view.pendingEvidenceCount}
+        pendingEvidenceCount={queue.pendingRecords}
       />
       <GraphScreen
         key={`screen-main-${view.T}`}
@@ -138,7 +140,7 @@ export default async function GraphPage({
         title={project.title}
         context={view.snapshot.context}
         engine={view.engine}
-        pendingEvidenceCount={view.pendingEvidenceCount}
+        pendingEvidenceCount={queue.pendingRecords}
         sources={view.sources}
         initialFilters={filters}
         escalation={escalation}

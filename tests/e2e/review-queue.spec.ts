@@ -113,11 +113,27 @@ test('a record ignored after another approval still lands in the same My review'
     await expect(page.getByRole('link', { name: new RegExp(title) })).toHaveCount(0);
   };
   await ignoreRecord('Automatic reply: out of office');
+  const missing = page.getByRole('link', { name: /Missing investors after the sync failure/ });
+  await expect(missing).toBeVisible();
 
   await page.goto(`/projects/${projectId}/review?tab=sets`);
   await openSet(page, /Add Sarah's follow-up/);
   await actions(page).getByRole('button', { name: 'Approve' }).click();
   await expect(approved(page, /^Approved: Add Sarah's follow-up/)).toBeVisible();
+
+  await page.goto(`/projects/${projectId}/review?tab=records`);
+  await expect(page.getByRole('list', { name: 'Records' })).toBeVisible();
+  await expect(missing).toHaveCount(0);
+  const tabCount = async (name: RegExp) =>
+    Number(await page.getByRole('tab', { name }).locator('.c').textContent());
+  const setCount = await tabCount(/^Change sets/);
+  const recordCount = await tabCount(/^New records/);
+  await expect(page.getByRole('list', { name: 'Records' }).getByRole('listitem')).toHaveCount(
+    recordCount,
+  );
+  await expect(
+    page.getByRole('link', { name: `Review, ${setCount + recordCount} waiting` }),
+  ).toBeVisible();
 
   await ignoreRecord('Go-live slip');
 
