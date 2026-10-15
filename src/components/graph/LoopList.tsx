@@ -56,7 +56,7 @@ export function LoopList({ loops, directory, milestones, timeZone, onOpen }: Pro
             <th scope="col">Customer</th>
             <th scope="col">Due</th>
             <th scope="col">State</th>
-            <th scope="col">Breakdowns</th>
+            <th scope="col">Problems</th>
             <th scope="col">Milestone</th>
             <th scope="col">Last act</th>
           </tr>

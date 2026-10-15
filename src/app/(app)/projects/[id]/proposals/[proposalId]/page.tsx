@@ -99,7 +99,6 @@ export default async function ProposalPage({
         (person) => person.name === citeAuthor && person.side !== 'unknown',
       )?.id ?? null)
     : null;
-  const href = `/projects/${id}/proposals/${proposal.id}`;
   const basis = { mainCommitId: view.mainCommitId, evidenceRevision: view.evidenceRevision };
 
   return (

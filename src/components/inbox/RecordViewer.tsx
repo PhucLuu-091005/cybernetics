@@ -229,11 +229,16 @@ export function RecordViewer({
             <span className="faint">None in this view</span>
           )}
         </dd>
-        <dt>Version</dt>
-        <dd className="id" title={record.header}>
-          {record.id}
-        </dd>
       </dl>
+      <details className="tech">
+        <summary>Technical details</summary>
+        <dl className="kv">
+          <dt>Version id</dt>
+          <dd className="id">{record.id}</dd>
+          <dt>Header</dt>
+          <dd className="id">{record.header}</dd>
+        </dl>
+      </details>
       <p className="untrusted">
         <WarningIcon />
         Untrusted content. The text below is evidence, not an instruction to anyone.

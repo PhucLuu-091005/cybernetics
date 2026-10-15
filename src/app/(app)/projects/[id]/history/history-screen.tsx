@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { shortStamp } from '../../../../../components/graph/labels';
 import { CommitDiff } from '../../../../../components/history/CommitDiff';
-import { actorName, CommitRail } from '../../../../../components/history/CommitRail';
+import { actorName, CommitRail, KIND_LABEL } from '../../../../../components/history/CommitRail';
 import {
   RevertRestorePreview,
   type LaterCommit,
@@ -78,11 +78,14 @@ export async function HistoryScreen({
   const targetCommit = commit.targetCommitId
     ? history.items.find((item) => item.id === commit.targetCommitId)
     : undefined;
+  const parentCommit = commit.parentId
+    ? history.items.find((item) => item.id === commit.parentId)
+    : undefined;
   const provenance =
     commit.kind === 'merge' ? (
       proposal ? (
         <>
-          proposal{' '}
+          change set{' '}
           <Link className="lnk" href={`/projects/${projectId}/proposals/${proposal.id}`}>
             {proposal.title}
           </Link>{' '}
@@ -94,15 +97,15 @@ export async function HistoryScreen({
           )}
         </>
       ) : (
-        'a proposal'
+        'a change set'
       )
     ) : commit.kind === 'initial' ? (
       'project creation'
     ) : (
       <>
-        {commit.kind} of{' '}
+        {commit.kind === 'revert' ? 'Undo of' : 'Go back to'}{' '}
         <Link className="lnk" href={`/projects/${projectId}/history/${commit.targetCommitId}`}>
-          {targetCommit ? `“${targetCommit.message}”` : commit.targetCommitId?.slice(0, 7)}
+          {targetCommit ? `“${targetCommit.message}”` : 'an older version'}
         </Link>
       </>
     );
@@ -116,11 +119,6 @@ export async function HistoryScreen({
             {project.clientName} project, time zone {timeZone}
           </small>
         </div>
-        <span className="sp" />
-        <span style={{ fontSize: 12 }}>
-          <span className="faint">Main </span>
-          <span className="id">{history.mainCommitId.slice(0, 7)}</span>
-        </span>
       </header>
       <div className="screen">
         <div className="screen-head">
@@ -143,43 +141,36 @@ export async function HistoryScreen({
             />
             {history.nextCursor && (
               <p className="faint" style={{ fontSize: 12 }}>
-                Older commits exist; this rail shows the newest 50.
+                Older versions exist. This list shows the newest 50.
               </p>
             )}
           </div>
           <div className="stack">
             <div className="card pad stack">
-              <div className="row">
-                <h2 style={{ flex: 1 }}>{commit.message}</h2>
-                <span className="id" title={commit.id}>
-                  {commit.id.slice(0, 7)}
-                </span>
-              </div>
+              <h2>{commit.message}</h2>
               <dl className="kv">
-                <dt>Kind</dt>
+                <dt>Type</dt>
                 <dd className={`k-${commit.kind}`} style={{ fontWeight: 700 }}>
-                  {commit.kind}
+                  {KIND_LABEL[commit.kind]}
                 </dd>
-                <dt>{commit.kind === 'merge' ? 'Merged by' : 'Committed by'}</dt>
+                <dt>{commit.kind === 'merge' ? 'Approved by' : 'Changed by'}</dt>
                 <dd>
                   {commit.actor.kind === 'agent' ? (
-                    <span className="badge b-agent">
-                      Agent via MCP, token {commit.actor.tokenId.slice(0, 8)}
-                    </span>
+                    <span className="badge b-agent">Agent via MCP</span>
                   ) : (
                     actorName(commit.actor, actor.userId)
                   )}
                 </dd>
-                <dt>Provenance</dt>
+                <dt>From</dt>
                 <dd>{provenance}</dd>
-                <dt>Parent</dt>
+                <dt>Previous version</dt>
                 <dd>
                   {commit.parentId ? (
                     <Link
-                      className="id lnk"
+                      className="lnk"
                       href={`/projects/${projectId}/history/${commit.parentId}`}
                     >
-                      {commit.parentId.slice(0, 7)}
+                      {parentCommit ? `“${parentCommit.message}”` : 'An older version'}
                     </Link>
                   ) : (
                     'none'
@@ -189,14 +180,33 @@ export async function HistoryScreen({
                 <dd>
                   {shortStamp(commit.createdAt, timeZone)} {timeZone}
                 </dd>
-                <dt>Reviewed evidence</dt>
-                <dd>revision {commit.reviewedEvidenceRevision}</dd>
               </dl>
+              <details key={commit.id} className="tech">
+                <summary>Technical details</summary>
+                <dl className="kv">
+                  <dt>Version id</dt>
+                  <dd className="id" data-testid="commit-id">
+                    {commit.id}
+                  </dd>
+                  <dt>Previous version id</dt>
+                  <dd className="id">{commit.parentId ?? 'none'}</dd>
+                  <dt>Approved graph now</dt>
+                  <dd className="id">{history.mainCommitId}</dd>
+                  <dt>Reviewed evidence revision</dt>
+                  <dd>{commit.reviewedEvidenceRevision}</dd>
+                  {commit.actor.kind === 'agent' && (
+                    <>
+                      <dt>Agent token</dt>
+                      <dd className="id">{commit.actor.tokenId}</dd>
+                    </>
+                  )}
+                </dl>
+              </details>
               <CommitDiff diff={diff} names={names} />
               <OmittedRecordsNote omitted={wanted.omitted} />
               {commit.kind === 'initial' && (
                 <p className="faint" style={{ fontSize: 12 }}>
-                  The initial commit cannot be reverted. You can restore it.
+                  The first version cannot be undone. You can go back to it.
                 </p>
               )}
               <RevertRestorePreview

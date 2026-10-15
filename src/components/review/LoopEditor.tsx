@@ -206,7 +206,7 @@ export function LoopEditor({
           type="submit"
           disabled={disabled || !title.trim() || !departmentId}
         >
-          Save loop to draft
+          Save loop to change set
         </button>
       </div>
     </form>

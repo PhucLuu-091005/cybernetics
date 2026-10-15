@@ -188,7 +188,7 @@ test('an escalation analysis shows verdicts and cited acts, copies and downloads
   await page.reload();
   await expect(answer.getByTestId('approval')).toHaveCount(0);
   await expect(
-    page.getByRole('list', { name: 'Analysis revisions' }).getByRole('listitem'),
+    page.getByRole('list', { name: 'Analysis history' }).getByRole('listitem'),
   ).toHaveCount(2);
   await expect(answer.getByRole('button', { name: 'Approve answer' })).toBeEnabled();
 
@@ -228,7 +228,7 @@ test('an escalation analysis shows verdicts and cited acts, copies and downloads
   // The sandbox seeds the same complaint with one analysis, so the list holds it twice.
   const rows = page.getByRole('row', { name: new RegExp(COMPLAINT.slice(0, 30)) });
   await expect(rows).toHaveCount(2);
-  await expect(rows.filter({ hasText: 'revision 2' })).toHaveCount(1);
+  await expect(rows.filter({ hasText: '2 analyses' })).toHaveCount(1);
 });
 
 test('agent tokens: default scopes, a secret shown once, revocation, and the MCP config snippet', async ({

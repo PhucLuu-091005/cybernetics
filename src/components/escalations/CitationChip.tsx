@@ -18,7 +18,7 @@ export function CitationChip({
   acts: Readonly<Record<string, CitedAct>>;
 }) {
   const act = acts[actId];
-  if (!act) return <span title="This act is not in the pinned graph commit">[act:{actId}]</span>;
+  if (!act) return <span title="This act is not in the pinned graph version">[missing act]</span>;
   return (
     <Link className="actref" href={act.href} title={act.title}>
       {act.chip}
@@ -27,6 +27,6 @@ export function CitationChip({
 }
 
 export function actorLabel(author: ActorReference, viewerUserId: string): string {
-  if (author.kind === 'agent') return `an agent via MCP, token ${author.tokenId.slice(0, 8)}`;
+  if (author.kind === 'agent') return 'an agent via MCP';
   return author.userId === viewerUserId ? 'you' : 'a workspace member';
 }

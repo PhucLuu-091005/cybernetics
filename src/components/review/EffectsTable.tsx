@@ -16,10 +16,10 @@ export function EffectsTable({
   T: string;
 }) {
   return (
-    <section className="card pad" aria-labelledby="effects-heading">
-      <h2 id="effects-heading" style={{ marginBottom: 8 }}>
-        Effect as of {T}
-      </h2>
+    <div className="card pad">
+      <p className="faint" style={{ fontSize: 13, marginBottom: 8 }}>
+        As of {T}
+      </p>
       {effects.length === 0 ? (
         <p className="faint" style={{ fontSize: 13 }}>
           No loop changes state or gets a new problem.
@@ -31,13 +31,13 @@ export function EffectsTable({
               <tr>
                 <th>Loop</th>
                 <th>State</th>
-                <th>Breakdowns</th>
+                <th>Problems</th>
               </tr>
             </thead>
             <tbody>
               {effects.map((effect) => (
                 <tr key={effect.loopId}>
-                  <td>{loopTitles[effect.loopId] ?? effect.loopId.slice(0, 8)}</td>
+                  <td>{loopTitles[effect.loopId] ?? 'Unknown loop'}</td>
                   <td>
                     {effect.beforeState === effect.afterState ? (
                       state(effect.afterState)
@@ -68,6 +68,6 @@ export function EffectsTable({
           </table>
         </div>
       )}
-    </section>
+    </div>
   );
 }

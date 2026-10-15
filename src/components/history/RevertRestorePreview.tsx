@@ -1,6 +1,6 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import type { CommitPreview, CommitReceipt, Proposal } from '../../contracts';
 import { send, type ApiError, type Basis } from '../inbox/api';
 import { ConflictBanner } from '../review/ConflictBanner';
@@ -243,10 +243,7 @@ export function RevertRestorePreview({
                 {preserved.length ? (
                   <>
                     ✓ Unrelated later work stays:{' '}
-                    {preserved
-                      .map((commit) => `${quoted(commit.message)} (${commit.id.slice(0, 7)})`)
-                      .join(', ')}
-                    .
+                    {preserved.map((commit) => quoted(commit.message)).join(', ')}.
                   </>
                 ) : (
                   '✓ No later version changed other items.'
@@ -256,8 +253,7 @@ export function RevertRestorePreview({
           ) : (
             <>
               <p style={{ fontSize: 13 }}>
-                Going back copies this version into a new version on top of{' '}
-                {preview.mainCommitId.slice(0, 7)}.{' '}
+                Going back copies this version into a new version on top of the approved graph.{' '}
                 {preview.diff.changes.length
                   ? 'It replaces later interpretation:'
                   : 'The approved graph already matches this version, so going back changes nothing.'}
@@ -289,7 +285,7 @@ export function RevertRestorePreview({
                       }
                     >
                       {verb} {kind.toLowerCase()}: {name}
-                      {from ? ` (from ${quoted(from.message)}, ${from.id.slice(0, 7)})` : ''}
+                      {from ? ` (from ${quoted(from.message)})` : ''}
                     </li>
                   );
                 })}
@@ -301,12 +297,25 @@ export function RevertRestorePreview({
             </>
           )}
           <p className="faint" style={{ fontSize: 12 }}>
-            Preview digest{' '}
-            <span className="digest">
-              {preview.digest.slice(0, 4)}…{preview.digest.slice(-4)}
-            </span>
-            , for the expected version and records. No record and no version is deleted.
+            No record and no version is deleted.
           </p>
+          <details className="tech">
+            <summary>Technical details</summary>
+            <dl className="kv">
+              <dt>On top of version</dt>
+              <dd className="id">{preview.mainCommitId}</dd>
+              <dt>Evidence revision</dt>
+              <dd>{preview.evidenceRevision}</dd>
+              <dt>Preview digest</dt>
+              <dd className="digest">{preview.digest}</dd>
+              {(preview.kind === 'revert' ? preserved : later).map((commit) => (
+                <Fragment key={commit.id}>
+                  <dt>{quoted(commit.message)}</dt>
+                  <dd className="id">{commit.id}</dd>
+                </Fragment>
+              ))}
+            </dl>
+          </details>
           {!blocked && (
             <div className="row" style={{ alignItems: 'flex-end' }}>
               <label className="field" style={{ flex: 1 }}>

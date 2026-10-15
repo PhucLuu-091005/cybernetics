@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Fragment } from 'react';
 import { notFound } from 'next/navigation';
 import { IdSchema, type EscalationAnalysis, type GraphSnapshot } from '../../../../../../contracts';
 import { AnswerDraft } from '../../../../../../components/escalations/AnswerDraft';
@@ -180,7 +181,7 @@ export default async function EscalationPage({
                 authorLabel={actorLabel(latest.author, actor.userId)}
                 approvalLabel={
                   approval
-                    ? `Approved by ${actorLabel(approval.actor, actor.userId)}, ${shortStamp(approval.approvedAt, timeZone)}, content hash ${approval.contentHash.slice(0, 12)}.`
+                    ? `Approved by ${actorLabel(approval.actor, actor.userId)}, ${shortStamp(approval.approvedAt, timeZone)}.`
                     : null
                 }
               />
@@ -188,29 +189,42 @@ export default async function EscalationPage({
             {read.analyses.length > 0 && (
               <section className="card pad" aria-labelledby="revisions-head">
                 <h3 id="revisions-head" style={{ marginBottom: 6 }}>
-                  Revisions
+                  Analysis history
                 </h3>
                 <ol
                   className="plain-list"
-                  aria-label="Analysis revisions"
+                  aria-label="Analysis history"
                   style={{ listStyle: 'none', paddingLeft: 0 }}
                 >
-                  {read.analyses.map((analysis) => (
+                  {read.analyses.map((analysis, index) => (
                     <li key={analysis.id}>
-                      r{analysis.revision}, {actorLabel(analysis.author, actor.userId)},{' '}
-                      {shortStamp(analysis.createdAt, timeZone)}, {analysis.claims.length}{' '}
-                      {analysis.claims.length === 1 ? 'claim' : 'claims'}, pinned{' '}
-                      <span className="id">{analysis.graphCommitId.slice(0, 7)}</span> / evidence{' '}
-                      {analysis.evidenceRevision}
+                      {shortStamp(analysis.createdAt, timeZone)} by{' '}
+                      {actorLabel(analysis.author, actor.userId)}: {analysis.claims.length}{' '}
+                      {analysis.claims.length === 1 ? 'claim' : 'claims'}
+                      {index === 0 ? ', latest' : ''}
                       {analysis.approval ? ', approved' : ''}
                     </li>
                   ))}
                 </ol>
                 {read.nextCursor && (
                   <p className="faint" style={{ fontSize: 12 }}>
-                    Older revisions exist; this list shows the newest page.
+                    Older analyses exist. This list shows the newest page.
                   </p>
                 )}
+                <details className="tech">
+                  <summary>Technical details</summary>
+                  <dl className="kv">
+                    {read.analyses.map((analysis) => (
+                      <Fragment key={analysis.id}>
+                        <dt>Revision {analysis.revision}</dt>
+                        <dd>
+                          graph version <span className="id">{analysis.graphCommitId}</span>,
+                          evidence revision {analysis.evidenceRevision}
+                        </dd>
+                      </Fragment>
+                    ))}
+                  </dl>
+                </details>
               </section>
             )}
           </div>

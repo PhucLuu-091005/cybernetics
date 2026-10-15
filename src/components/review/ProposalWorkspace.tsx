@@ -202,7 +202,7 @@ export function ProposalWorkspace({
   return (
     <div className="pbody">
       <div className="ops">
-        <h3 style={{ margin: '0 0 8px' }}>Changes against the base, {changes.length}</h3>
+        <h3 style={{ margin: '0 0 8px' }}>Changes in this change set, {changes.length}</h3>
         <div role="listbox" aria-label="What changes" className="stack" style={{ gap: 2 }}>
           {cite && (
             <button
@@ -234,13 +234,13 @@ export function ProposalWorkspace({
           ))}
           {changes.length === 0 && !cite && (
             <p className="faint" style={{ fontSize: 13 }}>
-              No changes yet. The draft equals its base.
+              No changes yet. This change set matches the graph it started from.
             </p>
           )}
         </div>
         <div className="row" style={{ marginTop: 10 }}>
           <Link className="btn" href={`/projects/${projectId}/inbox?proposal=${target.proposalId}`}>
-            Add act from inbox
+            Add act from a record
           </Link>
           <button
             type="button"
@@ -268,12 +268,12 @@ export function ProposalWorkspace({
             <ConflictBanner
               title={
                 edit.failure.status === 409
-                  ? 'Conflict: the draft or the evidence changed since this page loaded.'
+                  ? 'Conflict: the change set or the records changed since this page loaded.'
                   : 'The change was not saved.'
               }
               message={
                 edit.failure.status === 409
-                  ? 'Your edits are kept. Reload to see the current revision, then save again.'
+                  ? 'Your edits are kept. Reload to see the latest change set, then save again.'
                   : undefined
               }
               error={edit.failure}

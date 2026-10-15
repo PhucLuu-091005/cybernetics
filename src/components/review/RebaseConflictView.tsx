@@ -61,7 +61,7 @@ function parseReplacement(
   } catch {
     return {
       value: null,
-      error: `The replacement for ${conflict.collection} ${conflict.id.slice(0, 8)} is not valid JSON.`,
+      error: 'This replacement is not valid JSON.',
     };
   }
 }
@@ -149,8 +149,8 @@ export function RebaseConflictView({ projectId, preview, names, kept }: Props) {
           {kept.proposal.length + kept.main.length === 1 ? 'change is' : 'changes are'} kept
           automatically:{' '}
           {[
-            ...kept.proposal.map((item) => `${item} (proposal)`),
-            ...kept.main.map((item) => `${item} (main)`),
+            ...kept.proposal.map((item) => `${item} (change set)`),
+            ...kept.main.map((item) => `${item} (approved graph)`),
           ]
             .slice(0, 8)
             .join(', ')}
@@ -185,18 +185,8 @@ export function RebaseConflictView({ projectId, preview, names, kept }: Props) {
               </span>
             </h3>
             <div className="conf">
-              <Side
-                testId="side-base"
-                heading={`Starting point ${preview.baseCommitId.slice(0, 7)}`}
-                lines={base}
-                highlight={false}
-              />
-              <Side
-                testId="side-main"
-                heading={`Approved graph ${preview.mainCommitId.slice(0, 7)}`}
-                lines={main}
-                highlight
-              />
+              <Side testId="side-base" heading="Starting point" lines={base} highlight={false} />
+              <Side testId="side-main" heading="Approved graph" lines={main} highlight />
               <Side testId="side-proposal" heading="Your change set" lines={proposed} highlight />
               <div className="choices" role="radiogroup" aria-label={`Resolution for ${title}`}>
                 {(['main', 'proposal', 'replacement'] as const).map((option) => (

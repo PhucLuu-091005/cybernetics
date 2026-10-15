@@ -145,6 +145,7 @@ export default async function GraphPage({
         initialFilters={filters}
         escalation={escalation}
         view={{ kind: 'main' }}
+        heading="Approved graph"
         snapshot={view.snapshot}
         edit={{
           kind: 'main',
@@ -209,8 +210,7 @@ async function ProposalGraph({
       <div className="screen" style={{ paddingBottom: 0 }}>
         {requested !== null && Number(requested) !== proposal.revision && (
           <p className="card pad" role="status" style={{ marginBottom: 10, fontSize: 13 }}>
-            You opened revision {requested}; the draft is now at revision {proposal.revision}. This
-            view shows the current revision.
+            This change set changed after you opened the link. This view shows its latest state.
           </p>
         )}
         <ProposalFrame
