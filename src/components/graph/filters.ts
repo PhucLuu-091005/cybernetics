@@ -76,7 +76,6 @@ export function filtersToSearch(
   return search;
 }
 
-/** Visible loop IDs. */
 export function applyFilters(
   engine: EngineOutput,
   filters: GraphFilters,

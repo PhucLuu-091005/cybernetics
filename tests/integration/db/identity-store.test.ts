@@ -214,7 +214,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('DbIdentityStore', () => {
     });
     expect(listed.lastUsedAt).toBe(at);
   });
-  it('migration 0002 drops the escalation tables and strips escalations:write from stored tokens', async () => {
+  it('migration 0002 leaves no escalation table, and its SQL removes escalations:write from stored tokens', async () => {
     const { rows } = await t.db.execute(
       sql`SELECT tablename FROM pg_tables WHERE tablename LIKE 'escalation%'`,
     );

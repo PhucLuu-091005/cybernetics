@@ -408,7 +408,7 @@ function Graph(props: PromiseGraphProps) {
     const view = fitViewport(content, sizeNow());
     void flow.setViewport({ ...view, y: TRUNK_VIEW_TOP - trunkAt(view.zoom) }, { duration: 200 });
   }, [sizeNow, flow, content, trunkAt]);
-  // Direction B, V1: the first view shows the whole project, not 10 days around T.
+  // Fit once, on the first measured size, so a new reader sees the whole project, not 10 days around T.
   const placed = useRef(false);
   useEffect(() => {
     if (placed.current || size.width === 0) return;
