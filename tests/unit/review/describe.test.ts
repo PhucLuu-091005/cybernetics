@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { Annotation, Loop } from '../../../src/contracts';
+import type { Annotation, Conflict, Loop } from '../../../src/contracts';
 import {
+  conflictSentence,
   describeEntity,
   fieldLines,
   summarizeEntity,
@@ -83,5 +84,29 @@ describe('a note in a change set', () => {
       { field: 'text', label: 'text', value: 'Short [1].' },
       { field: 'actIds', label: 'cited steps', value: '1' },
     ]);
+  });
+});
+
+describe('conflictSentence', () => {
+  const conflict = (overrides: Partial<Conflict>) =>
+    ({
+      collection: 'acts',
+      id: 'fd3d4b6e-0000-4000-8000-0000000000bb',
+      base: {},
+      main: {},
+      proposed: {},
+      reason:
+        'Current entity differs from the target commit postimage; resolve the inverse explicitly.',
+      ...overrides,
+    }) as unknown as Conflict;
+
+  it('says a later change edited the item and what undo does, without the API reason', () => {
+    const sentence = conflictSentence(conflict({}));
+    expect(sentence).toBe('A later change edited this item. Undo would overwrite it.');
+    expect(sentence).not.toMatch(/revert|entity|postimage|inverse/i);
+  });
+
+  it('says a later change removed the item', () => {
+    expect(conflictSentence(conflict({ main: null }))).toBe('A later change removed this item.');
   });
 });

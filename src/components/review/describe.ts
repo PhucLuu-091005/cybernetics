@@ -1,6 +1,7 @@
 import type {
   Act,
   Annotation,
+  Conflict,
   Department,
   EntityChange,
   EntityCollection,
@@ -199,6 +200,12 @@ export function fieldLines(
         })),
   );
 }
+
+/** The API reason names engine terms; an Undo preview shows this sentence instead. */
+export const conflictSentence = (conflict: Conflict): string =>
+  conflict.main === null
+    ? 'A later change removed this item.'
+    : 'A later change edited this item. Undo would overwrite it.';
 
 export function changeSymbol(kind: ChangeKind): string {
   return kind === 'added' ? '+ added' : kind === 'removed' ? '− removed' : '~ changed';
