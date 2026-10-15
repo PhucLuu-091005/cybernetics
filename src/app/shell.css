@@ -226,3 +226,54 @@
   background: var(--surface);
   box-shadow: var(--shadow);
 }
+
+.problems-toggle,
+.filter-pop > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.problems-toggle {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 4px 9px;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+.problems-toggle .ic,
+.filter-pop > summary .ic {
+  width: 14px;
+  height: 14px;
+}
+.problems-toggle[aria-pressed='true'] {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: transparent;
+}
+.problems-toggle:focus-visible,
+.filter-pop > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.activity-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--route);
+  text-decoration: none;
+}
+.activity-link:hover {
+  text-decoration: underline;
+}
+.activity-link .ic {
+  width: 12px;
+  height: 12px;
+}

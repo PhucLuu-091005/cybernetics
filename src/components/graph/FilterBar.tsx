@@ -14,6 +14,23 @@ type Props = {
   onQuery(query: string): void;
 };
 
+function Icon({ children }: { children: React.ReactNode }) {
+  return (
+    <svg
+      className="ic"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {children}
+    </svg>
+  );
+}
+
 function Segmented<T extends string>({
   label,
   value,
@@ -89,14 +106,24 @@ export function FilterBar({
       </div>
       <button
         type="button"
-        className="chip toggle"
+        className="problems-toggle"
         aria-pressed={filters.problems}
         onClick={() => onChange({ problems: !filters.problems })}
       >
+        <Icon>
+          <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />
+          <path d="M12 9v4" />
+          <path d="M12 17h.01" />
+        </Icon>
         Problems only
       </button>
       <details className="filter-pop">
-        <summary className="btn">Filter{activeCount > 0 ? ` (${activeCount})` : ''}</summary>
+        <summary className="btn">
+          <Icon>
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+          </Icon>
+          Filter{activeCount > 0 ? ` (${activeCount})` : ''}
+        </summary>
         <div className="filter-body">
           <div className="grp">
             <span className="lbl" aria-hidden="true">
