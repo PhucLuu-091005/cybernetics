@@ -278,12 +278,9 @@ test('an escalation without analysis fades no loop and says so', async ({ page }
   await expect(page.locator('.br-faded')).toHaveCount(0);
 });
 
-test('the canvas opens at 100 %, the wheel moves it, and Ctrl + wheel or a pinch zooms it', async ({
+test('the canvas opens at 100 %, the wheel moves it, and Ctrl + wheel zooms it', async ({
   page,
 }) => {
-  // d3-zoom registers touch listeners only when the page starts on a touch device.
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
   await signIn(page, 'graph-canvas');
   expect(await zoomOf(page)).toBe(1);
   const box = await boxOf(graph(page));
@@ -299,26 +296,9 @@ test('the canvas opens at 100 %, the wheel moves it, and Ctrl + wheel or a pinch
   await page.mouse.wheel(0, -300);
   await page.keyboard.up('Control');
   await expect.poll(() => zoomOf(page)).toBeGreaterThan(1);
-  const wheeled = await zoomOf(page);
   // Ctrl + wheel inside the canvas zooms the canvas, never the browser page.
   expect(await page.evaluate(() => window.visualViewport?.scale ?? 1)).toBe(1);
-  const y = box.y + box.height / 2,
-    x = box.x + box.width / 2;
-  const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', spread: number) =>
-    cdp.send('Input.dispatchTouchEvent', {
-      type,
-      touchPoints:
-        type === 'touchEnd'
-          ? []
-          : [
-              { x: x - spread, y, id: 1 },
-              { x: x + spread, y, id: 2 },
-            ],
-    });
-  await touch('touchStart', 40);
-  for (const spread of [60, 90, 120]) await touch('touchMove', spread);
-  await touch('touchEnd', 0);
-  await expect.poll(() => zoomOf(page)).toBeGreaterThan(wheeled);
+  // The pinch tests below start on a fresh page: d3 ends its wheel gesture 150 ms later and would cut a pinch short.
 });
 
 test('a drag on empty canvas moves it; the lane names stay in their column and follow the zoom', async ({
