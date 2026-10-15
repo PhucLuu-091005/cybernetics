@@ -70,6 +70,7 @@ type GraphNode = ActNodeType | CardNodeType | GatewayNodeType | MilestoneNodeTyp
 const DRAG_START_PX = 4;
 const NO_HALO: ReadonlySet<string> = new Set();
 const DASH = { solid: undefined, dashed: '7 5', dotted: '1.5 4' } as const;
+const NO_PAN = 'pg-no-pan:not(.react-flow__edge)';
 
 export type PromiseGraphProps = {
   title: string;
@@ -673,6 +674,10 @@ function Graph(props: PromiseGraphProps) {
             zoomOnPinch
             zoomActivationKeyCode={['Meta', 'Control']}
             zoomOnDoubleClick={false}
+            // React Flow adds this class to every edge and tests it with `closest('.' + name)`. The `:not` makes
+            // that test never match, so a touch pan or pinch over a branch works; the mousedown capture above
+            // still keeps mouse drags on cards and icons.
+            noPanClassName={NO_PAN}
             preventScrolling
             proOptions={{ hideAttribution: true }}
           >
