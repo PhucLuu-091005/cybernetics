@@ -4,7 +4,7 @@ Promise Graph exposes one project to your own AI agent (for example, Claude Code
 
 ## 1. Create a token
 
-1. Open the project and go to **Settings → Agent tokens** (`/projects/<projectId>/settings/tokens`).
+1. Open the project and go to **Settings** (`/projects/<projectId>/settings/tokens`).
 2. Enter a label and keep the default scopes: `project:read`, `records:import`, `graph:propose`.
 3. Select `graph:merge` only if you want the agent to merge, revert or restore when you tell it to. Select `escalations:write` only if the agent must save complaint analyses.
 4. Copy the secret (`inv_` followed by 43 characters). The app shows it once and stores only its SHA-256 hash.
