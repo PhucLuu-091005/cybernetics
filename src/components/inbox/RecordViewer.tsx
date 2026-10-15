@@ -279,7 +279,7 @@ export function RecordViewer({
                 onClick={startAct}
                 disabled={starting}
               >
-                Start act from selection
+                Add an act from this quote
               </button>
             </>
           )}

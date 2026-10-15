@@ -64,7 +64,7 @@ export function CommitRail({
                   </span>
                   {agent && <span className="badge b-agent">agent</span>}
                   <span className="faint">evidence {commit.reviewedEvidenceRevision}</span>
-                  {commit.id === mainCommitId && <span className="badge b-main">main</span>}
+                  {commit.id === mainCommitId && <span className="badge b-main">approved</span>}
                 </span>
               </span>
             </Link>

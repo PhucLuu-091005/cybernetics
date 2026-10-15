@@ -31,18 +31,18 @@ export function CreateProposalForm({ projectId, basis }: { projectId: string; ba
     else setFailure(result.error);
   };
   return (
-    <form className="card pad stack" aria-label="Create proposal" onSubmit={submit}>
-      <h2>Create proposal</h2>
+    <form className="card pad stack" aria-label="New change set" onSubmit={submit}>
+      <h2>New change set</h2>
       {failure && (
         <ConflictBanner
           title={
             failure.status === 409
-              ? 'Conflict: main or the evidence moved since this page loaded.'
-              : 'The proposal was not created.'
+              ? 'Conflict: the graph or the records changed since this page loaded.'
+              : 'The change set was not created.'
           }
           message={
             failure.status === 409
-              ? 'Your title and rationale are kept. Reload, then create the proposal again.'
+              ? 'Your title and reason are kept. Reload, then create it again.'
               : undefined
           }
           error={failure}
@@ -68,7 +68,7 @@ export function CreateProposalForm({ projectId, basis }: { projectId: string; ba
           value={title}
           maxLength={200}
           onChange={(event) => setTitle(event.target.value)}
-          placeholder="What this proposal changes"
+          placeholder="What this change set changes"
         />
       </label>
       <label className="field">
@@ -82,7 +82,7 @@ export function CreateProposalForm({ projectId, basis }: { projectId: string; ba
       </label>
       <div className="row">
         <button className="btn btn-ink" type="submit" disabled={!hydrated || busy || !title.trim()}>
-          Create draft from main
+          Create change set
         </button>
         <span className="faint" style={{ fontSize: 12 }}>
           The draft copies main {basis.mainCommitId.slice(0, 7)} at evidence revision{' '}

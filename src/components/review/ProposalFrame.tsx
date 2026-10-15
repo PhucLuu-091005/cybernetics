@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { reviewHref } from '../review-queue/state';
 import type { ActorReference, Proposal } from '../../contracts';
 
 export type ProposalSummary = Pick<
@@ -69,7 +70,9 @@ export function ProposalFrame({
     <div className="pframe">
       <div className="pband" aria-hidden="true" />
       <div className="phead">
-        <span className="badge b-draft">Proposal, {proposal.status}</span>
+        <span className="badge b-draft">
+          Change set, {proposal.status === 'draft' ? 'open' : proposal.status}
+        </span>
         <Heading style={{ fontSize: 17 }}>{proposal.title}</Heading>
         <span style={{ flex: 1 }} />
         <span style={{ fontSize: 12 }}>
@@ -78,7 +81,7 @@ export function ProposalFrame({
             {proposal.baseCommitId.slice(0, 7)}
           </span>
           {proposal.baseCommitId === mainCommitId ? (
-            <span className="faint"> (current main)</span>
+            <span className="faint"> (current)</span>
           ) : null}
         </span>
         <span style={{ fontSize: 12 }}>
@@ -100,7 +103,7 @@ export function ProposalFrame({
         <div className="pad pnotice">
           {proposal.status === 'merged' && (
             <span>
-              This proposal is merged
+              This change set is approved
               {proposal.mergedCommitId ? (
                 <>
                   {' '}
@@ -116,16 +119,21 @@ export function ProposalFrame({
               . It is read-only.
             </span>
           )}
-          {proposal.status === 'closed' && <span>This proposal is closed. It is read-only.</span>}
+          {proposal.status === 'closed' && (
+            <span>This change set is rejected. It is read-only.</span>
+          )}
           {stale && <span className="warn">Main moved since this draft was based. </span>}
           {stale && (
             <span>
-              Merging needs a rebase onto current main.
+              The graph changed after this change set was made.
               {rebaseLink && (
                 <>
                   {' '}
-                  <Link className="lnk" href={`${href}/rebase`}>
-                    Preview rebase
+                  <Link
+                    className="lnk"
+                    href={reviewHref(projectId, { tab: 'sets', item: proposal.id })}
+                  >
+                    Update to latest
                   </Link>
                 </>
               )}

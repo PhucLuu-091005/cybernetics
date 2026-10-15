@@ -203,12 +203,7 @@ export function ProposalWorkspace({
     <div className="pbody">
       <div className="ops">
         <h3 style={{ margin: '0 0 8px' }}>Changes against the base, {changes.length}</h3>
-        <div
-          role="listbox"
-          aria-label="Changes in this proposal"
-          className="stack"
-          style={{ gap: 2 }}
-        >
+        <div role="listbox" aria-label="What changes" className="stack" style={{ gap: 2 }}>
           {cite && (
             <button
               type="button"

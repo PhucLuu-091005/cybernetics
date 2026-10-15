@@ -16,7 +16,7 @@ import {
 } from '../../../../../../server/http/rsc';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Agent tokens · Promise Graph' };
+export const metadata: Metadata = { title: 'Settings · Promise Graph' };
 const DAY = 86_400_000;
 
 /** The request time belongs to the data load: token expiry and the expiry choices are read at the same instant. */
@@ -60,7 +60,7 @@ export default async function AgentTokensPage({
       </header>
       <div className="screen">
         <div className="screen-head">
-          <h1>Agent tokens</h1>
+          <h1>Settings</h1>
           <p>
             A token lets your own AI agent use this project through MCP. A token belongs to one
             project and expires after 30 days by default. The app stores only a hash of the secret.
@@ -68,6 +68,7 @@ export default async function AgentTokensPage({
         </div>
         <div className="grid2" style={{ alignItems: 'start' }}>
           <div className="stack">
+            <h2>Agent access</h2>
             <TokenList
               projectId={id}
               tokens={page.items}

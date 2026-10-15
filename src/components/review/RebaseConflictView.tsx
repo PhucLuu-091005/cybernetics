@@ -2,6 +2,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { Conflict, ConflictResolution, Proposal, RebasePreview } from '../../contracts';
+import { reviewHref } from '../review-queue/state';
 import { send, type ApiError } from '../inbox/api';
 import { ConflictBanner } from './ConflictBanner';
 import { entityTitle, fieldLines, newestImage, type Names } from './describe';
@@ -120,7 +121,7 @@ export function RebaseConflictView({ projectId, preview, names, kept }: Props) {
     );
     setBusy(false);
     if (result.ok)
-      router.push(`/projects/${projectId}/proposals/${preview.proposalId}/review?rebased=1`);
+      router.push(`${reviewHref(projectId, { tab: 'sets', item: preview.proposalId })}&updated=1`);
     else setFailure(result.error);
   };
 
@@ -130,10 +131,10 @@ export function RebaseConflictView({ projectId, preview, names, kept }: Props) {
         <ConflictBanner
           title={
             failure.status === 409
-              ? 'Conflict: the rebase inputs changed.'
-              : 'The rebase was not applied.'
+              ? 'Conflict: the graph or the change set changed.'
+              : 'Nothing changed.'
           }
-          message="Your choices are kept. Preview the rebase again if main, the draft or the evidence moved."
+          message="Your choices are kept. Reload the page and choose again."
           error={failure}
           actions={
             <button className="btn" type="button" onClick={() => router.refresh()}>
@@ -196,12 +197,7 @@ export function RebaseConflictView({ projectId, preview, names, kept }: Props) {
                 lines={main}
                 highlight
               />
-              <Side
-                testId="side-proposal"
-                heading={`Your proposal r${preview.proposalRevision}`}
-                lines={proposed}
-                highlight
-              />
+              <Side testId="side-proposal" heading={'Your change set'} lines={proposed} highlight />
               <div className="choices" role="radiogroup" aria-label={`Resolution for ${title}`}>
                 {(['main', 'proposal', 'replacement'] as const).map((option) => (
                   <label key={option}>
@@ -214,9 +210,9 @@ export function RebaseConflictView({ projectId, preview, names, kept }: Props) {
                       onChange={() => choose(conflict, { choice: option })}
                     />{' '}
                     {option === 'main'
-                      ? 'Keep main'
+                      ? 'Keep approved'
                       : option === 'proposal'
-                        ? 'Keep proposal'
+                        ? 'Keep change set'
                         : 'Replace with'}
                   </label>
                 ))}
@@ -256,12 +252,12 @@ export function RebaseConflictView({ projectId, preview, names, kept }: Props) {
           disabled={!hydrated || busy || !ready}
           onClick={apply}
         >
-          Apply resolutions to the draft
+          Apply my choices
         </button>
         <span className="faint" style={{ fontSize: 12 }}>
           {ready
             ? `Ready. Applying moves the draft base to ${preview.mainCommitId.slice(0, 7)} and its revision to ${preview.proposalRevision + 1}. Then review the fresh diff.`
-            : 'Choose a resolution for each conflict. After applying, review a fresh diff before you merge.'}
+            : 'Choose one side for each conflict. Then check the changes again before you approve.'}
         </span>
       </div>
     </div>
