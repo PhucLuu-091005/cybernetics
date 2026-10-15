@@ -1,5 +1,7 @@
 import type { Node, NodeProps } from '@xyflow/react';
 import type { GatewayLayout } from '../../contracts/layout';
+import { SCREEN_MIN } from '../../lib/graph-layout';
+import { useGraphUi } from './ui-context';
 
 export type GatewayNodeType = Node<{ gateway: GatewayLayout }, 'gateway'>;
 export const GATEWAY_SIZE = 24;
@@ -19,7 +21,8 @@ const ICON: Record<GatewayLayout['kind'], string[]> = {
 /** A diamond where work changes hands; its native tooltip names the loops on both sides. */
 export function GatewayNode({ data }: NodeProps<GatewayNodeType>) {
   const { gateway } = data,
-    half = GATEWAY_SIZE / 2;
+    half = GATEWAY_SIZE / 2,
+    scale = Math.max(1, SCREEN_MIN.icon / (16 * useGraphUi().zoom));
   return (
     <svg
       width={GATEWAY_SIZE}
@@ -30,25 +33,27 @@ export function GatewayNode({ data }: NodeProps<GatewayNodeType>) {
       style={{ display: 'block', overflow: 'visible' }}
     >
       <title>{gateway.accessibleName}</title>
-      <rect
-        x={half - 8}
-        y={half - 8}
-        width={16}
-        height={16}
-        rx={3}
-        transform={`rotate(45 ${half} ${half})`}
-      />
-      <g
-        transform={`translate(${half - 5} ${half - 5}) scale(${10 / 24})`}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2.6}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        {ICON[gateway.kind].map((d) => (
-          <path key={d} d={d} />
-        ))}
+      <g transform={`translate(${half} ${half}) scale(${scale}) translate(${-half} ${-half})`}>
+        <rect
+          x={half - 8}
+          y={half - 8}
+          width={16}
+          height={16}
+          rx={3}
+          transform={`rotate(45 ${half} ${half})`}
+        />
+        <g
+          transform={`translate(${half - 5} ${half - 5}) scale(${10 / 24})`}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2.6}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          {ICON[gateway.kind].map((d) => (
+            <path key={d} d={d} />
+          ))}
+        </g>
       </g>
     </svg>
   );
