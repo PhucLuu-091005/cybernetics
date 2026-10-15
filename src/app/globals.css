@@ -725,7 +725,21 @@
   }
   .lane-col > .side {
     font-size: 11px;
+    font-weight: 600;
     color: var(--ink-3);
+  }
+  .lane-grip {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 6px;
+    cursor: row-resize;
+    touch-action: none;
+  }
+  .lane-grip:hover,
+  .lane-grip:active {
+    background: color-mix(in srgb, var(--focus) 45%, transparent);
   }
   .lod-0 .br-title,
   .lod-0 .ms-name {
@@ -1117,6 +1131,68 @@
     inset: -3px;
     border-radius: 50%;
     box-shadow: 0 0 0 2px var(--focus);
+  }
+  .hover-card {
+    position: absolute;
+    z-index: 7;
+    box-sizing: border-box;
+    padding: 8px 10px 9px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--tone) 7%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--tone) 45%, var(--rule));
+    box-shadow: var(--shadow);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .hc-loop {
+    margin-bottom: 3px;
+    font-size: 11px;
+    color: var(--ink-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hc-loop b {
+    font-weight: 650;
+    color: var(--ink);
+  }
+  .hc-list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    max-height: 320px;
+    overflow: auto;
+  }
+  .hc-list > div + div {
+    border-top: 1px solid var(--rule);
+    padding-top: 6px;
+  }
+  .hc-more {
+    font-size: 11px;
+    color: var(--ink-3);
+  }
+  .hover-card .ev-q.one {
+    min-height: 0;
+    margin: 0;
+    -webkit-line-clamp: 1;
+  }
+  .line-tag {
+    position: absolute;
+    z-index: 7;
+    pointer-events: none;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--ink);
+    color: var(--surface);
+    font-size: 12px;
+    white-space: nowrap;
+    box-shadow: var(--shadow);
+  }
+  .line-tag b {
+    font-weight: 600;
+  }
+  .line-tag span {
+    opacity: 0.7;
   }
   .ev-card {
     box-sizing: border-box;

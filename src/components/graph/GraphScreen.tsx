@@ -485,6 +485,7 @@ export function GraphScreen({
               />
             )}
             <PromiseGraph
+              laneScaleKey={`promise-graph:lane-scale:${projectId}`}
               title={title}
               context={context}
               layout={layout}

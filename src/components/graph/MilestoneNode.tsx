@@ -1,6 +1,7 @@
 import type { Node, NodeProps } from '@xyflow/react';
 import type { MilestoneStatus } from '../../contracts/engine';
 import type { MilestoneLayout } from '../../contracts/layout';
+import { atLeast } from '../../lib/graph-layout';
 import { milestoneKey, useGraphUi } from './ui-context';
 
 export type MilestoneNodeType = Node<
@@ -15,7 +16,7 @@ export function MilestoneNode({ data }: NodeProps<MilestoneNodeType>) {
     key = milestoneKey(milestone.id);
   const x = MILESTONE_NODE.width / 2,
     y = MILESTONE_NODE.height / 2,
-    size = 9;
+    size = atLeast(9, 7, ui.zoom);
   const stroke =
     status === 'blocked'
       ? 'var(--danger)'
@@ -41,13 +42,19 @@ export function MilestoneNode({ data }: NodeProps<MilestoneNodeType>) {
         onFocus={(event) => ui.navFocus(event, key)}
         style={{ pointerEvents: 'all' }}
       >
-        <rect x={x - 14} y={y - 14} width={28} height={28} fill="transparent" />
+        <rect
+          x={x - size - 5}
+          y={y - size - 5}
+          width={2 * size + 10}
+          height={2 * size + 10}
+          fill="transparent"
+        />
         <polygon
           className="dia"
           points={`${x},${y - size} ${x + size},${y} ${x},${y + size} ${x - size},${y}`}
           fill={status === 'reached' ? 'var(--trunk)' : 'var(--surface)'}
           stroke={stroke}
-          strokeWidth={2.4}
+          strokeWidth={atLeast(2.4, 1.8, ui.zoom)}
         />
         {status === 'blocked' && (
           <path

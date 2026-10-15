@@ -1,0 +1,850 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Graph Zoom Out</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500;600&display=swap">
+<style>
+:root {
+  --panel: #fafafa; --surface: #ffffff; --sunk: #f4f4f5; --ink: #0a0a0a; --ink-2: #525252; --ink-3: #8a8a8a;
+  --rule: #ebebeb; --rule-2: #f2f2f2; --stripe: #fbfbfb;
+  --proceed: #16a34a; --route: #2563eb; --danger: #dc2626; --caution: #d97706; --isolated: #a3a3a3;
+  --proceed-bg: #dcfce7; --route-bg: #dbeafe; --danger-bg: #fee2e2; --caution-bg: #fef3c7; --isolated-bg: #f4f4f5;
+  --focus: #2563eb; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 8px 24px -12px rgba(0,0,0,.18);
+  --f-ui: 'Geist', system-ui, sans-serif; --f-id: 'Geist Mono', ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --panel: #0a0a0a; --surface: #111111; --sunk: #191919; --ink: #ededed; --ink-2: #b3b3b3; --ink-3: #7a7a7a;
+    --rule: #262626; --rule-2: #1c1c1c; --stripe: #141414;
+    --proceed: #4ade80; --route: #60a5fa; --danger: #f87171; --caution: #fbbf24; --isolated: #6b6b6b;
+    --proceed-bg: #052e16; --route-bg: #0c1f3d; --danger-bg: #3b0d0d; --caution-bg: #3a2a05; --isolated-bg: #1c1c1c;
+    --focus: #60a5fa; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 28px -12px rgba(0,0,0,.75);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --panel: #0a0a0a; --surface: #111111; --sunk: #191919; --ink: #ededed; --ink-2: #b3b3b3; --ink-3: #7a7a7a;
+  --rule: #262626; --rule-2: #1c1c1c; --stripe: #141414;
+  --proceed: #4ade80; --route: #60a5fa; --danger: #f87171; --caution: #fbbf24; --isolated: #6b6b6b;
+  --proceed-bg: #052e16; --route-bg: #0c1f3d; --danger-bg: #3b0d0d; --caution-bg: #3a2a05; --isolated-bg: #1c1c1c;
+  --focus: #60a5fa; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 28px -12px rgba(0,0,0,.75);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--panel); color: var(--ink); font: 14px/1.5 var(--f-ui); }
+main { max-width: 1280px; margin: 0 auto; padding: 24px 16px 56px; }
+h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; letter-spacing: -.01em; }
+.lede { color: var(--ink-2); margin: 0 0 16px; max-width: 860px; }
+.why { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; max-width: 860px; }
+.why b { font-weight: 600; }
+.why ul { margin: 6px 0 0; padding-left: 18px; color: var(--ink-2); }
+.bar { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 0; background: var(--panel); border-bottom: 1px solid var(--rule); margin-bottom: 16px; }
+.bar .lbl { font-size: 12px; color: var(--ink-3); margin-right: 2px; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); padding: 2px; }
+.seg button { font: 500 12.5px var(--f-id); border: 0; background: transparent; color: var(--ink-2); padding: 4px 10px; border-radius: 6px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.seg button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.hint { font-size: 12px; color: var(--ink-3); margin-left: auto; }
+.grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 1100px) { .grid { grid-template-columns: 1fr 1fr; } }
+.opt { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); min-width: 0; }
+.opt.rec { border-color: var(--route); box-shadow: 0 0 0 1px var(--route), var(--shadow); }
+.opt header { padding: 12px 14px 8px; }
+.opt h2 { font-size: 15px; font-weight: 600; margin: 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tag { font: 600 11px var(--f-id); padding: 1px 6px; border-radius: 5px; background: var(--sunk); color: var(--ink-2); }
+.tag.rec { background: var(--route-bg); color: var(--route); }
+.opt p { margin: 4px 0 0; color: var(--ink-2); font-size: 13px; }
+.pc { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; font-size: 12.5px; }
+.pc ul { margin: 0; padding-left: 16px; color: var(--ink-2); }
+.pc b { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); }
+.stage { position: relative; border-top: 1px solid var(--rule); height: 440px; cursor: grab; touch-action: none; user-select: none; }
+.stage.panning { cursor: grabbing; }
+.stage svg { display: block; width: 100%; height: 100%; }
+svg text { font-family: var(--f-ui); }
+.tip { position: fixed; z-index: 20; pointer-events: none; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; box-shadow: var(--shadow); padding: 8px 10px; font-size: 12.5px; max-width: 260px; display: none; }
+.tip b { font-weight: 600; display: block; }
+.tip span { color: var(--ink-2); }
+h2.sec { font-size: 18px; font-weight: 600; margin: 36px 0 4px; letter-spacing: -.01em; }
+.grid3 { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 1100px) { .grid3 { grid-template-columns: 1fr 1fr; } .grid3 .opt.rec { grid-column: 1 / -1; } }
+.stage.tasks { height: 390px; }
+.bar-g, .conn { transition: opacity .12s; }
+.focusing .bar-g:not(.on), .focusing .conn:not(.on) { opacity: .18; }
+.stage[data-mode="c3"] .conn { opacity: 0; }
+.stage[data-mode="c3"] .conn.on { opacity: .95; }
+.opt.try { border-color: var(--caution); box-shadow: 0 0 0 1px var(--caution), var(--shadow); margin-bottom: 16px; }
+.tag.try { background: var(--caution-bg); color: var(--caution); }
+.opt .chk { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--ink-2); margin-top: 8px; cursor: pointer; }
+.stage.hover { cursor: default; }
+.lane-grip { fill: transparent; cursor: row-resize; }
+.lane-grip:hover { fill: var(--focus); fill-opacity: .35; }
+button.reset { font: 500 12px var(--f-ui); border: 1px solid var(--rule); background: var(--surface); color: var(--ink-2); border-radius: 6px; padding: 2px 8px; cursor: pointer; margin-left: 6px; }
+.line-tag { position: fixed; z-index: 21; pointer-events: none; display: none; padding: 3px 8px; border-radius: 6px; background: var(--ink); color: var(--surface); font-size: 12px; font-weight: 600; white-space: nowrap; box-shadow: var(--shadow); }
+.line-tag span { font-weight: 400; opacity: .7; }
+.ev-card { position: fixed; z-index: 22; display: none; width: 236px; padding: 8px 10px 9px; border-radius: 10px; font-size: 12px; line-height: 1.35;
+  background: color-mix(in srgb, var(--tone) 7%, var(--surface)); border: 1px solid color-mix(in srgb, var(--tone) 45%, var(--rule)); box-shadow: var(--shadow); }
+.ev-card .loop b { color: var(--ink); font-weight: 650; }
+.ev-card .loop { font-size: 11px; color: var(--ink-3); margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev-h, .ev-p { display: flex; align-items: center; gap: 6px; }
+.ev-h svg, .ev-s svg { flex: none; color: var(--tone); }
+.ev-s svg { color: var(--ink-2); }
+.ev-list > div { min-width: 0; }
+.ev-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; max-height: 320px; overflow: auto; }
+.ev-list > div + div { border-top: 1px solid var(--rule); padding-top: 6px; }
+.ev-q.one { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
+.ev-more { color: var(--ink-3); font-size: 11px; }
+.ev-h i { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--tone); background: var(--surface); flex: none; }
+.ev-h i.brk { background: var(--danger); border-color: var(--danger); }
+.ev-h b { font-weight: 600; }
+.ev-h .d, .ev-p .d { flex: none; white-space: nowrap; margin-left: auto; color: var(--ink-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ev-p { color: var(--ink-2); margin: 2px 0 3px; }
+.ev-q { color: var(--ink); margin: 0 0 5px; }
+.ev-q::before { content: '\201C'; color: var(--ink-3); } .ev-q::after { content: '\201D'; color: var(--ink-3); }
+.ev-s { display: flex; gap: 5px; align-items: center; color: var(--ink); font-weight: 500; font-size: 11.5px; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 2px; }
+ color: var(--ink-3); font-size: 12.5px; max-width: 860px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Đồ thị khi zoom ra: các phương án</h1>
+  <p class="lede">Cùng một dữ liệu (7 phòng ban, 12 vòng lời hứa, 5 tháng). Chọn mức zoom ở thanh trên, kéo để di chuyển, rê chuột lên một đường để xem chi tiết. Cả 4 khung dùng chung mức zoom và vị trí.</p>
+  <div class="why">
+    <b>Vì sao bây giờ khó nhìn.</b> Zoom hiện tại thu nhỏ mọi thứ theo cùng một tỉ lệ (zoom hình học kiểu Miro):
+    <ul>
+      <li>Ở 10 %: nét 3 px còn 0,3 px, icon 18 px còn 1,8 px, hàng 64 px còn 6,4 px. Các đường dính vào nhau.</li>
+      <li>Dưới 60 % ứng dụng ẩn tên vòng; dưới 45 % ẩn thẻ sự kiện. Không còn chữ nào trên canvas.</li>
+      <li>Muốn thấy cả dự án 5 tháng thì phải zoom khoảng 5 %, đúng vùng tệ nhất.</li>
+    </ul>
+  </div>
+  <div class="bar">
+    <span class="lbl">Zoom</span>
+    <div class="seg" id="zoom"></div>
+    <span class="lbl" style="margin-left:8px">Giao diện</span>
+    <div class="seg" id="theme">
+      <button data-t="auto" aria-pressed="true">Tự động</button><button data-t="light">Sáng</button><button data-t="dark">Tối</button>
+    </div>
+    <span class="hint">Kéo để di chuyển · rê chuột để xem chi tiết</span>
+  </div>
+  <section class="opt try">
+    <header>
+      <h2><span class="tag try">A+ · Thử trên dữ liệu mẫu</span>Larkspur Fund III: cỡ tối thiểu, rê chuột để xem</h2>
+      <p>Layout thật của app (9 phòng ban, 36 nhánh, 114 sự kiện), tính bằng <code>layoutPromiseGraph</code>. Trục thời gian zoom như hiện nay. Nét không mỏng hơn 2,5 px, icon không nhỏ hơn 14 px. Trục chính (đường đen, đậm 4,5 px, có các mốc) nằm trên cùng, ngay dưới trục ngày tháng; các nhánh tách xuống từ đó. Rê chuột lên icon để xem thẻ sự kiện; đưa chuột vào thẻ thì thẻ vẫn mở. Rê chuột lên đường để xem tên vòng. Kéo để di chuyển theo cả hai chiều.</p>
+      <label class="chk"><input type="checkbox" id="cluster" checked> Gộp các icon chồng lên nhau: hiện icon quan trọng nhất, phía sau có lớp màu xếp chồng, không dùng số (rê chuột để xem danh sách)</label>
+      <span class="chk" style="margin-left:16px">Kéo mép dưới tên một phòng ban để đổi chiều cao hàng đó; bấm đúp để trả về mặc định. <button id="resetLanes" class="reset">Đặt lại tất cả</button></span>
+    </header>
+    <div class="stage real" data-mode="real" style="height:520px"></div>
+  </section>
+  <div class="grid">
+    <section class="opt">
+      <header>
+        <h2><span class="tag">0</span>Hiện tại</h2>
+        <p>Mọi thứ thu nhỏ theo zoom. Tên vòng và thẻ ẩn khi zoom thấp.</p>
+      </header>
+      <div class="stage" data-mode="now"></div>
+    </section>
+    <section class="opt">
+      <header>
+        <h2><span class="tag">A</span>Nét và icon có cỡ tối thiểu</h2>
+        <p>Vẫn zoom hình học. Nét không mỏng hơn 2,5 px, icon không nhỏ hơn 9 px trên màn hình.</p>
+        <div class="pc">
+          <div><b>Được</b><ul><li>Sửa nhỏ, khoảng nửa ngày.</li><li>Giữ nguyên cách zoom kiểu Miro.</li></ul></div>
+          <div><b>Chưa được</b><ul><li>Hàng vẫn co còn vài px, đường đè lên nhau.</li><li>Vẫn không có chữ.</li></ul></div>
+        </div>
+      </header>
+      <div class="stage" data-mode="floor"></div>
+    </section>
+    <section class="opt">
+      <header>
+        <h2><span class="tag">B</span>Zoom theo thời gian, giữ chiều cao hàng</h2>
+        <p>Khi thẻ ẩn (dưới 45 %), zoom chỉ co trục thời gian như Linear Timeline hoặc Gantt. Hàng giữ 34 px, nét 3 px, tên vòng dính mép trái, sự kiện gần nhau gộp thành số.</p>
+        <div class="pc">
+          <div><b>Được</b><ul><li>Luôn đọc được tên vòng và màu trạng thái.</li><li>Sự kiện dày đặc vẫn đếm được.</li></ul></div>
+          <div><b>Chưa được</b><ul><li>Dự án nhiều vòng phải cuộn dọc.</li><li>Zoom không còn "hình học" dưới 45 %.</li></ul></div>
+        </div>
+      </header>
+      <div class="stage" data-mode="time"></div>
+    </section>
+    <section class="opt rec">
+      <header>
+        <h2><span class="tag rec">C · Đề xuất</span>Thanh tổng quan (semantic zoom)</h2>
+        <p>Giống B, nhưng mỗi vòng thành một thanh màu có tên bên trong. Sự kiện thành vạch nhỏ, sự cố thành chấm đỏ. Giống roadmap của Linear.</p>
+        <div class="pc">
+          <div><b>Được</b><ul><li>Nhìn cả dự án trong một màn hình: tên, độ dài, trạng thái, sự cố.</li><li>Ít nhiễu nhất khi zoom rất xa.</li></ul></div>
+          <div><b>Chưa được</b><ul><li>Thêm một kiểu vẽ thứ hai cần giữ đồng bộ.</li><li>Khoảng 1–1,5 ngày làm.</li></ul></div>
+        </div>
+      </header>
+      <div class="stage" data-mode="bars"></div>
+    </section>
+  </div>
+  <h2 class="sec">Khi một vòng chia thành việc con ở nhiều phòng ban (cách vẽ trong phương án C)</h2>
+  <p class="lede">Ví dụ: <b>SSO for CRS</b> (Engineering) chia thành 4 việc con. Security review (Legal) và Login UI (Design) tách ra cùng lúc. Security review chuyển giao cho IdP config (Ops). Khi IdP config và Login UI cùng xong, Pilot rollout (Sales) bắt đầu. Rê chuột lên SSO for CRS hoặc một việc con.</p>
+  <div class="grid3">
+    <section class="opt">
+      <header>
+        <h2><span class="tag">C1</span>Thanh con và đường nối luôn hiện</h2>
+        <p>Mỗi việc con là một thanh mỏng trong hàng của phòng ban nhận việc. Đường nối màu của vòng cha cho thấy tách, chuyển giao và gộp.</p>
+        <div class="pc">
+          <div><b>Được</b><ul><li>Thấy luồng chuyển giao ngay, không cần thao tác.</li></ul></div>
+          <div><b>Chưa được</b><ul><li>Nhiều vòng có việc con thì các đường nối cắt nhau.</li></ul></div>
+        </div>
+      </header>
+      <div class="stage tasks" data-mode="c1"></div>
+    </section>
+    <section class="opt">
+      <header>
+        <h2><span class="tag">C2</span>Gộp việc con vào thanh cha</h2>
+        <p>Việc con không có thanh riêng. Thanh cha ghi "4 việc · 3 xong" và có vạch nhỏ ở mỗi lúc tách việc. Bấm vào thanh cha để mở ra như C1.</p>
+        <div class="pc">
+          <div><b>Được</b><ul><li>Gọn nhất, ít hàng nhất.</li></ul></div>
+          <div><b>Chưa được</b><ul><li>Hàng Legal, Ops, Sales không cho thấy họ đang giữ việc của SSO.</li></ul></div>
+        </div>
+      </header>
+      <div class="stage tasks" data-mode="c2"></div>
+    </section>
+    <section class="opt rec">
+      <header>
+        <h2><span class="tag rec">C3 · Đề xuất</span>Thanh con luôn hiện, đường nối hiện khi rê chuột hoặc chọn</h2>
+        <p>Giống C1, nhưng đường nối ẩn cho đến khi người dùng rê chuột lên hoặc chọn vòng cha hay một việc con. Khi đó cả nhóm sáng lên, các thanh khác mờ đi. Thanh cha luôn ghi số việc con.</p>
+        <div class="pc">
+          <div><b>Được</b><ul><li>Mỗi phòng ban thấy việc mình đang giữ.</li><li>Canvas không rối khi có nhiều vòng chia việc.</li></ul></div>
+          <div><b>Chưa được</b><ul><li>Phải rê chuột hoặc chạm mới thấy luồng chuyển giao.</li></ul></div>
+        </div>
+      </header>
+      <div class="stage tasks" data-mode="c3"></div>
+    </section>
+  </div>
+  <footer>Có thể thêm cho mọi phương án: (1) thẻ chi tiết khi rê chuột lên đường; (2) rê chuột lên một vòng trong danh sách thì đường đó sáng lên, các đường khác mờ đi; (3) ngưỡng chuyển sang chế độ tổng quan đặt ở 45 %, cùng ngưỡng ẩn thẻ hiện nay.</footer>
+</main>
+<script type="application/json" id="larkspur">{"width":24766,"height":3016,"trunkY":2193,"xT":22382,"months":[["2026-06-15",0],["2026-07-01",3128],["2026-08-01",8634],["2026-09-01",14814],["2026-10-01",21546],["2026-11-01",23806]],"lanes":[["Implementation","vendor",1424,740],["Digitization","vendor",1048,376],["Solutions Engineering","vendor",672,376],["Engineering","vendor",296,376],["Digitization QA","vendor",220,76],["Customer Success","vendor",26,194],["Fund Operations","client",2222,376],["Legal","client",2598,194],["IT","client",2792,194]],"branches":[{"t":"Kickoff agenda","d":"Implementation","s":"Implementation, closed","y":2126,"p":"M77 2193 C89 2193 81 2126 93 2126 H574 C586 2126 578 2193 590 2193","x0":93,"x1":574,"seg":[[93,574,"solid","green"]],"g":[["a098c129-029f-4cc7-9772-0dd1fe9d37e1","request",93],["59ebf5bf-c3e2-484f-9318-97bbfcf4b0fd","promise",279],["8ba287bc-f929-4dc1-bdad-9e4d83a172f4","report_done",465]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"Workspace access","d":"Engineering","s":"Engineering, closed","y":634,"p":"M859 2193 C871 2193 863 634 875 634 H1356 C1368 634 1360 2193 1372 2193","x0":875,"x1":1356,"seg":[[875,1356,"solid","green"]],"g":[["4e7982a1-23a0-4551-87ed-13b96e24c1d6","request",875],["90357500-e800-4ef0-bfe6-bdd07b08aa51","promise",1061],["f58aeee5-132c-4e19-a65b-3f23f2606745","report_done",1247]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"Contact register","d":"Fund Operations","s":"Fund Operations, closed","y":2378,"p":"M1641 2193 C1653 2193 1645 2378 1657 2378 H2138 C2150 2378 2142 2193 2154 2193","x0":1657,"x1":2138,"seg":[[1657,2138,"solid","green"]],"g":[["ae619e97-1f12-4095-b9b5-fc093a01405d","request",1657],["a5ce2e33-5a65-4801-84a3-64bd42529406","promise",1843],["093a41df-00cc-4045-b0d6-14478947af75","report_done",2029]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"Statement of work signature","d":"Legal","s":"Legal, closed","y":2754,"p":"M2359 2193 C2371 2193 2363 2754 2375 2754 H2856 C2868 2754 2860 2193 2872 2193","x0":2375,"x1":2856,"seg":[[2375,2856,"solid","green"]],"g":[["4bb43390-6201-426a-936a-d251917998fe","request",2375],["333b8e0b-ba94-4b84-adc4-f379d7e4c23d","promise",2561],["47c30215-6c82-48f3-9d6f-1b7ad8837211","report_done",2747]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"Investor roles","d":"Digitization","s":"Digitization, closed","y":1386,"p":"M3205 2193 C3217 2193 3209 1386 3221 1386 H3702 C3714 1386 3706 2193 3718 2193","x0":3221,"x1":3702,"seg":[[3221,3702,"solid","green"]],"g":[["365620ed-8437-4f40-a09a-0529dfc5d3c0","request",3221],["7bd0da8d-4d37-4017-a614-dc0744f1f5da","promise",3407],["937efd7b-c525-4276-af03-4e8090d119af","report_done",3593]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"Subscription documents","d":"Fund Operations","s":"Fund Operations, late delivery","y":2378,"p":"M3795 2193 C3807 2193 3799 2378 3811 2378 H7804 C7816 2378 7808 2193 7820 2193","x0":3811,"x1":7804,"seg":[[3811,5064,"solid","green"],[5064,7804,"solid","red"]],"g":[["9ba60fb2-49f9-4197-a0d9-125f54c03741","request",3811],["b83c4dfa-8322-45df-94f4-1afd7aa39816","promise",3997],["5046474d-fb32-4dd9-97be-5769d63b0585","report_done",7567]],"m":[5064],"bd":["Late delivery"],"task":false,"tasks":null},{"t":"Go-live date","d":"Implementation","s":"Implementation, promised","y":2126,"p":"M3795 2193 C3807 2193 3799 2126 3811 2126 H22382","x0":3811,"x1":22382,"seg":[[3811,22382,"solid","blue"]],"g":[["4b16f51b-e27a-4eee-b7b5-e803bc5194a1","request",3811],["94f5c370-711a-4039-9e20-a02d1fd5e70d","promise",3997],["fe8cb040-d525-4e8b-9009-a911e6098e6b","renegotiate",17189],["94e84396-211b-4c56-95bb-1464890069cc","agree_change",17375]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"AML checklist","d":"Digitization","s":"Digitization, closed","y":1386,"p":"M4359 2193 C4371 2193 4363 1386 4375 1386 H4856 C4868 1386 4860 2193 4872 2193","x0":4375,"x1":4856,"seg":[[4375,4856,"solid","green"]],"g":[["ac33d50d-7704-4300-836a-d5fdc4c3083b","request",4375],["f4b9ff5a-12e5-4e6c-8b5b-43c397787d06","promise",4561],["16805b19-d4a6-46d9-ab18-cc224b72f05a","report_done",4747]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"Tax residency fields","d":"Digitization","s":"Digitization, closed","y":1386,"p":"M5269 2193 C5281 2193 5273 1386 5285 1386 H5766 C5778 1386 5770 2193 5782 2193","x0":5285,"x1":5766,"seg":[[5285,5766,"solid","green"]],"g":[["b13c7c03-f22a-469f-a194-597f8d859f76","request",5285],["02076cad-83ab-4b40-8dd2-3021f707bbae","promise",5471],["979c10af-6a05-430b-bcbf-caf383888804","report_done",5657]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"Permission matrix","d":"Engineering","s":"Engineering, closed","y":634,"p":"M6051 2193 C6063 2193 6055 634 6067 634 H6548 C6560 634 6552 2193 6564 2193","x0":6067,"x1":6548,"seg":[[6067,6548,"solid","green"]],"g":[["bb0b4072-0501-43a1-8c5d-ca06df7ea625","request",6067],["b66ab7bd-2138-4282-87ed-5064f14377b3","promise",6253],["b30ee41b-ef74-43d3-b477-d1108062929c","report_done",6439]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"Investor import sample","d":"Fund Operations","s":"Fund Operations, closed","y":2560,"p":"M6897 2193 C6909 2193 6901 2560 6913 2560 H7394 C7406 2560 7398 2193 7410 2193","x0":6913,"x1":7394,"seg":[[6913,7394,"solid","green"]],"g":[["586c9ae8-840e-4542-ad24-6f637f5414b6","request",6913],["1880c0a3-0f7f-40d4-ba16-3e90f51d218b","promise",7099],["579e8584-f992-45ce-965d-5e2922586799","report_done",7285]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"Bank detail validation","d":"Digitization","s":"Digitization, closed","y":1386,"p":"M7929 2193 C7941 2193 7933 1386 7945 1386 H8426 C8438 1386 8430 2193 8442 2193","x0":7945,"x1":8426,"seg":[[7945,8426,"solid","green"]],"g":[["cc2ad5c4-ac53-48d6-9543-43843ff8f15c","request",7945],["8dbf3b2e-c940-4c53-b90f-d3b51c7a8d36","promise",8131],["fefdd4ea-7446-46c2-8dce-e1919927f4f7","report_done",8317]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"Notification wording","d":"Customer Success","s":"Customer Success, closed","y":182,"p":"M8839 2193 C8851 2193 8843 182 8855 182 H9336 C9348 182 9340 2193 9352 2193","x0":8855,"x1":9336,"seg":[[8855,9336,"solid","green"]],"g":[["3a3bf568-32e9-4cc7-b282-359b927cae11","request",8855],["b8f1eb8d-1c8f-49cd-96de-1e80879f7b5c","promise",9041],["b8700eea-df16-46bd-81e3-ae10d8fdf417","report_done",9227]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"W-8 form logic","d":"Digitization","s":"Digitization, rejected delivery","y":1386,"p":"M8839 2193 C8851 2193 8843 1386 8855 1386 H15420 C15432 1386 15424 2193 15436 2193","x0":8855,"x1":15420,"seg":[[8855,12255,"solid","green"],[12255,15420,"solid","red"]],"g":[["37d0c1b3-fae7-49cd-906b-c97e4be594a3","request",8855],["b82d623c-3acb-4f56-a1ff-c3fc90f775b5","promise",9447],["4c8c83a8-1d4a-4740-b5ae-a4fb0624ca5e","report_done",11689],["1f58ab34-5100-4250-ac9f-680dc25ce51b","reject",12255],["54b72dd5-07b8-4956-aab8-5f9d7f62700f","report_done",14407]],"m":[12255],"bd":["Rejected delivery"],"task":false,"tasks":null},{"t":"Dynamics CRM sync scope","d":"Engineering","s":"Engineering, ambiguous promise","y":634,"p":"M9429 2193 C9441 2193 9433 634 9445 634 H22382","x0":9445,"x1":22382,"seg":[[9445,9447,"solid","blue"],[9447,9631,"solid","amber"],[9631,22382,"dashed","amber"]],"g":[["5459628a-5dbe-4800-b6fa-83611ab99814","request",9445],["34ea80c9-52b5-4f2d-812d-7620d6929478","promise",9631]],"m":[],"bd":["Ambiguous promise"],"task":false,"tasks":null},{"t":"Consent capture","d":"Digitization","s":"Digitization, closed","y":1204,"p":"M9929 2193 C9941 2193 9933 1204 9945 1204 H10426 C10438 1204 10430 2193 10442 2193","x0":9945,"x1":10426,"seg":[[9945,10426,"solid","green"]],"g":[["478b7ae9-83e0-4a49-9ef2-6d39ec90f6f9","request",9945],["674cb415-c466-40fd-aef9-908ffb197974","promise",10131],["d8e8b39e-5e5f-4976-b18d-7e033278903c","report_done",10317]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"Investor portal branding","d":"Digitization","s":"Digitization, unilateral change","y":1204,"p":"M10647 2193 C10659 2193 10651 1204 10663 1204 H22382","x0":10663,"x1":22382,"seg":[[10663,12069,"solid","blue"],[12069,22382,"dotted","red"]],"g":[["7306c7af-233e-4cca-b58e-d92b69e21c22","request",10663],["95fa7c3f-8b76-4010-9ea0-2720bac8a86b","promise",10849],["7b73aafc-6e9e-4c22-bfc9-bf71883e092d","renegotiate",12069]],"m":[12069],"bd":["Unilateral change"],"task":false,"tasks":null},{"t":"Document redaction","d":"Implementation","s":"Implementation, closed","y":1944,"p":"M11019 2193 C11031 2193 11023 1944 11035 1944 H11516 C11528 1944 11520 2193 11532 2193","x0":11035,"x1":11516,"seg":[[11035,11516,"solid","green"]],"g":[["b9a08ccb-8079-479a-922a-849dadefd39b","request",11035],["154367f5-ea8b-466d-85f0-4e3610d93a74","promise",11221],["6998bc2d-626a-4bf6-8a25-11b303094b1e","report_done",11407]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"SSO test","d":"Engineering","s":"Engineering, closed","y":452,"p":"M12051 2193 C12063 2193 12055 452 12067 452 H12548 C12560 452 12552 2193 12564 2193","x0":12067,"x1":12548,"seg":[[12067,12548,"solid","green"]],"g":[["89556bde-d18b-4599-89a7-a89fe32f60ca","request",12067],["2cd57e6e-36fb-4bf2-b80a-cddc07696b00","promise",12253],["55ab9e06-7db4-4745-95d9-fc1f9e0269b5","report_done",12439]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"Side-letter field mapping","d":"Implementation","s":"Implementation, unconfirmed delivery","y":1944,"p":"M12705 2193 C12717 2193 12709 1944 12721 1944 H22382","x0":12721,"x1":22382,"seg":[[12721,14593,"solid","blue"],[14593,22382,"solid","amber"]],"g":[["444ffcf0-d5f7-401a-a536-e7434f2b944a","request",12721],["3f962feb-1bb8-4194-8d0d-717138829c2d","promise",12909],["b92bf796-de71-4c4a-a392-dfb139294488","report_done",14593]],"m":[],"bd":["Unconfirmed delivery"],"task":false,"tasks":null},{"t":"Archive folder","d":"Implementation","s":"Implementation, closed","y":1762,"p":"M12891 2193 C12903 2193 12895 1762 12907 1762 H13388 C13400 1762 13392 2193 13404 2193","x0":12907,"x1":13388,"seg":[[12907,13388,"solid","green"]],"g":[["ca7547dc-08eb-4415-968d-6530190531dc","request",12907],["87e918a1-0e5c-4fd6-b998-25715b26e7aa","promise",13093],["a177cca8-a339-4651-b6f2-69d8ff219e76","report_done",13279]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"CSV export","d":"Engineering","s":"Engineering, closed","y":452,"p":"M13737 2193 C13749 2193 13741 452 13753 452 H14234 C14246 452 14238 2193 14250 2193","x0":13753,"x1":14234,"seg":[[13753,14234,"solid","green"]],"g":[["7969caa4-c341-45f7-91d9-675c31796b44","request",13753],["dbf506e3-ddac-45a4-acf4-c38b1ee1620f","promise",13939],["9d787645-7959-482c-a806-02fdad1a0c59","report_done",14125]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"Operations training","d":"Customer Success","s":"Customer Success, closed","y":182,"p":"M14891 2193 C14903 2193 14895 182 14907 182 H15388 C15400 182 15392 2193 15404 2193","x0":14907,"x1":15388,"seg":[[14907,15388,"solid","green"]],"g":[["4f5a750c-9d99-4468-960e-1ec6f9371673","request",14907],["8d10efa6-bebd-4018-abb2-8b97830ef5f7","promise",15093],["5f055da3-a525-4b99-b97b-7f8d02f8347f","report_done",15279]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"Client sign-off","d":"Implementation","s":"Implementation, closed","y":1762,"p":"M15609 2193 C15621 2193 15613 1762 15625 1762 H16106 C16118 1762 16110 2193 16122 2193","x0":15625,"x1":16106,"seg":[[15625,16106,"solid","green"]],"g":[["925ad050-9e4a-4575-8d61-2c54d60063f6","request",15625],["75d379da-044e-42f7-9495-5266c1da4f6e","promise",15811],["c47315eb-da1e-49e9-acc3-288ef9c4a68b","report_done",15997]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"Legal review routing","d":"Digitization","s":"Digitization, closed","y":1386,"p":"M16455 2193 C16467 2193 16459 1386 16471 1386 H16952 C16964 1386 16956 2193 16968 2193","x0":16471,"x1":16952,"seg":[[16471,16952,"solid","green"]],"g":[["d4f3b142-ba56-45ae-b846-49c976525d64","request",16471],["a2c24b25-e698-4eba-82bf-59748f4cff74","promise",16657],["9aa2638b-5a50-4460-8292-71b618db2678","report_done",16843]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"Sync monitoring","d":"Engineering","s":"Engineering, closed","y":452,"p":"M17545 2193 C17557 2193 17549 452 17561 452 H18042 C18054 452 18046 2193 18058 2193","x0":17561,"x1":18042,"seg":[[17561,18042,"solid","green"]],"g":[["9e29ac65-6b6f-4cf2-a736-9127796e2419","request",17561],["4eab5f3a-49c3-4179-82d5-d502d1495c1a","promise",17747],["e379777c-a9e3-442a-a740-a606e71d3c42","report_done",17933]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"CRS tax residency section with DealCloud sync","d":"Implementation","s":"Implementation, promised, 5 tasks, 3 done","y":1762,"p":"M17545 2193 C17557 2193 17549 1762 17561 1762 H22382","x0":17561,"x1":22382,"seg":[[17561,22382,"solid","blue"]],"g":[["d86fdd1c-851c-4fd3-a919-51c9aba926c9","request",17561],["da23791b-0676-45af-a029-5661a02157cd","promise",18337]],"m":[],"bd":[],"task":false,"tasks":{"count":5,"done":3}},{"t":"Analyse the CRS and FATCA rules for the form","d":"Digitization","s":"Digitization, closed, task of CRS tax residency section with DealCloud sync","y":1386,"p":"M18135 1762 C18147 1762 18139 1386 18151 1386 H19557","x0":18151,"x1":19557,"seg":[[18151,19557,"solid","green"]],"g":[["575ec112-87b9-4310-9538-abf8dbd86100","request",18151],["b4263ca4-4740-490c-8ada-343e82fd6ee5","promise",18337],["432ec692-266c-4930-b6cd-f68891639905","report_done",19369]],"m":[],"bd":[],"task":true,"tasks":null},{"t":"CRM integration live","d":"Engineering","s":"Engineering, closed","y":452,"p":"M18635 2193 C18647 2193 18639 452 18651 452 H19132 C19144 452 19136 2193 19148 2193","x0":18651,"x1":19132,"seg":[[18651,19132,"solid","green"]],"g":[["ff7cb9e2-8c71-4382-8172-d735740c3ba6","request",18651],["c164af5b-1d95-496e-b6ca-ac7dbe685068","promise",18837],["503a4d15-e9c8-4873-9119-0f01bc2572bd","report_done",19023]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"Client secret renewal","d":"IT","s":"IT, unanswered request","y":2948,"p":"M19539 2193 C19551 2193 19543 2948 19555 2948 H22382","x0":19555,"x1":22382,"seg":[[19555,20703,"solid","red"],[20703,22382,"dotted","red"]],"g":[["55e19ec6-af3e-4d9e-b2e0-aa6825a7bfb9","request",19555],["8d10e1f9-b32a-4505-8fdb-c156b701fb66","follow_up",20703]],"m":[19555],"bd":["Unanswered request"],"task":false,"tasks":null},{"t":"PG-201 CRS form logic","d":"Solutions Engineering","s":"Solutions Engineering, closed, task of CRS tax residency section with DealCloud sync","y":1010,"p":"M19741 1010 H21498","x0":19741,"x1":21498,"seg":[[19741,21498,"solid","green"]],"g":[["868b598b-82c2-4cb4-8a31-9602cb185693","request",19741],["7e10256e-205c-4892-a316-f6a0d39e6c1b","promise",19927],["31d06266-19b7-4bbb-8a83-c5c2cd3681de","report_done",21389]],"m":[],"bd":[],"task":true,"tasks":null},{"t":"PG-203 Country list field type","d":"Engineering","s":"Engineering, silent overdue, task of CRS tax residency section with DealCloud sync","y":452,"p":"M20113 452 H22382","x0":20113,"x1":22382,"seg":[[20113,22206,"solid","blue"],[22206,22382,"solid","red"]],"g":[["3bbe4a75-f798-4694-88e7-d1c53618a521","request",20113],["8a7d89e9-8b88-4b3b-9072-89220a2e94b2","promise",20299]],"m":[22206],"bd":["Silent overdue"],"task":true,"tasks":null},{"t":"First-close rehearsal","d":"Implementation","s":"Implementation, closed","y":1580,"p":"M20097 2193 C20109 2193 20101 1580 20113 1580 H20594 C20606 1580 20598 2193 20610 2193","x0":20113,"x1":20594,"seg":[[20113,20594,"solid","green"]],"g":[["eed6367e-43a5-4a06-9c96-3f67835fd531","request",20113],["f468925b-77ab-4d8a-98e8-67e72f94eb21","promise",20299],["83513f95-5133-4d8b-ab50-7d4ad02ade58","report_done",20485]],"m":[],"bd":[],"task":false,"tasks":null},{"t":"PG-202 DealCloud mapping for CRS fields","d":"Solutions Engineering","s":"Solutions Engineering, closed, task of CRS tax residency section with DealCloud sync","y":828,"p":"M21017 828 H21934","x0":21017,"x1":21934,"seg":[[21017,21934,"solid","green"]],"g":[["292f52bc-aee1-43da-ac21-1894d0125d56","request",21017],["8cac04b3-f005-4d76-86f2-4ffe9ef9597b","promise",21203],["c6a27783-6cd1-43c8-b402-01ac754875af","report_done",21825]],"m":[],"bd":[],"task":true,"tasks":null},{"t":"Sync incident report","d":"Customer Success","s":"Customer Success, silent overdue","y":182,"p":"M21623 2193 C21635 2193 21627 182 21639 182 H22382","x0":21639,"x1":22382,"seg":[[21639,22014,"solid","blue"],[22014,22382,"solid","red"]],"g":[["5e5b6b44-de1f-4701-8d3c-ff4e54e77328","promise",21639]],"m":[22014],"bd":["Silent overdue"],"task":false,"tasks":null},{"t":"Test the CRS section end to end","d":"Digitization QA","s":"Digitization QA, no acts yet, task of CRS tax residency section with DealCloud sync","y":258,"p":"M22382 258 H22382","x0":22382,"x1":22382,"seg":[[22382,22382,"solid","blue"]],"g":[],"m":[],"bd":[],"task":true,"tasks":null}],"ms":[[295,2193,"Kickoff","reached"],[5032,2193,"Documents received","reached"],[11689,2193,"Digitization complete","reached"],[15827,2193,"Client sign-off","reached"],[18853,2193,"CRM integration live","reached"],[22750,2193,"Go-live and first close","at risk"],[24734,2193,"Hypercare end","on track"]],"conn":[["M19557 1386 C19573 1386 19573 1010 19589 1010 H19741","green","solid"],["M19557 1386 C19573 1386 19573 452 19589 452 H20113","amber","dashed"],["M19557 1386 C19573 1386 19573 828 19589 828 H21017","amber","dashed"],["M21498 1010 C21956 1010 21956 258 22414 258","green","solid"],["M21934 828 C22174 828 22174 258 22414 258","green","solid"],["M22382 452 C22398 452 22398 258 22414 258","red","dotted"],["M22414 258 H22382","amber","dashed"]],"acts":{"444ffcf0-d5f7-401a-a536-e7434f2b944a":["request","Request","20 Aug 09:20","Priya Shah","Please map the side-letter fields for the legal review.","gmail:side-letter-mapping","gmail"],"3f962feb-1bb8-4194-8d0d-717138829c2d":["promise","Promise","21 Aug 10:45","Minh Trần","I will map the side-letter fields by 29 August.","gmail:side-letter-mapping","gmail"],"b92bf796-de71-4c4a-a392-dfb139294488":["report_done","Report done","29 Aug 15:10","Minh Trần","The side-letter field mapping is done in staging.","gmail:side-letter-mapping","gmail"],"9ba60fb2-49f9-4197-a0d9-125f54c03741":["request","Request","2 Jul 09:20","Minh Trần","Please send the subscription documents by 10 July.","gmail:subscription-documents","gmail"],"b83c4dfa-8322-45df-94f4-1afd7aa39816":["promise","Promise","3 Jul 10:45","Sarah Kim","I will send the subscription documents by 10 July.","gmail:subscription-documents","gmail"],"5046474d-fb32-4dd9-97be-5769d63b0585":["report_done","Report done","24 Jul 15:10","Sarah Kim","The subscription documents are attached and complete.","gmail:subscription-documents","gmail"],"9059faf7-387c-4ea0-b499-aee212fa73b8":["accept","Accept","27 Jul 16:40","Minh Trần","Checked all subscription documents; these are complete. Thank you.","gmail:subscription-documents","gmail"],"292f52bc-aee1-43da-ac21-1894d0125d56":["request","Request","28 Sep 09:20","Lan Phạm","Please map the CRS fields to DealCloud.","linear:PG-202","linear"],"8cac04b3-f005-4d76-86f2-4ffe9ef9597b":["promise","Promise","28 Sep 10:45","Khoa Lê","I will finish the DealCloud mapping by 2 October.","linear:PG-202","linear"],"c6a27783-6cd1-43c8-b402-01ac754875af":["report_done","Report done","2 Oct 15:10","Khoa Lê","Done: the CRS fields now sync to DealCloud.","linear:PG-202","linear"],"0e8082ec-675a-487a-bf3f-e746190edbbb":["accept","Accept","2 Oct 16:40","Lan Phạm","Confirmed in DealCloud, the values match.","linear:PG-202","linear"],"bb0b4072-0501-43a1-8c5d-ca06df7ea625":["request","Request","17 Jul 09:20","Tom Becker","Please apply the permission matrix.","#larkspur-it","slack"],"b66ab7bd-2138-4282-87ed-5064f14377b3":["promise","Promise","17 Jul 10:45","Quang Nguyễn","I will apply the permission matrix today.","#larkspur-it","slack"],"b30ee41b-ef74-43d3-b477-d1108062929c":["report_done","Report done","17 Jul 15:10","Quang Nguyễn","Completed: apply the permission matrix. ✅","#larkspur-it","slack"],"efee937e-050e-4f97-ad76-87d30fb2e4a7":["accept","Accept","17 Jul 16:40","Tom Becker","Checked: apply the permission matrix. Accepted, thank you.","#larkspur-it","slack"],"cc2ad5c4-ac53-48d6-9543-43843ff8f15c":["request","Request","28 Jul 09:20","Sarah Kim","Please validate bank detail fields.","#larkspur-onboarding","slack"],"8dbf3b2e-c940-4c53-b90f-d3b51c7a8d36":["promise","Promise","28 Jul 10:45","Lan Phạm","I will validate bank detail fields today.","#larkspur-onboarding","slack"],"fefdd4ea-7446-46c2-8dce-e1919927f4f7":["report_done","Report done","28 Jul 15:10","Lan Phạm","Completed: validate bank detail fields. ✅","#larkspur-onboarding","slack"],"c6e6da94-01ca-4e00-86ff-cafc5c498147":["accept","Accept","28 Jul 16:40","Sarah Kim","Checked: validate bank detail fields. Accepted, thank you.","#larkspur-onboarding","slack"],"4bb43390-6201-426a-936a-d251917998fe":["request","Request","26 Jun 09:20","Daniel Reyes","Please sign the statement of work.","gmail:sow-signature","gmail"],"333b8e0b-ba94-4b84-adc4-f379d7e4c23d":["promise","Promise","26 Jun 10:45","Priya Shah","I will sign the statement of work today.","gmail:sow-signature","gmail"],"47c30215-6c82-48f3-9d6f-1b7ad8837211":["report_done","Report done","26 Jun 15:10","Priya Shah","Completed: sign the statement of work. ✅","gmail:sow-signature","gmail"],"83dbe1be-6d60-4bfb-93d8-0ec7202cebf1":["accept","Accept","26 Jun 16:40","Daniel Reyes","Checked: sign the statement of work. Accepted, thank you.","gmail:sow-signature","gmail"],"d4f3b142-ba56-45ae-b846-49c976525d64":["request","Request","9 Sep 09:20","Priya Shah","Please configure legal review routing.","gmail:legal-review-routing","gmail"],"a2c24b25-e698-4eba-82bf-59748f4cff74":["promise","Promise","9 Sep 10:45","Lan Phạm","I will configure legal review routing today.","gmail:legal-review-routing","gmail"],"9aa2638b-5a50-4460-8292-71b618db2678":["report_done","Report done","9 Sep 15:10","Lan Phạm","Completed: configure legal review routing. ✅","gmail:legal-review-routing","gmail"],"43231ca8-8fee-48f7-87d8-83d4e851e02b":["accept","Accept","9 Sep 16:40","Priya Shah","Checked: configure legal review routing. Accepted, thank you.","gmail:legal-review-routing","gmail"],"5e5b6b44-de1f-4701-8d3c-ff4e54e77328":["promise","Promise","1 Oct 10:45","Daniel Reyes","I will send the sync root cause report by 3 October.","#larkspur-onboarding","slack"],"7969caa4-c341-45f7-91d9-675c31796b44":["request","Request","26 Aug 09:20","Sarah Kim","Please enable the CSV export.","#larkspur-onboarding","slack"],"dbf506e3-ddac-45a4-acf4-c38b1ee1620f":["promise","Promise","26 Aug 10:45","Quang Nguyễn","I will enable the CSV export today.","#larkspur-onboarding","slack"],"9d787645-7959-482c-a806-02fdad1a0c59":["report_done","Report done","26 Aug 15:10","Quang Nguyễn","Completed: enable the CSV export. ✅","#larkspur-onboarding","slack"],"59753803-13ed-48e4-b570-a2b3aa155efa":["accept","Accept","26 Aug 16:40","Sarah Kim","Checked: enable the CSV export. Accepted, thank you.","#larkspur-onboarding","slack"],"b9a08ccb-8079-479a-922a-849dadefd39b":["request","Request","12 Aug 09:20","Priya Shah","Please redact the sample documents.","gmail:document-redaction","gmail"],"154367f5-ea8b-466d-85f0-4e3610d93a74":["promise","Promise","12 Aug 10:45","Minh Trần","I will redact the sample documents today.","gmail:document-redaction","gmail"],"6998bc2d-626a-4bf6-8a25-11b303094b1e":["report_done","Report done","12 Aug 15:10","Minh Trần","Completed: redact the sample documents. ✅","gmail:document-redaction","gmail"],"a5a2b2ce-4a86-47f2-9359-2ddb5ccec303":["accept","Accept","12 Aug 16:40","Priya Shah","Checked: redact the sample documents. Accepted, thank you.","gmail:document-redaction","gmail"],"9e29ac65-6b6f-4cf2-a736-9127796e2419":["request","Request","14 Sep 09:20","Tom Becker","Please enable sync monitoring.","#larkspur-it","slack"],"4eab5f3a-49c3-4179-82d5-d502d1495c1a":["promise","Promise","14 Sep 10:45","Quang Nguyễn","I will enable sync monitoring today.","#larkspur-it","slack"],"e379777c-a9e3-442a-a740-a606e71d3c42":["report_done","Report done","14 Sep 15:10","Quang Nguyễn","Completed: enable sync monitoring. ✅","#larkspur-it","slack"],"c3d5b320-78b8-4fa1-a6ba-9a2cbe6bedab":["accept","Accept","14 Sep 16:40","Tom Becker","Checked: enable sync monitoring. Accepted, thank you.","#larkspur-it","slack"],"868b598b-82c2-4cb4-8a31-9602cb185693":["request","Request","23 Sep 09:20","Lan Phạm","Please build the CRS show and hide logic from the analysis.","linear:PG-201","linear"],"7e10256e-205c-4892-a316-f6a0d39e6c1b":["promise","Promise","23 Sep 10:45","Khoa Lê","I will ship the CRS form logic by 30 September.","linear:PG-201","linear"],"31d06266-19b7-4bbb-8a83-c5c2cd3681de":["report_done","Report done","29 Sep 15:10","Khoa Lê","Shipped: the CRS logic is live on staging.","linear:PG-201","linear"],"ec9a47c1-011d-44c0-9bb8-e72f36f10b74":["accept","Accept","30 Sep 16:40","Lan Phạm","Checked on staging, it matches the analysis.","linear:PG-201","linear"],"7306c7af-233e-4cca-b58e-d92b69e21c22":["request","Request","10 Aug 09:20","Sarah Kim","Please apply the investor portal branding by 20 August.","#larkspur-onboarding","slack"],"95fa7c3f-8b76-4010-9ea0-2720bac8a86b":["promise","Promise","11 Aug 10:45","Lan Phạm","I will finish the investor portal branding by 20 August.","#larkspur-onboarding","slack"],"7b73aafc-6e9e-4c22-bfc9-bf71883e092d":["renegotiate","Renegotiate","18 Aug 10:40","Lan Phạm","I need to move investor portal branding to 27 August.","#larkspur-onboarding","slack"],"4e7982a1-23a0-4551-87ed-13b96e24c1d6":["request","Request","19 Jun 09:20","Tom Becker","Please enable workspace access.","#larkspur-it","slack"],"90357500-e800-4ef0-bfe6-bdd07b08aa51":["promise","Promise","19 Jun 10:45","Quang Nguyễn","I will enable workspace access today.","#larkspur-it","slack"],"f58aeee5-132c-4e19-a65b-3f23f2606745":["report_done","Report done","19 Jun 15:10","Quang Nguyễn","Completed: enable workspace access. ✅","#larkspur-it","slack"],"54fde6c5-c921-4b70-abc6-9b7a06e3114b":["accept","Accept","19 Jun 16:40","Tom Becker","Checked: enable workspace access. Accepted, thank you.","#larkspur-it","slack"],"4f5a750c-9d99-4468-960e-1ec6f9371673":["request","Request","1 Sep 09:20","Sarah Kim","Please run operations training.","#larkspur-onboarding","slack"],"8d10efa6-bebd-4018-abb2-8b97830ef5f7":["promise","Promise","1 Sep 10:45","Daniel Reyes","I will run operations training today.","#larkspur-onboarding","slack"],"5f055da3-a525-4b99-b97b-7f8d02f8347f":["report_done","Report done","1 Sep 15:10","Daniel Reyes","Completed: run operations training. ✅","#larkspur-onboarding","slack"],"50bd9de2-e688-4ee2-b4e6-d44d2ebc08db":["accept","Accept","1 Sep 16:40","Sarah Kim","Checked: run operations training. Accepted, thank you.","#larkspur-onboarding","slack"],"ff7cb9e2-8c71-4382-8172-d735740c3ba6":["request","Request","18 Sep 09:20","Tom Becker","Please enable the CRM integration.","#larkspur-it","slack"],"c164af5b-1d95-496e-b6ca-ac7dbe685068":["promise","Promise","18 Sep 10:45","Quang Nguyễn","I will enable the CRM integration today.","#larkspur-it","slack"],"503a4d15-e9c8-4873-9119-0f01bc2572bd":["report_done","Report done","18 Sep 15:10","Quang Nguyễn","Completed: enable the CRM integration. ✅","#larkspur-it","slack"],"5822dd6d-9d74-465e-b586-d3ec48cb12cb":["accept","Accept","18 Sep 16:40","Tom Becker","Checked: enable the CRM integration. Accepted, thank you.","#larkspur-it","slack"],"575ec112-87b9-4310-9538-abf8dbd86100":["request","Request","15 Sep 09:20","Minh Trần","Lan, please analyse the CRS and FATCA rules and list the fields the form needs.","#fundline-crs","slack"],"b4263ca4-4740-490c-8ada-343e82fd6ee5":["promise","Promise","15 Sep 10:45","Lan Phạm","I will send the CRS field analysis by 22 September.","#fundline-crs","slack"],"432ec692-266c-4930-b6cd-f68891639905":["report_done","Report done","21 Sep 15:10","Lan Phạm","Done: the CRS analysis with the field list is in the ticket.","#fundline-crs","slack"],"58d24519-0dc2-4e23-9654-b2f5a1567cf1":["accept","Accept","22 Sep 16:40","Minh Trần","Thanks Lan, the analysis works for us.","#fundline-crs","slack"],"3a3bf568-32e9-4cc7-b282-359b927cae11":["request","Request","3 Aug 09:20","Sarah Kim","Please review notification wording.","#larkspur-onboarding","slack"],"b8f1eb8d-1c8f-49cd-96de-1e80879f7b5c":["promise","Promise","3 Aug 10:45","Daniel Reyes","I will review notification wording today.","#larkspur-onboarding","slack"],"b8700eea-df16-46bd-81e3-ae10d8fdf417":["report_done","Report done","3 Aug 15:10","Daniel Reyes","Completed: review notification wording. ✅","#larkspur-onboarding","slack"],"753b9a2f-a837-4574-a009-c6b9dab87a13":["accept","Accept","3 Aug 16:40","Sarah Kim","Checked: review notification wording. Accepted, thank you.","#larkspur-onboarding","slack"],"ae619e97-1f12-4095-b9b5-fc093a01405d":["request","Request","23 Jun 09:20","Minh Trần","Please complete the contact register.","#larkspur-onboarding","slack"],"a5ce2e33-5a65-4801-84a3-64bd42529406":["promise","Promise","23 Jun 10:45","Sarah Kim","I will complete the contact register today.","#larkspur-onboarding","slack"],"093a41df-00cc-4045-b0d6-14478947af75":["report_done","Report done","23 Jun 15:10","Sarah Kim","Completed: complete the contact register. ✅","#larkspur-onboarding","slack"],"7da745d7-7bba-4c0d-93b4-d3d8f9dc0a85":["accept","Accept","23 Jun 16:40","Minh Trần","Checked: complete the contact register. Accepted, thank you.","#larkspur-onboarding","slack"],"478b7ae9-83e0-4a49-9ef2-6d39ec90f6f9":["request","Request","7 Aug 09:20","Priya Shah","Please configure consent capture.","gmail:consent-capture","gmail"],"674cb415-c466-40fd-aef9-908ffb197974":["promise","Promise","7 Aug 10:45","Lan Phạm","I will configure consent capture today.","gmail:consent-capture","gmail"],"d8e8b39e-5e5f-4976-b18d-7e033278903c":["report_done","Report done","7 Aug 15:10","Lan Phạm","Completed: configure consent capture. ✅","gmail:consent-capture","gmail"],"244558a6-0d26-436e-92d6-53f608a8e6eb":["accept","Accept","7 Aug 16:40","Priya Shah","Checked: configure consent capture. Accepted, thank you.","gmail:consent-capture","gmail"],"d86fdd1c-851c-4fd3-a919-51c9aba926c9":["request","Request","14 Sep 09:20","Sarah Kim","Please add a CRS tax residency section to the Fund III subscription form and sync the answers to DealCloud.","gmail:crs-section","gmail"],"da23791b-0676-45af-a029-5661a02157cd":["promise","Promise","15 Sep 10:45","Minh Trần","We will add the CRS section and the DealCloud sync by 16 October.","gmail:crs-section","gmail"],"ac33d50d-7704-4300-836a-d5fdc4c3083b":["request","Request","7 Jul 09:20","Priya Shah","Please configure the AML checklist.","gmail:aml-checklist","gmail"],"f4b9ff5a-12e5-4e6c-8b5b-43c397787d06":["promise","Promise","7 Jul 10:45","Lan Phạm","I will configure the AML checklist today.","gmail:aml-checklist","gmail"],"16805b19-d4a6-46d9-ab18-cc224b72f05a":["report_done","Report done","7 Jul 15:10","Lan Phạm","Completed: configure the AML checklist. ✅","gmail:aml-checklist","gmail"],"b36c183c-a981-4cd5-bc5e-2a6b84e41d2e":["accept","Accept","7 Jul 16:40","Priya Shah","Checked: configure the AML checklist. Accepted, thank you.","gmail:aml-checklist","gmail"],"b13c7c03-f22a-469f-a194-597f8d859f76":["request","Request","13 Jul 09:20","Sarah Kim","Please add tax residency fields.","#larkspur-onboarding","slack"],"02076cad-83ab-4b40-8dd2-3021f707bbae":["promise","Promise","13 Jul 10:45","Lan Phạm","I will add tax residency fields today.","#larkspur-onboarding","slack"],"979c10af-6a05-430b-bcbf-caf383888804":["report_done","Report done","13 Jul 15:10","Lan Phạm","Completed: add tax residency fields. ✅","#larkspur-onboarding","slack"],"6a58c121-c705-4c47-8718-5a97dc5132e4":["accept","Accept","13 Jul 16:40","Sarah Kim","Checked: add tax residency fields. Accepted, thank you.","#larkspur-onboarding","slack"],"37d0c1b3-fae7-49cd-906b-c97e4be594a3":["request","Request","3 Aug 09:20","Sarah Kim","Please configure the W-8 form logic for our investor types.","#larkspur-onboarding","slack"],"b82d623c-3acb-4f56-a1ff-c3fc90f775b5":["promise","Promise","4 Aug 10:45","Lan Phạm","I will configure the W-8 form logic.","#larkspur-onboarding","slack"],"4c8c83a8-1d4a-4740-b5ae-a4fb0624ca5e":["report_done","Report done","14 Aug 15:10","Lan Phạm","The W-8 forms are live in staging.","#larkspur-onboarding","slack"],"1f58ab34-5100-4250-ac9f-680dc25ce51b":["reject","Reject","18 Aug 11:30","Sarah Kim","The W-8 logic still shows the wrong form for partnerships.","#larkspur-onboarding","slack"],"54b72dd5-07b8-4956-aab8-5f9d7f62700f":["report_done","Report done","28 Aug 15:10","Lan Phạm","The partnership routing is fixed; the W-8 forms are ready again.","#larkspur-onboarding","slack"],"f02868f8-f9cb-4260-a245-f7ac00f63953":["accept","Accept","2 Sep 16:40","Sarah Kim","Checked the partnership cases; this works. Thanks.","#larkspur-onboarding","slack"],"89556bde-d18b-4599-89a7-a89fe32f60ca":["request","Request","18 Aug 09:20","Tom Becker","Please complete the SSO test.","#larkspur-it","slack"],"2cd57e6e-36fb-4bf2-b80a-cddc07696b00":["promise","Promise","18 Aug 10:45","Quang Nguyễn","I will complete the SSO test today.","#larkspur-it","slack"],"55ab9e06-7db4-4745-95d9-fc1f9e0269b5":["report_done","Report done","18 Aug 15:10","Quang Nguyễn","Completed: complete the SSO test. ✅","#larkspur-it","slack"],"e68a273f-37f2-490d-acf1-ac9f0a30b4fd":["accept","Accept","18 Aug 16:40","Tom Becker","Checked: complete the SSO test. Accepted, thank you.","#larkspur-it","slack"],"5459628a-5dbe-4800-b6fa-83611ab99814":["request","Request","4 Aug 09:20","Sarah Kim","Can we have the Dynamics CRM sync in phase 1?","#larkspur-onboarding","slack"],"34ea80c9-52b5-4f2d-812d-7620d6929478":["promise","Promise","4 Aug 10:45","Quang Nguyễn","We'll look into it; phase 1 should be fine.","#larkspur-onboarding","slack"],"3bbe4a75-f798-4694-88e7-d1c53618a521":["request","Request","24 Sep 09:20","Lan Phạm","We need a multi-select country list field for the CRS tax residencies.","linear:PG-203","linear"],"8a7d89e9-8b88-4b3b-9072-89220a2e94b2":["promise","Promise","24 Sep 10:45","Quang Nguyễn","I will add the country list field type by 6 October.","linear:PG-203","linear"],"365620ed-8437-4f40-a09a-0529dfc5d3c0":["request","Request","1 Jul 09:20","Sarah Kim","Please configure investor roles.","#larkspur-onboarding","slack"],"7bd0da8d-4d37-4017-a614-dc0744f1f5da":["promise","Promise","1 Jul 10:45","Lan Phạm","I will configure investor roles today.","#larkspur-onboarding","slack"],"937efd7b-c525-4276-af03-4e8090d119af":["report_done","Report done","1 Jul 15:10","Lan Phạm","Completed: configure investor roles. ✅","#larkspur-onboarding","slack"],"e447f11e-7da9-4085-b328-e77e3f7374c2":["accept","Accept","1 Jul 16:40","Sarah Kim","Checked: configure investor roles. Accepted, thank you.","#larkspur-onboarding","slack"],"ca7547dc-08eb-4415-968d-6530190531dc":["request","Request","21 Aug 09:20","Sarah Kim","Please create the archive folder.","#larkspur-onboarding","slack"],"87e918a1-0e5c-4fd6-b998-25715b26e7aa":["promise","Promise","21 Aug 10:45","Minh Trần","I will create the archive folder today.","#larkspur-onboarding","slack"],"a177cca8-a339-4651-b6f2-69d8ff219e76":["report_done","Report done","21 Aug 15:10","Minh Trần","Completed: create the archive folder. ✅","#larkspur-onboarding","slack"],"f740b051-36a4-4aff-a21f-e7131c5e3505":["accept","Accept","21 Aug 16:40","Sarah Kim","Checked: create the archive folder. Accepted, thank you.","#larkspur-onboarding","slack"],"eed6367e-43a5-4a06-9c96-3f67835fd531":["request","Request","24 Sep 09:20","Sarah Kim","Please run the first-close rehearsal.","#larkspur-onboarding","slack"],"f468925b-77ab-4d8a-98e8-67e72f94eb21":["promise","Promise","24 Sep 10:45","Minh Trần","I will run the first-close rehearsal today.","#larkspur-onboarding","slack"],"83513f95-5133-4d8b-ab50-7d4ad02ade58":["report_done","Report done","24 Sep 15:10","Minh Trần","Completed: run the first-close rehearsal. ✅","#larkspur-onboarding","slack"],"64ccbded-faa6-42f7-bae6-f12c8c133c08":["accept","Accept","24 Sep 16:40","Sarah Kim","Checked: run the first-close rehearsal. Accepted, thank you.","#larkspur-onboarding","slack"],"925ad050-9e4a-4575-8d61-2c54d60063f6":["request","Request","4 Sep 09:20","Sarah Kim","Please complete the sign-off checklist.","#larkspur-onboarding","slack"],"75d379da-044e-42f7-9495-5266c1da4f6e":["promise","Promise","4 Sep 10:45","Minh Trần","I will complete the sign-off checklist today.","#larkspur-onboarding","slack"],"c47315eb-da1e-49e9-acc3-288ef9c4a68b":["report_done","Report done","4 Sep 15:10","Minh Trần","Completed: complete the sign-off checklist. ✅","#larkspur-onboarding","slack"],"697821a2-8950-4c25-998c-b2bf30d3a26f":["accept","Accept","4 Sep 16:40","Sarah Kim","Checked: complete the sign-off checklist. Accepted, thank you.","#larkspur-onboarding","slack"],"4b16f51b-e27a-4eee-b7b5-e803bc5194a1":["request","Request","2 Jul 09:20","Sarah Kim","Can Fund III go live before the end of Q3?","gmail:go-live-plan","gmail"],"94f5c370-711a-4039-9e20-a02d1fd5e70d":["promise","Promise","3 Jul 10:45","Minh Trần","We will go live by 30 September.","gmail:go-live-plan","gmail"],"fe8cb040-d525-4e8b-9009-a911e6098e6b":["renegotiate","Renegotiate","12 Sep 10:40","Minh Trần","We need to move go-live to 15 October.","gmail:go-live-plan","gmail"],"94e84396-211b-4c56-95bb-1464890069cc":["agree_change","Agree to change","13 Sep 09:15","Sarah Kim","Understood, 15 October works.","gmail:go-live-plan","gmail"],"a098c129-029f-4cc7-9772-0dd1fe9d37e1":["request","Request","15 Jun 09:20","Sarah Kim","Please prepare the kickoff agenda.","#larkspur-onboarding","slack"],"59ebf5bf-c3e2-484f-9318-97bbfcf4b0fd":["promise","Promise","15 Jun 10:45","Minh Trần","I will prepare the kickoff agenda today.","#larkspur-onboarding","slack"],"8ba287bc-f929-4dc1-bdad-9e4d83a172f4":["report_done","Report done","15 Jun 15:10","Minh Trần","Completed: prepare the kickoff agenda. ✅","#larkspur-onboarding","slack"],"11f4afd1-ee75-4b52-83c3-7f3ea59ac4f0":["accept","Accept","15 Jun 16:40","Sarah Kim","Checked: prepare the kickoff agenda. Accepted, thank you.","#larkspur-onboarding","slack"],"586c9ae8-840e-4542-ad24-6f637f5414b6":["request","Request","22 Jul 09:20","Minh Trần","Please send the investor import sample.","#larkspur-onboarding","slack"],"1880c0a3-0f7f-40d4-ba16-3e90f51d218b":["promise","Promise","22 Jul 10:45","Sarah Kim","I will send the investor import sample today.","#larkspur-onboarding","slack"],"579e8584-f992-45ce-965d-5e2922586799":["report_done","Report done","22 Jul 15:10","Sarah Kim","Completed: send the investor import sample. ✅","#larkspur-onboarding","slack"],"77e25bdf-11ea-457c-909e-37923b7e0ecf":["accept","Accept","22 Jul 16:40","Minh Trần","Checked: send the investor import sample. Accepted, thank you.","#larkspur-onboarding","slack"],"55e19ec6-af3e-4d9e-b2e0-aa6825a7bfb9":["request","Request","22 Sep 09:20","Quang Nguyễn","Please renew the expired Azure client secret; the sync dropped 40 investors.","#larkspur-it","slack"],"8d10e1f9-b32a-4505-8fdb-c156b701fb66":["follow_up","Follow-up","25 Sep 09:30","Quang Nguyễn","Any update on the secret renewal?","#larkspur-it","slack"]}}</script>
+<div class="tip" id="tip"></div>
+<div class="line-tag" id="lineTag"></div>
+<div class="ev-card" id="evCard"></div>
+<script>
+const NS = 'http://www.w3.org/2000/svg';
+const LANE_W = 92, AXIS_H = 26, BASE_PPD = 64, BASE_ROW = 64, FIXED_ROW = 34, DAYS = 150, TODAY = 105;
+const MONTHS = [['Jun', 0], ['Jul', 30], ['Aug', 61], ['Sep', 92], ['Oct', 122]];
+const LANES = [['Sales', 2], ['Product', 2], ['Engineering', 3], ['Design', 1], ['Ops', 2], ['Finance', 1], ['Legal', 1]];
+const LOOPS = [
+  [0, 'CRS contract renewal', 5, 70, 'blue', [5, 12, 20, 33, 41, 55, 70], []],
+  [0, 'Q3 pricing promise', 60, 120, 'amber', [60, 64, 80, 95, 120], []],
+  [1, 'Onboarding v2 spec', 10, 48, 'green', [10, 18, 22, 30, 48], []],
+  [1, 'Roadmap review', 75, 140, 'blue', [75, 90, 92, 94, 110, 140], []],
+  [2, 'SSO for CRS', 20, 110, 'red', [20, 28, 35, 50, 62, 85, 110], [85]],
+  [2, 'API rate limits', 50, 90, 'green', [50, 55, 58, 70, 90], []],
+  [2, 'Data export', 95, 150, 'blue', [95, 100, 101, 102, 125, 150], []],
+  [3, 'Dashboard redesign', 30, 100, 'blue', [30, 44, 60, 61, 62, 80, 100], []],
+  [4, 'Vendor onboarding', 15, 60, 'gray', [15, 25, 60], []],
+  [4, 'Uptime SLA', 70, 150, 'amber', [70, 85, 105, 130], []],
+  [5, 'Invoice backlog', 40, 95, 'green', [40, 52, 65, 95], []],
+  [6, 'DPA signature', 55, 130, 'red', [55, 70, 88, 130], [100]],
+];
+const TONE = { blue: 'route', green: 'proceed', red: 'danger', amber: 'caution', gray: 'isolated' };
+const STATUS = { blue: 'Đang chạy', green: 'Đã đóng', red: 'Có sự cố', amber: 'Sắp đến hạn', gray: 'Đã từ chối' };
+const laneStart = [];
+LANES.reduce((row, [, rows], i) => (laneStart[i] = row, row + rows), 0);
+const used = LANES.map(() => 0);
+const loops = LOOPS.map(([lane, title, s, e, tone, ev, brk]) => ({ lane, title, s, e, tone, ev, brk, row: laneStart[lane] + used[lane]++ }));
+const ROWS = laneStart.at(-1) + LANES.at(-1)[1];
+
+const measureCtx = document.createElement('canvas').getContext('2d');
+const textWidth = (text, size, weight = 600) => (measureCtx.font = `${weight} ${size}px Geist, system-ui, sans-serif`, measureCtx.measureText(text).width);
+function fit(text, size, room, weight = 600) {
+  if (textWidth(text, size, weight) <= room) return text;
+  // A name cut below 10 letters reads worse than the full name outside the bar.
+  for (let n = text.length - 1; n >= 10; n--) if (textWidth(text.slice(0, n) + '…', size, weight) <= room) return text.slice(0, n) + '…';
+  return null;
+}
+const el = (name, attrs = {}, parent) => {
+  const node = document.createElementNS(NS, name);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  parent?.appendChild(node);
+  return node;
+};
+const c = (tone, bg) => `var(--${TONE[tone]}${bg ? '-bg' : ''})`;
+
+const state = { zoom: 0.05, panX: 0, minRow: false };
+const stages = [...document.querySelectorAll('.stage:not(.real)')];
+const tip = document.getElementById('tip');
+
+function clusters(xs, gap) {
+  const out = [];
+  for (const x of xs) {
+    const last = out.at(-1);
+    if (last && x - last.x0 < gap) { last.n++; last.x1 = x; } else out.push({ x0: x, x1: x, n: 1 });
+  }
+  return out.map((g) => ({ x: (g.x0 + g.x1) / 2, n: g.n }));
+}
+
+function render(stage) {
+  const mode = stage.dataset.mode, z = state.zoom;
+  if (/^c\d$/.test(mode)) return renderTasks(stage);
+  const W = stage.clientWidth, H = stage.clientHeight, cw = W - LANE_W, ch = H - AXIS_H;
+  const geometric = mode === 'now' || mode === 'floor' || mode === 'hover';
+  const ppd = BASE_PPD * z, rowH = geometric ? BASE_ROW * z : FIXED_ROW, top = geometric ? 8 * z + 4 : 6;
+  const X = (day) => 16 + day * ppd + state.panX;
+  const svg = el('svg', { role: 'img', 'aria-label': `Phương án ${mode} ở ${Math.round(z * 100)} %` });
+
+  const canvas = el('svg', { x: LANE_W, y: AXIS_H, width: cw, height: ch, overflow: 'hidden' }, svg);
+  el('rect', { width: cw, height: ch, fill: 'var(--surface)' }, canvas);
+  LANES.forEach(([, rows], i) => i % 2 && el('rect', { x: 0, y: top + laneStart[i] * rowH, width: cw, height: rows * rowH, fill: 'var(--stripe)' }, canvas));
+  for (const [, d] of MONTHS) el('line', { x1: X(d), x2: X(d), y1: 0, y2: ch, stroke: 'var(--rule)' }, canvas);
+  el('line', { x1: X(TODAY), x2: X(TODAY), y1: 0, y2: ch, stroke: 'var(--ink-3)', 'stroke-dasharray': '3 3' }, canvas);
+
+  const hover = mode === 'hover';
+  if (hover) stage._model = { lines: [], events: [], rowH, svg };
+  for (const loop of loops) {
+    const g = el('g', hover ? { class: 'bar-g', 'data-fam': loop.row } : {}, canvas), y = top + loop.row * rowH + rowH / 2;
+    const sx = X(loop.s), ex = X(loop.e), col = c(loop.tone);
+    const evx = loop.ev.map(X);
+    if (geometric) {
+      const floor = mode !== 'now';
+      el('line', { x1: sx, x2: ex, y1: y, y2: y, stroke: col, 'stroke-width': floor ? Math.max(3 * z, 2.5) : 3 * z, 'stroke-linecap': 'round' }, g);
+      const r = floor ? Math.max(9 * z, hover ? 5 : 4.5) : 9 * z;
+      if (hover) {
+        stage._model.lines.push({ loop, y, sx, ex });
+        loop.acts.forEach((act) => stage._model.events.push({ loop, act, x: X(act.day), y, r }));
+      }
+      for (const x of evx) el('circle', { cx: x, cy: y, r, fill: 'var(--surface)', stroke: col, 'stroke-width': floor ? 1.5 : 1.6 * z }, g);
+      for (const d of loop.brk) el('circle', { cx: X(d), cy: y, r: floor ? Math.max(7.5 * z, 5) : 7.5 * z, fill: 'var(--danger)' }, g);
+    } else if (mode === 'time') {
+      el('line', { x1: sx, x2: ex, y1: y + 5, y2: y + 5, stroke: col, 'stroke-width': 3, 'stroke-linecap': 'round' }, g);
+      for (const k of clusters(evx, 14)) {
+        if (k.n === 1) el('circle', { cx: k.x, cy: y + 5, r: 4.5, fill: 'var(--surface)', stroke: col, 'stroke-width': 2 }, g);
+        else {
+          el('circle', { cx: k.x, cy: y + 5, r: 7.5, fill: col }, g);
+          const t = el('text', { x: k.x, y: y + 8.3, 'text-anchor': 'middle', 'font-size': 9.5, 'font-weight': 700, fill: 'var(--surface)' }, g);
+          t.textContent = k.n;
+        }
+      }
+      for (const d of loop.brk) {
+        el('circle', { cx: X(d), cy: y + 5, r: 6.5, fill: 'var(--surface)', stroke: 'var(--danger)', 'stroke-width': 1.8 }, g);
+        el('path', { d: `M${X(d) - 2.8} ${y + 2.2}l5.6 5.6M${X(d) - 2.8} ${y + 7.8}l5.6 -5.6`, stroke: 'var(--danger)', 'stroke-width': 1.8 }, g);
+      }
+      const tx = Math.max(sx, 6);
+      const label = el('text', { x: tx, y: y - 4, 'font-size': 11, 'font-weight': 600, fill: 'var(--ink)' }, g);
+      label.textContent = loop.title;
+    } else {
+      const bw = Math.max(ex - sx, 8), by = y - 10, bh = 20;
+      el('rect', { x: sx, y: by, width: bw, height: bh, rx: 6, fill: c(loop.tone, true), stroke: col, 'stroke-width': 1.25 }, g);
+      for (const x of evx) el('rect', { x: x - 0.75, y: by + bh - 6, width: 1.5, height: 4, rx: .75, fill: col }, g);
+      const inner = Math.max(sx, 4) + 8, room = sx + bw - inner - 8;
+      const name = fit(loop.title, 11, room);
+      const t = el('text', { x: name ? inner : sx + bw + 6, y: y + 2, 'font-size': 11, 'font-weight': 600, fill: name ? 'var(--ink)' : 'var(--ink-2)' }, g);
+      t.textContent = name ?? loop.title;
+      for (const d of loop.brk) {
+        el('circle', { cx: X(d), cy: by, r: 6, fill: 'var(--danger)', stroke: 'var(--surface)', 'stroke-width': 1.5 }, g);
+        const m = el('text', { x: X(d), y: by + 3.3, 'text-anchor': 'middle', 'font-size': 9, 'font-weight': 700, fill: '#fff' }, g);
+        m.textContent = '!';
+      }
+    }
+    if (hover) continue;
+    const hit = el('rect', { x: sx - 6, y: top + loop.row * rowH, width: Math.max(ex - sx, 0) + 12, height: Math.max(rowH, 8), fill: 'transparent' }, g);
+    hit.addEventListener('pointerenter', () => {
+      tip.innerHTML = `<b></b><span></span>`;
+      tip.firstChild.textContent = loop.title;
+      tip.lastChild.textContent = `${LANES[loop.lane][0]} · ${STATUS[loop.tone]} · ${loop.ev.length} sự kiện${loop.brk.length ? ' · 1 sự cố' : ''}`;
+      tip.style.display = 'block';
+    });
+    hit.addEventListener('pointermove', (e) => { tip.style.left = e.clientX + 14 + 'px'; tip.style.top = e.clientY + 14 + 'px'; });
+    hit.addEventListener('pointerleave', () => { tip.style.display = 'none'; });
+  }
+
+  el('rect', { x: 0, y: 0, width: W, height: AXIS_H, fill: 'var(--surface)' }, svg);
+  el('line', { x1: 0, x2: W, y1: AXIS_H - .5, y2: AXIS_H - .5, stroke: 'var(--rule)' }, svg);
+  const axis = el('svg', { x: LANE_W, y: 0, width: cw, height: AXIS_H }, svg);
+  for (const [m, d] of MONTHS) {
+    const t = el('text', { x: X(d) + 5, y: 17, 'font-size': 11.5, 'font-weight': 600, fill: 'var(--ink-2)' }, axis);
+    t.textContent = m;
+  }
+  const today = el('text', { x: X(TODAY) + 4, y: 17, 'font-size': 10, fill: 'var(--ink-3)' }, axis);
+  today.textContent = 'Hôm nay';
+
+  el('rect', { x: 0, y: AXIS_H, width: LANE_W, height: ch, fill: 'var(--surface)' }, svg);
+  LANES.forEach(([name, rows], i) => {
+    const h = rows * rowH, band = el('svg', { x: 0, y: AXIS_H + top + laneStart[i] * rowH, width: LANE_W, height: h }, svg);
+    el('rect', { width: LANE_W, height: h, fill: i % 2 ? 'var(--stripe)' : 'var(--surface)' }, band);
+    const t = el('text', { x: 12, y: h / 2 + 4, 'font-size': 12, 'font-weight': 500, fill: 'var(--ink-2)' }, band);
+    t.textContent = name;
+  });
+  el('line', { x1: LANE_W - .5, x2: LANE_W - .5, y1: 0, y2: H, stroke: 'var(--rule)' }, svg);
+  const corner = el('text', { x: 12, y: 17, 'font-size': 11, 'font-weight': 600, fill: 'var(--ink-3)' }, svg);
+  corner.textContent = `${Math.round(z * 1000) / 10} %`;
+  stage.replaceChildren(svg);
+}
+
+const LANES2 = ['Sales', 'Engineering', 'Design', 'Ops', 'Legal'];
+const ITEMS = [
+  { id: 'crs', lane: 0, title: 'CRS contract renewal', s: 5, e: 70, tone: 'blue', ev: [5, 12, 20, 33, 41, 55, 70] },
+  { id: 'sso', lane: 1, title: 'SSO for CRS', s: 20, e: 110, tone: 'red', ev: [20, 28, 62, 85, 110], brk: [85] },
+  { id: 'rate', lane: 1, title: 'API rate limits', s: 50, e: 90, tone: 'green', ev: [50, 55, 58, 70, 90] },
+  { id: 'dash', lane: 2, title: 'Dashboard redesign', s: 30, e: 100, tone: 'blue', ev: [30, 44, 60, 80, 100] },
+  { id: 'sla', lane: 3, title: 'Uptime SLA', s: 70, e: 150, tone: 'amber', ev: [70, 85, 105, 130] },
+  { id: 'dpa', lane: 4, title: 'DPA signature', s: 55, e: 130, tone: 'red', ev: [55, 70, 88, 130], brk: [100] },
+  { id: 'sec', lane: 4, parent: 'sso', title: 'Security review', s: 30, e: 52, tone: 'green', ev: [30, 41, 52] },
+  { id: 'login', lane: 2, parent: 'sso', title: 'Login UI', s: 34, e: 70, tone: 'green', ev: [34, 50, 70] },
+  { id: 'idp', lane: 3, parent: 'sso', after: ['sec'], title: 'IdP config', s: 56, e: 80, tone: 'green', ev: [56, 66, 80] },
+  { id: 'pilot', lane: 0, parent: 'sso', after: ['idp', 'login'], title: 'Pilot rollout', s: 86, e: 108, tone: 'blue', ev: [86, 95] },
+];
+const byId = Object.fromEntries(ITEMS.map((i) => [i.id, i]));
+const childrenOf = (id) => ITEMS.filter((i) => i.parent === id);
+
+function renderTasks(stage) {
+  const mode = stage.dataset.mode, z = state.zoom, folded = mode === 'c2';
+  const W = stage.clientWidth, H = stage.clientHeight, cw = W - LANE_W, ch = H - AXIS_H;
+  const items = folded ? ITEMS.filter((i) => !i.parent) : ITEMS;
+  const rowH = FIXED_ROW, top = 6, ppd = BASE_PPD * z;
+  const X = (day) => 16 + day * ppd + state.panX;
+  const laneRows = LANES2.map((_, l) => Math.max(1, items.filter((i) => i.lane === l).length));
+  const laneTop = [];
+  laneRows.reduce((row, n, l) => (laneTop[l] = row, row + n), 0);
+  const seen = LANES2.map(() => 0), rowOf = {};
+  for (const i of items) rowOf[i.id] = laneTop[i.lane] + seen[i.lane]++;
+  const Y = (id) => top + rowOf[id] * rowH + rowH / 2;
+
+  const svg = el('svg', { role: 'img', 'aria-label': `Việc con, cách ${mode}` });
+  const canvas = el('svg', { x: LANE_W, y: AXIS_H, width: cw, height: ch, overflow: 'hidden' }, svg);
+  el('rect', { width: cw, height: ch, fill: 'var(--surface)' }, canvas);
+  laneRows.forEach((n, l) => l % 2 && el('rect', { x: 0, y: top + laneTop[l] * rowH, width: cw, height: n * rowH, fill: 'var(--stripe)' }, canvas));
+  for (const [, d] of MONTHS) el('line', { x1: X(d), x2: X(d), y1: 0, y2: ch, stroke: 'var(--rule)' }, canvas);
+  el('line', { x1: X(TODAY), x2: X(TODAY), y1: 0, y2: ch, stroke: 'var(--ink-3)', 'stroke-dasharray': '3 3' }, canvas);
+
+  const focus = (fam, on) => {
+    svg.classList.toggle('focusing', on && !folded);
+    svg.querySelectorAll(`[data-fam="${fam}"]`).forEach((n) => n.classList.toggle('on', on));
+  };
+
+  if (!folded) {
+    for (const t of ITEMS.filter((i) => i.parent)) {
+      const p = byId[t.parent], col = c(p.tone), yt = Y(t.id), xs = X(t.s);
+      const paths = t.after
+        ? t.after.map((a) => {
+            const xa = X(byId[a].e), mid = Math.max(xa + 5, (xa + xs) / 2);
+            return `M${xa} ${Y(a)} H${mid} V${yt} H${xs}`;
+          })
+        : [(() => {
+            const yp = Y(p.id) + (yt > Y(p.id) ? 10 : -10), x0 = Math.max(X(p.s) + 4, xs - 8);
+            return `M${x0} ${yp} V${yt} H${xs}`;
+          })()];
+      for (const d of paths) el('path', { d, class: 'conn', 'data-fam': p.id, fill: 'none', stroke: col, 'stroke-width': 1.6, 'stroke-linejoin': 'round' }, canvas);
+      el('circle', { cx: xs, cy: yt, r: 2.6, class: 'conn', 'data-fam': p.id, fill: col }, canvas);
+    }
+  }
+
+  for (const item of items) {
+    const fam = item.parent ?? item.id, kids = childrenOf(item.id), task = !!item.parent;
+    const g = el('g', { class: 'bar-g', 'data-fam': fam }, canvas);
+    const y = Y(item.id), sx = X(item.s), ex = X(item.e), col = c(item.tone);
+    const bh = task ? 14 : 20, by = y - bh / 2, bw = Math.max(ex - sx, 8);
+    el('rect', { x: sx, y: by, width: bw, height: bh, rx: task ? 4 : 6, fill: c(item.tone, true), stroke: col, 'stroke-width': 1.25 }, g);
+    if (!task) for (const x of item.ev.map(X)) el('rect', { x: x - .75, y: by + bh - 6, width: 1.5, height: 4, rx: .75, fill: col }, g);
+    const size = task ? 10.5 : 11, text = task ? `↳ ${item.title}` : item.title;
+    const inner = Math.max(sx, 4) + 8, name = fit(text, size, sx + bw - inner - 8);
+    const t = el('text', { x: name ? inner : sx + bw + 6, y: y + (task ? 3.6 : 4), 'font-size': size, 'font-weight': 600, fill: name ? 'var(--ink)' : 'var(--ink-2)' }, g);
+    t.textContent = name ?? text;
+    for (const d of item.brk ?? []) {
+      el('circle', { cx: X(d), cy: by, r: 6, fill: 'var(--danger)', stroke: 'var(--surface)', 'stroke-width': 1.5 }, g);
+      const m = el('text', { x: X(d), y: by + 3.3, 'text-anchor': 'middle', 'font-size': 9, 'font-weight': 700, fill: '#fff' }, g);
+      m.textContent = '!';
+    }
+    if (kids.length) {
+      const done = kids.filter((k) => k.tone === 'green').length;
+      const badge = el('text', { x: sx + bw + 8, y: y + 4, 'font-size': 10.5, 'font-weight': 500, fill: 'var(--ink-3)' }, g);
+      badge.textContent = folded ? `▸ ${kids.length} việc · ${new Set(kids.map((k) => k.lane)).size} phòng ban` : `${kids.length} việc · ${done} xong`;
+      if (folded) for (const k of kids) el('rect', { x: X(k.s) - 2, y: by + bh + 2, width: 4, height: 4, rx: 1, fill: c(k.tone) }, g);
+    }
+    const hit = el('rect', { x: sx - 6, y: top + rowOf[item.id] * rowH, width: bw + 12, height: rowH, fill: 'transparent' }, g);
+    hit.addEventListener('pointerenter', () => {
+      tip.innerHTML = '<b></b><span></span>';
+      tip.firstChild.textContent = item.title;
+      tip.lastChild.textContent = task
+        ? `Việc con của ${byId[item.parent].title} · ${LANES2[item.lane]} · ${STATUS[item.tone]}${item.after ? ` · nhận từ ${item.after.map((a) => byId[a].title).join(', ')}` : ''}`
+        : `${LANES2[item.lane]} · ${STATUS[item.tone]}${kids.length ? ` · ${kids.length} việc ở ${[...new Set(kids.map((k) => LANES2[k.lane]))].join(', ')}` : ''}`;
+      tip.style.display = 'block';
+      focus(fam, true);
+    });
+    hit.addEventListener('pointermove', (e) => { tip.style.left = e.clientX + 14 + 'px'; tip.style.top = e.clientY + 14 + 'px'; });
+    hit.addEventListener('pointerleave', () => { tip.style.display = 'none'; focus(fam, false); });
+  }
+
+  el('rect', { x: 0, y: 0, width: W, height: AXIS_H, fill: 'var(--surface)' }, svg);
+  el('line', { x1: 0, x2: W, y1: AXIS_H - .5, y2: AXIS_H - .5, stroke: 'var(--rule)' }, svg);
+  const axis = el('svg', { x: LANE_W, y: 0, width: cw, height: AXIS_H }, svg);
+  for (const [m, d] of MONTHS) el('text', { x: X(d) + 5, y: 17, 'font-size': 11.5, 'font-weight': 600, fill: 'var(--ink-2)' }, axis).textContent = m;
+  el('text', { x: X(TODAY) + 4, y: 17, 'font-size': 10, fill: 'var(--ink-3)' }, axis).textContent = 'Hôm nay';
+  el('rect', { x: 0, y: AXIS_H, width: LANE_W, height: ch, fill: 'var(--surface)' }, svg);
+  LANES2.forEach((name, l) => {
+    const h = laneRows[l] * rowH, band = el('svg', { x: 0, y: AXIS_H + top + laneTop[l] * rowH, width: LANE_W, height: h }, svg);
+    el('rect', { width: LANE_W, height: h, fill: l % 2 ? 'var(--stripe)' : 'var(--surface)' }, band);
+    el('text', { x: 12, y: h / 2 + 4, 'font-size': 12, 'font-weight': 500, fill: 'var(--ink-2)' }, band).textContent = name;
+  });
+  el('line', { x1: LANE_W - .5, x2: LANE_W - .5, y1: 0, y2: H, stroke: 'var(--rule)' }, svg);
+  el('text', { x: 12, y: 17, 'font-size': 11, 'font-weight': 600, fill: 'var(--ink-3)' }, svg).textContent = `${Math.round(z * 1000) / 10} %`;
+  stage.replaceChildren(svg);
+}
+
+const PERSON = ['Lan Pham', 'Minh Tran', 'Huy Nguyen', 'Thu Le', 'Khoa Vo', 'Ngoc Do', 'An Bui'];
+const ACT = { request: 'Request', promise: 'Promise', follow_up: 'Follow-up', counter: 'Counter', renegotiate: 'Renegotiate', report_done: 'Report done', accept: 'Accept', decline: 'Decline' };
+const QUOTE = {
+  request: (l) => `Can you take care of ${l.title.toLowerCase()} this month?`,
+  promise: () => 'Yes, we will have it ready in two weeks.',
+  follow_up: () => 'Any update on this one?',
+  counter: () => 'We can do it, but only by next Friday.',
+  renegotiate: () => 'We need two more weeks, the vendor is late.',
+  report_done: () => 'Done on our side, please check and confirm.',
+  accept: () => 'Confirmed, looks good. Closing this.',
+  decline: () => 'Sorry, we cannot take this on this quarter.',
+};
+const dateOf = (day) => new Date(Date.UTC(2026, 5, 1 + day)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+for (const loop of loops) {
+  const n = loop.ev.length, slug = loop.title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  loop.acts = loop.ev.map((day, i) => {
+    const type = i === 0 ? 'request' : i === 1 ? 'promise' : i === n - 1 ? ({ green: 'accept', gray: 'decline' }[loop.tone] ?? 'follow_up')
+      : i === n - 2 && loop.tone === 'green' ? 'report_done' : ['follow_up', 'counter', 'renegotiate'][i % 3];
+    const src = [['Slack', `#${slug}`], ['Gmail', `Re: ${loop.title}`], ['Linear', `CRS-${140 + loop.row * 7 + i}`]][i % 3];
+    return { day, label: ACT[type], quote: QUOTE[type](loop), person: i % 2 ? PERSON[loop.lane] : 'Linh (CRS client)', time: `${String(9 + (i * 3) % 8).padStart(2, '0')}:${String((i * 17) % 60).padStart(2, '0')}`, source: `${src[0]} · ${src[1]}` };
+  });
+  for (const day of loop.brk) loop.acts.push({ day, brk: true, label: 'Silent overdue', quote: 'No reply 9 days after the promised date.', person: 'Detected by the engine', time: '08:00', source: 'Open the escalation →' });
+}
+
+const lineTag = document.getElementById('lineTag'), evCard = document.getElementById('evCard');
+let hideTimer = 0, cardKey = null;
+function hideCard(now) {
+  clearTimeout(hideTimer);
+  const done = () => { evCard.style.display = 'none'; cardKey = null; };
+  if (now) done(); else hideTimer = setTimeout(done, 180);
+}
+
+// Lucide 1.48 shapes (ISC) and Simple Icons marks (CC0), copied from src/components/graph/icons.tsx.
+const CAL = '<path d="M16 14v2.2l1.6 1"/><path d="M16 2v3"/><path d="M21 7.338V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h2.338"/><path d="M3 9h5.859"/><path d="M8 2v3"/><circle cx="16" cy="16" r="6"/>';
+const BAN = '<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>';
+const ICON = {
+  request: '<path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
+  promise: '<path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"/><path d="M3 4h8"/>',
+  report_done: '<path d="M12 22V12"/><path d="m16 17 2 2 4-4"/><path d="M21 11.127V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.729l7 4a2 2 0 0 0 2 .001l1.32-.753"/><path d="M3.29 7 12 12l8.71-5"/><path d="m7.5 4.27 8.997 5.148"/>',
+  accept: '<g stroke-width="2.4"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></g>',
+  reject: '<g stroke-width="2.4"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></g>',
+  counter: CAL, renegotiate: CAL, agree_change: CAL,
+  follow_up: '<path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M22 8c0-2.3-.8-4.3-2-6"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/><path d="M4 2C2.8 3.7 2 5.7 2 8"/>',
+  decline: BAN, cancel: BAN,
+};
+const APP = {
+  slack: '<g stroke-width="2.6"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></g>',
+  gmail: '<path fill="currentColor" stroke="none" d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>',
+  linear: '<path fill="currentColor" stroke="none" d="M2.886 4.18A11.982 11.982 0 0 1 11.99 0C18.624 0 24 5.376 24 12.009c0 3.64-1.62 6.903-4.18 9.105L2.887 4.18ZM1.817 5.626l16.556 16.556c-.524.33-1.075.62-1.65.866L.951 7.277c.247-.575.537-1.126.866-1.65ZM.322 9.163l14.515 14.515c-.71.172-1.443.282-2.195.322L0 11.358a12 12 0 0 1 .322-2.195Zm-.17 4.862 9.823 9.824a12.02 12.02 0 0 1-9.824-9.824Z"/>',
+};
+const svgIcon = (inner, size) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+
+const LK = JSON.parse(document.getElementById('larkspur').textContent);
+const REAL_LANE_W = 150, ICON_MIN = 14;
+const realStage = document.querySelector('.stage.real');
+const real = { panX: 8, panY: 0, zoom: null, height: 1, cluster: true };
+const DASH = { solid: null, dashed: '7 5', dotted: '1.5 4' };
+const toneAt = (b, x) => (b.seg.find((sg) => sg[0] <= x && x <= sg[1]) ?? b.seg.at(-1) ?? [0, 0, 'solid', b.tone])[3];
+function forkAndMerge(b) {
+  const at = b.p.indexOf(' H'), rest = /^ H-?[\d.]+(.*)$/.exec(b.p.slice(at))?.[1] ?? '';
+  return { fork: b.p.slice(0, at), merge: rest ? `M${b.x1} ${b.y}${rest}` : null };
+}
+
+// Rows never get closer than rowGap.row on screen, and a row keeps rowGap.edge from its lane border; larger gaps scale with the zoom.
+const rowGap = { row: 22, edge: 8 };
+// The trunk moves to the top, under the date axis; lanes keep their order below it.
+const TRUNK_Y = 16, TRUNK_GAP = 14, SIDE_GAP = 6;
+const laneOrder = LK.lanes.map(([name, side, y, h], i) => ({ name, side, y, h, i })).sort((p, q) => p.y - q.y);
+for (const lane of laneOrder) lane.rows = [...new Set(LK.branches.filter((br) => br.y > lane.y && br.y < lane.y + lane.h).map((br) => br.y))].sort((p, q) => p - q);
+const laneHeight = {};
+function yScale(z) {
+  let at = TRUNK_Y + TRUNK_GAP, side = null;
+  const bands = [];
+  for (const lane of laneOrder) {
+    if (side && side !== lane.side) at += SIDE_GAP;
+    side = lane.side;
+    const ys = [lane.y, ...lane.rows, lane.y + lane.h];
+    const gaps = ys.slice(1).map((y, k) => Math.max((y - ys[k]) * z, k === 0 || k === ys.length - 2 ? rowGap.edge : rowGap.row));
+    const natural = gaps.reduce((sum, g) => sum + g, 0), k = laneHeight[lane.i] ? laneHeight[lane.i] / natural : 1;
+    const out = [at];
+    for (const g of gaps) out.push(out.at(-1) + g * k);
+    bands.push({ lane, ys, out });
+    at = out.at(-1);
+  }
+  const map = (y) => {
+    if (y === LK.trunkY) return TRUNK_Y;
+    const band = bands.find(({ lane }) => y >= lane.y && y <= lane.y + lane.h);
+    if (!band) return TRUNK_Y;
+    const { ys, out } = band;
+    let j = 1;
+    while (j < ys.length - 1 && ys[j] < y) j++;
+    return out[j - 1] + ((y - ys[j - 1]) / (ys[j] - ys[j - 1] || 1)) * (out[j] - out[j - 1]);
+  };
+  return { map, height: at + 8, bands };
+}
+// Branch and connector paths use only M, L, H, V and C, so each number maps as an x or a y by its position.
+function mapPath(d, X, Y) {
+  let cmd = '', i = 0;
+  return d.replace(/[MLHVC]|-?\d*\.?\d+/g, (tok) => {
+    if (/[A-Z]/.test(tok)) { cmd = tok; i = 0; return tok; }
+    const v = +tok, isX = cmd === 'H' || (cmd !== 'V' && i % 2 === 0);
+    i++;
+    return ' ' + (isX ? X(v) : Y(v)).toFixed(1);
+  });
+}
+const PRIORITY = { reject: 6, decline: 5, cancel: 5, report_done: 4, accept: 4, renegotiate: 3, counter: 3, agree_change: 3, promise: 2, follow_up: 1, request: 1 };
+
+function renderReal() {
+  const stage = realStage, z = state.zoom, ys = yScale(z);
+  const W = stage.clientWidth, H = stage.clientHeight, cw = W - REAL_LANE_W, ch = H - AXIS_H;
+  if (real.zoom === null) real.panY = 0;
+  else if (real.zoom !== z || real.height !== ys.height) {
+    real.panX = cw / 2 - ((cw / 2 - real.panX) / real.zoom) * z;
+    real.panY = ch / 2 - ((ch / 2 - real.panY) / real.height) * ys.height;
+  }
+  real.zoom = z; real.height = ys.height;
+  real.panX = Math.min(40, Math.max(real.panX, cw - LK.width * z - 40));
+  real.panY = ys.height <= ch ? 0 : Math.min(0, Math.max(real.panY, ch - ys.height - 20));
+  const X = (x) => x * z + real.panX, Y = (y) => ys.map(y) + real.panY;
+  const model = { icons: [], lines: [], marks: [], ms: [] };
+  stage._model = model;
+
+  const svg = el('svg', { role: 'img', 'aria-label': `Larkspur ở ${Math.round(z * 100)} %` });
+  model.svg = svg;
+  const canvas = el('svg', { x: REAL_LANE_W, y: AXIS_H, width: cw, height: ch, overflow: 'hidden' }, svg);
+  el('rect', { width: cw, height: ch, fill: 'var(--surface)' }, canvas);
+  for (const { lane, out } of ys.bands) {
+    if (lane.i % 2) el('rect', { x: 0, y: out[0] + real.panY, width: cw, height: out.at(-1) - out[0], fill: 'var(--stripe)' }, canvas);
+    el('line', { x1: 0, x2: cw, y1: out.at(-1) + real.panY - .5, y2: out.at(-1) + real.panY - .5, stroke: 'var(--rule-2)' }, canvas);
+  }
+  for (const [, x] of LK.months) el('line', { x1: X(x), x2: X(x), y1: 0, y2: ch, stroke: 'var(--rule)' }, canvas);
+  el('line', { x1: X(LK.xT), x2: X(LK.xT), y1: 0, y2: ch, stroke: 'var(--ink-3)', 'stroke-dasharray': '3 3' }, canvas);
+
+  const lineW = Math.max(3 * z, 2.5);
+  for (const [d, tone, style] of LK.conn) el('path', { d: mapPath(d, X, Y), fill: 'none', stroke: c(tone), 'stroke-width': Math.max(2.4 * z, 1.8), 'stroke-dasharray': DASH[style] ?? 'none', 'stroke-linecap': 'round' }, canvas);
+
+  const lines = el('g', {}, canvas);
+  el('path', { d: `M${X(0)} ${Y(LK.trunkY)} H${X(LK.width)}`, stroke: 'var(--ink)', 'stroke-width': Math.max(5 * z, 4.5), 'stroke-linecap': 'round', fill: 'none' }, canvas);
+  const icons = el('g', {}, canvas);
+  const size = Math.max(18 * z, ICON_MIN);
+  LK.branches.forEach((b, i) => {
+    const g = el('g', { class: 'bar-g', 'data-fam': i }, lines);
+    const { fork, merge } = forkAndMerge(b);
+    const first = b.seg[0]?.[3] ?? b.tone, last = b.seg.at(-1)?.[3] ?? b.tone, sy = Y(b.y);
+    el('path', { d: mapPath(fork, X, Y), fill: 'none', stroke: c(first), 'stroke-width': lineW }, g);
+    for (const [x0, x1, style, tone] of b.seg) if (x1 > x0) el('path', { d: `M${X(x0)} ${sy} H${X(x1)}`, fill: 'none', stroke: c(tone), 'stroke-width': lineW, 'stroke-dasharray': DASH[style] ?? 'none' }, g);
+    if (merge) el('path', { d: mapPath(merge, X, Y), fill: 'none', stroke: c(last), 'stroke-width': lineW }, g);
+    model.lines.push({ b, i, x0: X(b.x0), x1: X(b.x1), y: sy });
+
+    const ig = el('g', { class: 'bar-g', 'data-fam': i }, icons);
+    const groups = [];
+    for (const [id, type, x] of b.g) {
+      const sx = X(x), lastG = groups.at(-1);
+      if (real.cluster && lastG && sx - lastG.xs.at(-1) < size * 0.9) { lastG.ids.push(id); lastG.xs.push(sx); lastG.types.push(type); lastG.wx.push(x); }
+      else groups.push({ ids: [id], xs: [sx], types: [type], wx: [x] });
+    }
+    for (const gr of groups) {
+      // A stack shows its most telling event, and the latest one on a tie.
+      let pick = 0;
+      gr.types.forEach((t, k) => { if ((PRIORITY[t] ?? 0) >= (PRIORITY[gr.types[pick]] ?? 0)) pick = k; });
+      const type = gr.types[pick], cx = gr.xs[pick], tone = toneAt(b, gr.wx[pick]);
+      const color = type === 'reject' ? 'var(--danger)' : c(tone), r = size / 2 + 1;
+      if (gr.ids.length > 1) {
+        el('circle', { cx: cx + 5, cy: sy, r, fill: color, opacity: .22 }, ig);
+        el('circle', { cx: cx + 2.5, cy: sy, r, fill: color, opacity: .4 }, ig);
+      }
+      el('circle', { cx, cy: sy, r, fill: 'var(--surface)', ...(gr.ids.length > 1 ? { stroke: color, 'stroke-width': 1.2 } : {}) }, ig);
+      const holder = el('g', { transform: `translate(${cx - size * 0.4} ${sy - size * 0.4}) scale(${(size * 0.8) / 24})`, fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, ig);
+      holder.innerHTML = ICON[type] ?? '';
+      model.icons.push({ b, i, x: cx, y: sy, r: r + 3, ids: gr.ids, tone });
+    }
+    for (const mx of b.m) {
+      const r = Math.max(7.5 * z, 7), x = X(mx);
+      el('circle', { cx: x, cy: sy, r, fill: 'var(--surface)', stroke: 'var(--danger)', 'stroke-width': 1.6 }, ig);
+      const k = r * 0.45;
+      el('path', { d: `M${x - k} ${sy - k}L${x + k} ${sy + k}M${x - k} ${sy + k}L${x + k} ${sy - k}`, stroke: 'var(--danger)', 'stroke-width': 2 }, ig);
+      model.marks.push({ b, i, x, y: sy, r: r + 2 });
+    }
+  });
+  for (const [x, y, label, status] of LK.ms) {
+    const sx = X(x), sy = Y(y), k = Math.max(9 * z, 6);
+    el('path', { d: `M${sx} ${sy - k}L${sx + k} ${sy}L${sx} ${sy + k}L${sx - k} ${sy}Z`, fill: 'var(--surface)', stroke: 'var(--ink)', 'stroke-width': 1.8 }, icons);
+    model.ms.push({ x: sx, y: sy, r: k + 3, label, status });
+  }
+
+  el('rect', { x: 0, y: 0, width: W, height: AXIS_H, fill: 'var(--surface)' }, svg);
+  el('line', { x1: 0, x2: W, y1: AXIS_H - .5, y2: AXIS_H - .5, stroke: 'var(--rule)' }, svg);
+  const axis = el('svg', { x: REAL_LANE_W, y: 0, width: cw, height: AXIS_H }, svg);
+  for (const [date, x] of LK.months) el('text', { x: X(x) + 5, y: 17, 'font-size': 11.5, 'font-weight': 600, fill: 'var(--ink-2)' }, axis).textContent = new Date(date + 'T00:00:00Z').toLocaleDateString('en-GB', { day: date.endsWith('-01') ? undefined : 'numeric', month: 'short', timeZone: 'UTC' });
+  el('text', { x: X(LK.xT) + 4, y: 17, 'font-size': 10, fill: 'var(--ink-3)' }, axis).textContent = 'T (9 Oct)';
+  el('rect', { x: 0, y: AXIS_H, width: REAL_LANE_W, height: ch, fill: 'var(--surface)' }, svg);
+  const laneCol = el('svg', { x: 0, y: AXIS_H, width: REAL_LANE_W, height: ch }, svg);
+  el('text', { x: 12, y: Y(LK.trunkY) + 4, 'font-size': 11, 'font-weight': 600, fill: 'var(--ink-3)' }, laneCol).textContent = 'Mốc dự án';
+  stage._laneH = {};
+  for (const { lane, out } of ys.bands) {
+    const top = out[0] + real.panY, bh = out.at(-1) - out[0];
+    stage._laneH[lane.i] = bh;
+    const band = el('svg', { x: 0, y: top, width: REAL_LANE_W, height: bh }, laneCol);
+    el('rect', { width: REAL_LANE_W, height: bh, fill: lane.i % 2 ? 'var(--stripe)' : 'var(--surface)' }, band);
+    el('text', { x: 12, y: Math.min(bh / 2 + 4, 16), 'font-size': 12, 'font-weight': 500, fill: lane.side === 'client' ? 'var(--ink-3)' : 'var(--ink-2)' }, band).textContent = lane.name;
+    el('line', { x1: 0, x2: REAL_LANE_W, y1: top + bh - .5, y2: top + bh - .5, stroke: 'var(--rule)' }, laneCol);
+    el('rect', { class: 'lane-grip', 'data-lane': lane.i, x: 0, y: top + bh - 4, width: REAL_LANE_W, height: 8 }, laneCol);
+  }
+  el('line', { x1: REAL_LANE_W - .5, x2: REAL_LANE_W - .5, y1: 0, y2: H, stroke: 'var(--rule)' }, svg);
+  el('text', { x: 12, y: 17, 'font-size': 11, 'font-weight': 600, fill: 'var(--ink-3)' }, svg).textContent = `${Math.round(z * 1000) / 10} %`;
+  stage.replaceChildren(svg);
+}
+
+function focusLoop(i) {
+  const svg = realStage._model?.svg;
+  if (!svg) return;
+  svg.classList.toggle('focusing', i !== null);
+  svg.querySelectorAll('.bar-g').forEach((g) => g.classList.toggle('on', String(i) === g.dataset.fam));
+}
+function actHtml(id, full) {
+  const [type, label, stamp, person, quote, source, app] = LK.acts[id];
+  const cut = stamp.lastIndexOf(' '), day = stamp.slice(0, cut), time = stamp.slice(cut + 1);
+  return `<div class="ev-h">${svgIcon(ICON[type] ?? '', 14)}<b>${esc(label)}</b><span class="d">${esc(day)}</span></div>`
+    + `<div class="ev-p"><span>${esc(person)}</span><span class="d">${esc(time)}</span></div>`
+    + `<div class="ev-q${full ? '' : ' one'}">${esc(quote ?? 'Unavailable evidence')}</div>`
+    + (full ? `<a class="ev-s" href="#">${app && APP[app] ? svgIcon(APP[app], 12) : ''}<span>${esc(source)}</span><span aria-hidden="true">↗</span></a>` : '');
+}
+function placeCard(hit) {
+  const box = realStage.getBoundingClientRect(), left = box.left + REAL_LANE_W + hit.x, top = box.top + AXIS_H + hit.y;
+  evCard.style.display = 'block';
+  const h = evCard.offsetHeight, above = top - h - hit.r - 8 > 8;
+  evCard.style.left = Math.min(Math.max(left - 118, 8), innerWidth - 244) + 'px';
+  evCard.style.top = (above ? top - h - hit.r - 8 : top + hit.r + 8) + 'px';
+}
+function showIconCard(hit) {
+  clearTimeout(hideTimer);
+  const key = hit.ids.join();
+  if (cardKey === key) return;
+  cardKey = key;
+  evCard.style.setProperty('--tone', hit.ids.length === 1 && LK.acts[hit.ids[0]][0] === 'reject' ? 'var(--danger)' : c(hit.tone));
+  const head = `<div class="loop"><b>${esc(hit.b.t)}</b> · ${esc(hit.b.d)}</div>`;
+  evCard.innerHTML = hit.ids.length === 1 ? head + actHtml(hit.ids[0], true)
+    : head + `<div class="ev-list">${hit.ids.slice(0, 6).map((id) => `<div>${actHtml(id, false)}</div>`).join('')}</div>`
+      + (hit.ids.length > 6 ? `<div class="ev-more">+${hit.ids.length - 6} sự kiện nữa</div>` : '');
+  placeCard(hit);
+}
+function showMarkCard(hit) {
+  clearTimeout(hideTimer);
+  const key = 'm' + hit.i;
+  if (cardKey === key) return;
+  cardKey = key;
+  evCard.style.setProperty('--tone', 'var(--danger)');
+  evCard.innerHTML = `<div class="loop"><b>${esc(hit.b.t)}</b> · ${esc(hit.b.d)}</div><div class="ev-h"><b>Sự cố</b></div><div class="ev-q one" style="white-space:normal">${esc(hit.b.bd.join(', ') || 'Breakdown')}</div>`;
+  placeCard(hit);
+}
+evCard.addEventListener('pointerenter', () => clearTimeout(hideTimer));
+evCard.addEventListener('pointerleave', () => { hideCard(); focusLoop(null); });
+evCard.addEventListener('click', (e) => { if (e.target.closest('a')) e.preventDefault(); });
+
+realStage.addEventListener('pointermove', (e) => {
+  const m = realStage._model;
+  if (!m || realStage.classList.contains('panning')) return;
+  const box = realStage.getBoundingClientRect(), x = e.clientX - box.left - REAL_LANE_W, y = e.clientY - box.top - AXIS_H;
+  const tag = (html) => { lineTag.innerHTML = html; lineTag.style.display = 'block'; lineTag.style.left = e.clientX + 12 + 'px'; lineTag.style.top = e.clientY - 30 + 'px'; };
+  if (x < 0 || y < 0) { lineTag.style.display = 'none'; hideCard(); focusLoop(null); return; }
+  const nearest = (list) => {
+    let best = null, bestD = Infinity;
+    for (const it of list) { const d = Math.hypot(it.x - x, it.y - y); if (d <= it.r && d < bestD) { best = it; bestD = d; } }
+    return best;
+  };
+  const icon = nearest(m.icons), mark = nearest(m.marks);
+  if (icon || mark) {
+    lineTag.style.display = 'none';
+    const hit = mark && (!icon || Math.hypot(mark.x - x, mark.y - y) < Math.hypot(icon.x - x, icon.y - y)) ? mark : icon;
+    focusLoop(hit.i);
+    hit === mark ? showMarkCard(mark) : showIconCard(icon);
+    return;
+  }
+  hideCard();
+  const ms = nearest(m.ms);
+  if (ms) { focusLoop(null); tag(`<b>${esc(ms.label)}</b><span> · mốc · ${esc(ms.status)}</span>`); return; }
+  let line = null, lineD = Infinity;
+  for (const l of m.lines) {
+    const d = Math.abs(l.y - y);
+    if (x >= l.x0 - 4 && x <= l.x1 + 4 && d <= 6 && d < lineD) { line = l; lineD = d; }
+  }
+  if (!line) { lineTag.style.display = 'none'; focusLoop(null); return; }
+  focusLoop(line.i);
+  tag(`<b>${esc(line.b.t)}</b><span> · ${esc(line.b.s)}</span>`);
+});
+realStage.addEventListener('dblclick', (e) => {
+  const grip = e.target.closest?.('.lane-grip');
+  if (grip) { delete laneHeight[+grip.dataset.lane]; renderReal(); }
+});
+document.getElementById('resetLanes').addEventListener('click', () => { for (const k in laneHeight) delete laneHeight[k]; renderReal(); });
+realStage.addEventListener('pointerleave', () => { lineTag.style.display = 'none'; hideCard(); if (evCard.style.display === 'none') focusLoop(null); });
+realStage.addEventListener('pointerdown', (e) => {
+  const grip = e.target.closest?.('.lane-grip');
+  if (grip) {
+    const i = +grip.dataset.lane, h0 = realStage._laneH[i], y0 = e.clientY, lane = laneOrder.find((l) => l.i === i);
+    const min = 2 * rowGap.edge + Math.max(lane.rows.length - 1, 0) * 12;
+    realStage.setPointerCapture(e.pointerId);
+    const move = (mv) => { laneHeight[i] = Math.max(min, h0 + mv.clientY - y0); renderReal(); };
+    const up = () => { realStage.removeEventListener('pointermove', move); realStage.removeEventListener('pointerup', up); };
+    realStage.addEventListener('pointermove', move);
+    realStage.addEventListener('pointerup', up);
+    return;
+  }
+  const x0 = e.clientX, y0 = e.clientY, px = real.panX, py = real.panY;
+  realStage.setPointerCapture(e.pointerId);
+  realStage.classList.add('panning');
+  lineTag.style.display = 'none'; hideCard(true);
+  const move = (mv) => { real.panX = px + mv.clientX - x0; real.panY = py + mv.clientY - y0; renderReal(); };
+  const up = () => { realStage.classList.remove('panning'); realStage.removeEventListener('pointermove', move); realStage.removeEventListener('pointerup', up); };
+  realStage.addEventListener('pointermove', move);
+  realStage.addEventListener('pointerup', up);
+});
+document.getElementById('cluster').addEventListener('change', (e) => { real.cluster = e.target.checked; renderReal(); });
+
+const renderAll = () => { stages.forEach(render); renderReal(); };
+function clampPan() {
+  const cw = stages[0].clientWidth - LANE_W, width = 32 + DAYS * BASE_PPD * state.zoom;
+  state.panX = Math.min(0, Math.max(state.panX, cw - width));
+}
+
+const ZOOMS = [0.03, 0.05, 0.1, 0.25, 0.45];
+const zoomBar = document.getElementById('zoom');
+for (const z of ZOOMS) {
+  const b = document.createElement('button');
+  b.textContent = `${z * 100} %`;
+  b.setAttribute('aria-pressed', String(z === state.zoom));
+  b.onclick = () => {
+    state.panX *= z / state.zoom;
+    state.zoom = z;
+    zoomBar.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    clampPan(); hideCard(true); lineTag.style.display = 'none'; renderAll();
+  };
+  zoomBar.appendChild(b);
+}
+
+document.getElementById('theme').addEventListener('click', (e) => {
+  const t = e.target.closest('button')?.dataset.t;
+  if (!t) return;
+  if (t === 'auto') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', t);
+  e.currentTarget.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.t === t)));
+});
+
+for (const stage of stages) {
+  stage.addEventListener('pointerdown', (e) => {
+    const x0 = e.clientX, pan0 = state.panX;
+    stage.setPointerCapture(e.pointerId);
+    stage.classList.add('panning');
+    tip.style.display = 'none'; lineTag.style.display = 'none'; hideCard(true);
+    const move = (m) => { state.panX = pan0 + m.clientX - x0; clampPan(); renderAll(); };
+    const up = () => { stage.classList.remove('panning'); stage.removeEventListener('pointermove', move); stage.removeEventListener('pointerup', up); };
+    stage.addEventListener('pointermove', move);
+    stage.addEventListener('pointerup', up);
+  });
+}
+new ResizeObserver(() => { clampPan(); renderAll(); }).observe(document.querySelector('main'));
+document.fonts?.ready.then(renderAll);
+renderAll();
+</script>
+</body>
+</html>

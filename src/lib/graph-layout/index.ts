@@ -29,6 +29,7 @@ export {
   type LayoutOffsets,
 } from './offsets';
 export * from './viewport';
+export * from './display';
 
 type Tone = BranchSegment['tone'];
 type Style = BranchSegment['style'];
