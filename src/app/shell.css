@@ -2,10 +2,10 @@
   grid-template-columns: auto minmax(0, 1fr);
 }
 .rail {
+  box-sizing: border-box;
   width: 212px;
   padding: 14px 10px;
   gap: 12px;
-  overflow: hidden;
   transition: width 0.16s ease;
 }
 .rail[data-state='collapsed'] {
@@ -43,6 +43,7 @@
   font-weight: 500;
   text-align: left;
   white-space: nowrap;
+  overflow: hidden;
   cursor: pointer;
 }
 .rail-item:hover {
@@ -95,6 +96,7 @@
   list-style: none;
   cursor: pointer;
   white-space: nowrap;
+  overflow: hidden;
 }
 .proj-switch summary::-webkit-details-marker {
   display: none;
@@ -165,12 +167,21 @@
   background: var(--rule-2);
 }
 @media (max-width: 760px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .rail,
   .rail[data-state='collapsed'] {
     width: auto;
+    padding: 8px 10px;
+    gap: 8px;
   }
   .rail[data-state='collapsed'] .rail-label {
     display: inline;
+  }
+  .rail-item {
+    width: auto;
+    flex: none;
   }
   .rail-nav {
     flex-direction: row;
@@ -181,10 +192,12 @@
     flex-direction: row;
     margin-top: 0;
   }
-  .rail-note,
-  .rail-fold,
-  .proj-names,
-  .proj-caret {
+  .rail[data-state] .rail-item[data-dot]::after,
+  .rail[data-state] .rail-foot .rail-label,
+  .rail[data-state] .rail-note,
+  .rail[data-state] .rail-fold,
+  .rail[data-state] .proj-names,
+  .rail[data-state] .proj-caret {
     display: none;
   }
 }
