@@ -85,7 +85,8 @@ test('sign in reaches the seeded graph in at most 3 clicks and shows proof in on
   test.info().annotations.push({ type: 'first-paint', description: JSON.stringify(paint) });
   console.log(`first-paint ${JSON.stringify(paint)}`);
   expect(paint.firstContentfulPaintMs).toBeGreaterThan(0);
-  expect(paint.firstContentfulPaintMs).toBeLessThan(2000);
+  // SRD 7.5 sets 2 s; shared CI runners measured 2.0–2.8 s for the same build, so CI allows 3 s (owner, 15 Oct 2026).
+  expect(paint.firstContentfulPaintMs).toBeLessThan(process.env.CI ? 3000 : 2000);
 });
 
 test('keyboard: Tab reaches a branch, Enter opens the panel, arrows move between acts', async ({

@@ -367,7 +367,7 @@ A panel on the right of the canvas lists the loops the filters let through, in s
 
 - React Flow (`@xyflow/react`) gives pan, zoom, selection and keyboard focus. Custom node types: `milestone`, `act`, `laneLabel`. Branch lines are one custom edge type that draws an SVG path from layout output.
 - The layout is a pure function in `src/lib/graph-layout` (section 16). It computes every coordinate. React Flow's own auto-layout is not used.
-- Targets: layout under 50 ms for 300 loops and 3,000 acts; first graph paint under 2 seconds on the seeded project.
+- Targets: layout under 50 ms for 300 loops and 3,000 acts; first graph paint under 2 seconds on the seeded project. The e2e check allows 3 seconds on shared CI runners, which measured 2.0–2.8 seconds for the same build (owner decision, 15 October 2026).
 
 ### 7.6 Version and inbox surfaces
 
