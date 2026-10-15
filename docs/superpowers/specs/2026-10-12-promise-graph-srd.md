@@ -322,7 +322,7 @@ The graph is a canvas panel with geometric zoom from 2 % to 400 %. The layout us
 - **Drag (revised 15 October 2026):** a sideways drag on an icon moves the act inside its local day and never past a neighbouring act of the same loop; a vertical drag on an icon moves the whole branch inside its lane; a card drags on its own and its act stays. Positions stay in the browser per project; "Reset layout" in the canvas controls removes them. A press without movement opens the loop at that act.
 - **Select a milestone:** the graph highlights the loops assigned to it. The panel lists those loops and the milestone status reason.
 - **Filter bar:** side, departments (multiple), loop state, breakdown type, milestone, and a text search over loop titles and quotes. The URL holds the filters.
-- **List view toggle:** a table with the same loops and the same filters. Columns: title, performer department, customer, due, state, breakdowns, milestone, last act.
+- **List view toggle:** a table with the same loops and the same filters. Columns: Title, Department, Requested by, Due, State, Problems, Milestone, Last act.
 - **Keyboard:**
   - Tab moves through milestones in time order, then through branches in start-time order.
   - Enter opens the panel.
@@ -346,7 +346,7 @@ The graph is a canvas panel with geometric zoom from 2 % to 400 %. The layout us
 
 ### 7.3b Loop list (15 October 2026)
 
-A panel on the right of the canvas lists the loops the filters let through, in start order with tasks under their promise. A title jumps the canvas to that loop. A focus button per loop shows only the chosen loops (a promise keeps its tasks) until "Show all". A search box narrows the list by title or department (accents and case ignored); a matching task keeps its promise above it, dimmed. The search changes the list only, never the graph. The panel opens by default on screens 1,100 px or wider and remembers its open state per browser. A click on a loop name opens its panel; the list hides while a panel is open and comes back when the panel closes.
+A panel on the right of the canvas lists the loops the filters let through, in start order with tasks under their promise. A title jumps the canvas to that loop. A focus button per loop shows only the chosen loops (a promise keeps its tasks) until "Show all". A search box narrows the list by title or department (accents and case ignored); a matching task keeps its promise above it, dimmed. The search changes the list only, never the graph. The panel opens by default on screens 1,100 px or wider and remembers its open state per browser. A click on a loop name opens its panel; the list hides while a panel is open and comes back when the panel closes. The list button is an exception to the remembered state: pressed while a panel is open, it closes the panel and shows the list, and a stored "closed" becomes "open".
 
 ### 7.4 Loop panel
 
@@ -359,7 +359,7 @@ A panel on the right of the canvas lists the loops the filters let through, in s
    - "Open in Slack" or "Open in Gmail" (the permalink) and "View record" (the internal viewer);
    - an "agent proposed" badge when the committed author is an agent;
    - a menu with "Change type", "Move to another loop", "Hide this act".
-5. A "Loop notes" section lists every note that cites a step of this loop (section 7.4a).
+5. A "Notes" section (accessible name "Loop notes") lists every note that cites a step of this loop (section 7.4a).
 6. An Inbox badge opens unreviewed record versions. Acts without a loop appear only in a proposal preview. Every edit opens or updates a proposal, never writes to main.
 
 ### 7.4a Notes (direction B, 15 October 2026)
@@ -368,8 +368,8 @@ The snapshot collection `annotations` holds notes: `{ id, text, actIds }`. An ag
 
 - **Text format.** A note may cite a step inline as `[act:<lowercase uuid>]`. The UI shows each marker as a numbered link (1, 2, 3 …) in reading order. A marker whose act is not in `actIds` is invalid: `update_proposal` rejects the batch with a `VALIDATION` field error on `text`. A note without markers lists its `actIds` as numbered links after the text.
 - **Graph.** A "Notes" card sits above the coverage line. It shows the newest note (the last in the array) clamped to 3 lines, a "Show all notes (n)" toggle and the label "Interpretation, not evidence". The card is absent when the view has no notes. A change set view shows its own notes, so a reviewer reads an agent's note before approving it.
-- **Loop panel.** A "Loop notes" section lists every note that cites a step of this loop.
-- **Cite links.** A numbered link opens the panel of that step's loop at that step. If a filter hides the loop, the link resets the filters first. A step that the selected view does not hold shows as a grey number, not a link.
+- **Loop panel.** A "Notes" section (accessible name "Loop notes") lists every note that cites a step of this loop.
+- **Cite links.** A numbered link opens the panel of that step's loop at that step. If a filter hides the loop, the link resets the filters, the search and Show only, then opens the panel. A step that the selected view does not hold shows as a grey number, not a link.
 - **Seed.** The fixture history ends with a fourth step, "Summarise where the project stands on 9 October", that adds one note with 5 cited steps. Every date and name in it matches the engine output at T.
 
 ### 7.4b Past problems (direction B, 15 October 2026)
