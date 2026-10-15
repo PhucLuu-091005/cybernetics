@@ -74,7 +74,7 @@ The rail footer note becomes "Nothing changes the graph until a person approves 
 
 ### 5.2 Filters
 
-- Visible: search, a **Problems only** toggle with the count of loops that have at least one breakdown, a **Filter** button, the Graph/List switch.
+- Visible: search, a **Problems only** toggle (it shows loops with at least one breakdown; no count, because the count needs a change in a file the graph-polish session owns), a **Filter** button, the Graph/List switch.
 - The Filter button opens a popover with Side, Departments, State, Problem type and Milestone, plus "Clear". The button shows the number of active filters.
 - `GraphFilters` gets `problems: boolean`, URL parameter `problems=1`. It keeps loops with one or more breakdowns at the current T. It combines with the other filters.
 
