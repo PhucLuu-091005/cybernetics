@@ -36,15 +36,32 @@ export interface TimeScale {
   x(instant: string): number;
   /** x of the centre of a local calendar date, where the approved design places date-only marks. */
   dateX(date: string): number;
+  dateStartX(date: string): number;
   dateEndX(date: string): number;
   /** x of the start and the end of the local calendar day that contains the instant. */
   dayRange(instant: string): { start: number; end: number };
   localStamp(instant: string): string;
 }
 
-export function createTimeScale(clock: Clock, pxPerDay: number): TimeScale {
+/**
+ * Maps instants to x. Every local day is pxPerDay wide unless `dayWidths` resizes it; only days from the
+ * window start onward can be resized, so x = 0 stays at the window start.
+ */
+export function createTimeScale(
+  clock: Clock,
+  pxPerDay: number,
+  dayWidths: Readonly<Record<string, number>> = {},
+): TimeScale {
   const { timeZone } = clock;
   const origin = Date.parse(`${clock.windowStart}T00:00:00Z`);
+  const indexOf = (date: string) => Math.round((Date.parse(`${date}T00:00:00Z`) - origin) / DAY_MS);
+  const deltas = Object.entries(dayWidths)
+    .map(([date, width]) => [indexOf(date), width - pxPerDay] as const)
+    .filter(([index, delta]) => index >= 0 && delta !== 0)
+    .sort((a, b) => a[0] - b[0]);
+  const widthAt = (index: number) => pxPerDay + (deltas.find(([at]) => at === index)?.[1] ?? 0);
+  const offset = (index: number) =>
+    index * pxPerDay + deltas.reduce((sum, [at, delta]) => (at < index ? sum + delta : sum), 0);
   const dateAt = (index: number) => isoDate(origin + index * DAY_MS);
   const exact = (index: number) => Date.parse(zonedStartOfDay(dateAt(index), timeZone));
   const verified = (index: number, candidate: number) =>
@@ -76,8 +93,6 @@ export function createTimeScale(clock: Clock, pxPerDay: number): TimeScale {
     return { index, start: dayStart(index), length: dayStart(index + 1) - dayStart(index) };
   }
   const xs = new Map<string, number>();
-  const dateIndex = (date: string) =>
-    Math.round((Date.parse(`${date}T00:00:00Z`) - origin) / DAY_MS);
   return {
     x(instant) {
       let value = xs.get(instant);
@@ -85,16 +100,17 @@ export function createTimeScale(clock: Clock, pxPerDay: number): TimeScale {
         const epoch = Date.parse(instant);
         if (!Number.isFinite(epoch)) throw new RangeError(`Invalid instant ${instant}`);
         const day = locate(epoch);
-        value = (day.index + (epoch - day.start) / day.length) * pxPerDay;
+        value = offset(day.index) + ((epoch - day.start) / day.length) * widthAt(day.index);
         xs.set(instant, value);
       }
       return value;
     },
-    dateX: (date) => (dateIndex(date) + 0.5) * pxPerDay,
-    dateEndX: (date) => (dateIndex(date) + 1) * pxPerDay,
+    dateX: (date) => offset(indexOf(date)) + widthAt(indexOf(date)) / 2,
+    dateStartX: (date) => offset(indexOf(date)),
+    dateEndX: (date) => offset(indexOf(date) + 1),
     dayRange(instant) {
       const day = locate(Date.parse(instant));
-      return { start: day.index * pxPerDay, end: (day.index + 1) * pxPerDay };
+      return { start: offset(day.index), end: offset(day.index + 1) };
     },
     localStamp(instant) {
       const epoch = Date.parse(instant),
