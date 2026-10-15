@@ -15,7 +15,11 @@ type Props = {
 
 export async function RecordDetail({ projectId, actor, inbox, myReview, timeZone }: Props) {
   const selected = inbox.selected;
-  if (!selected) return <p className="faint">No new records. Everything is decided.</p>;
+  // The list already says when nothing is left, so the pane stays empty then.
+  if (!selected)
+    return inbox.page.items.length ? (
+      <p className="faint">Select a record to read its text.</p>
+    ) : null;
   const viewed = await loadViewedRecord(
     actor,
     projectId,

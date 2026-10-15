@@ -16,6 +16,7 @@ export function InboxList({
   selectedId,
   timeZone,
   hrefFor = (r) => inboxHref(projectId, { ...query, r }),
+  emptyText = 'No records in this state for the selected graph.',
 }: {
   projectId: string;
   items: Item[];
@@ -23,11 +24,12 @@ export function InboxList({
   selectedId: string | null;
   timeZone: string;
   hrefFor?: (recordVersionId: string) => string;
+  emptyText?: string;
 }) {
   if (!items.length)
     return (
       <p className="faint card pad" style={{ fontSize: 13 }}>
-        No records in this state for the selected graph.
+        {emptyText}
       </p>
     );
   return (
