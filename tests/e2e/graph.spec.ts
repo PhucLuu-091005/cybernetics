@@ -661,6 +661,33 @@ test('the time axis shows days; weeks and months wait in its menu; a resized day
     .toBe(Math.round(before.width));
 });
 
+test('the loop list search narrows the list by title or department and keeps a task with its promise', async ({
+  page,
+}) => {
+  await signIn(page, 'graph-list');
+  const list = page.getByRole('complementary', { name: 'Loop list' });
+  const search = list.getByRole('searchbox', { name: 'Search loops' });
+  const rows = list.getByRole('listitem');
+  await expect(rows).toHaveCount(36);
+  await search.fill('SECRET');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('Client secret renewal');
+  await expect(list).toContainText('1 of 36');
+  await search.fill('pg-20');
+  await expect(rows).toHaveCount(4);
+  await expect(rows.first()).toContainText('CRS tax residency section');
+  await expect(rows.first()).toHaveClass(/context/);
+  await search.fill('Digitization QA');
+  await expect(rows.filter({ hasText: 'Test the CRS section end to end' })).toHaveCount(1);
+  await search.fill('no such loop');
+  await expect(rows).toHaveCount(0);
+  await expect(list).toContainText('No loop matches');
+  await search.press('Escape');
+  await expect(search).toHaveValue('');
+  await expect(rows).toHaveCount(36);
+  await expect(branches(page)).toHaveCount(36);
+});
+
 test('phone width: no horizontal page scroll on graph, open panel and list; sign out is reachable', async ({
   page,
 }) => {
