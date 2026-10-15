@@ -470,6 +470,42 @@ test('a cite to a step after the As-of time is grey and not a button', async ({ 
   );
 });
 
+test('a cite to a loop that the filters hide clears the filters and opens the loop at that step', async ({
+  page,
+}) => {
+  await signIn(page, 'graph-notes-filter');
+  const card = page.getByRole('region', { name: 'Notes' });
+  const problems = page.getByRole('button', { name: 'Problems only' });
+  const search = page.getByRole('searchbox', { name: 'Search loop titles and quotes' });
+  await problems.click();
+  await search.fill('secret');
+  await expect(problems).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: /^Loop: Go-live date/ })).toHaveCount(0);
+  // The go-live loop has no problem at T and no "secret" in its title or quotes, so both filters hide it.
+  await card.getByRole('button', { name: 'Open step 1' }).click();
+  const panel = loopPanel(page);
+  await expect(panel.getByRole('heading', { level: 2 })).toHaveText('Go-live date');
+  await expect(panel.locator('[aria-current="step"]')).toContainText('Renegotiate');
+  await expect(problems).toHaveAttribute('aria-pressed', 'false');
+  await expect(search).toHaveValue('');
+});
+
+test('a cite to a loop that Show only hides shows every loop again and opens the loop', async ({
+  page,
+}) => {
+  await signIn(page, 'graph-notes-only');
+  const all = await branches(page).count();
+  await page.getByRole('button', { name: 'Show only Kickoff agenda' }).click();
+  await expect(branches(page)).not.toHaveCount(all);
+  await expect(page.getByRole('button', { name: /^Loop: Go-live date/ })).toHaveCount(0);
+  await page
+    .getByRole('region', { name: 'Notes' })
+    .getByRole('button', { name: 'Open step 1' })
+    .click();
+  await expect(loopPanel(page).getByRole('heading', { level: 2 })).toHaveText('Go-live date');
+  await expect(branches(page)).toHaveCount(all);
+});
+
 /** A point on bare canvas, so a drag there pans instead of moving a card or an icon. */
 async function emptyPoint(page: Page) {
   const box = await boxOf(graph(page));
