@@ -15,12 +15,14 @@ export function InboxList({
   query,
   selectedId,
   timeZone,
+  hrefFor = (r) => inboxHref(projectId, { ...query, r }),
 }: {
   projectId: string;
   items: Item[];
   query: InboxQuery;
   selectedId: string | null;
   timeZone: string;
+  hrefFor?: (recordVersionId: string) => string;
 }) {
   if (!items.length)
     return (
@@ -34,7 +36,7 @@ export function InboxList({
         <li key={item.recordVersionId}>
           <Link
             className="ritem"
-            href={inboxHref(projectId, { ...query, r: item.recordVersionId })}
+            href={hrefFor(item.recordVersionId)}
             aria-current={item.recordVersionId === selectedId ? 'true' : undefined}
             title={item.header}
           >
