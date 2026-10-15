@@ -92,3 +92,16 @@ Modelled on Anduin's public description of fund onboarding (Engage → Digitize 
 - Client: Fund Operations, Legal (fund counsel), IT.
 - New scenario: the GP asks for a CRS tax-residency section in the Fund III subscription form with a DealCloud sync. Implementation promises it; Digitization analyses it; Digitization hands off to Solutions Engineering (form logic, DealCloud mapping) and Engineering (country-list field type); Digitization QA waits for all three; QA returns to Implementation. One ticket is overdue, so QA shows "waiting for" it.
 - Demo permalinks use real domains with fictional workspaces (`fundline-larkspur.slack.com`, `mail.google.com`, `linear.app/fundline`).
+
+## F. Simpler screens (15 October 2026)
+
+Full design: [2026-10-15-simplify-ui-design.md](2026-10-15-simplify-ui-design.md).
+
+- **Three jobs:** Look (Graph), Review (new records and change sets), Answer (Escalations). The rail shows these plus Settings.
+- **Words:** the screens say "change set" for a proposal and "approval" for a merge. The API, MCP and agent recipe keep their names.
+- **Rail:** it shows the current project and collapses to icons. The `pg_rail` cookie stores the state, so the page does not jump on load.
+- **Review:** one screen with a list and a detail pane. The old proposal review page redirects to it.
+- **Hidden git words:** commit ids, revision numbers and hashes appear only under "Technical details".
+- **Canvas:** it keeps zoom, fit and full screen. The zoom menu, the minimap and the axis menu go.
+- **Day widths:** automatic day widths replace "every day is 64 px" from B2. The day column resize handles and their browser storage go.
+- **Kept:** the engine, the 7 breakdown types, the merge checks, history with revert and restore.
