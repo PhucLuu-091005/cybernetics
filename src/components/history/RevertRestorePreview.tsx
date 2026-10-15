@@ -4,7 +4,14 @@ import { Fragment, useState } from 'react';
 import type { CommitPreview, CommitReceipt, Proposal } from '../../contracts';
 import { send, type ApiError, type Basis } from '../inbox/api';
 import { ConflictBanner } from '../review/ConflictBanner';
-import { describeEntity, entityTitle, KIND, newestImage, type Names } from '../review/describe';
+import {
+  conflictSentence,
+  describeEntity,
+  entityTitle,
+  KIND,
+  newestImage,
+  type Names,
+} from '../review/describe';
 import { ChangeCells } from '../review/DiffView';
 import { useHydrated } from '../review/hydrated';
 
@@ -172,7 +179,9 @@ export function RevertRestorePreview({
           {blocked ? (
             <>
               <p style={{ fontSize: 13 }}>
-                <b className="bad">The {preview.kind} conflicts with later changes.</b>{' '}
+                <b className="bad">
+                  {preview.kind === 'revert' ? 'Undo' : 'Going back'} conflicts with later changes.
+                </b>{' '}
                 {preview.conflicts.length}{' '}
                 {preview.conflicts.length === 1 ? 'item blocks' : 'items block'} the apply:
               </p>
@@ -185,7 +194,7 @@ export function RevertRestorePreview({
                       newestImage(conflict.main, conflict.proposed, conflict.base),
                       names,
                     )}
-                    : <span className="faint">{conflict.reason}</span>
+                    : <span className="faint">{conflictSentence(conflict)}</span>
                   </li>
                 ))}
               </ul>
@@ -210,8 +219,7 @@ export function RevertRestorePreview({
             <>
               <p style={{ fontSize: 13 }}>
                 Touched items: {preview.diff.changes.length}. The approved graph still matches this
-                version&apos;s result for every touched item, so the inverse applies without
-                conflict.
+                version&apos;s result for every touched item, so the undo applies without conflict.
               </p>
               <div className="tablewrap" style={{ border: 0 }}>
                 <table aria-label="Touched items">

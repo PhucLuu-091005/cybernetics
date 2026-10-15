@@ -320,7 +320,11 @@ test('Activity uses plain words and logs no console error', async ({ page }) => 
     page.getByRole('heading', { level: 2, name: /^Ignore the out-of-office reply/ }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Preview undo' }).click();
-  await expect(page.getByRole('region', { name: /Undo preview/ })).toBeVisible();
+  const undoPreview = page.getByRole('region', { name: /Undo preview/ });
+  await expect(undoPreview).toBeVisible();
+  await expect(undoPreview).toContainText('Undo conflicts with later changes.');
+  await expect(undoPreview).toContainText('A later change removed this item.');
+  await expect(undoPreview).not.toContainText(/revert|restore|entity|postimage|inverse/i);
   await page.getByText('Technical details').last().click();
 
   await commits(page)
@@ -335,6 +339,14 @@ test('Activity uses plain words and logs no console error', async ({ page }) => 
   await expect(table.getByRole('columnheader', { name: 'Entity' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Preview go back' }).click();
   await expect(page.getByRole('region', { name: /Go back preview/ })).toBeVisible();
+
+  await page.goto(`/projects/${projectId}/history`);
+  await commits(page)
+    .getByRole('link', { name: /^Summarise where the project stands/ })
+    .click();
+  const changes = page.getByRole('table', { name: 'Changes in this version' });
+  await expect(changes.getByRole('cell', { name: 'Note', exact: true })).toBeVisible();
+  await expect(changes).not.toContainText('[act:');
 
   await page.goto(`/projects/${projectId}/history`);
   await expect(page.getByText(/^Undo "Ignore the out-of-office reply/)).toBeVisible();
