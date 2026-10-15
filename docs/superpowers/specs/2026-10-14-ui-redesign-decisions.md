@@ -100,8 +100,8 @@ Full design: [2026-10-15-simplify-ui-design.md](2026-10-15-simplify-ui-design.md
 - **Three jobs:** Look (Graph), Review (new records and change sets), Answer (Escalations). The rail shows these plus Settings.
 - **Words:** the screens say "change set" for a proposal and "approval" for a merge. The API, MCP and agent recipe keep their names.
 - **Rail:** it shows the current project and collapses to icons. The `pg_rail` cookie stores the state, so the page does not jump on load.
-- **Review:** one screen with a list and a detail pane. The old proposal review page redirects to it.
+- **Review:** one screen with two tabs, Change sets and New records, and a detail pane. The old proposals list and the old proposal review page both redirect to it.
 - **Hidden git words:** commit ids, revision numbers and hashes appear only under "Technical details".
 - **Canvas:** it keeps zoom, fit and full screen. The zoom menu, the minimap and the axis menu go.
-- **Day widths:** automatic day widths replace "every day is 64 px" from B2. The day column resize handles and their browser storage go.
+- **Day widths:** a day with events widens to fit them (B3), and a day without events stays 64 px at 100 %. This replaces "every day is 64 px" from B2. The day column resize handles and their browser storage go.
 - **Kept:** the engine, the 7 breakdown types, the merge checks, history with revert and restore.

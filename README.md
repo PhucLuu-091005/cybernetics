@@ -6,14 +6,14 @@ It is for customer success and implementation managers. They must reconstruct a 
 
 ## How it works
 
-- **Evidence store.** Records enter an inbox through paste or MCP import. A record version never changes. An import never changes the graph.
+- **Evidence store.** Records enter the New records list through paste or MCP import. A record version never changes. An import never changes the graph.
 - **Versioned graph.** The graph has a main line, draft proposals, a diff, an explicit merge, history, revert and restore. Each act cites an exact quote with UTF-16 offsets in a record version. The screens call a proposal a "change set" and a merge an "approval". The API and the MCP tools keep their names.
 - **Deterministic engine.** A pure function derives loop states and 7 breakdown types (for example `silent_overdue` and `unanswered_request`) from the graph at a time `T`.
 - **No AI in the app.** The app and its server call no AI model and hold no provider key. You connect your own agent (for example Claude Code) to `/mcp` with a project token. The agent reads evidence, submits a proposal and reads its diff. A person reviews the proposal and merges it. A default token cannot merge.
 
 ## Screenshots
 
-The screenshots come from the local production build on 15 October 2026, with the seeded sandbox.
+The screenshots come from a local development server on 15 October 2026, with the seeded sandbox.
 
 The approved graph with the loop panel open. The red branch has an `unanswered_request` breakdown, and the panel shows the cited quote in its message:
 
