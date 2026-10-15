@@ -17,7 +17,7 @@ import {
 import { NotesCard } from '../notes/NotesCard';
 import type { EditTarget } from '../review/draft-edit';
 import { FilterBar } from './FilterBar';
-import { applyFilters, filtersToSearch, type GraphFilters } from './filters';
+import { NO_FILTERS, applyFilters, filtersToSearch, type GraphFilters } from './filters';
 import type { CardInfo } from './CardNode';
 import { ACT_LABEL, loopColor, partyName, shortStamp, type Directory } from './labels';
 import type { IndexEntry } from './LoopIndex';
@@ -353,6 +353,18 @@ export function GraphScreen({
     setLoopId(id);
     setView('graph');
   }, []);
+  // A note cites steps in loops that a filter may hide, and the cite must still open its loop.
+  const citeLoop = useCallback(
+    (id: string, nextActId: string) => {
+      if (!visibleLoops.some((loop) => loop.loop.id === id)) {
+        update(NO_FILTERS);
+        setQuery('');
+        showAll();
+      }
+      selectLoop(id, nextActId);
+    },
+    [visibleLoops, update, showAll, selectLoop],
+  );
   const selectMilestone = useCallback((id: string) => {
     lastFocus.current = milestoneKey(id);
     setActId(null);
@@ -430,7 +442,7 @@ export function GraphScreen({
         onView={setView}
         onQuery={onQuery}
       />
-      <NotesCard notes={snapshot.annotations} actLoop={actLoop} onCite={selectLoop} />
+      <NotesCard notes={snapshot.annotations} actLoop={actLoop} onCite={citeLoop} />
       <p className="coverage">
         <span>
           <b>
@@ -525,7 +537,7 @@ export function GraphScreen({
                 snapshot={snapshot}
                 notes={loopNotes}
                 actLoop={actLoop}
-                onCite={selectLoop}
+                onCite={citeLoop}
                 agentActIds={agentActs}
                 relations={relations}
                 onOpenLoop={selectLoop}
