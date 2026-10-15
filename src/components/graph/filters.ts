@@ -14,6 +14,7 @@ export type GraphFilters = {
   departmentIds: string[];
   state: LoopState | null;
   breakdown: BreakdownType | null;
+  problems: boolean;
   milestoneId: string | null;
   q: string;
   view: 'graph' | 'list';
@@ -29,6 +30,7 @@ export function parseFilters(search: URLSearchParams): GraphFilters {
     departmentIds: [...new Set(search.getAll('dept').filter((value) => id(value) !== null))],
     state: LoopStateSchema.safeParse(search.get('state')).data ?? null,
     breakdown: BreakdownTypeSchema.safeParse(search.get('breakdown')).data ?? null,
+    problems: search.get('problems') === '1',
     milestoneId: id(search.get('milestone')),
     q: (search.get('q') ?? '').trim().slice(0, 200),
     view: search.get('view') === 'list' ? 'list' : 'graph',
@@ -47,6 +49,7 @@ export function filtersToSearch(
     'dept',
     'state',
     'breakdown',
+    'problems',
     'milestone',
     'q',
     'view',
@@ -58,6 +61,7 @@ export function filtersToSearch(
   for (const departmentId of filters.departmentIds) search.append('dept', departmentId);
   if (filters.state) search.set('state', filters.state);
   if (filters.breakdown) search.set('breakdown', filters.breakdown);
+  if (filters.problems) search.set('problems', '1');
   if (filters.milestoneId) search.set('milestone', filters.milestoneId);
   if (filters.q) search.set('q', filters.q);
   if (filters.view === 'list') search.set('view', 'list');
@@ -83,6 +87,7 @@ export function applyFilters(
     if (filters.state && derived.state !== filters.state) continue;
     if (filters.breakdown && !derived.breakdowns.some((item) => item.type === filters.breakdown))
       continue;
+    if (filters.problems && derived.breakdowns.length === 0) continue;
     if (filters.milestoneId && loop.milestoneId !== filters.milestoneId) continue;
     if (
       q !== null &&
