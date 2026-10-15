@@ -342,7 +342,7 @@ The graph is a canvas panel with geometric zoom from 2 % to 400 %. The layout us
 
 ### 7.3b Loop list (15 October 2026)
 
-A panel on the right of the canvas lists the loops the filters let through, in start order with tasks under their promise. A title jumps the canvas to that loop. A focus button per loop shows only the chosen loops (a promise keeps its tasks) until "Show all". The panel opens by default on screens 1,100 px or wider and remembers its open state per browser.
+A panel on the right of the canvas lists the loops the filters let through, in start order with tasks under their promise. A title jumps the canvas to that loop. A focus button per loop shows only the chosen loops (a promise keeps its tasks) until "Show all". A search box narrows the list by title or department (accents and case ignored); a matching task keeps its promise above it, dimmed. The search changes the list only, never the graph. The panel opens by default on screens 1,100 px or wider and remembers its open state per browser.
 
 ### 7.4 Loop panel
 

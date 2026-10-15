@@ -48,6 +48,7 @@ As in the graph declutter design, section 4, with these settings:
 - **Order on drag.** A sideways drag moves an act inside its day and between its neighbours of the same loop: an act never passes one that happened before or after it. Acts the user did not drag keep their place.
 - **Card drag.** A card drags on its own, anywhere; its act stays. The stem follows the card above, below or beside the act. Card positions stay in the same browser storage as the other layout moves, and "Reset layout" clears them. Dragging the icon still moves the act (sideways) or the branch (up or down).
 - **Loop list.** A panel on the right of the canvas lists every loop the filters let through, in start order with tasks under their promise. A title jumps the canvas to that loop; the focus button shows only the chosen loops (a promise keeps its tasks) until "Show all". The list opens by default on screens 1,100 px or wider, closes from its own button or the canvas controls, and remembers that choice per browser.
+- **Loop list search.** A search box above the list narrows it by title or department, ignoring accents and case; a matching task keeps its promise above it, dimmed. Escape clears it. The search never changes the graph.
 - **Zoom range.** The minimum zoom is 2 %, so the longer timeline still fits on one screen.
 - **Process.** Work stays local until the owner checks it; nothing goes to CI before that.
 
