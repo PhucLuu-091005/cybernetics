@@ -193,8 +193,8 @@ export function ProposalWorkspace({
   } else {
     editor = (
       <p className="pad faint" style={{ fontSize: 13 }}>
-        Select a change to edit it. To add an act, select its text in a record in the inbox and
-        choose “Start act from selection”.
+        Select a change to edit it. To add an act, select its text in a record in Review and choose
+        “Add an act from this quote”.
       </p>
     );
   }

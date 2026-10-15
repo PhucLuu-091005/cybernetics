@@ -106,7 +106,7 @@ async function paste(
   await page.getByRole('button', { name: 'Import as pending record' }).click();
   const receipt = page.getByRole('status', { name: 'Import receipt' });
   await expect(receipt).toContainText('new');
-  await expect(receipt).toContainText('Main did not change');
+  await expect(receipt).toContainText('The graph did not change');
 }
 
 async function merge(page: Page, message?: string) {
@@ -454,10 +454,10 @@ test('7: a revert keeps an unrelated later change, and a restore of an older gra
   await expect(
     page.getByRole('heading', { level: 2, name: /^Note the SOW phase 2 scope/ }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Preview revert' }).click();
+  await page.getByRole('button', { name: 'Preview undo' }).click();
   const revert = page.getByRole('region', { name: /Undo preview/ });
   await expect(revert.getByTestId('preserved')).toContainText('Unrelated later work stays');
-  await revert.getByRole('button', { name: 'Apply revert as new commit' }).click();
+  await revert.getByRole('button', { name: 'Apply undo as a new version' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/history/[0-9a-f-]{36}$`));
   await expect(commits(page).getByRole('link').first()).toContainText(
     'Undo “Note the SOW phase 2 scope',
@@ -471,10 +471,10 @@ test('7: a revert keeps an unrelated later change, and a restore of an older gra
   await expect(
     page.getByRole('heading', { level: 2, name: /^Note the SOW phase 2 scope/ }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Preview restore' }).click();
+  await page.getByRole('button', { name: 'Preview go back' }).click();
   const restore = page.getByRole('region', { name: /Go back preview/ });
   await expect(restore.getByTestId('removed-later')).toContainText('Adds back annotation');
-  await restore.getByRole('button', { name: 'Apply restore as new commit' }).click();
+  await restore.getByRole('button', { name: 'Apply go back as a new version' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/history/[0-9a-f-]{36}$`));
   await expect(commits(page).getByRole('link')).toHaveCount(before + 1);
   await expect(commits(page).getByRole('link').first()).toContainText('restore');

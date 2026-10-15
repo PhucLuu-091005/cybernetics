@@ -225,7 +225,7 @@ test('revert preview: a conflicting inverse becomes a proposal, an unrelated lat
   await expect(
     page.getByRole('heading', { level: 2, name: /^Ignore the out-of-office reply/ }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Preview revert' }).click();
+  await page.getByRole('button', { name: 'Preview undo' }).click();
   const preview = page.getByRole('region', { name: /Undo preview/ });
   await expect(preview).toContainText('conflicts with later changes');
   await preview.getByRole('button', { name: 'Create a change set that undoes it' }).click();
@@ -241,7 +241,7 @@ test('revert preview: a conflicting inverse becomes a proposal, an unrelated lat
   await expect(
     page.getByRole('heading', { level: 2, name: /^Note the SOW phase 2 scope/ }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Preview revert' }).click();
+  await page.getByRole('button', { name: 'Preview undo' }).click();
   await expect(preview.getByRole('table', { name: 'Touched entities' })).toContainText(
     'Annotation',
   );
@@ -249,7 +249,7 @@ test('revert preview: a conflicting inverse becomes a proposal, an unrelated lat
   await expect(preview.getByTestId('preserved')).toContainText(
     'Revert "Ignore the out-of-office reply',
   );
-  await preview.getByRole('button', { name: 'Apply revert as new commit' }).click();
+  await preview.getByRole('button', { name: 'Apply undo as a new version' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/history/[0-9a-f-]{36}$`));
   const top = commits(page).getByRole('link').first();
   await expect(top).toContainText('Undo “Note the SOW phase 2 scope');
@@ -281,11 +281,11 @@ test('restore preview lists removed later changes and apply creates a new restor
   await expect(
     page.getByRole('heading', { level: 2, name: /^Seed Larkspur main snapshot/ }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Preview restore' }).click();
+  await page.getByRole('button', { name: 'Preview go back' }).click();
   const preview = page.getByRole('region', { name: /Go back preview/ });
   await expect(preview.getByTestId('removed-later')).toContainText('Removes annotation');
   await expect(preview.getByTestId('removed-later')).toContainText('Note the SOW phase 2 scope');
-  await preview.getByRole('button', { name: 'Apply restore as new commit' }).click();
+  await preview.getByRole('button', { name: 'Apply go back as a new version' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/history/[0-9a-f-]{36}$`));
   await expect(commits(page).getByRole('link')).toHaveCount(before + 1);
   const top = commits(page).getByRole('link').first();

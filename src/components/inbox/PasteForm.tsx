@@ -203,11 +203,9 @@ export function PasteForm({
               ),
             )}
             <div className="faint">
-              Evidence revision {receipt.evidenceRevision}.{' '}
               {receipt.mainCommitId === mainCommitId
-                ? 'Main did not change'
-                : 'The graph changed since this page loaded, through another approval'}{' '}
-              (commit <span className="id">{receipt.mainCommitId.slice(0, 7)}</span>).
+                ? 'The graph did not change.'
+                : 'The graph changed since this page loaded, through another approval.'}
             </div>
           </div>
         )}

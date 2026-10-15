@@ -121,7 +121,7 @@ export function RevertRestorePreview({
           aria-pressed={preview?.kind === 'revert'}
           onClick={() => load('revert')}
         >
-          Preview revert
+          Preview undo
         </button>
         <button
           className="btn"
@@ -130,7 +130,7 @@ export function RevertRestorePreview({
           aria-pressed={preview?.kind === 'restore'}
           onClick={() => load('restore')}
         >
-          Preview restore
+          Preview go back
         </button>
       </div>
       {failure && (
@@ -201,7 +201,7 @@ export function RevertRestorePreview({
                   </button>
                   <span className="faint" style={{ fontSize: 12 }}>
                     The change set undoes what is safe to undo and keeps the approved graph for each
-                    conflicting entity, so you resolve them explicitly before a merge.
+                    conflicting entity, so you resolve them explicitly before an approval.
                   </span>
                 </div>
               )}
@@ -209,8 +209,8 @@ export function RevertRestorePreview({
           ) : preview.kind === 'revert' ? (
             <>
               <p style={{ fontSize: 13 }}>
-                Touched entities: {preview.diff.changes.length}. Main still equals this
-                commit&apos;s result for every touched entity, so the inverse applies without
+                Touched entities: {preview.diff.changes.length}. The approved graph still matches
+                this version&apos;s result for every touched entity, so the inverse applies without
                 conflict.
               </p>
               <div className="tablewrap" style={{ border: 0 }}>
@@ -324,7 +324,7 @@ export function RevertRestorePreview({
                 disabled={disabled || !message.trim()}
                 onClick={apply}
               >
-                Apply {preview.kind} as new commit
+                Apply {preview.kind === 'revert' ? 'undo' : 'go back'} as a new version
               </button>
             </div>
           )}
