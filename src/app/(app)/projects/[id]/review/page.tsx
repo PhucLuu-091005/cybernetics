@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import '../../../../review.css';
-import { IdSchema } from '../../../../../contracts';
+import { IdSchema, type GraphSnapshot, type RecordDecision } from '../../../../../contracts';
 import { shortStamp } from '../../../../../components/graph/labels';
 import { InboxList } from '../../../../../components/inbox/InboxList';
 import { CreateProposalForm } from '../../../../../components/review/CreateProposalForm';
@@ -13,7 +13,7 @@ import {
   reviewHref,
 } from '../../../../../components/review-queue/state';
 import { getApp } from '../../../../../server/app';
-import { readInboxView } from '../../../../../server/domain/inbox';
+import { readInboxView, type InboxView } from '../../../../../server/domain/inbox';
 import { getProposal } from '../../../../../server/domain/proposals';
 import { AppError } from '../../../../../server/errors';
 import { notFoundOn, requireActor } from '../../../../../server/http/rsc';
@@ -36,7 +36,9 @@ export default async function ReviewPage({
   if (!IdSchema.safeParse(id).success) notFound();
   const actor = await requireActor(`/projects/${id}/review`);
   const db = getApp().db;
-  const { main, drafts, myReview, pendingRecords } = await notFoundOn(reviewQueue(db, actor, id));
+  const { main, drafts, myReview, myCandidate, myDecisions, pendingRecords } = await notFoundOn(
+    reviewQueue(db, actor, id),
+  );
   const current = {
     mainCommitId: main.project.mainCommitId,
     evidenceRevision: main.project.evidenceRevision,
@@ -47,12 +49,20 @@ export default async function ReviewPage({
   const inbox = await notFoundOn(
     readInboxView(db, actor, {
       projectId: id,
-      view: myReview ? { kind: 'proposal', proposalId: myReview.id } : { kind: 'main' },
+      view: { kind: 'main' },
       state: 'pending',
       limit: 50,
-      ...(query.r ? { recordVersionId: query.r } : { selectFirst: true }),
+      ...(query.r ? { recordVersionId: query.r } : {}),
     }),
   );
+  const records = inbox.page.items.filter((item) => !myDecisions.has(item.recordVersionId));
+  const first = records[0]?.recordVersionId;
+  const picked: InboxView['selected'] = query.r
+    ? inbox.selected
+    : first
+      ? { recordVersionId: first, state: 'pending', decision: null, citedByVisibleAct: false }
+      : null;
+  const selected = picked && withMyReview(picked, myDecisions, myCandidate ?? main.snapshot);
   const sets: SetRow[] = [...drafts.items]
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     .map((draft) => ({
@@ -115,15 +125,15 @@ export default async function ReviewPage({
       <div className="queue">
         <QueueList
           projectId={id}
-          query={query}
+          query={{ ...query, item }}
           sets={sets}
           recordCount={pendingRecords}
           records={
             <InboxList
               projectId={id}
-              items={inbox.page.items}
+              items={records}
               query={{ state: 'pending', proposal: null }}
-              selectedId={inbox.selected?.recordVersionId ?? null}
+              selectedId={selected?.recordVersionId ?? null}
               timeZone={timeZone}
               hrefFor={(r) => reviewHref(id, { tab: 'records', r })}
               emptyText="No new records. Everything is decided."
@@ -150,7 +160,7 @@ export default async function ReviewPage({
             <RecordDetail
               projectId={id}
               actor={actor}
-              inbox={inbox}
+              inbox={{ ...inbox, page: { ...inbox.page, items: records }, selected }}
               myReview={myReview}
               timeZone={timeZone}
             />
@@ -159,4 +169,21 @@ export default async function ReviewPage({
       </div>
     </>
   );
+}
+
+/** The list reads the approved graph, so a record that My review decides takes its state and decision from My review, and the ignore check reads the acts there. */
+function withMyReview(
+  selected: NonNullable<InboxView['selected']>,
+  myDecisions: Map<string, RecordDecision>,
+  target: GraphSnapshot,
+): NonNullable<InboxView['selected']> {
+  const id = selected.recordVersionId;
+  const mine = selected.state === 'pending' ? myDecisions.get(id) : undefined;
+  return {
+    ...selected,
+    ...(mine && { state: mine.disposition, decision: mine }),
+    citedByVisibleAct: target.acts.some(
+      (act) => !act.hidden && act.citation.recordVersionId === id,
+    ),
+  };
 }
