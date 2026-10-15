@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Graph Canvas Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700&family=Overpass+Mono:wght@400;600&display=swap">
+<style>
+:root {
+  --panel: #e7ece7; --surface: #f5f7f4; --sunk: #dce3dd; --ink: #17212d; --ink-2: #4b5663; --ink-3: #6e7883;
+  --rule: #c5cec7; --trunk: #17212d; --proceed: #22724a; --route: #2c5aa2; --danger: #c0312a; --caution: #b97f0c;
+  --focus: #2c5aa2; --shadow: 0 1px 0 rgba(23,33,45,.06), 0 8px 24px -12px rgba(23,33,45,.28);
+  --f-ui: 'Overpass', system-ui, sans-serif; --f-id: 'Overpass Mono', ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --panel: #11191f; --surface: #18222a; --sunk: #0d1419; --ink: #e2e8e3; --ink-2: #a3aeb5; --ink-3: #7f8a92;
+    --rule: #2b3942; --trunk: #dce3dd; --proceed: #52b381; --route: #73a0ea; --danger: #f1665c; --caution: #e8b03d;
+    --focus: #73a0ea; --shadow: 0 1px 0 rgba(0,0,0,.3), 0 10px 28px -12px rgba(0,0,0,.7);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --panel: #11191f; --surface: #18222a; --sunk: #0d1419; --ink: #e2e8e3; --ink-2: #a3aeb5; --ink-3: #7f8a92;
+  --rule: #2b3942; --trunk: #dce3dd; --proceed: #52b381; --route: #73a0ea; --danger: #f1665c; --caution: #e8b03d;
+  --focus: #73a0ea; --shadow: 0 1px 0 rgba(0,0,0,.3), 0 10px 28px -12px rgba(0,0,0,.7);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--panel); color: var(--ink); font: 14px/1.5 var(--f-ui); }
+main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+p.note { color: var(--ink-2); margin: 0 0 12px; max-width: 820px; }
+kbd { font-family: var(--f-id); font-size: 12px; border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--surface); }
+/* Stage: frozen axis on top, frozen lane column on the left, canvas in the rest. */
+.stage { position: relative; height: min(72vh, 720px); min-height: 420px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); overflow: hidden; user-select: none; }
+.stage:fullscreen { height: 100vh; border-radius: 0; border: 0; }
+.corner { position: absolute; left: 0; top: 0; width: 120px; height: 28px; z-index: 4; background: var(--surface); border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); font-size: 11px; font-weight: 700; color: var(--ink-3); padding: 6px 12px; }
+.axis { position: absolute; left: 120px; right: 0; top: 0; height: 28px; z-index: 3; background: var(--surface); border-bottom: 1px solid var(--rule); overflow: hidden; }
+.lanes { position: absolute; left: 0; top: 28px; bottom: 0; width: 120px; z-index: 3; background: var(--surface); border-right: 1px solid var(--rule); overflow: hidden; }
+.lanes div { position: absolute; left: 0; right: 0; padding-left: 12px; display: flex; align-items: center; font-size: 12px; font-weight: 600; color: var(--ink-2); white-space: nowrap; overflow: hidden; }
+.lanes div.odd { background: color-mix(in srgb, var(--panel) 55%, var(--surface)); }
+.lanes div.side { font-size: 11px; font-weight: 700; color: var(--ink-3); }
+.canvas { position: absolute; left: 120px; top: 28px; right: 0; bottom: 0; cursor: default; touch-action: none; }
+.canvas.panning { cursor: grabbing; }
+.canvas svg { display: block; width: 100%; height: 100%; }
+svg text { font-family: var(--f-ui); }
+.dot { cursor: grab; }
+.lod-low .lbl, .lod-min .lbl-title { display: none; }
+.br-hit { fill: none; stroke: transparent; stroke-width: 14; cursor: pointer; }
+/* Floating controls, bottom right, like Miro's canvas controls. */
+.controls { position: absolute; right: 12px; bottom: 12px; z-index: 6; display: flex; gap: 2px; padding: 4px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; box-shadow: var(--shadow); }
+.controls button { font: inherit; font-size: 13px; min-width: 32px; height: 30px; padding: 0 8px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.controls button:hover, .controls button[aria-pressed="true"] { background: var(--sunk); }
+.controls button:focus-visible { outline: 2px solid var(--focus); }
+.controls .pct { min-width: 64px; font-family: var(--f-id); font-weight: 600; }
+.controls svg { width: 16px; height: 16px; }
+.sep { width: 1px; background: var(--rule); margin: 4px 2px; }
+.menu { position: absolute; right: 12px; bottom: 54px; z-index: 7; min-width: 170px; padding: 4px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; box-shadow: var(--shadow); }
+.menu button { display: flex; justify-content: space-between; width: 100%; font: inherit; font-size: 13px; padding: 6px 10px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); cursor: pointer; text-align: left; }
+.menu button:hover { background: var(--sunk); }
+.menu hr { border: 0; border-top: 1px solid var(--rule); margin: 4px 0; }
+.minimap { position: absolute; right: 12px; bottom: 56px; z-index: 5; width: 220px; height: 120px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; cursor: pointer; }
+.minimap .view { fill: color-mix(in srgb, var(--route) 12%, transparent); stroke: var(--route); stroke-width: 1.5; cursor: grab; }
+.tip { position: absolute; z-index: 8; width: 280px; background: var(--ink); color: var(--surface); border-radius: 6px; box-shadow: var(--shadow); padding: 9px 11px; font-size: 12px; pointer-events: auto; }
+.tip .loop { font-size: 11px; opacity: .75; margin-bottom: 3px; }
+.tip q { display: block; font-size: 13px; margin: 4px 0; }
+.tip .src { border-top: 1px solid color-mix(in srgb, var(--surface) 30%, transparent); margin-top: 6px; padding-top: 6px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.tip a { color: var(--surface); font-weight: 700; }
+.ic { width: 13px; height: 13px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--ink-2); margin-top: 8px; }
+.legend span::before { content: ''; display: inline-block; width: 18px; height: 3px; margin-right: 6px; vertical-align: middle; background: var(--c); }
+.status { font-family: var(--f-id); font-size: 12px; color: var(--ink-3); margin-top: 6px; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-slack" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></g></symbol>
+    <symbol id="i-gmail" viewBox="0 0 24 24"><path fill="currentColor" d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/></symbol>
+    <symbol id="i-linear" viewBox="0 0 24 24"><path fill="currentColor" d="M2.886 4.18A11.982 11.982 0 0 1 11.99 0C18.624 0 24 5.376 24 12.009c0 3.64-1.62 6.903-4.18 9.105L2.887 4.18ZM1.817 5.626l16.556 16.556c-.524.33-1.075.62-1.65.866L.951 7.277c.247-.575.537-1.126.866-1.65ZM.322 9.163l14.515 14.515c-.71.172-1.443.282-2.195.322L0 11.358a12 12 0 0 1 .322-2.195Zm-.17 4.862 9.823 9.824a12.02 12.02 0 0 1-9.824-9.824Z"/></symbol>
+    <symbol id="i-paste" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 14h10"/><path d="M16 4h2a2 2 0 0 1 2 2v1.344"/><path d="m17 18 4-4-4-4"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 1.793-1.113"/><rect x="8" y="2" width="8" height="4" rx="1"/></g></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-fit" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 0 1 2-2h3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M21 16v3a2 2 0 0 1-2 2h-3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/></g></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="11" y="11" width="7" height="6" rx="1"/></g></symbol>
+    <symbol id="i-full" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/></g></symbol>
+    <symbol id="i-exit" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/></g></symbol>
+  </defs>
+</svg>
+<main>
+  <h1>Graph canvas: mockup for review</h1>
+  <p class="note">The graph becomes a canvas panel, as in Miro, draw.io and Figma. Try: scroll to move, <kbd>Shift</kbd> + scroll to move sideways, <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + scroll or pinch to zoom around the pointer, drag empty space to move, drag a dot (it stays in its day and lane), double-click a branch to zoom to that loop, the % menu for presets, the map button for the minimap, and the last button for full screen. Loop titles appear from 60 % and source labels from 80 %. Zoom to a loop stops at 150 %.</p>
+  <div class="stage" id="stage">
+    <div class="corner">Departments</div>
+    <div class="axis"><svg id="axis" width="100%" height="28"></svg></div>
+    <div class="lanes" id="lanes"></div>
+    <div class="canvas" id="canvas"><svg id="svg" role="img" aria-label="Promise graph canvas"><g id="vp"></g></svg></div>
+    <div class="minimap" id="minimap" hidden><svg id="mm" width="220" height="120"></svg></div>
+    <div class="menu" id="menu" role="menu" hidden></div>
+    <div class="controls" role="toolbar" aria-label="Canvas controls">
+      <button type="button" id="zoomOut" aria-label="Zoom out"><svg><use href="#i-minus"/></svg></button>
+      <button type="button" id="pct" class="pct" aria-haspopup="menu" aria-expanded="false" aria-label="Zoom level">100%</button>
+      <button type="button" id="zoomIn" aria-label="Zoom in"><svg><use href="#i-plus"/></svg></button>
+      <span class="sep"></span>
+      <button type="button" id="fit" aria-label="Fit the project"><svg><use href="#i-fit"/></svg></button>
+      <button type="button" id="mapBtn" aria-label="Minimap" aria-pressed="false"><svg><use href="#i-map"/></svg></button>
+      <button type="button" id="fullBtn" aria-label="Full screen"><svg id="fullIcon"><use href="#i-full"/></svg></button>
+    </div>
+    <div class="tip" id="tip" role="dialog" aria-label="Event details" hidden></div>
+  </div>
+  <div class="legend"><span style="--c: var(--proceed)">Closed</span><span style="--c: var(--route)">Open</span><span style="--c: var(--danger)">Broken</span><span style="--c: var(--caution)">Warning</span></div>
+  <div class="status" id="status"></div>
+</main>
+<script>
+(() => {
+  // Layout units: one day = 18 px at 100 %, rows 64 px (a label line above, a title below), dots 28 px. Zoom scales all of it.
+  const PX = 18, ROW = 64, PAD = 12, TRUNK = 58, CURVE = 16, DOT = 28, DAYS = 70, AXIS_H = 28, COL = 120;
+  const START = Date.UTC(2026, 7, 1); // 1 Aug 2026
+  const T = 69.75;
+  const lanes = [
+    { id: 'cs', name: 'Customer Success', side: 'vendor', rows: 1 },
+    { id: 'eng', name: 'Engineering', side: 'vendor', rows: 3 },
+    { id: 'imp', name: 'Implementation', side: 'vendor', rows: 2 },
+    { id: 'fund', name: 'Fund Operations', side: 'client', rows: 2 },
+    { id: 'legal', name: 'Legal', side: 'client', rows: 1 },
+  ];
+  const A = (t, type, who, src, label, q, link = true) => ({ t, type, who, src, label, q, link });
+  const loops = [
+    { id: 'go', title: 'Go-live date', lane: 'imp', row: 0, tone: 'route', end: 'open', acts: [A(2.4, 'Request', 'Sarah Kim', 'Gmail', 'Go-live plan', 'Can Fund III go live before the end of Q3?'), A(3.5, 'Promise', 'Minh Trần', 'Gmail', 'Go-live plan', 'We will go live by 30 September.'), A(58.4, 'Renegotiate', 'Minh Trần', 'Slack', '#larkspur-onboarding', 'We need to move go-live to 15 October.')] },
+    { id: 'crm', title: 'Dynamics CRM sync scope', lane: 'eng', row: 0, tone: 'caution', end: 'open', acts: [A(3.4, 'Request', 'Sarah Kim', 'Slack', '#larkspur-onboarding', 'Can we have the Dynamics CRM sync in phase 1?'), A(3.6, 'Promise', 'Quang Nguyễn', 'Slack', '#larkspur-onboarding', "We'll look into it; phase 1 should be fine.")] },
+    { id: 'pg112', title: 'PG-112 Fund III data import', lane: 'eng', row: 1, tone: 'proceed', end: 'merge', acts: [A(42.4, 'Request', 'Minh Trần', 'Linear', 'PG-112 Fund III data import', 'Created and assigned to Quang Nguyễn.'), A(43.4, 'Promise', 'Quang Nguyễn', 'Linear', 'PG-112 Fund III data import', 'State: Todo → In Progress. Due date: 2026-09-26.'), A(54.6, 'Report done', 'Quang Nguyễn', 'Linear', 'PG-112 Fund III data import', 'State: In Progress → In Review.'), A(55.4, 'Accept', 'Minh Trần', 'Linear', 'PG-112 Fund III data import', 'State: In Review → Done.')] },
+    { id: 'inc', title: 'Incident report', lane: 'eng', row: 2, tone: 'danger', end: 'open', acts: [A(48.6, 'Request', 'Sarah Kim', 'Gmail', 'Sync outage', 'Please send a root cause report.'), A(49.5, 'Promise', 'Quang Nguyễn', 'Gmail', 'Sync outage', 'You will have it by Friday.')], broken: 54 },
+    { id: 'kick', title: 'Kickoff deck', lane: 'cs', row: 0, tone: 'proceed', end: 'merge', acts: [A(0.5, 'Request', 'Sarah Kim', 'Slack', '#larkspur-onboarding', 'Can you share the kickoff deck?'), A(0.7, 'Promise', 'Daniel Reyes', 'Slack', '#larkspur-onboarding', 'Sending it today.'), A(1.6, 'Report done', 'Daniel Reyes', 'Slack', '#larkspur-onboarding', 'Deck attached.'), A(2.3, 'Accept', 'Sarah Kim', 'Slack', '#larkspur-onboarding', 'Thanks, got it.')] },
+    { id: 'w8', title: 'W-8 form review', lane: 'fund', row: 0, tone: 'proceed', end: 'merge', acts: [A(10.4, 'Request', 'Minh Trần', 'Gmail', 'W-8 forms', 'Please send the signed W-8 forms.'), A(11.5, 'Promise', 'Priya Shah', 'Gmail', 'W-8 forms', 'We will send them this week.'), A(16.6, 'Report done', 'Priya Shah', 'Gmail', 'W-8 forms', 'Forms attached.'), A(19.4, 'Accept', 'Minh Trần', 'Gmail', 'W-8 forms', 'All correct.')] },
+    { id: 'sec', title: 'Client secret renewal', lane: 'fund', row: 1, tone: 'danger', end: 'open', acts: [A(52.4, 'Request', 'Quang Nguyễn', 'Slack', '#larkspur-it', 'Please renew the Azure client secret.')], broken: 56 },
+    { id: 'side', title: 'Side letter review', lane: 'legal', row: 0, tone: 'caution', end: 'open', acts: [A(19.4, 'Request', 'Minh Trần', 'Gmail', 'Side letter v3', 'Can legal review the side letter?'), A(20.5, 'Promise', 'Priya Shah', 'Gmail', 'Side letter v3', 'Hollis will review it.'), A(26.6, 'Report done', 'Priya Shah', 'Paste', 'Hollis call notes', 'Review finished, comments sent.', false)] },
+  ];
+  const milestones = [{ name: 'Kickoff', t: 0.5 }, { name: 'Documents received', t: 18.5 }, { name: 'CRM integration live', t: 45.5 }, { name: 'Go-live and first close', t: 75.5 }];
+  const ICON = { Slack: 'i-slack', Gmail: 'i-gmail', Linear: 'i-linear', Paste: 'i-paste' };
+  const offsets = { acts: {}, loops: {} };
+  let view = { x: 0, y: 0, z: 1 }, minimap = false;
+
+  const $ = (id) => document.getElementById(id);
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (name, attrs, parent) => { const n = document.createElementNS(NS, name); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); if (parent) parent.appendChild(n); return n; };
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+  // Geometry in layout units.
+  const laneH = (l) => l.rows * ROW + PAD;
+  const vendor = lanes.filter((l) => l.side === 'vendor'), client = lanes.filter((l) => l.side === 'client');
+  const trunkY = vendor.reduce((s, l) => s + laneH(l), 0) + TRUNK / 2;
+  const geo = {};
+  { let top = trunkY - TRUNK / 2; for (const l of vendor) { top -= laneH(l); geo[l.id] = { ...l, y: top, h: laneH(l) }; }
+    let bottom = trunkY + TRUNK / 2; for (const l of client) { geo[l.id] = { ...l, y: bottom, h: laneH(l) }; bottom += laneH(l); } }
+  const contentH = Object.values(geo).reduce((m, l) => Math.max(m, l.y + l.h), 0) + 24;
+  const contentW = DAYS * PX + 60;
+  const rowY = (l, r) => l.side === 'vendor' ? l.y + l.h - PAD / 2 - ROW / 2 - r * ROW : l.y + PAD / 2 + ROW / 2 + r * ROW;
+  const actX = (a, id) => { const d = Math.floor(a.t); return (d + clamp(offsets.acts[id] ?? a.t - d, 0, 0.97)) * PX; };
+  const loopY = (lp) => { const l = geo[lp.lane], b = rowY(l, lp.row); return clamp(b + (offsets.loops[lp.id] ?? 0), l.y + ROW / 2, l.y + l.h - ROW / 2); };
+  const branchBox = (lp) => { const xs = lp.acts.map((a, i) => actX(a, lp.id + i)); const x0 = Math.min(...xs) - CURVE, x1 = (lp.end === 'merge' ? Math.max(...xs) : T * PX) + CURVE; const y = loopY(lp); return { x0, x1, y0: Math.min(y, trunkY) - 30, y1: Math.max(y, trunkY) + 30 }; };
+
+  function drawContent() {
+    const vp = $('vp'); vp.innerHTML = '';
+    for (const l of lanes) { const g = geo[l.id]; el('rect', { x: -2000, y: g.y, width: contentW + 4000, height: g.h, fill: lanes.indexOf(l) % 2 ? css('--panel') : 'transparent', opacity: .55 }, vp); }
+    for (let d = 0; d <= DAYS; d++) if (new Date(START + d * 864e5).getUTCDate() === 1 || d % 7 === 0)
+      el('line', { x1: d * PX, y1: -2000, x2: d * PX, y2: contentH + 2000, stroke: css('--rule'), 'stroke-width': new Date(START + d * 864e5).getUTCDate() === 1 ? 1 : .5, 'vector-effect': 'non-scaling-stroke' }, vp);
+    el('line', { x1: T * PX, y1: -2000, x2: T * PX, y2: contentH + 2000, stroke: css('--ink'), 'stroke-dasharray': '3 3', 'vector-effect': 'non-scaling-stroke' }, vp);
+    el('line', { x1: -20, y1: trunkY, x2: contentW, y2: trunkY, stroke: css('--trunk'), 'stroke-width': 4 }, vp);
+    for (const m of milestones) {
+      const x = m.t * PX;
+      el('path', { d: `M${x} ${trunkY - 10} L${x + 10} ${trunkY} L${x} ${trunkY + 10} L${x - 10} ${trunkY} Z`, fill: css('--trunk') }, vp);
+      el('text', { x, y: trunkY + 26, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: css('--ink'), class: 'lbl-title' }, vp).textContent = m.name;
+    }
+    for (const lp of loops) {
+      const y = loopY(lp), c = css('--' + lp.tone), xs = lp.acts.map((a, i) => actX(a, lp.id + i));
+      const x0 = Math.min(...xs), x1 = lp.end === 'merge' ? Math.max(...xs) : T * PX;
+      let d = `M${x0 - CURVE} ${trunkY} C${x0 - 4} ${trunkY} ${x0 - 12} ${y} ${x0} ${y} H${x1}`;
+      if (lp.end === 'merge') d += ` C${x1 + 12} ${y} ${x1 + 4} ${trunkY} ${x1 + CURVE} ${trunkY}`;
+      const g = el('g', {}, vp);
+      el('path', { d, fill: 'none', stroke: c, 'stroke-width': 3, 'stroke-dasharray': lp.tone === 'caution' ? '7 5' : '' }, g);
+      const hit = el('path', { d, class: 'br-hit' }, g);
+      hit.addEventListener('dblclick', (e) => { e.stopPropagation(); zoomToLoop(lp); });
+      el('text', { x: x0 + 8, y: y + 22, "font-size": 11, "font-weight": 700, fill: css("--ink"), class: "lbl-title" }, g).textContent = lp.title;
+      if (lp.broken) { const bx = lp.broken * PX; el('circle', { cx: bx, cy: y, r: 9, fill: css('--surface'), stroke: css('--danger'), 'stroke-width': 1.8 }, g); el('path', { d: `M${bx - 4} ${y - 4} L${bx + 4} ${y + 4} M${bx - 4} ${y + 4} L${bx + 4} ${y - 4}`, stroke: css('--danger'), 'stroke-width': 2.2 }, g); }
+      lp.acts.forEach((a, i) => {
+        const x = xs[i], r = DOT / 2 - 4, room = (i + 1 < xs.length ? xs[i + 1] - x : 160) - 6;
+        if (room >= 24) { const lab = el('g', { class: 'lbl' }, g); el('use', { href: '#' + ICON[a.src], x: x - 6, y: y - 34, width: 12, height: 12, color: css('--route') }, lab); if (room >= 90) el('text', { x: x + 9, y: y - 25, 'font-size': 10, 'font-weight': 600, fill: css('--route') }, lab).textContent = a.label.slice(0, Math.floor((room - 30) / 5.8)) + (a.link ? ' ↗' : ''); }
+        el('circle', { cx: x, cy: y, r, fill: a.type === 'Request' ? css('--surface') : c, stroke: c, 'stroke-width': 2.5 }, g);
+        if (a.type === 'Accept') el('circle', { cx: x, cy: y, r: 3.5, fill: css('--surface') }, g);
+        const dot = el('circle', { cx: x, cy: y, r: DOT / 2, fill: 'transparent', class: 'dot' }, g);
+        dot.addEventListener('pointerdown', (e) => startDrag(e, lp, a, lp.id + i));
+        dot.addEventListener('pointerenter', () => { if (!drag && !pan) showTip(lp, a, dot); });
+        dot.addEventListener('pointerleave', () => { if (!drag) hideTipSoon(); });
+      });
+    }
+    drawMinimapContent();
+  }
+
+  function apply() {
+    const canvas = $('canvas'), w = canvas.clientWidth, h = canvas.clientHeight;
+    // Keep at least 80 px of the content on screen, as draw.io and Miro do.
+    view.x = clamp(view.x, 80 - contentW * view.z, w - 80);
+    view.y = clamp(view.y, 80 - contentH * view.z, h - 80);
+    $('vp').setAttribute('transform', `translate(${view.x} ${view.y}) scale(${view.z})`);
+    $('svg').classList.toggle('lod-low', view.z < 0.8);
+    $('svg').classList.toggle('lod-min', view.z < 0.6);
+    $('pct').textContent = Math.round(view.z * 100) + '%';
+    drawAxis(); drawLanes(); drawMinimapView();
+    $('status').textContent = `zoom ${Math.round(view.z * 100)} % · x ${Math.round(view.x)} · y ${Math.round(view.y)} · ${Object.keys(offsets.acts).length} moved dots`;
+  }
+  function drawAxis() {
+    const svg = $('axis'); svg.innerHTML = '';
+    const dayPx = PX * view.z, step = dayPx >= 56 ? 1 : dayPx >= 8 ? 7 : 0;
+    for (let d = 0; d <= DAYS; d++) {
+      const date = new Date(START + d * 864e5), first = date.getUTCDate() === 1;
+      if (!(first || (step && d % step === 0))) continue;
+      const x = view.x + d * dayPx;
+      el('line', { x1: x, y1: first ? 0 : 16, x2: x, y2: AXIS_H, stroke: css('--rule') }, svg);
+      const label = first ? date.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' }) : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+      el('text', { x: x + 4, y: 18, 'font-size': 11, 'font-weight': first ? 700 : 400, fill: css(first ? '--ink-2' : '--ink-3') }, svg).textContent = label;
+    }
+    const xt = view.x + T * dayPx;
+    el('rect', { x: xt - 34, y: 4, width: 68, height: 18, rx: 4, fill: css('--ink') }, svg);
+    el('text', { x: xt, y: 17, 'text-anchor': 'middle', 'font-size': 10, 'font-weight': 700, fill: css('--surface') }, svg).textContent = 'T 9 Oct';
+  }
+  function drawLanes() {
+    const box = $('lanes'); box.innerHTML = '';
+    const add = (text, top, h, cls) => { const d = document.createElement('div'); d.textContent = h >= 14 ? text : ''; d.style.top = top + 'px'; d.style.height = h + 'px'; d.className = cls || ''; box.appendChild(d); };
+    lanes.forEach((l, i) => add(l.name, view.y + geo[l.id].y * view.z, geo[l.id].h * view.z, i % 2 ? 'odd' : ''));
+    add('Vendor ↑ · Client ↓', view.y + (trunkY - 10) * view.z - 7, 20, 'side');
+  }
+
+  // Minimap: whole content scaled into 220 x 120; the blue box is the visible area.
+  const MM = { w: 220, h: 120 };
+  const mmScale = () => Math.min(MM.w / contentW, MM.h / contentH);
+  function drawMinimapContent() {
+    const svg = $('mm'); svg.innerHTML = ''; const s = mmScale();
+    const g = el('g', { transform: `translate(${(MM.w - contentW * s) / 2} ${(MM.h - contentH * s) / 2}) scale(${s})` }, svg);
+    for (const l of lanes) el('rect', { x: 0, y: geo[l.id].y, width: contentW, height: geo[l.id].h, fill: lanes.indexOf(l) % 2 ? css('--panel') : 'transparent' }, g);
+    el('line', { x1: 0, y1: trunkY, x2: contentW, y2: trunkY, stroke: css('--trunk'), 'stroke-width': 6 }, g);
+    for (const lp of loops) { const b = branchBox(lp), y = loopY(lp); el('line', { x1: b.x0 + CURVE, y1: y, x2: b.x1 - CURVE, y2: y, stroke: css('--' + lp.tone), 'stroke-width': 8 }, g); }
+    el('rect', { id: 'mmView', class: 'view', x: 0, y: 0, width: 10, height: 10, rx: 3 }, svg);
+  }
+  function drawMinimapView() {
+    const r = $('mmView'); if (!r) return; const s = mmScale(), c = $('canvas');
+    const ox = (MM.w - contentW * s) / 2, oy = (MM.h - contentH * s) / 2;
+    r.setAttribute('x', ox + (-view.x / view.z) * s); r.setAttribute('y', oy + (-view.y / view.z) * s);
+    r.setAttribute('width', (c.clientWidth / view.z) * s); r.setAttribute('height', (c.clientHeight / view.z) * s);
+  }
+  function minimapTo(e) {
+    const box = $('mm').getBoundingClientRect(), s = mmScale(), c = $('canvas');
+    const cx = (e.clientX - box.left - (MM.w - contentW * s) / 2) / s, cy = (e.clientY - box.top - (MM.h - contentH * s) / 2) / s;
+    view.x = c.clientWidth / 2 - cx * view.z; view.y = c.clientHeight / 2 - cy * view.z; apply();
+  }
+  $('minimap').addEventListener('pointerdown', (e) => { e.preventDefault(); minimapTo(e); const move = (m) => minimapTo(m); window.addEventListener('pointermove', move); window.addEventListener('pointerup', () => window.removeEventListener('pointermove', move), { once: true }); });
+
+  // Zoom around a screen point.
+  function zoomAt(z, px, py) { z = clamp(z, 0.1, 4); const wx = (px - view.x) / view.z, wy = (py - view.y) / view.z; view = { x: px - wx * z, y: py - wy * z, z }; apply(); }
+  function zoomCentre(z) { const c = $('canvas'); zoomAt(z, c.clientWidth / 2, c.clientHeight / 2); }
+  function fitBox(x0, x1, y0, y1, pad = 32, max = 4) { const c = $('canvas'); const z = clamp(Math.min((c.clientWidth - pad * 2) / (x1 - x0), (c.clientHeight - pad * 2) / (y1 - y0)), 0.1, max); view = { z, x: (c.clientWidth - (x1 - x0) * z) / 2 - x0 * z, y: (c.clientHeight - (y1 - y0) * z) / 2 - y0 * z }; apply(); }
+  const fitAll = () => fitBox(-20, contentW, 0, contentH);
+  // Zoom to a loop stops at 150 %, so its text stays a normal reading size.
+  function zoomToLoop(lp) { const b = branchBox(lp); fitBox(b.x0, b.x1, b.y0, b.y1, 48, 1.5); }
+  const STEPS = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
+  $('zoomIn').onclick = () => zoomCentre(STEPS.find((s) => s > view.z + 1e-3) ?? 4);
+  $('zoomOut').onclick = () => zoomCentre([...STEPS].reverse().find((s) => s < view.z - 1e-3) ?? 0.1);
+  $('fit').onclick = fitAll;
+
+  // Percent menu with presets.
+  const menu = $('menu');
+  const presets = [['Fit the project', fitAll], ['Fit this week', () => fitBox((T - 4) * PX, (T + 3) * PX, 0, contentH)], ['Fit this month', () => fitBox((T - 25) * PX, (T + 5) * PX, 0, contentH)], null, ['50%', () => zoomCentre(.5)], ['100%', () => zoomCentre(1)], ['200%', () => zoomCentre(2)]];
+  menu.innerHTML = presets.map((p, i) => p ? `<button type="button" role="menuitem" data-i="${i}">${p[0]}</button>` : '<hr>').join('');
+  menu.addEventListener('click', (e) => { const i = e.target.closest('button')?.dataset.i; if (i === undefined) return; presets[i][1](); closeMenu(); });
+  const closeMenu = () => { menu.hidden = true; $('pct').setAttribute('aria-expanded', 'false'); };
+  $('pct').onclick = () => { menu.hidden = !menu.hidden; $('pct').setAttribute('aria-expanded', String(!menu.hidden)); };
+  document.addEventListener('pointerdown', (e) => { if (!menu.hidden && !e.target.closest('#menu, #pct')) closeMenu(); });
+
+  $('mapBtn').onclick = () => { minimap = !minimap; $('minimap').hidden = !minimap; $('mapBtn').setAttribute('aria-pressed', String(minimap)); apply(); };
+  $('fullBtn').onclick = () => document.fullscreenElement ? document.exitFullscreen() : $('stage').requestFullscreen?.();
+  document.addEventListener('fullscreenchange', () => { const on = !!document.fullscreenElement; $('fullBtn').setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen'); $('fullIcon').innerHTML = `<use href="#${on ? 'i-exit' : 'i-full'}"/>`; requestAnimationFrame(apply); });
+
+  // Wheel: scroll moves, Shift+scroll moves sideways, Ctrl/Cmd+scroll or pinch zooms (Figma, FigJam, draw.io).
+  $('canvas').addEventListener('wheel', (e) => {
+    e.preventDefault(); hideTip();
+    const box = $('canvas').getBoundingClientRect();
+    if (e.ctrlKey || e.metaKey) { zoomAt(view.z * Math.exp(-e.deltaY * 0.01), e.clientX - box.left, e.clientY - box.top); return; }
+    if (e.shiftKey && !e.deltaX) view.x -= e.deltaY; else { view.x -= e.deltaX; view.y -= e.deltaY; }
+    apply();
+  }, { passive: false });
+
+  // Drag empty canvas to move.
+  let pan = null;
+  $('canvas').addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.dot') || e.button !== 0) return;
+    pan = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }; $('canvas').classList.add('panning'); hideTip();
+    const move = (m) => { view.x = pan.vx + m.clientX - pan.x; view.y = pan.vy + m.clientY - pan.y; apply(); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', () => { pan = null; $('canvas').classList.remove('panning'); window.removeEventListener('pointermove', move); }, { once: true });
+  });
+
+  // Drag a dot: screen pixels divide by the zoom to give layout units.
+  let drag = null;
+  function startDrag(e, lp, a, id) {
+    e.stopPropagation(); e.preventDefault(); hideTip();
+    const d = Math.floor(a.t), l = geo[lp.lane], base = rowY(l, lp.row);
+    drag = { x0: e.clientX, y0: e.clientY, f0: offsets.acts[id] ?? a.t - d, s0: offsets.loops[lp.id] ?? 0, saved: JSON.stringify(offsets) };
+    const move = (m) => {
+      const dx = (m.clientX - drag.x0) / view.z, dy = (m.clientY - drag.y0) / view.z;
+      if (Math.hypot(dx, dy) * view.z < 4) return;
+      offsets.acts[id] = clamp(drag.f0 + dx / PX, 0, 0.97);
+      offsets.loops[lp.id] = clamp(base + drag.s0 + dy, l.y + ROW / 2, l.y + l.h - ROW / 2) - base;
+      drawContent(); apply();
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', () => { drag = null; window.removeEventListener('pointermove', move); }, { once: true });
+  }
+
+  // Hover card: brief facts about one event, anchored to the dot.
+  let hideTimer = null;
+  function showTip(lp, a, dot) {
+    clearTimeout(hideTimer);
+    const day = Math.floor(a.t), mins = Math.round((a.t - day) * 1440), date = new Date(START + day * 864e5);
+    const when = `${date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })} ${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+    const tip = $('tip');
+    tip.innerHTML = `<div class="loop">${lp.title}</div><b>${a.type}</b>, ${a.who} · ${when}<q>${a.q}</q>`
+      + `<div class="src"><svg class="ic" role="img"><title>${a.src}</title><use href="#${ICON[a.src]}"/></svg>${a.label}`
+      + (a.link ? ` · <a href="#" target="_blank" rel="noopener noreferrer">Open in ${a.src} ↗</a>` : ' · <a href="#">View record</a>') + '</div>';
+    const r = dot.getBoundingClientRect(), s = $('stage').getBoundingClientRect();
+    tip.style.left = Math.min(r.right - s.left + 6, s.width - 292) + 'px';
+    tip.style.top = Math.min(r.bottom - s.top + 6, s.height - 150) + 'px';
+    tip.hidden = false;
+  }
+  const hideTip = () => { clearTimeout(hideTimer); $('tip').hidden = true; };
+  function hideTipSoon() { clearTimeout(hideTimer); hideTimer = setTimeout(hideTip, 200); }
+  $('tip').addEventListener('pointerenter', () => clearTimeout(hideTimer));
+  $('tip').addEventListener('pointerleave', hideTipSoon);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { hideTip(); closeMenu(); } });
+
+  new ResizeObserver(() => apply()).observe($('canvas'));
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { drawContent(); apply(); });
+  drawContent(); fitAll();
+})();
+</script>
+</body>
+</html>

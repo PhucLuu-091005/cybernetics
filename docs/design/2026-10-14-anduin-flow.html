@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fund Onboarding Flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+:root { --bg: #ffffff; --side: #fafafa; --surface: #ffffff; --stripe: #fafafa; --border: #ebebeb; --text: #0a0a0a; --muted: #737373; --faint: #a3a3a3; --accent: #0a0a0a; --accent-ink: #fff;
+  --proceed: #16a34a; --route: #2563eb; --danger: #dc2626; --caution: #d97706; --violet: #7c3aed; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root { --bg: #0a0a0a; --side: #0d0d0d; --surface: #111111; --stripe: #141414; --border: #262626; --text: #ededed; --muted: #a1a1a1; --faint: #5c5c5c; --accent: #ededed; --accent-ink: #0a0a0a;
+  --proceed: #4ade80; --route: #60a5fa; --danger: #f87171; --caution: #fbbf24; --violet: #a78bfa; color-scheme: dark; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 Geist, system-ui, sans-serif; }
+main { max-width: 1240px; margin: 0 auto; padding: 32px 16px 72px; }
+h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.02em; }
+.lead { font-size: 16px; color: var(--muted); margin: 0 0 20px; max-width: 900px; }
+.lead b { color: var(--text); }
+.card { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 16px; margin-bottom: 18px; }
+.scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+svg text { font-family: Geist, system-ui, sans-serif; }
+.rules { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 900px) { .rules { grid-template-columns: 1fr 1fr; } }
+.rule { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--side); font-size: 13px; color: var(--muted); }
+.rule b { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 14px; margin-bottom: 4px; }
+.steps { margin: 0; padding-left: 20px; color: var(--muted); font-size: 14px; }
+.steps li { margin: 3px 0; } .steps b { color: var(--text); font-weight: 600; }
+h2 { font-size: 17px; margin: 26px 0 10px; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="t-request" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></g></symbol>
+    <symbol id="t-promise" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"/><path d="M3 4h8"/></g></symbol>
+    <symbol id="t-report_done" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12"/><path d="m16 17 2 2 4-4"/><path d="M21 11.127V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.729l7 4a2 2 0 0 0 2 .001l1.32-.753"/><path d="M3.29 7 12 12l8.71-5"/><path d="m7.5 4.27 8.997 5.148"/></g></symbol>
+    <symbol id="t-accept" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></g></symbol>
+    <symbol id="j-split" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3"/><path d="m15 9 6-6"/></g></symbol>
+    <symbol id="j-handoff" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></g></symbol>
+    <symbol id="j-join" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H3v5"/><path d="M16 3h5v5"/><path d="M3 3l9 9 9-9"/><path d="M12 12v10"/></g></symbol>
+    <symbol id="j-return" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></g></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></g></symbol>
+  </defs>
+</svg>
+<main>
+  <h1>Luồng onboarding quỹ — đường đi theo bàn giao thật</h1>
+  <p class="lead">Mô phỏng cách Anduin onboard một quỹ (Engage → Digitize → Launch), trong demo với vendor hư cấu <b>Fundline</b>. Kịch bản: GP Larkspur xin thêm <b>phần khai báo thuế CRS</b> vào form đăng ký góp vốn của Fund III và đồng bộ sang DealCloud. Đường đi <b>thẳng từ phòng này sang phòng kia</b> theo bàn giao; chỉ quay về Implementation khi việc thật sự trả về cho Implementation.</p>
+
+  <div class="rules" id="rules"></div>
+
+  <h2>Hôm nay (22/10): promise đang chờ ở đâu?</h2>
+  <div class="card"><div class="scroll"><svg id="flow" role="img" aria-label="Luồng CRS"></svg></div></div>
+
+  <h2>Đọc hình từ trái sang phải</h2>
+  <ol class="steps">
+    <li><b>6–7/10 · Implementation:</b> Sarah (Larkspur IR) xin thêm phần CRS. Minh (Implementation manager) hứa xong trước 30/10.</li>
+    <li><b>Tách việc → Digitization:</b> Minh giao Lan (Digitization analyst) phân tích quy định CRS/FATCA cho Fund III, cùng luật sư quỹ.</li>
+    <li><b>13/10 · Bàn giao Digitization → kỹ thuật:</b> Lan xong. Đường đi <b>thẳng</b> từ Digitization sang Solutions Engineering (PG-201 logic form, PG-202 mapping DealCloud) và Engineering (PG-203 kiểu field danh sách quốc gia). Không quay về Implementation.</li>
+    <li><b>Gộp trước QA:</b> QA chỉ kiểm thử khi cả 3 ticket xong. PG-201, PG-202 đã tới; PG-203 quá hạn → đoạn vàng "chờ PG-203" ở lane QA.</li>
+    <li><b>Sau này:</b> QA xong → <b>trả về Implementation</b> (đó mới là bàn giao thật về Minh) → Minh gửi form cho luật sư quỹ của GP duyệt → ra mắt.</li>
+  </ol>
+</main>
+<script>
+(() => {
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (name, attrs, parent) => { const n = document.createElementNS(NS, name); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); if (parent) parent.appendChild(n); return n; };
+  const RULES = [
+    ['split', 'Tách việc', 'Người giữ promise giao việc cho một phòng. Nằm trên đường promise.'],
+    ['handoff', 'Bàn giao', 'Phòng này xong, giao thẳng cho phòng sau. Nằm ở cuối việc của phòng trước.'],
+    ['join', 'Gộp', 'Việc sau chờ nhiều việc trước cùng xong. Nằm ngay trước việc sau.'],
+    ['return', 'Trả về', 'Việc cuối chuỗi xong, trả lại cho người giữ promise. Nằm trên đường promise.'],
+  ];
+  document.getElementById('rules').innerHTML = RULES.map(([id, h, t]) => `<div class="rule"><b><svg width="22" height="22" viewBox="-12 -12 24 24"><rect x="-8" y="-8" width="16" height="16" rx="2" transform="rotate(45)" fill="${css('--surface')}" stroke="currentColor" stroke-width="1.8"/><use href="#j-${id}" x="-6" y="-6" width="12" height="12"/></svg>${h}</b>${t}</div>`).join('');
+
+  const PX = 38, START = Date.UTC(2026, 9, 5), DAYS = 24, COL = 190, T = 17.5, ROW = 50;
+  const X = (t) => COL + 20 + t * PX;
+  const lanes = [
+    ['Implementation', 'Implementation', 1.5], ['Digitization', 'Digitization', 1], ['QA', 'Digitization QA', 1],
+    ['SE', 'Solutions Engineering', 2], ['Eng', 'Engineering', 1], ['trunk', '', 0], ['IR', 'Larkspur · Investor Relations', 1], ['Counsel', 'Larkspur · Fund counsel', 1],
+  ];
+  const svg = document.getElementById('flow');
+  let y = 26; const L = {};
+  for (const [key, name, rows] of lanes) { const h = key === 'trunk' ? 56 : rows * ROW + 12; L[key] = { y, h, name }; y += h; }
+  const W = X(DAYS) + 30, H = y + 6;
+  svg.setAttribute('width', W); svg.setAttribute('height', H);
+  const rowY = (key, r = 0) => L[key].y + 6 + ROW / 2 + r * ROW + (key === 'Implementation' ? 12 : 0);
+  Object.entries(L).forEach(([key, ln], i) => {
+    if (key === 'trunk') return;
+    if (i % 2) el('rect', { x: 0, y: ln.y, width: W, height: ln.h, fill: css('--stripe') }, svg);
+    el('text', { x: 14, y: ln.y + ln.h / 2 + 4, 'font-size': 12.5, 'font-weight': 500, fill: css('--muted') }, svg).textContent = ln.name;
+  });
+  el('line', { x1: COL, y1: 0, x2: COL, y2: H, stroke: css('--border') }, svg);
+  for (let d = 0; d <= DAYS; d += 1) {
+    const date = new Date(START + d * 864e5); if (date.getUTCDay() !== 1) continue;
+    el('line', { x1: X(d), y1: 18, x2: X(d), y2: H, stroke: css('--border') }, svg);
+    el('text', { x: X(d) + 4, y: 13, 'font-size': 11, fill: css('--faint') }, svg).textContent = date.toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', timeZone: 'UTC' });
+  }
+  el('line', { x1: X(T), y1: 18, x2: X(T), y2: H, stroke: css('--accent'), 'stroke-dasharray': '4 3' }, svg);
+  el('text', { x: X(T) + 4, y: 13, 'font-size': 11, 'font-weight': 700, fill: css('--text') }, svg).textContent = 'Hôm nay 22/10';
+  const trunkY = L.trunk.y + 28;
+  el('line', { x1: COL + 6, y1: trunkY, x2: W - 6, y2: trunkY, stroke: css('--text'), 'stroke-width': 3, 'stroke-linecap': 'round' }, svg);
+  for (const [t, name] of [[1, 'Sub docs nhận đủ'], [12, 'Form đã duyệt (dự kiến)'], [21, 'Ra mắt Fund III']]) { const x = X(t); el('rect', { x: x - 7, y: trunkY - 7, width: 14, height: 14, rx: 3, transform: `rotate(45 ${x} ${trunkY})`, fill: css('--surface'), stroke: css('--text'), 'stroke-width': 2 }, svg); el('text', { x: x + 12, y: trunkY + 20, 'font-size': 11, 'font-weight': 600, fill: css('--muted') }, svg).textContent = name; }
+
+  const line = (t0, t1, yy, tone) => el('line', { x1: X(t0), y1: yy, x2: X(t1), y2: yy, stroke: css('--' + tone), 'stroke-width': 2.5, 'stroke-linecap': 'round' }, svg);
+  const acts = (list, yy, tone) => { for (const [t, type] of list) { const x = X(t); el('circle', { cx: x, cy: yy, r: 10, fill: css('--surface') }, svg); el('use', { href: '#t-' + type, x: x - 8, y: yy - 8, width: 16, height: 16, color: css('--' + tone) }, svg); } };
+  const title = (t, yy, text) => { el('text', { x: X(t) + 6, y: yy + 21, 'font-size': 11.5, 'font-weight': 600, fill: css('--text') }, svg).textContent = text; };
+  const gate = (x, yy, kind, label, tone = 'text', below) => { const c = css('--' + tone); el('rect', { x: x - 11, y: yy - 11, width: 22, height: 22, rx: 3, transform: `rotate(45 ${x} ${yy})`, fill: css('--surface'), stroke: c, 'stroke-width': 2 }, svg); el('use', { href: '#j-' + kind, x: x - 7, y: yy - 7, width: 14, height: 14, color: c }, svg); if (label) el('text', { x, y: below ? yy + 28 : yy - 18, 'font-size': 11.5, 'font-weight': 700, 'text-anchor': 'middle', fill: c }, svg).textContent = label; };
+  // Connector from a point to the start of a line, as a smooth S curve.
+  const conn = (x0, y0, x1, y1, tone, dash = '5 4') => el('path', { d: `M${x0} ${y0} C${x0 + 18} ${y0} ${x0 + 6} ${y1} ${x0 + 24} ${y1} L${x1 - 10} ${y1}`, fill: 'none', stroke: css('--' + tone), 'stroke-width': 1.7, 'stroke-dasharray': dash, opacity: .9 }, svg);
+
+  // Promise (Implementation).
+  const py = rowY('Implementation');
+  const px0 = X(1.4);
+  el('path', { d: `M${px0 - 16} ${trunkY} C${px0 - 4} ${trunkY} ${px0 - 12} ${py} ${px0} ${py}`, fill: 'none', stroke: css('--route'), 'stroke-width': 2.5 }, svg);
+  line(1.4, T, py, 'route'); acts([[1.4, 'request'], [2.2, 'promise']], py, 'route'); title(1.4, py, 'Thêm phần khai báo thuế CRS vào form Fund III + đồng bộ DealCloud');
+
+  // Split: Implementation → Digitization analysis.
+  const dy = rowY('Digitization');
+  gate(X(2.6), py, 'split', 'Tách việc → Digitization');
+  conn(X(2.6), py + 11, X(2.9), dy, 'proceed');
+  line(2.9, 8.2, dy, 'proceed'); acts([[2.9, 'request'], [3.4, 'promise'], [7.6, 'report_done'], [8.2, 'accept']], dy, 'proceed'); title(2.9, dy, 'Phân tích quy định CRS/FATCA');
+
+  // Handoff at the end of the analysis, straight to the technical teams.
+  const hx = X(8.2) + 22;
+  el('line', { x1: X(8.2) + 10, y1: dy, x2: hx - 11, y2: dy, stroke: css('--proceed'), 'stroke-width': 2.5 }, svg);
+  gate(hx, dy, 'handoff', 'Bàn giao: Digitization → kỹ thuật', 'text');
+  const tk = [
+    { key: 'SE', r: 0, t0: 9.1, t1: 12.6, tone: 'proceed', a: [[9.1, 'request'], [9.4, 'promise'], [12.0, 'report_done'], [12.6, 'accept']], name: 'PG-201 Logic form CRS' },
+    { key: 'SE', r: 1, t0: 9.3, t1: 14.1, tone: 'proceed', a: [[9.3, 'request'], [10.2, 'promise'], [13.5, 'report_done'], [14.1, 'accept']], name: 'PG-202 Mapping DealCloud' },
+    { key: 'Eng', r: 0, t0: 9.6, t1: T, tone: 'danger', a: [[9.6, 'request'], [10.6, 'promise']], name: 'PG-203 Field danh sách quốc gia', open: true, broken: 16 },
+  ];
+  const qy = rowY('QA'), jx = X(14.7);
+  for (const t of tk) {
+    const yy = rowY(t.key, t.r);
+    conn(hx + 8, dy + 8, X(t.t0), yy, t.tone);
+    line(t.t0, t.t1, yy, t.tone); acts(t.a, yy, t.tone); title(t.t0, yy, t.name);
+    if (t.broken) { const bx = X(t.broken); el('circle', { cx: bx, cy: yy, r: 8, fill: css('--surface'), stroke: css('--danger'), 'stroke-width': 1.6 }, svg); el('path', { d: `M${bx - 3.4} ${yy - 3.4} L${bx + 3.4} ${yy + 3.4} M${bx - 3.4} ${yy + 3.4} L${bx + 3.4} ${yy - 3.4}`, stroke: css('--danger'), 'stroke-width': 2 }, svg); }
+    // Closed tickets flow into the join gateway in front of QA; the open one has not arrived yet.
+    if (!t.open) el('path', { d: `M${X(t.t1) + 10} ${yy} C${X(t.t1) + 30} ${yy} ${jx - 20} ${qy} ${jx - 11} ${qy}`, fill: 'none', stroke: css('--' + t.tone), 'stroke-width': 1.7, 'stroke-dasharray': '5 4' }, svg);
+    else el('path', { d: `M${X(T)} ${yy} C${X(T) - 10} ${yy - 30} ${jx + 30} ${qy + 20} ${jx + 6} ${qy + 9}`, fill: 'none', stroke: css('--faint'), 'stroke-width': 1.4, 'stroke-dasharray': '2 4' }, svg);
+  }
+  gate(jx, qy, 'join', 'Gộp: chờ đủ 3 ticket (2/3)', 'text');
+  el('line', { x1: jx + 12, y1: qy, x2: X(T), y2: qy, stroke: css('--caution'), 'stroke-width': 5, opacity: .5 }, svg);
+  const tagX = jx + 26; el('rect', { x: tagX, y: qy + 8, width: 102, height: 20, rx: 10, fill: `color-mix(in srgb, ${css('--caution')} 14%, ${css('--surface')})`, stroke: css('--caution') }, svg);
+  el('text', { x: tagX + 9, y: qy + 22, 'font-size': 11, 'font-weight': 600, fill: css('--text') }, svg).textContent = 'chờ PG-203';
+  el('text', { x: X(T) + 8, y: qy + 4, 'font-size': 11, 'font-weight': 600, fill: css('--muted') }, svg).textContent = 'QA: Kiểm thử phần CRS';
+
+  // Future: QA returns to Implementation, then Implementation sends to the GP's counsel.
+  const fx = X(19.5), cy = rowY('Counsel');
+  el('path', { d: `M${X(T) + 4} ${qy} C${X(18.6)} ${qy} ${X(18.8)} ${py} ${fx - 11} ${py}`, fill: 'none', stroke: css('--faint'), 'stroke-width': 1.4, 'stroke-dasharray': '2 4' }, svg);
+  gate(fx, py, 'return', 'Trả về Implementation (sau QA)', 'faint');
+  gate(X(20.6), py, 'split', 'Gửi luật sư quỹ duyệt', 'faint', true);
+  el('path', { d: `M${X(20.6)} ${py + 11} C${X(20.6)} ${cy - 40} ${X(21)} ${cy} ${X(21.4)} ${cy}`, fill: 'none', stroke: css('--faint'), 'stroke-width': 1.4, 'stroke-dasharray': '2 4' }, svg);
+  el('text', { x: X(21.5), y: cy + 4, 'font-size': 11, 'font-weight': 600, fill: css('--faint') }, svg).textContent = 'Duyệt form (dự kiến)';
+})();
+</script>
+</body>
+</html>

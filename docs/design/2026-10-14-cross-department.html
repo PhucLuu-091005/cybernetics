@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cross-Department Work</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+:root { --bg: #ffffff; --side: #fafafa; --surface: #ffffff; --stripe: #fafafa; --border: #ebebeb; --text: #0a0a0a; --muted: #737373; --faint: #a3a3a3; --accent: #0a0a0a; --accent-ink: #fff;
+  --proceed: #16a34a; --route: #2563eb; --danger: #dc2626; --caution: #d97706; --violet: #7c3aed; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root:not([data-mode="light"]) { --bg: #0a0a0a; --side: #0d0d0d; --surface: #111111; --stripe: #141414; --border: #262626; --text: #ededed; --muted: #a1a1a1; --faint: #5c5c5c; --accent: #ededed; --accent-ink: #0a0a0a;
+  --proceed: #4ade80; --route: #60a5fa; --danger: #f87171; --caution: #fbbf24; --violet: #a78bfa; color-scheme: dark; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 Geist, system-ui, sans-serif; }
+main { max-width: 1180px; margin: 0 auto; padding: 28px 16px 64px; }
+h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+p { color: var(--muted); margin: 0 0 12px; max-width: 880px; }
+.story { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin: 0 0 22px; font-size: 13px; color: var(--text); background: var(--side); }
+.story ol { margin: 6px 0 0; padding-left: 20px; color: var(--muted); }
+section { border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 22px; background: var(--surface); }
+h2 { font-size: 16px; margin: 0; display: flex; gap: 10px; align-items: baseline; }
+h2 .k { font: 600 12px 'Geist Mono', monospace; color: var(--accent-ink); background: var(--accent); border-radius: 5px; padding: 1px 7px; }
+h2 .rec { font-size: 11px; font-weight: 600; color: var(--proceed); border: 1px solid currentColor; border-radius: 999px; padding: 0 8px; }
+.scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 10px; }
+svg text { font-family: Geist, system-ui, sans-serif; }
+.pc { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; font-size: 13px; margin-top: 10px; }
+.pc div::before { font-weight: 700; margin-right: 6px; }
+.pc .pro::before { content: '+'; color: var(--proceed); } .pc .con::before { content: '−'; color: var(--danger); }
+.model { font: 12px/1.5 'Geist Mono', monospace; background: var(--side); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-top: 10px; color: var(--muted); white-space: pre-wrap; }
+@media (max-width: 700px) { .pc { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="t-request" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></g></symbol>
+    <symbol id="t-promise" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"/><path d="M3 4h8"/></g></symbol>
+    <symbol id="t-report_done" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12"/><path d="m16 17 2 2 4-4"/><path d="M21 11.127V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.729l7 4a2 2 0 0 0 2 .001l1.32-.753"/><path d="M3.29 7 12 12l8.71-5"/><path d="m7.5 4.27 8.997 5.148"/></g></symbol>
+    <symbol id="t-accept" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></g></symbol>
+  </defs>
+</svg>
+<main>
+  <h1>Work that spreads across departments</h1>
+  <p>Cursor theme, bare icons on the branches. Event cards (with quotes) sit above each line in the product; they are left out here so the structure is easy to compare.</p>
+  <div class="story"><b>The story.</b> Sarah (Larkspur) asks for a new "tax residency" field on the investor profile. Minh (Implementation) promises it for 30 October.
+    <ol><li>An Vũ (Analysts) analyses the requirement: 7 → 14 October, done and accepted.</li>
+    <li>Development (Engineering) splits it into four Linear tickets: PG-201 database migration and PG-202 API field are done; PG-203 UI form is in progress; PG-204 export update is overdue.</li>
+    <li>Minh will deliver the field to Sarah when the tickets are done.</li></ol></div>
+  <div id="options"></div>
+</main>
+<script>
+(() => {
+  const PX = 34, DAYS = 26, START = Date.UTC(2026, 9, 6), T = 18.5, COL = 130, ROW = 46, PAD = 10, TRUNK = 56, W = COL + DAYS * PX + 30;
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (name, attrs, parent) => { const n = document.createElementNS(NS, name); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); if (parent) parent.appendChild(n); return n; };
+  const X = (t) => COL + 20 + t * PX;
+  const day = (t) => new Date(START + Math.floor(t) * 864e5).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const L = (key, title, dept, tone, acts, end, extra = {}) => ({ key, title, dept, tone, acts, end, ...extra });
+  const parent = L('p', 'Tax residency field', 'Implementation', 'route', [[0.4, 'request'], [1.4, 'promise']], 'open');
+  const analysis = L('a', 'Analyse tax residency rules', 'Analysts', 'proceed', [[1.6, 'request'], [2.4, 'promise'], [7.5, 'report_done'], [8.3, 'accept']], 'merge');
+  const tickets = [
+    L('t1', 'PG-201 Database migration', 'Engineering', 'proceed', [[9.4, 'request'], [9.6, 'promise'], [11.6, 'report_done'], [12.3, 'accept']], 'merge'),
+    L('t2', 'PG-202 API field', 'Engineering', 'proceed', [[9.5, 'request'], [10.4, 'promise'], [14.6, 'report_done'], [15.3, 'accept']], 'merge'),
+    L('t3', 'PG-203 UI form', 'Engineering', 'route', [[10.4, 'request'], [11.5, 'promise']], 'open'),
+    L('t4', 'PG-204 Export update', 'Engineering', 'danger', [[11.4, 'request'], [12.5, 'promise']], 'open', { broken: 16 }),
+  ];
+  const lanesVendor = ['Implementation', 'Analysts', 'Engineering'];
+  const end = (lp) => lp.end === 'merge' ? X(lp.acts.at(-1)[0]) : X(T);
+
+  function branch(svg, lp, y, forkY, opts = {}) {
+    const c = css('--' + lp.tone), x0 = X(lp.acts[0][0]), x1 = end(lp);
+    let d = `M${x0 - 16} ${forkY} C${x0 - 4} ${forkY} ${x0 - 12} ${y} ${x0} ${y}`;
+    el('path', { d, fill: 'none', stroke: c, 'stroke-width': 2, 'stroke-dasharray': opts.dashedFork ? '5 4' : '', opacity: opts.dashedFork ? .75 : 1 }, svg);
+    el('line', { x1: x0, y1: y, x2: x1, y2: y, stroke: c, 'stroke-width': 2.5, 'stroke-linecap': 'round' }, svg);
+    if (lp.end === 'merge') el('path', { d: `M${x1} ${y} C${x1 + 12} ${y} ${x1 + 4} ${forkY} ${x1 + 16} ${forkY}`, fill: 'none', stroke: c, 'stroke-width': 2, 'stroke-dasharray': opts.dashedFork ? '5 4' : '', opacity: opts.dashedFork ? .75 : 1 }, svg);
+    for (const [t, type] of lp.acts) { const x = X(t); el('circle', { cx: x, cy: y, r: 10, fill: css('--surface') }, svg); el('use', { href: '#t-' + type, x: x - 8, y: y - 8, width: 16, height: 16, color: c }, svg); }
+    if (lp.broken) { const bx = X(lp.broken); el('circle', { cx: bx, cy: y, r: 8, fill: css('--surface'), stroke: css('--danger'), 'stroke-width': 1.6 }, svg); el('path', { d: `M${bx - 3.4} ${y - 3.4} L${bx + 3.4} ${y + 3.4} M${bx - 3.4} ${y + 3.4} L${bx + 3.4} ${y - 3.4}`, stroke: css('--danger'), 'stroke-width': 2 }, svg); }
+    const t = el('text', { x: x0 + 6, y: y + 20, 'font-size': 11.5, 'font-weight': 600, fill: css('--text') }, svg); t.textContent = lp.title + (opts.dept ? '  ·  ' + lp.dept : '');
+  }
+  function chip(svg, x, y, text) {
+    const w = text.length * 6.2 + 18;
+    el('rect', { x, y: y - 10, width: w, height: 20, rx: 10, fill: css('--surface'), stroke: css('--border') }, svg);
+    el('text', { x: x + 9, y: y + 4, 'font-size': 11, 'font-weight': 600, fill: css('--text') }, svg).textContent = text;
+  }
+  function frame(svg, lanes, height, trunkY) {
+    svg.setAttribute('width', W); svg.setAttribute('height', height);
+    lanes.forEach((ln, i) => { if (i % 2) el('rect', { x: 0, y: ln.y, width: W, height: ln.h, fill: css('--stripe') }, svg); el('text', { x: 14, y: ln.y + ln.h / 2 + 4, 'font-size': 12, 'font-weight': 500, fill: css('--muted') }, svg).textContent = ln.name; });
+    el('line', { x1: COL, y1: 0, x2: COL, y2: height, stroke: css('--border') }, svg);
+    for (let d = 0; d <= DAYS; d += 7) { el('line', { x1: X(d), y1: 18, x2: X(d), y2: height, stroke: css('--border') }, svg); el('text', { x: X(d) + 4, y: 13, 'font-size': 10.5, fill: css('--faint') }, svg).textContent = day(d); }
+    el('line', { x1: X(T), y1: 18, x2: X(T), y2: height, stroke: css('--accent'), 'stroke-dasharray': '4 3' }, svg);
+    el('line', { x1: COL + 6, y1: trunkY, x2: W - 6, y2: trunkY, stroke: css('--text'), 'stroke-width': 3, 'stroke-linecap': 'round' }, svg);
+    for (const [t, name] of [[0.2, 'Scope agreed'], [23.5, 'Go-live of the field']]) { const x = X(t); el('rect', { x: x - 7, y: trunkY - 7, width: 14, height: 14, rx: 3, transform: `rotate(45 ${x} ${trunkY})`, fill: css('--surface'), stroke: css('--text'), 'stroke-width': 2 }, svg); el('text', { x: x + 12, y: trunkY + 21, 'font-size': 11, 'font-weight': 600, fill: css('--muted') }, svg).textContent = name; }
+  }
+
+  // Option 1: every child in its own department lane, joined to the parent line by a dashed fork.
+  function option1(svg, withHandoff) {
+    const rows = { Implementation: [parent], Analysts: [analysis], Engineering: [tickets[0], tickets[2], tickets[1], tickets[3]] };
+    let y = 22; const lanes = [], rowY = {};
+    for (const name of lanesVendor) { const list = rows[name]; const h = list.length * ROW + PAD; lanes.push({ name, y, h }); list.forEach((lp, i) => { rowY[lp.key] = y + PAD / 2 + ROW / 2 + i * ROW; }); y += h; }
+    const trunkY = y + TRUNK / 2; const height = trunkY + TRUNK / 2 + 46;
+    lanes.push({ name: 'Fund Operations', y: trunkY + TRUNK / 2, h: 46 });
+    frame(svg, lanes, height, trunkY);
+    const py = rowY.p;
+    branch(svg, parent, py, trunkY);
+    branch(svg, analysis, rowY.a, py, { dashedFork: true });
+    tickets.forEach((tk) => branch(svg, tk, rowY[tk.key], py, { dashedFork: true }));
+    chip(svg, X(T) + 8, py, '▾ 5 tasks · 3 done · Analysts 1/1 · Dev 2/4');
+    if (withHandoff) {
+      const ax = end(analysis), ay = rowY.a;
+      for (const tk of tickets) {
+        const tx = X(tk.acts[0][0]), ty = rowY[tk.key];
+        el('path', { d: `M${ax + 4} ${ay + 4} C${ax + 30} ${ay + 30} ${tx - 30} ${ty - 10} ${tx - 6} ${ty - 6}`, fill: 'none', stroke: css('--violet'), 'stroke-width': 1.5, 'marker-end': 'url(#arrow)' }, svg);
+      }
+      el('text', { x: ax + 14, y: ay - 10, 'font-size': 11, 'font-weight': 600, fill: css('--violet') }, svg).textContent = 'handoff → dev';
+    }
+  }
+  // Option 3: everything grouped under the parent, in the parent's lane, by department.
+  function option3(svg) {
+    const groups = [['Analysts', [analysis]], ['Engineering', [tickets[0], tickets[2], tickets[1], tickets[3]]]];
+    const n = 1 + groups.reduce((s, [, l]) => s + l.length, 0);
+    const lanes = [{ name: 'Analysts', y: 22, h: ROW + PAD }, { name: 'Engineering', y: 22 + ROW + PAD, h: ROW + PAD }];
+    const implY = lanes[1].y + lanes[1].h, implH = n * ROW + PAD + 24;
+    lanes.push({ name: 'Implementation', y: implY, h: implH });
+    const trunkY = implY + implH + TRUNK / 2, height = trunkY + TRUNK / 2 + 46;
+    lanes.push({ name: 'Fund Operations', y: trunkY + TRUNK / 2, h: 46 });
+    frame(svg, lanes, height, trunkY);
+    const py = implY + implH - PAD / 2 - ROW / 2;
+    branch(svg, parent, py, trunkY);
+    chip(svg, X(T) + 8, py, '▾ 5 tasks · 3 done');
+    let r = 1;
+    for (const [dept, list] of groups) {
+      const gy = py - r * ROW - 10;
+      el('text', { x: COL + 12, y: gy - ROW / 2 + 16, 'font-size': 10.5, 'font-weight': 600, fill: css('--faint') }, svg).textContent = dept.toUpperCase();
+      list.forEach((lp, i) => branch(svg, lp, py - (r + i) * ROW - 10, py));
+      r += list.length;
+    }
+    el('text', { x: COL + 12, y: lanes[0].y + 30, 'font-size': 11, fill: css('--faint') }, svg).textContent = '(empty: their work for this promise sits under the parent)';
+  }
+
+  const OPTIONS = [
+    { k: '1', name: 'Children in their own lanes', rec: true, fn: (s) => option1(s, false),
+      text: 'Each child loop (the analysis and each ticket) stays in the lane of the department that does it. A dashed fork joins it to the promise line, and a closed child merges back into it. The chip on the promise sums up the children per department.',
+      model: 'Loop.parentLoopId (one level, as in the Linear tickets design)\nNo lane exception: a child sits in its own performer lane',
+      pros: ['Lanes stay true: Engineering shows all of its work', 'No new data beyond parentLoopId'], cons: ['Dashed forks cross the lanes between parent and child', 'The order (analysis before dev) shows only through dates'] },
+    { k: '2', name: 'Own lanes + handoff arrows', fn: (s) => option1(s, true),
+      text: 'Option 1 plus explicit handoffs: an arrow from the end of the analysis to the start of each development ticket. The engine can then flag a ticket that starts before its handoff is done.',
+      model: 'Loop.parentLoopId + Loop.afterLoopIds (the loops that must close first)\nNew rules: no cycles; after-loops share the parent',
+      pros: ['Shows the analysis → development flow', 'Enables a new breakdown: "started before handoff"'], cons: ['A second new field with its own validation, diff and rebase checks', 'More lines on the board'] },
+    { k: '3', name: 'Grouped under the promise', fn: option3,
+      text: 'The earlier ticket design, grouped by department: the promise expands into sub-rows labelled Analysts and Engineering inside its own lane.',
+      model: 'Loop.parentLoopId (one level)\nLane exception: children sit in the parent lane',
+      pros: ['Everything about one promise in one place', 'Compact: no lines across lanes'], cons: ['The Analysts and Engineering lanes miss this work', 'A department view needs the list or filters'] },
+  ];
+  const root = document.getElementById('options');
+  for (const o of OPTIONS) {
+    const s = document.createElement('section');
+    s.innerHTML = `<h2><span class="k">${o.k}</span>${o.name}${o.rec ? '<span class="rec">Recommended</span>' : ''}</h2><p>${o.text}</p><div class="scroll"><svg role="img" aria-label="Option ${o.k}"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="${css('--violet')}"/></marker></defs></svg></div><div class="model">${o.model}</div><div class="pc">${o.pros.map((p) => `<div class="pro">${p}</div>`).join('')}${o.cons.map((c) => `<div class="con">${c}</div>`).join('')}</div>`;
+    root.appendChild(s);
+    o.fn(s.querySelector('svg'));
+  }
+})();
+</script>
+</body>
+</html>

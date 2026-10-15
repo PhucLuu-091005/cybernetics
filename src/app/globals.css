@@ -1,84 +1,84 @@
-/* Tokens copied from the approved design file (docs/design/2026-10-13-promise-graph-ui.html). */
+/* Cursor-style tokens (owner decision, 14 Oct 2026): neutral greys, black or white primary, Geist. */
 :root {
-  --panel: #e7ece7;
-  --surface: #f5f7f4;
-  --sunk: #dce3dd;
-  --ink: #17212d;
-  --ink-2: #4b5663;
-  --ink-3: #6e7883;
-  --rule: #c5cec7;
-  --rule-2: #d6ddd7;
-  --trunk: #17212d;
-  --proceed: #22724a;
-  --route: #2c5aa2;
-  --danger: #c0312a;
-  --caution: #b97f0c;
-  --isolated: #868e94;
-  --draft: #6b3a99;
-  --proceed-bg: #dcebe1;
-  --route-bg: #dce5f3;
-  --danger-bg: #f6dedc;
-  --caution-bg: #f5ead2;
-  --draft-bg: #ebe1f3;
-  --mark: #f3e3a6;
-  --focus: #2c5aa2;
-  --shadow: 0 1px 0 rgba(23, 33, 45, 0.06), 0 8px 24px -12px rgba(23, 33, 45, 0.28);
-  --f-ui: var(--font-overpass), 'Overpass', system-ui, sans-serif;
-  --f-doc: var(--font-source-serif), 'Source Serif 4', Georgia, serif;
-  --f-id: var(--font-overpass-mono), 'Overpass Mono', ui-monospace, monospace;
+  --panel: #ffffff;
+  --surface: #ffffff;
+  --sunk: #fafafa;
+  --ink: #0a0a0a;
+  --ink-2: #525252;
+  --ink-3: #8a8a8a;
+  --rule: #ebebeb;
+  --rule-2: #f2f2f2;
+  --trunk: #0a0a0a;
+  --proceed: #16a34a;
+  --route: #2563eb;
+  --danger: #dc2626;
+  --caution: #d97706;
+  --isolated: #a3a3a3;
+  --draft: #7c3aed;
+  --proceed-bg: #dcfce7;
+  --route-bg: #dbeafe;
+  --danger-bg: #fee2e2;
+  --caution-bg: #fef3c7;
+  --draft-bg: #ede9fe;
+  --mark: #fef08a;
+  --focus: #2563eb;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 8px 24px -12px rgba(0, 0, 0, 0.18);
+  --f-ui: var(--font-geist), 'Geist', system-ui, sans-serif;
+  --f-doc: var(--font-geist), 'Geist', system-ui, sans-serif;
+  --f-id: var(--font-geist-mono), 'Geist Mono', ui-monospace, monospace;
   color-scheme: light;
 }
 :root[data-theme='dark'] {
-  --panel: #11191f;
-  --surface: #18222a;
-  --sunk: #0d1419;
-  --ink: #e2e8e3;
-  --ink-2: #a3aeb5;
-  --ink-3: #7f8a92;
-  --rule: #2b3942;
-  --rule-2: #22303a;
-  --trunk: #dce3dd;
-  --proceed: #52b381;
-  --route: #73a0ea;
-  --danger: #f1665c;
-  --caution: #e8b03d;
-  --isolated: #7d878d;
-  --draft: #b78de3;
-  --proceed-bg: #173126;
-  --route-bg: #182a44;
-  --danger-bg: #3a1c1a;
-  --caution-bg: #382b12;
-  --draft-bg: #2a1e3a;
-  --mark: #5a4a16;
-  --focus: #73a0ea;
-  --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 10px 28px -12px rgba(0, 0, 0, 0.7);
+  --panel: #0a0a0a;
+  --surface: #111111;
+  --sunk: #0d0d0d;
+  --ink: #ededed;
+  --ink-2: #b3b3b3;
+  --ink-3: #7a7a7a;
+  --rule: #262626;
+  --rule-2: #1c1c1c;
+  --trunk: #ededed;
+  --proceed: #4ade80;
+  --route: #60a5fa;
+  --danger: #f87171;
+  --caution: #fbbf24;
+  --isolated: #6b6b6b;
+  --draft: #a78bfa;
+  --proceed-bg: #052e16;
+  --route-bg: #0c1f3d;
+  --danger-bg: #3b0d0d;
+  --caution-bg: #3a2a05;
+  --draft-bg: #2e1065;
+  --mark: #4d3d00;
+  --focus: #60a5fa;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px -12px rgba(0, 0, 0, 0.75);
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --panel: #11191f;
-    --surface: #18222a;
-    --sunk: #0d1419;
-    --ink: #e2e8e3;
-    --ink-2: #a3aeb5;
-    --ink-3: #7f8a92;
-    --rule: #2b3942;
-    --rule-2: #22303a;
-    --trunk: #dce3dd;
-    --proceed: #52b381;
-    --route: #73a0ea;
-    --danger: #f1665c;
-    --caution: #e8b03d;
-    --isolated: #7d878d;
-    --draft: #b78de3;
-    --proceed-bg: #173126;
-    --route-bg: #182a44;
-    --danger-bg: #3a1c1a;
-    --caution-bg: #382b12;
-    --draft-bg: #2a1e3a;
-    --mark: #5a4a16;
-    --focus: #73a0ea;
-    --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 10px 28px -12px rgba(0, 0, 0, 0.7);
+    --panel: #0a0a0a;
+    --surface: #111111;
+    --sunk: #0d0d0d;
+    --ink: #ededed;
+    --ink-2: #b3b3b3;
+    --ink-3: #7a7a7a;
+    --rule: #262626;
+    --rule-2: #1c1c1c;
+    --trunk: #ededed;
+    --proceed: #4ade80;
+    --route: #60a5fa;
+    --danger: #f87171;
+    --caution: #fbbf24;
+    --isolated: #6b6b6b;
+    --draft: #a78bfa;
+    --proceed-bg: #052e16;
+    --route-bg: #0c1f3d;
+    --danger-bg: #3b0d0d;
+    --caution-bg: #3a2a05;
+    --draft-bg: #2e1065;
+    --mark: #4d3d00;
+    --focus: #60a5fa;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px -12px rgba(0, 0, 0, 0.75);
     color-scheme: dark;
   }
 }
@@ -111,7 +111,7 @@
   body {
     background: var(--panel);
     color: var(--ink);
-    font: 400 14px/1.45 var(--f-ui);
+    font: 400 14px/1.5 var(--f-ui);
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
   }
@@ -130,8 +130,8 @@
   h2,
   h3 {
     margin: 0;
-    font-weight: 700;
-    letter-spacing: -0.01em;
+    font-weight: 600;
+    letter-spacing: -0.015em;
   }
   h1 {
     font-size: 20px;
@@ -198,7 +198,7 @@
     padding: 0 6px 6px;
   }
   .brand b {
-    font-weight: 800;
+    font-weight: 600;
     font-size: 16px;
     letter-spacing: -0.02em;
   }
@@ -209,19 +209,17 @@
     overflow: auto;
   }
   .nav .group {
-    font-size: 11px;
-    font-weight: 700;
+    font-size: 12px;
+    font-weight: 500;
     color: var(--ink-3);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    padding: 10px 8px 4px;
+    padding: 12px 8px 4px;
   }
   .nav a {
     display: flex;
     gap: 10px;
     align-items: center;
     padding: 7px 8px;
-    border-radius: 4px;
+    border-radius: 8px;
     color: var(--ink-2);
     font-weight: 500;
   }
@@ -230,9 +228,9 @@
     color: var(--ink);
   }
   .nav a[aria-current='page'] {
-    background: var(--surface);
+    background: var(--rule-2);
     color: var(--ink);
-    box-shadow: inset 3px 0 0 var(--ink);
+    font-weight: 600;
   }
   .rail-foot {
     margin-top: auto;
@@ -278,18 +276,19 @@
     padding: 6px 12px;
     border: 1px solid var(--rule);
     background: var(--surface);
-    border-radius: 4px;
+    border-radius: 8px;
     cursor: pointer;
-    font-weight: 600;
+    font-weight: 500;
     font-size: 13px;
     white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   }
   .btn:hover {
-    border-color: var(--ink-3);
+    background: var(--rule-2);
   }
   .btn-ink {
     background: var(--ink);
-    color: var(--surface);
+    color: var(--panel);
     border-color: var(--ink);
   }
   .btn-ink:hover {
@@ -306,22 +305,24 @@
   }
   .seg {
     display: inline-flex;
-    border: 1px solid var(--rule);
-    border-radius: 4px;
-    overflow: hidden;
-    background: var(--surface);
+    gap: 2px;
+    padding: 2px;
+    border-radius: 8px;
+    background: var(--rule-2);
   }
   .seg button {
     all: unset;
     cursor: pointer;
-    padding: 5px 10px;
+    padding: 4px 10px;
+    border-radius: 6px;
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--ink-2);
   }
   .seg button[aria-pressed='true'] {
-    background: var(--ink);
-    color: var(--surface);
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
   }
   .seg button:focus-visible {
     outline: 2px solid var(--focus);
@@ -335,7 +336,7 @@
     border-radius: 999px;
     padding: 2px 9px;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 500;
     background: var(--surface);
     white-space: nowrap;
   }
@@ -354,7 +355,7 @@
     font-size: 12px;
     font-weight: 700;
     padding: 2px 7px;
-    border-radius: 2px;
+    border-radius: 8px;
     border: 1px solid currentColor;
     white-space: nowrap;
   }
@@ -394,7 +395,7 @@
     font-size: 12px;
     font-weight: 700;
     padding: 2px 8px;
-    border-radius: 3px;
+    border-radius: 8px;
     white-space: nowrap;
   }
   .bd.broken {
@@ -421,7 +422,7 @@
   .card {
     background: var(--surface);
     border: 1px solid var(--rule);
-    border-radius: 6px;
+    border-radius: 8px;
   }
   .pad {
     padding: 14px 16px;
@@ -467,12 +468,12 @@
     background: var(--mark);
     color: inherit;
     padding: 0 1px;
-    border-radius: 2px;
+    border-radius: 8px;
   }
   .tablewrap {
     overflow-x: auto;
     border: 1px solid var(--rule);
-    border-radius: 6px;
+    border-radius: 8px;
     background: var(--surface);
   }
   .tablewrap table {
@@ -514,7 +515,7 @@
     padding: 10px 14px;
     background: var(--surface);
     border: 1px solid var(--rule);
-    border-radius: 6px;
+    border-radius: 8px;
     margin-bottom: 10px;
   }
   .status .k {
@@ -535,7 +536,7 @@
     font: 500 12px var(--f-id);
     padding: 4px 6px;
     border: 1px solid var(--rule);
-    border-radius: 4px;
+    border-radius: 8px;
     background: var(--panel);
     max-width: 190px;
   }
@@ -565,7 +566,7 @@
     font-size: 13px;
     padding: 5px 8px;
     border: 1px solid var(--rule);
-    border-radius: 4px;
+    border-radius: 8px;
     background: var(--surface);
   }
   .filters input[type='search'] {
@@ -593,7 +594,7 @@
   .gwrap {
     background: var(--surface);
     border: 1px solid var(--rule);
-    border-radius: 6px;
+    border-radius: 8px;
     overflow: hidden;
     position: relative;
   }
@@ -665,7 +666,7 @@
     background: var(--ink);
     color: var(--surface);
     padding: 8px 10px;
-    border-radius: 5px;
+    border-radius: 8px;
     font-size: 12px;
     box-shadow: var(--shadow);
   }
@@ -680,7 +681,7 @@
   .drawer {
     background: var(--surface);
     border: 1px solid var(--rule);
-    border-radius: 6px;
+    border-radius: 8px;
     display: flex;
     flex-direction: column;
     max-height: 640px;
@@ -712,7 +713,7 @@
     flex-direction: column;
     gap: 3px;
     padding: 8px 10px;
-    border-radius: 4px;
+    border-radius: 8px;
     border-left: 3px solid var(--c);
   }
   .bdrow.broken {
@@ -734,7 +735,7 @@
   .party {
     padding: 8px 10px;
     border: 1px solid var(--rule-2);
-    border-radius: 4px;
+    border-radius: 8px;
     font-size: 13px;
   }
   .party small {
@@ -788,7 +789,7 @@
     margin: 6px 0;
     padding: 8px 10px;
     background: var(--panel);
-    border-radius: 4px;
+    border-radius: 8px;
   }
   .step .links {
     display: flex;
@@ -812,7 +813,7 @@
     list-style: none;
     cursor: pointer;
     padding: 0 6px;
-    border-radius: 3px;
+    border-radius: 8px;
     font-weight: 800;
     color: var(--ink-3);
   }
@@ -832,7 +833,7 @@
     padding: 4px;
     background: var(--surface);
     border: 1px solid var(--rule);
-    border-radius: 5px;
+    border-radius: 8px;
     box-shadow: var(--shadow);
     min-width: 190px;
   }
@@ -841,7 +842,7 @@
     display: block;
     cursor: pointer;
     padding: 6px 10px;
-    border-radius: 3px;
+    border-radius: 8px;
     font-size: 13px;
     width: 100%;
     box-sizing: border-box;
@@ -894,7 +895,7 @@
     font-size: 13px;
     padding: 6px 8px;
     border: 1px solid var(--rule);
-    border-radius: 4px;
+    border-radius: 8px;
     background: var(--surface);
     color: var(--ink);
     min-width: 0;
@@ -953,7 +954,7 @@
     align-items: flex-start;
     flex-wrap: wrap;
     padding: 12px 14px;
-    border-radius: 6px;
+    border-radius: 8px;
     border: 1px solid var(--danger);
     background: var(--danger-bg);
   }
@@ -1008,7 +1009,7 @@
     width: 100%;
     cursor: pointer;
     padding: 9px 10px;
-    border-radius: 4px;
+    border-radius: 8px;
     font-size: 13px;
     border: 1px solid transparent;
     overflow-wrap: anywhere;
@@ -1039,7 +1040,7 @@
   }
   .cite {
     border: 1px solid var(--rule);
-    border-radius: 5px;
+    border-radius: 8px;
     padding: 10px 12px;
     display: flex;
     flex-direction: column;
@@ -1049,7 +1050,7 @@
     width: 56px;
     padding: 2px 4px;
     border: 1px solid var(--rule);
-    border-radius: 3px;
+    border-radius: 8px;
     background: var(--panel);
   }
   .halo {
@@ -1067,7 +1068,7 @@
     margin: 6px 0;
     padding: 6px 8px;
     border: 1px dashed var(--draft);
-    border-radius: 4px;
+    border-radius: 8px;
     background: var(--draft-bg);
   }
   .stepedit select {
@@ -1075,7 +1076,7 @@
     font-size: 13px;
     padding: 3px 6px;
     border: 1px solid var(--rule);
-    border-radius: 4px;
+    border-radius: 8px;
     background: var(--surface);
   }
   .diff-add {
@@ -1114,7 +1115,7 @@
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     border: 1px solid var(--rule);
-    border-radius: 6px;
+    border-radius: 8px;
     overflow: hidden;
     background: var(--surface);
   }
@@ -1137,7 +1138,7 @@
   .conf .hl {
     background: var(--mark);
     padding: 0 3px;
-    border-radius: 2px;
+    border-radius: 8px;
   }
   .conf .choices {
     display: flex;
@@ -1168,7 +1169,7 @@
     gap: 0 6px;
     padding: 8px 10px 8px 0;
     width: 100%;
-    border-radius: 4px;
+    border-radius: 8px;
     overflow-wrap: anywhere;
   }
   .commit:hover {
@@ -1241,7 +1242,7 @@
   }
   .claim {
     border: 1px solid var(--rule);
-    border-radius: 6px;
+    border-radius: 8px;
     background: var(--surface);
     padding: 12px 14px;
     display: flex;
@@ -1305,7 +1306,7 @@
     line-height: 1.65;
     padding: 14px 16px;
     background: var(--panel);
-    border-radius: 4px;
+    border-radius: 8px;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
@@ -1314,7 +1315,7 @@
     font-size: 12px;
     padding: 0 5px;
     border: 1px solid var(--route);
-    border-radius: 3px;
+    border-radius: 8px;
     margin: 0 2px;
   }
   .scopes {
@@ -1332,7 +1333,7 @@
     align-items: flex-start;
     padding: 8px 10px;
     border: 1px solid var(--rule-2);
-    border-radius: 4px;
+    border-radius: 8px;
     font-size: 13px;
   }
   .scope-row.risk {
@@ -1345,7 +1346,7 @@
     padding: 10px 12px;
     background: var(--ink);
     color: var(--surface);
-    border-radius: 4px;
+    border-radius: 8px;
     word-break: break-all;
   }
   pre.snip {
@@ -1354,7 +1355,7 @@
     font-size: 12px;
     padding: 12px;
     background: var(--sunk);
-    border-radius: 4px;
+    border-radius: 8px;
     overflow: auto;
   }
   tr.inactive {
@@ -1415,7 +1416,7 @@
     font: inherit;
     padding: 4px 6px;
     border: 1px solid var(--rule);
-    border-radius: 4px;
+    border-radius: 8px;
     background: var(--panel);
     min-width: 0;
     max-width: 100%;
@@ -1425,7 +1426,7 @@
     overflow-wrap: anywhere;
     padding: 10px 12px;
     border: 1px solid var(--rule);
-    border-radius: 5px;
+    border-radius: 8px;
     background: var(--surface);
   }
   .ritem:hover {
@@ -1466,7 +1467,7 @@
     line-height: 1.6;
     padding: 14px 16px;
     background: var(--panel);
-    border-radius: 4px;
+    border-radius: 8px;
     user-select: text;
   }
   .rbody .qr {
@@ -1489,7 +1490,7 @@
     flex-wrap: wrap;
     padding: 8px 12px;
     border: 1px dashed var(--draft);
-    border-radius: 5px;
+    border-radius: 8px;
     background: var(--draft-bg);
     font-size: 13px;
   }
@@ -1508,7 +1509,7 @@
   .reason {
     padding: 6px 8px;
     border: 1px solid var(--rule);
-    border-radius: 4px;
+    border-radius: 8px;
     background: var(--surface);
     min-width: 0;
     flex: 1;
@@ -1549,7 +1550,7 @@
     gap: 10px;
     width: 100%;
     padding: 11px 14px;
-    border-radius: 4px;
+    border-radius: 8px;
     border: 1px solid var(--rule);
     background: var(--surface);
     font-weight: 700;

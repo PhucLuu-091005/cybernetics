@@ -108,12 +108,12 @@ const escapeHtml = (text: string) => text.replace(/[&<>"']/g, (char) => `&#${cha
 function failurePage(message: string, expired: boolean): string {
   const link = expired ? 'Sign-in expired — start again' : 'Start again';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sign-in · Promise Graph</title><style>
-:root { --panel: #E7ECE7; --surface: #F5F7F4; --ink: #17212D; --ink-2: #4B5663; --route: #2C5AA2; --rule: #C9D1CB; color-scheme: light dark; }
-@media (prefers-color-scheme: dark) { :root { --panel: #11191F; --surface: #18222A; --ink: #E2E8E3; --ink-2: #A3AEB5; --route: #73A0EA; --rule: #2A363F; } }
+:root { --panel: #FFFFFF; --surface: #FFFFFF; --ink: #0A0A0A; --ink-2: #525252; --route: #0A0A0A; --rule: #EBEBEB; color-scheme: light dark; }
+@media (prefers-color-scheme: dark) { :root { --panel: #0A0A0A; --surface: #111111; --ink: #EDEDED; --ink-2: #B3B3B3; --route: #EDEDED; --rule: #262626; } }
 body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px; box-sizing: border-box; background: var(--panel); color: var(--ink); font: 400 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
 main { max-width: 380px; width: 100%; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 28px; }
 h1 { font-size: 20px; margin: 0 0 8px; } p { color: var(--ink-2); margin: 0 0 20px; }
-.restart { display: inline-block; background: var(--route); color: #fff; font-weight: 600; text-decoration: none; padding: 10px 16px; border-radius: 6px; }
+.restart { display: inline-block; background: var(--route); color: var(--panel); font-weight: 500; text-decoration: none; padding: 10px 16px; border-radius: 8px; }
 .restart:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 </style></head><body><main><h1>${expired ? 'Sign-in expired' : 'Sign-in failed'}</h1><p>${escapeHtml(message)}</p><a class="restart" href="/signin">${link}</a></main></body></html>`;
 }
