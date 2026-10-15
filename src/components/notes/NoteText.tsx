@@ -30,7 +30,7 @@ export function NoteText({
           <span
             key={index}
             className="note-cite off"
-            title="This step is not on the graph at this date"
+            title="This step is not on the graph in this view"
           >
             {part.n}
           </span>
