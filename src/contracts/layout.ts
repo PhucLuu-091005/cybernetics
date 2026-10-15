@@ -1,14 +1,19 @@
 import { z } from 'zod';
-import { IdSchema, RevisionSchema, SideSchema, TextSchema } from './primitives';
+import { DateSchema, IdSchema, RevisionSchema, SideSchema, TextSchema } from './primitives';
 import { ActTypeSchema, GraphContextSchema } from './graph';
 
 const coordinate = z.number().finite();
+// A day column narrower than 24 px cannot hold its resize handle; wider than 480 px leaves no room for others.
+export const DAY_WIDTH_MIN = 24,
+  DAY_WIDTH_MAX = 480;
 export const LayoutInputSchema = z.strictObject({ context: GraphContextSchema });
 export const LayoutOptionsSchema = z.strictObject({
   pxPerDay: z.number().positive(),
   rowHeight: z.number().positive().default(28),
   lanePadding: z.number().nonnegative().default(12),
   branchGap: z.number().nonnegative().default(16),
+  /** Day columns the user resized, by local date, in px at 100 % zoom. */
+  dayWidths: z.record(DateSchema, z.number().min(DAY_WIDTH_MIN).max(DAY_WIDTH_MAX)).optional(),
   /** Event cards above each branch line; the layout reserves their shelves inside the branch row. */
   cards: z
     .strictObject({

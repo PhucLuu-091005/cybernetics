@@ -348,7 +348,7 @@ test('the controls step the zoom, the % menu applies presets, and titles hide un
   await expect.poll(() => zoomOf(page)).toBe(0.5);
   await expect(page.locator('text.br-title').first()).toBeHidden();
   await preset(page, 'Fit this week');
-  await expect.poll(() => zoomOf(page)).toBeGreaterThan(2);
+  await expect.poll(() => zoomOf(page)).toBeGreaterThan(1);
   await controls(page).getByRole('button', { name: 'Fit the project' }).click();
   await expect.poll(() => zoomOf(page)).toBeLessThan(1);
 });
@@ -475,8 +475,8 @@ test('a sideways drag keeps an event in its day, an upward drag moves the branch
   });
   await page.mouse.up();
   const after = await boxOf(icon);
-  // A day is 18 px at 100 %: the icon may move inside its day, never into the next one.
-  expect(Math.abs(after.x - before.x)).toBeLessThanOrEqual(18);
+  // A day is 64 px at 100 %: the icon may move inside its day, never into the next one.
+  expect(Math.abs(after.x - before.x)).toBeLessThanOrEqual(64);
   await expect(loopPanel(page)).toBeHidden();
 
   const line = await boxOf(branch.locator('.hit'));
@@ -531,6 +531,47 @@ test('a promise split into tasks shows its gateways, its waiting note, its task 
   const parentAt = names.findIndex((text) => text.includes('CRS tax residency section'));
   expect(names[parentAt + 1]).toContain('Analyse the CRS and FATCA rules');
   await expect(rows.filter({ hasText: 'PG-201 CRS form logic' })).toHaveClass(/task-row/);
+});
+
+test('the time axis shows days; weeks and months wait in its menu; a resized day survives a reload and resets', async ({
+  page,
+}) => {
+  await signIn(page, 'graph-days');
+  const axis = page.getByTestId('time-axis');
+  await expect(axis.getByText(/^\d{1,2} \w+$/).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Time axis: days' }).click();
+  const menu = page.getByRole('menu', { name: 'Time axis' });
+  await expect(menu.getByRole('menuitemradio', { name: /^Days/ })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  );
+  for (const name of ['Weeks', 'Months']) {
+    const item = menu.getByRole('menuitemradio', { name: new RegExp(`^${name}`) });
+    await expect(item).toHaveAttribute('aria-disabled', 'true');
+    await expect(item).toContainText('not implemented yet');
+  }
+  const reset = menu.getByRole('menuitem', { name: 'Reset column widths' });
+  await expect(reset).toHaveAttribute('aria-disabled', 'true');
+  await page.keyboard.press('Escape');
+
+  const date = (await axis.locator('.axis-day').nth(3).getAttribute('data-date'))!;
+  const column = axis.locator(`.axis-day[data-date="${date}"]`);
+  const before = await boxOf(column);
+  const handle = await boxOf(column.locator('.axis-handle'));
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handle.x + 120, handle.y + handle.height / 2, { steps: 6 });
+  await page.mouse.up();
+  await expect.poll(async () => (await boxOf(column)).width).toBeGreaterThan(before.width + 100);
+
+  await page.reload();
+  await expect(graph(page)).toHaveAttribute('data-ready', 'true');
+  await expect.poll(async () => (await boxOf(column)).width).toBeGreaterThan(before.width + 100);
+  await page.getByRole('button', { name: 'Time axis: days' }).click();
+  await reset.click();
+  await expect
+    .poll(async () => Math.round((await boxOf(column)).width))
+    .toBe(Math.round(before.width));
 });
 
 test('phone width: no horizontal page scroll on graph, open panel and list; sign out is reachable', async ({

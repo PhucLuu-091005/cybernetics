@@ -10,6 +10,7 @@ Date: 14 October 2026. Status: approved by the owner ("go", 14 October 2026). Th
 | B | Graph canvas: zoom, frozen axis and lane column, controls, % menu, minimap, full screen, zoom to a loop | A |
 | C | Events: bare type icons, event cards with quotes, message sources, drag inside day and lane | B |
 | D | Tickets and handoffs: child loops, `after` links, gateways, Anduin-style demo data | C |
+| E | Time axis: day columns only, resizable per day, weeks and months reserved in a menu | D |
 
 PRs #1–#8 merged into `main` on 14 October 2026 before this work started.
 
@@ -32,6 +33,13 @@ As in the graph declutter design, section 4, with these settings:
 - Double-click a branch: zoom to that loop, at most 150 %.
 - First view: 100 %, T at 80 % of the width, trunk centred.
 - Mockup: `docs/design/2026-10-14-graph-canvas.html`.
+
+## B2. Time axis (owner decision, 15 October 2026)
+
+- The axis shows day columns only, at every zoom. A day is 64 px wide at 100 %, so each day gets its "22 Sept" label; at low zoom the axis labels only the days that fit and hides the borders of days narrower than 12 px.
+- A menu in the corner above the department column holds the axis scale: Days (on), Weeks and Months (shown, disabled, marked "not implemented yet").
+- Each day column has a resize handle on its right edge: drag to resize (24–480 px at 100 %), double-click to reset that day. Widths stay in browser storage per project; "Reset column widths" in the menu clears them.
+- A resized day widens or narrows everything drawn on that day; cards keep their size.
 
 ## C. Events
 

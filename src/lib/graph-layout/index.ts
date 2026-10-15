@@ -243,9 +243,10 @@ export function layoutPromiseGraph(
   input: LayoutInput,
   options: LayoutOptions,
 ): GraphLayout {
-  const { pxPerDay, rowHeight, lanePadding, branchGap, cards } = LayoutOptionsSchema.parse(options);
+  const { pxPerDay, rowHeight, lanePadding, branchGap, cards, dayWidths } =
+    LayoutOptionsSchema.parse(options);
   const { context } = input;
-  const scale = createTimeScale(context, pxPerDay);
+  const scale = createTimeScale(context, pxPerDay, dayWidths);
   const people = new Map(context.people.map((person) => [person.id, person]));
   const departments = new Map(context.departments.map((department) => [department.id, department]));
   const xT = round(scale.x(engine.T));
