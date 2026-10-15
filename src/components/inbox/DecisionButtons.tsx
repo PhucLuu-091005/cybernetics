@@ -2,6 +2,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { InboxState } from '../../contracts';
+import { MY_REVIEW_TITLE } from '../review-queue/state';
 import { createDraft, updateDraft, type ApiError, type Basis } from './api';
 import { inboxHref } from './links';
 
@@ -44,7 +45,7 @@ export function DecisionButtons({
     setFailure(null);
     let target = proposal ?? created;
     if (!target) {
-      const draft = await createDraft(projectId, basis, 'Inbox review');
+      const draft = await createDraft(projectId, basis, MY_REVIEW_TITLE);
       if (!draft.ok) {
         setFailure(draft.error);
         setBusy(false);
