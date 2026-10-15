@@ -9,6 +9,12 @@ const DOT = {
   restore: 'var(--draft)',
   initial: 'var(--ink-2)',
 } as const;
+export const KIND_LABEL = {
+  merge: 'Approved',
+  revert: 'Undo',
+  restore: 'Go back',
+  initial: 'First version',
+} as const;
 export const actorName = (actor: ActorReference, viewerUserId: string) =>
   actor.kind === 'agent'
     ? 'Agent via MCP'
@@ -34,7 +40,7 @@ export function CommitRail({
   timeZone: string;
 }) {
   return (
-    <ol className="commits" aria-label="Commits">
+    <ol className="commits" aria-label="Versions">
       {commits.map((commit) => {
         const agent =
           commit.actor.kind === 'agent' ||
@@ -45,6 +51,7 @@ export function CommitRail({
               className="commit"
               href={`/projects/${projectId}/history/${commit.id}`}
               aria-current={commit.id === selectedId ? 'page' : undefined}
+              data-id={commit.id}
             >
               <span className="rail-g" aria-hidden="true">
                 <i style={{ borderColor: DOT[commit.kind] }} />
@@ -54,16 +61,14 @@ export function CommitRail({
                   <b>{commit.message}</b>
                 </span>
                 <span className="row" style={{ gap: 6, fontSize: 12 }}>
-                  <span className="id">{commit.id.slice(0, 7)}</span>
                   <span className={`k-${commit.kind}`} style={{ fontWeight: 700 }}>
-                    {commit.kind}
+                    {KIND_LABEL[commit.kind]}
                   </span>
                   <span className="faint">
                     {actorName(commit.actor, viewerUserId)},{' '}
                     {shortStamp(commit.createdAt, timeZone)}
                   </span>
                   {agent && <span className="badge b-agent">agent</span>}
-                  <span className="faint">evidence {commit.reviewedEvidenceRevision}</span>
                   {commit.id === mainCommitId && <span className="badge b-main">approved</span>}
                 </span>
               </span>

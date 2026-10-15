@@ -59,9 +59,7 @@ export default async function RecordPage({
       <div className="screen">
         <div className="screen-head">
           <h1>Record</h1>
-          <p className="id" title={record.header}>
-            {record.header}
-          </p>
+          <p>The original text of one imported record.</p>
         </div>
         <div className="card pad" style={{ maxWidth: 900 }}>
           <RecordViewer

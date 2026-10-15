@@ -1,13 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import {
-  IdSchema,
-  InboxStateSchema,
-  type ActorContext,
-  type ActorReference,
-  type InboxState,
-} from '../../../../../contracts';
+import { IdSchema, InboxStateSchema, type InboxState } from '../../../../../contracts';
 import { DecisionButtons } from '../../../../../components/inbox/DecisionButtons';
 import { InboxList } from '../../../../../components/inbox/InboxList';
 import {
@@ -18,6 +12,7 @@ import {
 } from '../../../../../components/inbox/links';
 import { PasteForm } from '../../../../../components/inbox/PasteForm';
 import { RecordViewer } from '../../../../../components/inbox/RecordViewer';
+import { AuthorBadge } from '../../../../../components/review/ProposalFrame';
 import { pickMyReview } from '../../../../../components/review-queue/state';
 import { getApp } from '../../../../../server/app';
 import { readInboxView } from '../../../../../server/domain/inbox';
@@ -32,21 +27,6 @@ type Search = Record<string, string | string[] | undefined>;
 const PAGE_SIZE = 20;
 const one = (value: string | string[] | undefined) =>
   typeof value === 'string' ? value : undefined;
-
-/** SRD 7.6: proposal mode names its author; an agent author keeps the dashed agent badge from the design. */
-function AuthorBadge({ author, viewer }: { author: ActorReference; viewer: ActorContext }) {
-  if (author.kind === 'agent')
-    return (
-      <span className="badge b-agent" title={`Token ${author.tokenId}`}>
-        Agent via MCP, token {author.tokenId.slice(0, 8)}
-      </span>
-    );
-  return (
-    <span className="badge" style={{ color: 'var(--ink-2)' }}>
-      Author: {author.userId === viewer.userId ? 'you' : 'a workspace member'}
-    </span>
-  );
-}
 
 function LockIcon() {
   return (
@@ -124,24 +104,16 @@ export default async function InboxPage({
             <div className="pband" aria-hidden="true" />
             <div className="phead">
               <span className="badge b-draft">
-                Change set, {proposal.status === 'draft' ? 'open' : proposal.status}
+                Change set,{' '}
+                {proposal.status === 'draft'
+                  ? 'open'
+                  : proposal.status === 'merged'
+                    ? 'approved'
+                    : 'rejected'}
               </span>
               <h2 style={{ fontSize: 15 }}>{proposal.title}</h2>
               <span style={{ flex: 1 }} />
-              <span style={{ fontSize: 12 }}>
-                <span className="faint">Based on </span>
-                <span className="id" title={proposal.baseCommitId}>
-                  {proposal.baseCommitId.slice(0, 7)}
-                </span>
-                {proposal.baseCommitId === inbox.mainCommitId ? (
-                  <span className="faint"> (current)</span>
-                ) : null}
-              </span>
-              <span style={{ fontSize: 12 }}>
-                <span className="faint">Revision </span>
-                <b>{proposal.revision}</b>
-              </span>
-              <AuthorBadge author={proposal.author} viewer={actor} />
+              <AuthorBadge author={proposal.author} viewerUserId={actor.userId} />
               <Link className="btn btn-draft" href={`/projects/${id}/proposals/${proposal.id}`}>
                 Open change set
               </Link>
@@ -167,7 +139,7 @@ export default async function InboxPage({
                   </option>
                   {drafts.items.map((draft) => (
                     <option key={draft.id} value={draft.id}>
-                      {draft.title} (revision {draft.revision})
+                      {draft.title}
                     </option>
                   ))}
                 </select>

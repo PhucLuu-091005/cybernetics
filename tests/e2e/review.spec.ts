@@ -13,7 +13,7 @@ const PROJECT = 'Larkspur Capital, Fund III onboarding';
 const QUOTE = "I'll renew the secret on Monday 12 October.";
 const headCommit = (page: Page) => page.getByTestId('head-commit').getAttribute('title');
 const records = (page: Page) => page.getByRole('list', { name: 'Records' });
-const commits = (page: Page) => page.getByRole('list', { name: 'Commits' });
+const commits = (page: Page) => page.getByRole('list', { name: 'Versions' });
 const branch = (page: Page, title: string) =>
   page.getByRole('button', { name: new RegExp(`^Loop: ${title.replace(/[()]/g, '\\$&')},`) });
 
@@ -95,7 +95,7 @@ test('create a proposal from an inbox citation, correct its loop, review the dif
   await editor.getByLabel('Performer').selectOption({ label: 'Tom Becker' });
   await editor.getByLabel('Action').fill('Renew the Azure client secret for the sync app');
   await editor.getByLabel('Due date').fill('2026-10-12');
-  await editor.getByRole('button', { name: 'Save act to draft' }).click();
+  await editor.getByRole('button', { name: 'Save act to change set' }).click();
   await expect(page.getByTestId('proposal-revision')).toHaveText('1');
   const operations = page.getByRole('listbox', { name: 'What changes' });
   await expect(operations.getByRole('option', { name: /Promise by Tom Becker/ })).toContainText(
@@ -106,7 +106,7 @@ test('create a proposal from an inbox citation, correct its loop, review the dif
   await operations.getByRole('option', { name: /Promise by Tom Becker/ }).click();
   await expect(editor.getByLabel('Loop')).toHaveValue(/[0-9a-f-]{36}/);
   await editor.getByLabel('Loop').selectOption({ label: 'Client secret renewal' });
-  await editor.getByRole('button', { name: 'Save act to draft' }).click();
+  await editor.getByRole('button', { name: 'Save act to change set' }).click();
   await expect(page.getByTestId('proposal-revision')).toHaveText('2');
   await expect(operations.getByRole('option', { name: /Promise by Tom Becker/ })).toContainText(
     'Client secret renewal',
@@ -141,7 +141,7 @@ test('create a proposal from an inbox citation, correct its loop, review the dif
   await expect(approvedStatus(page)).toBeVisible();
   await page.goto(`/projects/${projectId}/history`);
   await expect(commits(page).getByRole('link').first()).toContainText(setTitle);
-  await expect(commits(page).getByRole('link').first()).toContainText('merge');
+  await expect(commits(page).getByRole('link').first()).toContainText('Approved');
 
   await page.goto(`/projects/${projectId}/graph`);
   await expect(page.getByTestId('head-commit')).toBeVisible();
@@ -261,7 +261,7 @@ test('revert preview: a conflicting inverse becomes a proposal, an unrelated lat
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/history/[0-9a-f-]{36}$`));
   const top = commits(page).getByRole('link').first();
   await expect(top).toContainText('Undo “Note the SOW phase 2 scope');
-  await expect(top).toContainText('revert');
+  await expect(top).toContainText('Undo');
 
   const graph = await page.request.get(`/api/v1/projects/${projectId}/graph`);
   expect(graph.ok()).toBe(true);
@@ -297,7 +297,7 @@ test('restore preview lists removed later changes and apply creates a new restor
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/history/[0-9a-f-]{36}$`));
   await expect(commits(page).getByRole('link')).toHaveCount(before + 1);
   const top = commits(page).getByRole('link').first();
-  await expect(top).toContainText('restore');
+  await expect(top).toContainText('Go back');
   await expect(top).toContainText('Seed Larkspur main snapshot');
 });
 
@@ -324,7 +324,7 @@ test('loop panel edits on main open a proposal first; change type, move and hide
   await panel.getByLabel('Act actions').first().click();
   await panel.getByRole('button', { name: 'Change type' }).click();
   await panel.getByLabel('New act type').selectOption({ label: 'Follow-up' });
-  await panel.getByRole('button', { name: 'Apply to draft' }).click();
+  await panel.getByRole('button', { name: 'Apply to change set' }).click();
   await expect(page).toHaveURL(/rev=2/);
   await expect(page.getByText('Change set, open')).toBeVisible();
   const steps = panel.getByRole('list', { name: 'Steps' }).getByRole('listitem');
@@ -333,13 +333,13 @@ test('loop panel edits on main open a proposal first; change type, move and hide
   await panel.getByLabel('Act actions').nth(1).click();
   await panel.getByRole('button', { name: 'Move to another loop' }).click();
   await panel.getByLabel('Target loop').selectOption({ label: 'Dynamics CRM sync scope' });
-  await panel.getByRole('button', { name: 'Apply to draft' }).click();
+  await panel.getByRole('button', { name: 'Apply to change set' }).click();
   await expect(page).toHaveURL(/rev=3/);
   await expect(steps).toHaveCount(1);
 
   await panel.getByLabel('Act actions').first().click();
   await panel.getByRole('button', { name: 'Hide this act' }).click();
-  await panel.getByRole('button', { name: 'Apply to draft' }).click();
+  await panel.getByRole('button', { name: 'Apply to change set' }).click();
   await expect(page).toHaveURL(/rev=4/);
   await expect(panel.getByText('No acts yet at the evaluation time.')).toBeVisible();
 

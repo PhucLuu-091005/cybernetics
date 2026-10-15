@@ -19,13 +19,13 @@ const revisionDetails = (details: Record<string, unknown> | undefined): string[]
   if (!details) return [];
   const lines: string[] = [];
   if (typeof details.actualMainCommitId === 'string')
-    lines.push(`main is now ${details.actualMainCommitId.slice(0, 7)}`);
+    lines.push(`approved graph version ${details.actualMainCommitId}`);
   if (typeof details.actualProposalRevision === 'number')
-    lines.push(`the draft is at revision ${details.actualProposalRevision}`);
+    lines.push(`change set revision ${details.actualProposalRevision}`);
   if (typeof details.actualEvidenceRevision === 'number')
-    lines.push(`evidence is at revision ${details.actualEvidenceRevision}`);
+    lines.push(`evidence revision ${details.actualEvidenceRevision}`);
   if (typeof details.status === 'string' && details.status !== 'draft')
-    lines.push(`the proposal is ${details.status}`);
+    lines.push(`change set status ${details.status}`);
   return lines;
 };
 
@@ -48,11 +48,12 @@ export function ConflictBanner({
       <div style={{ flex: 1, minWidth: 220 }}>
         <b>{title}</b>
         {message && <p style={{ fontSize: 13 }}>{message}</p>}
-        {error && (
-          <p style={{ fontSize: 13 }}>
-            {error.message.replace(/\.?$/, '.')}
-            {facts.length ? ` Now ${facts.join(', ')}.` : ''}
-          </p>
+        {error && <p style={{ fontSize: 13 }}>{error.message.replace(/\.?$/, '.')}</p>}
+        {facts.length > 0 && (
+          <details className="tech">
+            <summary>Technical details</summary>
+            <p style={{ fontSize: 12 }}>Now: {facts.join(', ')}.</p>
+          </details>
         )}
         {error?.errors?.length ? (
           <ul className="errs">

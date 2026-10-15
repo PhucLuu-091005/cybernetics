@@ -130,7 +130,7 @@ export function ContextEditor({ people, departments, milestones, busy, editable,
             type="submit"
             disabled={disabled || !person.name.trim()}
           >
-            Add person to draft
+            Add person to change set
           </button>
         </div>
       </form>
@@ -179,7 +179,7 @@ export function ContextEditor({ people, departments, milestones, busy, editable,
             type="submit"
             disabled={disabled || !selected || !currentDate || currentDate === selected.currentDate}
           >
-            Save date to draft
+            Save date to change set
           </button>
         </div>
       </form>

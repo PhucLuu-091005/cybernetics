@@ -304,3 +304,17 @@
   width: 12px;
   height: 12px;
 }
+
+details.tech summary {
+  cursor: pointer;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+details.tech .kv {
+  margin-top: 8px;
+  font-size: 12px;
+}
+details.tech .id,
+details.tech .digest {
+  overflow-wrap: anywhere;
+}

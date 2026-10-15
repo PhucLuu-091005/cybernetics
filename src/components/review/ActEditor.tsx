@@ -110,7 +110,7 @@ export function ActEditor({
   return (
     <form className="editor" aria-label="Act editor" onSubmit={submit}>
       <h3 className="wide" style={{ margin: 0 }}>
-        {isNew ? 'New act from the inbox selection' : 'Edit act'}
+        {isNew ? 'New act from the selected quote' : 'Edit act'}
       </h3>
       <SelectField label="Act type">
         {(id) => (
@@ -242,7 +242,7 @@ export function ActEditor({
           <b style={{ fontSize: 13 }}>Citation</b>
           <span className="faint" style={{ fontSize: 12 }}>
             {record ? `${record.title}, ${record.author}, ${record.when}` : 'Unknown record'},
-            version <span className="id">{citation.recordVersionId.slice(0, 8)}</span>, offsets
+            offsets
           </span>
           <input
             className="id off"
@@ -283,12 +283,13 @@ export function ActEditor({
               : `✓ Quote matches the record text at ${start}–${end}, outside quoted ranges, ${end - start} of ${MAX_QUOTE} characters.`}
         </div>
         <p className="faint" style={{ fontSize: 12 }}>
-          The draft stores the version and offsets. The server checks the quote again on save.
+          The change set stores the record version and offsets. The server checks the quote again on
+          save.
         </p>
       </div>
       <div className="wide row">
         <button className="btn btn-draft" type="submit" disabled={disabled || !valid}>
-          Save act to draft
+          Save act to change set
         </button>
         {removeOperations && (
           <button
@@ -297,7 +298,7 @@ export function ActEditor({
             disabled={disabled}
             onClick={() => onSave(removeOperations, 'Remove act')}
           >
-            Remove act from draft
+            Remove act from change set
           </button>
         )}
         {!editable && (

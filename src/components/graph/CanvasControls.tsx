@@ -44,9 +44,9 @@ export function CanvasControls({
         <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => onStep(-1)}>
           <Icon d="M5 12h14" />
         </button>
-        <span className="pct" aria-label="Zoom level">
+        <output className="pct" aria-label="Zoom level">
           {Math.round(zoom * 100)}%
-        </span>
+        </output>
         <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => onStep(1)}>
           <Icon d="M12 5v14M5 12h14" />
         </button>

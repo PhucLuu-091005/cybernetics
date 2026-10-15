@@ -99,7 +99,7 @@
 .queue-detail .box .card + .card {
   margin-top: 12px;
 }
-.queue-detail .box .card h2 {
+.queue-detail .box .card h4 {
   font-size: 13px;
 }
 .queue-detail .banner {
@@ -110,14 +110,6 @@
 .queue-detail .banner > span {
   flex: 1;
   min-width: 200px;
-}
-.queue-detail details.tech summary {
-  cursor: pointer;
-  color: var(--ink-3);
-  font-size: 13px;
-}
-.queue-detail details.tech .kv {
-  margin-top: 8px;
 }
 .queue-notice {
   margin: 12px 22px 0;

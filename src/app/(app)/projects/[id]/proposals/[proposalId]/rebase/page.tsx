@@ -103,14 +103,27 @@ export default async function RebasePage({
     body = (
       <>
         <p style={{ fontSize: 13, color: 'var(--ink-2)', marginBottom: 12, maxWidth: '72ch' }}>
-          Base <span className="id">{preview.baseCommitId.slice(0, 7)}</span>, main{' '}
-          <span className="id">{preview.mainCommitId.slice(0, 7)}</span>, proposal revision{' '}
-          {preview.proposalRevision}. One-sided changes are kept.{' '}
+          The approved graph changed after this change set was made. Changes made on one side only
+          are kept.{' '}
           {preview.conflicts.length
-            ? `${preview.conflicts.length} ${preview.conflicts.length === 1 ? 'entity changed' : 'entities changed'} on both sides, so you choose.`
+            ? `${preview.conflicts.length} ${preview.conflicts.length === 1 ? 'item changed' : 'items changed'} on both sides, so you choose.`
             : ''}{' '}
-          Nothing is dropped and nothing is merged until a fresh review.
+          Nothing is dropped, and nothing reaches the approved graph until you check the changes
+          again and approve.
         </p>
+        <details className="tech" style={{ marginBottom: 12 }}>
+          <summary>Technical details</summary>
+          <dl className="kv">
+            <dt>Based on version</dt>
+            <dd className="id">{preview.baseCommitId}</dd>
+            <dt>Approved graph now</dt>
+            <dd className="id">{preview.mainCommitId}</dd>
+            <dt>Change set revision</dt>
+            <dd>{preview.proposalRevision}</dd>
+            <dt>Evidence revision</dt>
+            <dd>{preview.evidenceRevision}</dd>
+          </dl>
+        </details>
         <OmittedRecordsNote omitted={wanted.omitted} />
         <RebaseConflictView
           key={preview.digest}

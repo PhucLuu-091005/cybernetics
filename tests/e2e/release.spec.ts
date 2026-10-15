@@ -39,7 +39,7 @@ test.beforeEach(async () => {
 
 const headCommit = (page: Page) => page.getByTestId('head-commit').getAttribute('title');
 const records = (page: Page) => page.getByRole('list', { name: 'Records' });
-const commits = (page: Page) => page.getByRole('list', { name: 'Commits' });
+const commits = (page: Page) => page.getByRole('list', { name: 'Versions' });
 const loopPanel = (page: Page) => page.getByRole('complementary', { name: /loop panel/i });
 const branch = (page: Page, title: string) =>
   page.getByRole('button', { name: new RegExp(`^Loop: ${title.replace(/[()]/g, '\\$&')},`) });
@@ -347,7 +347,7 @@ test('4 and 5: a proposal cites the exact quote, a wrong link is corrected, the 
   await editor.getByLabel('Performer').selectOption({ label: 'Tom Becker' });
   await editor.getByLabel('Action').fill('Renew the Azure client secret for the sync app');
   await editor.getByLabel('Due date').fill('2026-10-12');
-  await editor.getByRole('button', { name: 'Save act to draft' }).click();
+  await editor.getByRole('button', { name: 'Save act to change set' }).click();
   await expect(page.getByTestId('proposal-revision')).toHaveText('1');
   const operations = page.getByRole('listbox', { name: 'What changes' });
   await expect(operations.getByRole('option', { name: /Promise by Tom Becker/ })).toContainText(
@@ -356,7 +356,7 @@ test('4 and 5: a proposal cites the exact quote, a wrong link is corrected, the 
 
   await operations.getByRole('option', { name: /Promise by Tom Becker/ }).click();
   await editor.getByLabel('Loop').selectOption({ label: 'Client secret renewal' });
-  await editor.getByRole('button', { name: 'Save act to draft' }).click();
+  await editor.getByRole('button', { name: 'Save act to change set' }).click();
   await expect(page.getByTestId('proposal-revision')).toHaveText('2');
   await expect(operations.getByRole('option', { name: /Promise by Tom Becker/ })).toContainText(
     'Client secret renewal',
@@ -469,7 +469,7 @@ test('7: a revert keeps an unrelated later change, and a restore of an older gra
   await restore.getByRole('button', { name: 'Apply go back as a new version' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/history/[0-9a-f-]{36}$`));
   await expect(commits(page).getByRole('link')).toHaveCount(before + 1);
-  await expect(commits(page).getByRole('link').first()).toContainText('restore');
+  await expect(commits(page).getByRole('link').first()).toContainText('Go back');
   await expect(
     commits(page).getByRole('link', { name: /^Note the SOW phase 2 scope/ }),
   ).toHaveCount(1);
@@ -598,7 +598,7 @@ test('9: an agent token reads through MCP and submits a proposal, the default to
   expect(foreignOrigin.status()).toBe(403);
 
   await page.goto(`/projects/${projectId}/proposals/${proposalId}`);
-  await expect(page.getByText(/^Agent via MCP, token /)).toBeVisible();
+  await expect(page.getByText(/^Agent via MCP$/).first()).toBeVisible();
   await expect(page.getByRole('listbox', { name: 'What changes' })).toContainText(
     'Sync incident report',
   );

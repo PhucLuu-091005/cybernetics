@@ -48,7 +48,7 @@ const loopName = (id: string | null, names: Names) =>
   id === null ? 'no loop' : (names.loops[id] ?? 'Unknown loop');
 const milestoneName = (id: string | null, names: Names) =>
   id === null ? 'none' : (names.milestones[id] ?? 'Unknown milestone');
-const recordName = (id: string, names: Names) => names.records[id] ?? `record ${id.slice(0, 8)}`;
+const recordName = (id: string, names: Names) => names.records[id] ?? 'Unknown record';
 const clip = (text: string, length = 70) =>
   text.length > length ? `${text.slice(0, length - 1)}…` : text;
 
@@ -74,8 +74,8 @@ export function describeEntity(
   if (image === null || typeof image !== 'object' || Array.isArray(image)) {
     if (collection === 'context') return { kind, name: id };
     if (collection === 'recordDecisions') return { kind, name: recordName(id, names) };
-    if (collection === 'loops') return { kind, name: names.loops[id] ?? id.slice(0, 8) };
-    return { kind, name: id.slice(0, 8) };
+    if (collection === 'loops') return { kind, name: names.loops[id] ?? 'Unknown loop' };
+    return { kind, name: `Unknown ${kind.toLowerCase()}` };
   }
   switch (collection) {
     case 'acts': {
