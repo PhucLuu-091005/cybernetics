@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { createDraft, updateDraft, type ApiError, type Basis } from '../inbox/api';
 import { ConflictBanner } from '../review/ConflictBanner';
+import { useHydrated } from '../review/hydrated';
 import { MY_REVIEW_TITLE, reviewHref } from './state';
 
 type Props = {
@@ -21,6 +22,7 @@ export function IgnoreRecord({
   citedByVisibleAct,
 }: Props) {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<ApiError | null>(null);
@@ -94,7 +96,7 @@ export function IgnoreRecord({
         <button
           className="btn"
           type="button"
-          disabled={busy || !reason.trim() || citedByVisibleAct}
+          disabled={!hydrated || busy || !reason.trim() || citedByVisibleAct}
           onClick={ignore}
         >
           Ignore
