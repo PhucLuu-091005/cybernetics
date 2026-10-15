@@ -489,9 +489,9 @@ function Graph(props: PromiseGraphProps) {
   }, []);
   const listShown = listOpen && !panelOpen;
   const toggleList = useCallback(() => {
-    if (panelOpen && listOpen) {
+    if (panelOpen) {
       onClosePanel();
-      return;
+      if (listOpen) return;
     }
     setListOpen((value) => {
       try {

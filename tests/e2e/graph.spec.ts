@@ -27,6 +27,20 @@ const openLoop = async (locator: Locator) => {
 const stepZoom = async (page: Page, name: 'Zoom in' | 'Zoom out', times: number) => {
   for (let i = 0; i < times; i++) await controls(page).getByRole('button', { name }).click();
 };
+const viewOf = (page: Page) =>
+  page.locator('.react-flow__viewport').evaluate((node) => getComputedStyle(node).transform);
+/** A jump or a fit animates for 200 ms; a geometry check reads the canvas only after it stops. */
+async function viewSettled(page: Page) {
+  let last = '';
+  await expect
+    .poll(async () => {
+      const now = await viewOf(page);
+      const same = now === last;
+      last = now;
+      return same;
+    })
+    .toBe(true);
+}
 // The first view fits the project, so a case that reads cards or measures icons zooms to 100 % first.
 async function atHundred(page: Page) {
   for (let zoom = await zoomOf(page); zoom < 1; zoom = await zoomOf(page)) {
@@ -276,6 +290,7 @@ test('the canvas opens fitted to the project, the wheel moves it, and Ctrl + whe
   await signIn(page, 'graph-canvas');
   const fitted = await zoomOf(page);
   expect(fitted).toBeLessThan(0.2);
+  const first = await viewOf(page);
   const box = await boxOf(graph(page));
   const trunk = page.locator('.react-flow__viewport');
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -291,6 +306,10 @@ test('the canvas opens fitted to the project, the wheel moves it, and Ctrl + whe
   await expect.poll(() => zoomOf(page)).toBeGreaterThan(fitted);
   // Ctrl + wheel inside the canvas zooms the canvas, never the browser page.
   expect(await page.evaluate(() => window.visualViewport?.scale ?? 1)).toBe(1);
+  // Spec 5.1: the first view is the Fit action, so Fit returns to the first view.
+  await controls(page).getByRole('button', { name: 'Fit the project' }).click();
+  await viewSettled(page);
+  expect(await viewOf(page)).toBe(first);
   // The pinch tests below start on a fresh page: d3 ends its wheel gesture 150 ms later and would cut a pinch short.
 });
 
@@ -637,6 +656,7 @@ test('a card drags on its own, keeps its place after a reload, and Reset layout 
 test('a loop-list click opens the panel and hides the list; closing the panel brings the list back', async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, 'graph-list');
   const list = page.getByRole('complementary', { name: 'Loop list' });
   const closePanel = page.getByRole('button', { name: 'Close loop panel' });
@@ -653,18 +673,34 @@ test('a loop-list click opens the panel and hides the list; closing the panel br
   await controls(page).getByRole('button', { name: 'Loop list' }).click();
   await expect(closePanel).toBeHidden();
   await expect(list).toBeVisible();
+  await list.getByRole('button', { name: /^Kickoff agenda/ }).click();
+  await expect(loopPanel(page).getByRole('heading', { level: 2 })).toHaveText('Kickoff agenda');
+  // The zoom reads the canvas width with the panel open, so the whole loop fits the canvas that the user sees.
+  await viewSettled(page);
+  const kickoff = await boxOf(
+    page.getByRole('button', { name: /^Loop: Kickoff agenda/ }).locator('.hit'),
+  );
+  const area = await boxOf(graph(page));
+  expect(kickoff.x).toBeGreaterThanOrEqual(area.x);
+  expect(kickoff.x + kickoff.width).toBeLessThanOrEqual(area.x + area.width);
+  await closePanel.click();
+  await expect(list).toBeVisible();
   await list.getByRole('button', { name: /^Go-live date/ }).click();
   await expect(loopPanel(page).getByRole('heading', { level: 2 })).toHaveText('Go-live date');
   await closePanel.click();
   await expect(list).toBeVisible();
 
   await list.getByRole('button', { name: /^Client secret renewal/ }).click();
+  await expect(loopPanel(page).getByRole('heading', { level: 2 })).toHaveText(
+    'Client secret renewal',
+  );
+  await viewSettled(page);
+  const secret = await boxOf(secretRenewal(page).locator('.hit'));
+  const canvas = await boxOf(graph(page));
+  expect(secret.x).toBeGreaterThanOrEqual(canvas.x);
+  expect(secret.x).toBeLessThan(canvas.x + canvas.width);
   await closePanel.click();
   await expect(list.locator('li[aria-current="true"]')).toContainText('Client secret renewal');
-  const hit = await boxOf(secretRenewal(page).locator('.hit'));
-  const area = await boxOf(graph(page));
-  expect(hit.x + hit.width).toBeGreaterThan(area.x);
-  expect(hit.x).toBeLessThan(area.x + area.width);
 
   await list.getByRole('button', { name: 'Show only Client secret renewal' }).click();
   await expect(branches(page)).toHaveCount(1);
@@ -677,6 +713,21 @@ test('a loop-list click opens the panel and hides the list; closing the panel br
 
   await controls(page).getByRole('button', { name: 'Loop list' }).click();
   await expect(list).toBeHidden();
+});
+
+test('the list button closes an open panel and shows the list, even when the list was closed', async ({
+  page,
+}) => {
+  await page.addInitScript(() => localStorage.setItem('promise-graph:loop-list', 'closed'));
+  await signIn(page, 'graph-list-closed');
+  const list = page.getByRole('complementary', { name: 'Loop list' });
+  await expect(list).toBeHidden();
+  await openLoop(secretRenewal(page));
+  await expect(loopPanel(page)).toBeVisible();
+  await expect(list).toBeHidden();
+  await controls(page).getByRole('button', { name: 'Loop list' }).click();
+  await expect(loopPanel(page)).toBeHidden();
+  await expect(list).toBeVisible();
 });
 
 test('a promise split into tasks shows its gateways, its waiting note, its task panel and the indented list', async ({
