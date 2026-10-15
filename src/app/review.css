@@ -1,0 +1,148 @@
+.queue {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  min-height: calc(100vh - 60px);
+}
+.queue-list {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--rule);
+  min-width: 0;
+}
+.queue-list .tabs {
+  padding: 10px 12px 0;
+}
+.queue-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+}
+.queue-items a {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  color: var(--ink);
+}
+.queue-items a:hover,
+.queue-items a[aria-current='true'] {
+  background: var(--rule-2);
+}
+.queue-items small {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.queue-foot {
+  margin: auto 0 0;
+  padding: 10px 12px;
+  border-top: 1px solid var(--rule);
+  font-size: 12px;
+}
+.queue-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 22px;
+  min-width: 0;
+}
+.queue-detail .box {
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.queue-detail .box h3 {
+  margin: 0 0 8px;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.queue-detail .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.banner.warn {
+  border-color: var(--caution);
+  background: var(--caution-bg);
+}
+.banner.bad {
+  background: var(--danger-bg);
+}
+.badge.q-ok {
+  background: var(--proceed-bg);
+  color: var(--proceed);
+}
+.badge.q-warn {
+  background: var(--caution-bg);
+  color: var(--caution);
+}
+.badge.q-bad {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.btn-danger {
+  color: var(--danger);
+}
+
+/* DiffView and EffectsTable bring their own cards; inside a box they read as plain content. */
+.queue-detail .box .card {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+.queue-detail .box .card + .card {
+  margin-top: 12px;
+}
+.queue-detail .box .card h2 {
+  font-size: 13px;
+}
+.queue-detail .banner {
+  align-items: center;
+  color: var(--ink);
+  font-weight: 400;
+}
+.queue-detail .banner > span {
+  flex: 1;
+  min-width: 200px;
+}
+.queue-detail details.tech summary {
+  cursor: pointer;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.queue-detail details.tech .kv {
+  margin-top: 8px;
+}
+.queue-notice {
+  margin: 12px 22px 0;
+  font-size: 13px;
+}
+.new-set[open] > .filter-body {
+  right: 0;
+  left: auto;
+}
+.new-set .filter-body > .card {
+  border: 0;
+  padding: 0;
+}
+@media (max-width: 760px) {
+  .queue {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .queue-list {
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .queue-detail {
+    padding: 16px;
+  }
+  .queue-notice {
+    margin: 12px 16px 0;
+  }
+}
