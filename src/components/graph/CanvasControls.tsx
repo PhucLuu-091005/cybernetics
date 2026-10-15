@@ -38,6 +38,8 @@ export function CanvasControls({
   fullscreenEnabled,
   onFullscreen,
   onResetLayout,
+  listOpen,
+  onList,
 }: {
   zoom: number;
   onStep(direction: 1 | -1): void;
@@ -49,6 +51,8 @@ export function CanvasControls({
   onFullscreen(): void;
   /** Present only when the user moved something. */
   onResetLayout: (() => void) | null;
+  listOpen: boolean;
+  onList(): void;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -125,6 +129,15 @@ export function CanvasControls({
           onClick={() => onPreset('project')}
         >
           <Icon d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3" />
+        </button>
+        <button
+          type="button"
+          aria-label="Loop list"
+          title="Loop list"
+          aria-pressed={listOpen}
+          onClick={onList}
+        >
+          <Icon d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
         </button>
         <button
           type="button"

@@ -33,7 +33,7 @@ export function CardNode({ data }: NodeProps<CardNodeType>) {
         ['--tone' as string]: color,
         opacity: faded ? 0.4 : 1,
       }}
-      onPointerDown={(event) => ui.startDrag(event, glyph)}
+      onPointerDown={(event) => ui.startDrag(event, glyph, 'card')}
     >
       <div className="ev-h">
         <ActIcon type={info.type} />

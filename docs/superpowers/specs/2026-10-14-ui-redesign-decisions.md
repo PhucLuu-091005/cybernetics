@@ -11,6 +11,7 @@ Date: 14 October 2026. Status: approved by the owner ("go", 14 October 2026). Th
 | C | Events: bare type icons, event cards with quotes, message sources, drag inside day and lane | B |
 | D | Tickets and handoffs: child loops, `after` links, gateways, Anduin-style demo data | C |
 | E | Time axis: day columns only, resizable per day, weeks and months reserved in a menu | D |
+| F | Day columns sized to their events, event order kept on drag, cards dragged on their own, loop list | E |
 
 PRs #1–#8 merged into `main` on 14 October 2026 before this work started.
 
@@ -27,7 +28,7 @@ PRs #1–#8 merged into `main` on 14 October 2026 before this work started.
 
 As in the graph declutter design, section 4, with these settings:
 
-- Geometric zoom 10 %–400 % (Miro). Wheel scrolls, Shift + wheel scrolls sideways, Ctrl/Cmd + wheel or pinch zooms around the pointer, drag on empty canvas moves it. No keyboard shortcuts.
+- Geometric zoom 2 %–400 % (Miro; 10 % until 15 Oct 2026). Wheel scrolls, Shift + wheel scrolls sideways, Ctrl/Cmd + wheel or pinch zooms around the pointer, drag on empty canvas moves it. No keyboard shortcuts.
 - Floating controls: −, % (menu: Fit the project, Fit this week, Fit this month, 50 %, 100 %, 200 %), +, Fit, Minimap, Full screen.
 - Frozen time axis on top and frozen lane column on the left.
 - Double-click a branch: zoom to that loop, at most 150 %.
@@ -40,6 +41,15 @@ As in the graph declutter design, section 4, with these settings:
 - A menu in the corner above the department column holds the axis scale: Days (on), Weeks and Months (shown, disabled, marked "not implemented yet").
 - Each day column has a resize handle on its right edge: drag to resize (24–480 px at 100 %), double-click to reset that day. Widths stay in browser storage per project; "Reset column widths" in the menu clears them.
 - A resized day widens or narrows everything drawn on that day; cards keep their size.
+
+## B3. Review of 15 October 2026 (owner)
+
+- **Day width by content.** A day is as wide as its events need: inside a day each act gets a slot one card wide (176 + 10 px) in time order, and two acts of one loop never share a slot. A day without events stays 64 px. Events of different loops at the same time can share a slot, because they sit on different rows. Every card sits centred over its act, inside its day, so cards no longer slide or stack. A user-resized day scales its slots.
+- **Order on drag.** A sideways drag moves an act inside its day and between its neighbours of the same loop: an act never passes one that happened before or after it. Acts the user did not drag keep their place.
+- **Card drag.** A card drags on its own, anywhere; its act stays. The stem follows the card above, below or beside the act. Card positions stay in the same browser storage as the other layout moves, and "Reset layout" clears them. Dragging the icon still moves the act (sideways) or the branch (up or down).
+- **Loop list.** A panel on the right of the canvas lists every loop the filters let through, in start order with tasks under their promise. A title jumps the canvas to that loop; the focus button shows only the chosen loops (a promise keeps its tasks) until "Show all". The list opens by default on screens 1,100 px or wider, closes from its own button or the canvas controls, and remembers that choice per browser.
+- **Zoom range.** The minimum zoom is 2 %, so the longer timeline still fits on one screen.
+- **Process.** Work stays local until the owner checks it; nothing goes to CI before that.
 
 ## C. Events
 

@@ -1,4 +1,9 @@
-import type { BreakdownType, LoopState, MilestoneStatus } from '../../contracts/engine';
+import type {
+  BreakdownType,
+  DerivedLoop,
+  LoopState,
+  MilestoneStatus,
+} from '../../contracts/engine';
 import type { ActType, Department, Due, Party, Person } from '../../contracts/graph';
 import type { BranchSegment } from '../../contracts/layout';
 
@@ -108,4 +113,15 @@ export function partyDetail(party: Party, directory: Directory): string {
     ? directory.departments.get(person.departmentId)?.name
     : null;
   return department ? `${side}, ${department}` : side;
+}
+
+/** The colour of a loop as a whole: broken red, warning amber, closed green, ended grey, else blue. */
+export function loopColor(loop: DerivedLoop): string {
+  if (loop.breakdowns.some((item) => item.severity === 'broken')) return TONE_COLOR.red;
+  if (loop.breakdowns.length || loop.dueSoon) return TONE_COLOR.amber;
+  return loop.state === 'closed'
+    ? TONE_COLOR.green
+    : loop.state === 'declined' || loop.state === 'cancelled'
+      ? TONE_COLOR.gray
+      : TONE_COLOR.blue;
 }

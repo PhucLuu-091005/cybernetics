@@ -9,6 +9,9 @@ const StoredSchema = z.strictObject({
   v: z.literal(1),
   acts: z.record(z.string(), z.number().min(0).max(1)),
   loops: z.record(z.string(), z.number().finite()),
+  cards: z
+    .record(z.string(), z.strictObject({ dx: z.number().finite(), dy: z.number().finite() }))
+    .optional(),
 });
 const empty = (): LayoutOffsets => ({ acts: {}, loops: {} });
 
@@ -28,7 +31,9 @@ export function readOffsets(store: KeyValueStore | null, projectId: string): Lay
     const raw = store?.getItem(offsetKey(projectId));
     if (!raw) return empty();
     const parsed = StoredSchema.safeParse(JSON.parse(raw));
-    return parsed.success ? { acts: parsed.data.acts, loops: parsed.data.loops } : empty();
+    if (!parsed.success) return empty();
+    const { acts, loops, cards } = parsed.data;
+    return cards && Object.keys(cards).length ? { acts, loops, cards } : { acts, loops };
   } catch {
     return empty();
   }
@@ -48,10 +53,12 @@ export function writeOffsets(
       store?.removeItem(offsetKey(projectId));
       return;
     }
+    const cards = Object.fromEntries(Object.entries(offsets.cards ?? {}).slice(-MAX_ACTS));
     const value = {
       v: 1,
       acts: newest(offsets.acts, MAX_ACTS),
       loops: newest(offsets.loops, MAX_LOOPS),
+      ...(Object.keys(cards).length ? { cards } : {}),
     };
     store?.setItem(offsetKey(projectId), JSON.stringify(value));
   } catch {
@@ -71,4 +78,17 @@ export function withOffset(
 }
 
 export const hasOffsets = (offsets: LayoutOffsets) =>
-  Object.keys(offsets.acts).length > 0 || Object.keys(offsets.loops).length > 0;
+  Object.keys(offsets.acts).length > 0 ||
+  Object.keys(offsets.loops).length > 0 ||
+  Object.keys(offsets.cards ?? {}).length > 0;
+
+/** A card moved on its own; the newest move goes last, like withOffset. */
+export function withCardOffset(
+  offsets: LayoutOffsets,
+  id: string,
+  value: { dx: number; dy: number },
+): LayoutOffsets {
+  const rest = { ...offsets.cards };
+  delete rest[id];
+  return { ...offsets, cards: { ...rest, [id]: value } };
+}

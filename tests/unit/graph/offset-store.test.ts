@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   hasOffsets,
+  withCardOffset,
   offsetKey,
   readOffsets,
   withOffset,
@@ -37,6 +38,17 @@ describe('offset store', () => {
     writeOffsets(store, P, offsets);
     expect(readOffsets(store, P)).toEqual(offsets);
     expect(readOffsets(store, 'project-2')).toEqual({ acts: {}, loops: {} });
+  });
+  it('round-trips card moves and counts them as offsets', () => {
+    const { store } = memory();
+    const offsets = withCardOffset({ acts: {}, loops: {} }, 'a', { dx: 12, dy: -30 });
+    expect(hasOffsets(offsets)).toBe(true);
+    writeOffsets(store, P, offsets);
+    expect(readOffsets(store, P)).toEqual({
+      acts: {},
+      loops: {},
+      cards: { a: { dx: 12, dy: -30 } },
+    });
   });
   it('keeps entries for IDs outside the current layout, so a filtered loop gets its place back', () => {
     const { store } = memory();

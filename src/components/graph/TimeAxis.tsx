@@ -1,7 +1,7 @@
 'use client';
 import type { PointerEvent } from 'react';
-import type { GraphContext } from '../../contracts/graph';
-import type { TimeScale, Viewport } from '../../lib/graph-layout';
+import type { GraphLayout } from '../../contracts/layout';
+import type { Viewport } from '../../lib/graph-layout';
 
 // A "22 Sept" label needs about 44 px on screen; the T badge is 88 px wide.
 const LABEL_SPACE = 48,
@@ -16,28 +16,21 @@ const dayLabel = (date: string) =>
     month: 'short',
     timeZone: 'UTC',
   });
-const nextDate = (date: string) => {
-  const next = new Date(`${date}T00:00:00Z`);
-  next.setUTCDate(next.getUTCDate() + 1);
-  return next.toISOString().slice(0, 10);
-};
 
 /**
  * Day columns only (owner decision, 15 Oct 2026). Each column has a resize handle on its right edge;
  * a double-click on the handle gives the column its default width back.
  */
 export function TimeAxis({
-  context,
-  scale,
-  T,
+  days: columns,
+  xT: tAt,
   tLabel,
   viewport,
   width,
   onResize,
 }: {
-  context: GraphContext;
-  scale: TimeScale;
-  T: string;
+  days: GraphLayout['days'];
+  xT: number;
   tLabel: string;
   viewport: Viewport;
   width: number;
@@ -45,9 +38,10 @@ export function TimeAxis({
 }) {
   const days: { date: string; left: number; width: number; label: boolean; first: boolean }[] = [];
   let lastLabel = -Infinity;
-  for (let date = context.windowStart; date <= context.windowEnd; date = nextDate(date)) {
-    const left = viewport.x + scale.dateStartX(date) * viewport.zoom,
-      size = (scale.dateEndX(date) - scale.dateStartX(date)) * viewport.zoom;
+  for (const column of columns) {
+    const date = column.date,
+      left = viewport.x + column.x * viewport.zoom,
+      size = column.width * viewport.zoom;
     if (left + size < 0 || left > width) continue;
     const label = left - lastLabel >= LABEL_SPACE;
     if (label) lastLabel = left;
@@ -58,7 +52,7 @@ export function TimeAxis({
     event.preventDefault();
     const handle = event.currentTarget,
       x0 = event.clientX,
-      width0 = scale.dateEndX(date) - scale.dateStartX(date);
+      width0 = columns.find((column) => column.date === date)?.width ?? 0;
     handle.setPointerCapture(event.pointerId);
     const widthAt = (clientX: number) => width0 + (clientX - x0) / viewport.zoom;
     const onMove = (move: globalThis.PointerEvent) => onResize(date, widthAt(move.clientX), false);
@@ -72,7 +66,7 @@ export function TimeAxis({
     handle.addEventListener('pointerup', onUp);
     handle.addEventListener('pointercancel', onUp);
   };
-  const xT = viewport.x + scale.x(T) * viewport.zoom;
+  const xT = viewport.x + tAt * viewport.zoom;
   return (
     <div className="time-axis" data-testid="time-axis" style={{ width }}>
       {days.map((day) => (

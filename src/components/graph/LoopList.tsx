@@ -21,7 +21,7 @@ type Props = {
 };
 
 /** Tasks follow their parent, so the list reads as the graph does: a promise, then the work it split into. */
-function withTasksUnderParents(loops: readonly DerivedLoop[]): DerivedLoop[] {
+export function withTasksUnderParents(loops: readonly DerivedLoop[]): DerivedLoop[] {
   const present = new Set(loops.map((loop) => loop.loop.id));
   const tasks = new Map<string, DerivedLoop[]>();
   for (const loop of loops) {
