@@ -150,7 +150,7 @@ export default async function SignInPage({
         <hr style={{ border: 0, borderTop: '1px solid var(--rule-2)', width: '100%' }} />
         <p className="faint" style={{ fontSize: 12 }}>
           The app never calls an AI model. Your own agent reads evidence and submits proposals
-          through MCP. Nothing changes the graph until a person merges it.
+          through MCP. Nothing changes the graph until a person approves it.
         </p>
       </div>
     </main>

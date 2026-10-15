@@ -81,7 +81,7 @@ The rail footer note becomes "Nothing changes the graph until a person approves 
 ### 5.3 Canvas
 
 - Controls: −, the zoom percentage as plain text, +, Reset layout (only after a drag), Fit, Full screen.
-- Remove: the zoom preset menu, the minimap, the axis menu (Days, disabled Weeks and Months, "Reset column widths") and the day column resize handles with their browser storage. Every day is 64 px at 100 %. The day labels from PR #13 stay.
+- Remove: the zoom preset menu, the minimap, the axis menu (Days, disabled Weeks and Months, "Reset column widths") and the day column resize handles with their browser storage. A day without events is 64 px at 100 %; a day with events widens to fit them. The day labels from PR #13 stay.
 - Wheel, pinch, drag, double-click zoom, event cards and card drag stay.
 
 ## 6. Review screen

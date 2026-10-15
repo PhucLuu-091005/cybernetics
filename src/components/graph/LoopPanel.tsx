@@ -404,7 +404,7 @@ export function LoopPanel({
               {!edit.editable
                 ? 'This proposal is not a draft, so it cannot change.'
                 : onMain
-                  ? 'Main is read-only. A change here creates a proposal from main first.'
+                  ? 'The approved graph is read-only. A change here starts a change set first.'
                   : 'Changes go into this draft.'}
             </span>
           </dd>
