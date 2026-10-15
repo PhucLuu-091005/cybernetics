@@ -2,9 +2,10 @@ export type Viewport = { x: number; y: number; zoom: number };
 export type Box = { x0: number; x1: number; y0: number; y1: number };
 export type Size = { width: number; height: number };
 
-export const MIN_ZOOM = 0.1,
+// Days wide enough for their cards make a long timeline; 2 % still fits a five-month project on one screen.
+export const MIN_ZOOM = 0.02,
   MAX_ZOOM = 4;
-export const ZOOM_STEPS = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4] as const;
+export const ZOOM_STEPS = [0.02, 0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4] as const;
 // The canvas scale at 100 %: a day column wide enough for its "22 Sept" label, and a row.
 export const BASE_PX_PER_DAY = 64,
   BASE_ROW_HEIGHT = 64;

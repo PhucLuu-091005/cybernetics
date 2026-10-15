@@ -37,7 +37,13 @@ describe('applyLayoutOffsets', () => {
     expect(applyLayoutOffsets(base, offsets, 28)).toEqual(base);
   });
   it('keeps a moved dot inside its day', () => {
-    const b = base.branches.find((item) => item.glyphs.length >= 2)!,
+    // A dot alone in its day, so only the day bounds limit it.
+    const b = base.branches.find(
+        (item) =>
+          item.glyphs.length >= 2 &&
+          item.glyphs[0].dayStartX < item.glyphs[1].dayStartX &&
+          (item.glyphs.length === 2 || item.glyphs[2].dayStartX > item.glyphs[1].dayStartX),
+      )!,
       g = b.glyphs[1];
     const x = (fraction: number) =>
       branchOf(applyLayoutOffsets(base, { acts: { [g.id]: fraction }, loops: {} }, 28), b.id)
@@ -88,6 +94,49 @@ describe('applyLayoutOffsets', () => {
     const moved = branchOf(applyLayoutOffsets(base, { acts: { [g.id]: 1 }, loops: {} }, 28), b.id);
     expect(moved.xStart).toBe(b.xStart);
     expect(moved.xEnd).toBeGreaterThanOrEqual(b.xEnd);
+  });
+  it('never lets a dragged act pass an act of its loop that happened before or after it', () => {
+    const layout = layoutPromiseGraph(
+      engine,
+      { context: snapshot.context },
+      { pxPerDay: BASE_PX_PER_DAY, rowHeight: BASE_ROW_HEIGHT, cards: CARD },
+    );
+    const b = layout.branches.find(
+      (item) => item.glyphs.length >= 2 && item.glyphs[0].dayStartX === item.glyphs[1].dayStartX,
+    )!;
+    const [first, second] = b.glyphs;
+    const earlier = branchOf(
+      applyLayoutOffsets(layout, { acts: { [second.id]: 0 }, loops: {} }, BASE_ROW_HEIGHT),
+      b.id,
+    ).glyphs;
+    expect(earlier[1].x).toBeGreaterThan(earlier[0].x);
+    expect(earlier[0].x).toBe(first.x);
+    const later = branchOf(
+      applyLayoutOffsets(layout, { acts: { [first.id]: 1 }, loops: {} }, BASE_ROW_HEIGHT),
+      b.id,
+    ).glyphs;
+    expect(later[0].x).toBeLessThan(later[1].x);
+    expect(later[1].x).toBe(second.x);
+  });
+  it('moves a card by its own offset and leaves its act in place', () => {
+    const layout = layoutPromiseGraph(
+      engine,
+      { context: snapshot.context },
+      { pxPerDay: BASE_PX_PER_DAY, rowHeight: BASE_ROW_HEIGHT, cards: CARD },
+    );
+    const b = layout.branches.find((item) => item.glyphs.length > 0)!,
+      g = b.glyphs[0];
+    const moved = branchOf(
+      applyLayoutOffsets(
+        layout,
+        { acts: {}, loops: {}, cards: { [g.id]: { dx: 30, dy: -40 } } },
+        BASE_ROW_HEIGHT,
+      ),
+      b.id,
+    ).glyphs[0];
+    expect(moved.x).toBe(g.x);
+    expect(moved.y).toBe(g.y);
+    expect(moved.card).toEqual({ x: g.card!.x + 30, y: g.card!.y - 40 });
   });
   it('moves the cards with their dot and their branch, and keeps them inside the lane', () => {
     const layout = layoutPromiseGraph(

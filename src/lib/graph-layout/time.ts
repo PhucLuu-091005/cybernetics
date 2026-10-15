@@ -40,28 +40,31 @@ export interface TimeScale {
   dateEndX(date: string): number;
   /** x of the start and the end of the local calendar day that contains the instant. */
   dayRange(instant: string): { start: number; end: number };
+  /** x of a placed event: its slot inside its day. Undefined for an ID the scale was not given. */
+  eventX(id: string): number | undefined;
   localStamp(instant: string): string;
 }
 
+/** An event that needs room on the axis: `width` is its slot, and events of one lane never share room. */
+export type TimedEvent = { id: string; at: string; lane: string; width: number };
+// Distinct instants stay apart by a hair, so x keeps increasing with time.
+const STEP = 2;
+
 /**
- * Maps instants to x. Every local day is pxPerDay wide unless `dayWidths` resizes it; only days from the
- * window start onward can be resized, so x = 0 stays at the window start.
+ * Maps instants to x. A day without events is pxPerDay wide. A day with events (from the window start
+ * onward) is wide enough for their slots, in time order, with no two slots of one lane overlapping; events
+ * sit at their slot centres and other instants interpolate between them. `dayWidths` overrides a day's
+ * width and scales its slots with it. x = 0 stays at the window start.
  */
 export function createTimeScale(
   clock: Clock,
   pxPerDay: number,
   dayWidths: Readonly<Record<string, number>> = {},
+  events: readonly TimedEvent[] = [],
 ): TimeScale {
   const { timeZone } = clock;
   const origin = Date.parse(`${clock.windowStart}T00:00:00Z`);
   const indexOf = (date: string) => Math.round((Date.parse(`${date}T00:00:00Z`) - origin) / DAY_MS);
-  const deltas = Object.entries(dayWidths)
-    .map(([date, width]) => [indexOf(date), width - pxPerDay] as const)
-    .filter(([index, delta]) => index >= 0 && delta !== 0)
-    .sort((a, b) => a[0] - b[0]);
-  const widthAt = (index: number) => pxPerDay + (deltas.find(([at]) => at === index)?.[1] ?? 0);
-  const offset = (index: number) =>
-    index * pxPerDay + deltas.reduce((sum, [at, delta]) => (at < index ? sum + delta : sum), 0);
   const dateAt = (index: number) => isoDate(origin + index * DAY_MS);
   const exact = (index: number) => Date.parse(zonedStartOfDay(dateAt(index), timeZone));
   const verified = (index: number, candidate: number) =>
@@ -92,6 +95,67 @@ export function createTimeScale(
     while (dayStart(index + 1) <= epoch) index++;
     return { index, start: dayStart(index), length: dayStart(index + 1) - dayStart(index) };
   }
+
+  // Slots per day: [epoch, position] knots for interpolation, and the position of each event.
+  const knots = new Map<number, [number, number][]>(),
+    slotOf = new Map<string, { index: number; at: number }>(),
+    autoWidth = new Map<number, number>();
+  const byDay = new Map<number, { id: string; epoch: number; lane: string; width: number }[]>();
+  for (const event of events) {
+    const epoch = Date.parse(event.at),
+      { index } = locate(epoch);
+    if (index < 0) continue;
+    byDay.set(index, [...(byDay.get(index) ?? []), { ...event, epoch }]);
+  }
+  for (const [index, list] of byDay) {
+    list.sort((a, b) => a.epoch - b.epoch);
+    const laneEnd = new Map<string, number>(),
+      points: [number, number][] = [];
+    let previous: { epoch: number; at: number } | null = null,
+      right = 0;
+    for (const event of list) {
+      const at = Math.max(
+        (laneEnd.get(event.lane) ?? 0) + event.width / 2,
+        previous ? previous.at + (event.epoch > previous.epoch ? STEP : 0) : 0,
+      );
+      laneEnd.set(event.lane, at + event.width / 2);
+      right = Math.max(right, at + event.width / 2);
+      slotOf.set(event.id, { index, at });
+      if (!previous || event.epoch > previous.epoch) points.push([event.epoch, at]);
+      previous = { epoch: event.epoch, at };
+    }
+    knots.set(index, points);
+    autoWidth.set(index, Math.max(pxPerDay, right));
+  }
+  const widths = new Map(autoWidth);
+  for (const [date, width] of Object.entries(dayWidths)) {
+    const index = indexOf(date);
+    if (index >= 0) widths.set(index, width);
+  }
+  const widthAt = (index: number) => widths.get(index) ?? pxPerDay;
+  const deltas = [...widths].filter(([, width]) => width !== pxPerDay);
+  const offset = (index: number) =>
+    index * pxPerDay +
+    deltas.reduce((sum, [at, width]) => (at < index ? sum + width - pxPerDay : sum), 0);
+  // A resized day scales its slots by the same factor.
+  const factor = (index: number) => widthAt(index) / (autoWidth.get(index) ?? widthAt(index));
+  function within(index: number, epoch: number, start: number, length: number): number {
+    const width = widthAt(index),
+      points = knots.get(index);
+    if (!points?.length) return ((epoch - start) / length) * width;
+    const scaled = factor(index);
+    let fromEpoch = start,
+      fromX = 0;
+    for (const [knotEpoch, knotX] of points) {
+      if (epoch <= knotEpoch)
+        return (
+          fromX + ((epoch - fromEpoch) / (knotEpoch - fromEpoch || 1)) * (knotX * scaled - fromX)
+        );
+      fromEpoch = knotEpoch;
+      fromX = knotX * scaled;
+    }
+    return fromX + ((epoch - fromEpoch) / (start + length - fromEpoch || 1)) * (width - fromX);
+  }
   const xs = new Map<string, number>();
   return {
     x(instant) {
@@ -100,7 +164,7 @@ export function createTimeScale(
         const epoch = Date.parse(instant);
         if (!Number.isFinite(epoch)) throw new RangeError(`Invalid instant ${instant}`);
         const day = locate(epoch);
-        value = offset(day.index) + ((epoch - day.start) / day.length) * widthAt(day.index);
+        value = offset(day.index) + within(day.index, epoch, day.start, day.length);
         xs.set(instant, value);
       }
       return value;
@@ -111,6 +175,10 @@ export function createTimeScale(
     dayRange(instant) {
       const day = locate(Date.parse(instant));
       return { start: offset(day.index), end: offset(day.index + 1) };
+    },
+    eventX(id) {
+      const slot = slotOf.get(id);
+      return slot && offset(slot.index) + slot.at * factor(slot.index);
     },
     localStamp(instant) {
       const epoch = Date.parse(instant),

@@ -1,8 +1,8 @@
 export type CardSize = { width: number; height: number; gap: number };
 export type CardSlot = { x: number; shelf: number };
 
-// The card starts a little left of its act, so the stem lands inside the card and not on its edge.
-export const CARD_INSET = 14;
+/** How far a card starts left of its act: the card sits centred over it. */
+export const cardInset = (size: CardSize) => size.width / 2;
 // Same-day acts are common; letting a card slide right by up to two cards keeps most branches on one shelf.
 export const MAX_SLIDE_CARDS = 2;
 
@@ -11,7 +11,7 @@ export function placeCards(xs: readonly number[], size: CardSize): CardSlot[] {
   const step = size.width + size.gap,
     ends: number[] = [];
   return xs.map((actX) => {
-    const wanted = actX - CARD_INSET;
+    const wanted = actX - cardInset(size);
     let shelf = 0;
     while (shelf < ends.length && Math.max(wanted, ends[shelf]) - wanted > MAX_SLIDE_CARDS * step)
       shelf++;
