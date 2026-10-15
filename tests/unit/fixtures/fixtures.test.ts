@@ -149,23 +149,6 @@ describe('fixture invariants', () => {
       Object.fromEntries(output.milestones.map((item) => [item.milestone.name, item.status])),
     ).toEqual(gold.milestones);
   });
-  it('cites existing main acts in every gold escalation claim with a verdict matching its citation sets', () => {
-    const acts = new Set(main.acts.map((act) => act.id));
-    expect(gold.escalations).toHaveLength(3);
-    for (const claim of gold.escalations.flatMap((item) => item.claims)) {
-      for (const id of [...claim.supportingActIds, ...claim.contradictingActIds])
-        expect(acts.has(id)).toBe(true);
-      const verdict =
-        claim.supportingActIds.length && claim.contradictingActIds.length
-          ? 'contested'
-          : claim.supportingActIds.length
-            ? 'supported'
-            : claim.contradictingActIds.length
-              ? 'contradicted'
-              : 'insufficient';
-      expect(claim.verdict).toBe(verdict);
-    }
-  });
   it('replays history: two merges with their expected diffs, then a revert that keeps the later merge', () => {
     const [first, second, revert] = history;
     expect(history.map((item) => item.kind)).toEqual(['merge', 'merge', 'revert']);

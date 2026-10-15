@@ -498,7 +498,6 @@ test('9: an agent token reads through MCP and submits a proposal, the default to
   expect(project.structuredContent).toMatchObject({
     projectId,
     project: { id: projectId },
-    analysisFreshness: expect.any(String),
   });
   expect(project.structuredContent.pendingEvidenceCount).toBeGreaterThan(0);
   const text = 'We will send the corrected investor list by 14 October.';

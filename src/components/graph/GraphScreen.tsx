@@ -47,7 +47,6 @@ export type GraphScreenProps = {
   engine: EngineOutput;
   pendingEvidenceCount: number;
   initialFilters: GraphFilters;
-  escalation: EscalationFocus | null;
   view: ViewSelection;
   edit: EditTarget;
   snapshot: Pick<GraphSnapshot, 'acts' | 'recordDecisions'>;
@@ -59,8 +58,6 @@ export type GraphScreenProps = {
   heading?: string;
   headingLevel?: 1 | 2;
 };
-export type EscalationFocus =
-  { state: 'cited'; loopIds: string[] } | { state: 'no-analysis' } | { state: 'missing' };
 
 const dayAndTime = (stamp: string) => {
   const at = stamp.lastIndexOf(' ');
@@ -77,7 +74,6 @@ export function GraphScreen({
   engine,
   pendingEvidenceCount,
   initialFilters,
-  escalation,
   view: graphView,
   edit,
   snapshot,
@@ -88,7 +84,6 @@ export function GraphScreen({
   headingLevel = 1,
 }: GraphScreenProps) {
   const Heading = headingLevel === 1 ? 'h1' : 'h2';
-  const escalationLoopIds = escalation?.state === 'cited' ? escalation.loopIds : null;
   const halo = useMemo(() => new Set(changedLoopIds ?? []), [changedLoopIds]);
   const agentActs = useMemo(() => new Set(agentActIds ?? []), [agentActIds]);
   const loopTargets = useMemo(
@@ -289,7 +284,7 @@ export function GraphScreen({
   const actIndex =
     selectedLoop && actId ? selectedLoop.acts.findIndex((act) => act.id === actId) : -1;
 
-  // SRD 7.3: a selection keeps its loops at full opacity; an escalation focus fades the loops it does not cite.
+  // SRD 7.3: a selection keeps its loops at full opacity.
   const faded = useMemo(() => {
     // A selected promise or task keeps its whole family at full strength: the promise and every task.
     const family = (loop: DerivedLoop) => {
@@ -305,13 +300,11 @@ export function GraphScreen({
       ? new Set(family(selectedLoop))
       : selectedMilestone
         ? new Set(selectedMilestone.loopIds)
-        : escalationLoopIds
-          ? new Set(escalationLoopIds)
-          : null;
+        : null;
     return new Set(
       keep ? visibleLoops.map((loop) => loop.loop.id).filter((id) => !keep.has(id)) : [],
     );
-  }, [selectedLoop, selectedMilestone, escalationLoopIds, visibleLoops]);
+  }, [selectedLoop, selectedMilestone, visibleLoops]);
 
   const update = useCallback(
     (next: Partial<Omit<GraphFilters, 'view' | 'loopId'>>) =>
@@ -436,18 +429,6 @@ export function GraphScreen({
             {engine.unavailableEvidenceCount}{' '}
             {engine.unavailableEvidenceCount === 1 ? 'act cites' : 'acts cite'} withdrawn evidence.
           </span>
-        )}
-        {escalationLoopIds && (
-          <span>
-            Escalation focus: {escalationLoopIds.length} cited{' '}
-            {escalationLoopIds.length === 1 ? 'loop' : 'loops'} at full strength.
-          </span>
-        )}
-        {escalation?.state === 'no-analysis' && (
-          <span>Escalation focus: no analysis yet, so no loop is faded.</span>
-        )}
-        {escalation?.state === 'missing' && (
-          <span>Escalation focus: this escalation was not found.</span>
         )}
       </p>
       {view === 'list' ? (

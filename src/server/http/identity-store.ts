@@ -48,5 +48,4 @@ export const browserScopes: Scope[] = [
   'records:import',
   'graph:propose',
   'graph:merge',
-  'escalations:write',
 ];

@@ -6,6 +6,5 @@ export * from './proposals';
 export * from './engine';
 export * from './layout';
 export * from './mcp';
-export * from './escalations';
 export * from './views';
 export * from './domain';

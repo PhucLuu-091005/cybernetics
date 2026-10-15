@@ -11,7 +11,7 @@ test('the rail folds to icons, keeps the state after a reload, and opens again',
   const nav = page.getByRole('navigation', { name: 'Project' });
   await expect(nav.getByRole('link', { name: 'Graph' })).toBeVisible();
   await expect(nav.getByRole('link', { name: /^Review/ })).toBeVisible();
-  await expect(nav.getByRole('link', { name: 'Escalations' })).toBeVisible();
+  await expect(nav.getByRole('link', { name: 'Escalations' })).toHaveCount(0);
   await expect(nav.getByRole('link', { name: 'Inbox' })).toHaveCount(0);
   await expect(nav.getByRole('link', { name: 'Proposals' })).toHaveCount(0);
 

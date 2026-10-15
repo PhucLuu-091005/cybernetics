@@ -20,7 +20,6 @@ import {
   reviewProposal,
   updateProposal,
 } from '../../../src/server/domain/proposals';
-import { openEscalation } from '../../../src/server/domain/escalations';
 import type { ActorContext } from '../../../src/contracts';
 
 const origin = 'http://localhost:3000';
@@ -58,10 +57,6 @@ const expectedRoutes = [
   '/projects/:projectId/revert',
   '/projects/:projectId/restore-preview',
   '/projects/:projectId/restore',
-  '/projects/:projectId/escalations',
-  '/projects/:projectId/escalations/:escalationId',
-  '/projects/:projectId/escalations/:escalationId/analyses',
-  '/projects/:projectId/escalations/:escalationId/analyses/:analysisId/approval',
   '/projects/:projectId/agent-tokens',
   '/projects/:projectId/agent-tokens/:tokenId',
 ];
@@ -428,33 +423,6 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
         )
       ).status,
     ).toBe(400);
-  });
-  it('pages the escalation list with a cursor', async () => {
-    for (const complaint of ['First complaint', 'Second complaint'])
-      await openEscalation(t.db, ctx, { projectId, complaint, idempotencyKey: complaint });
-    const first = await call('GET', `/projects/${projectId}/escalations?limit=1`);
-    expect(first.body).toMatchObject({
-      projectId,
-      items: [{ complaint: 'Second complaint' }],
-      nextCursor: expect.any(String),
-    });
-    const second = await call(
-      'GET',
-      `/projects/${projectId}/escalations?limit=1&cursor=${first.body.nextCursor}`,
-    );
-    expect(second.body).toMatchObject({
-      items: [{ complaint: 'First complaint' }],
-      nextCursor: null,
-    });
-    const opened = await call('POST', `/projects/${projectId}/escalations`, {
-      complaint: 'Third complaint',
-      idempotencyKey: 'e3',
-    });
-    expect(opened.status).toBe(201);
-    expect(
-      (await call('GET', `/projects/${projectId}/escalations/${opened.body.id}`)).body.escalation
-        .id,
-    ).toBe(opened.body.id);
   });
   it('lists and creates projects in the session workspace', async () => {
     const created = await call('POST', '/projects', {

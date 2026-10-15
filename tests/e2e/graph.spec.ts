@@ -182,8 +182,6 @@ test('list view shows the same loops as the graph with the same filters', async 
   await expect.poll(() => branchTitles(page)).toEqual(graphTitles);
 });
 
-const projectIdOf = (page: Page) => new URL(page.url()).pathname.split('/')[2];
-
 test('the loop panel shows each quote inside its surrounding text, with the source and a Slack link', async ({
   page,
 }) => {
@@ -262,21 +260,6 @@ test('keys do not act while typing, inside an open menu, or while the list view 
     .click();
   await expect(panel).toBeVisible();
   await expect(panel.locator('[aria-current="step"]')).toHaveCount(0);
-});
-
-test('an escalation without analysis fades no loop and says so', async ({ page }) => {
-  await signIn(page);
-  const projectId = projectIdOf(page);
-  const created = await page.request.post(`/api/v1/projects/${projectId}/escalations`, {
-    headers: { Origin: new URL(page.url()).origin },
-    data: { complaint: 'The incident report is late.', idempotencyKey: `e2e-${Date.now()}` },
-  });
-  expect(created.status()).toBe(201);
-  const { id } = (await created.json()) as { id: string };
-  await page.goto(`/projects/${projectId}/graph?escalation=${id}`);
-  await expect(page.getByText(/no analysis yet/i)).toBeVisible();
-  await expect.poll(() => branches(page).count()).toBeGreaterThanOrEqual(30);
-  await expect(page.locator('.br-faded')).toHaveCount(0);
 });
 
 test('the canvas opens at 100 %, the wheel moves it, and Ctrl + wheel zooms it', async ({
