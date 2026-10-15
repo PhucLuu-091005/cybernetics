@@ -261,6 +261,17 @@ function Graph(props: PromiseGraphProps) {
     return { width: box?.width ?? 0, height: box?.height ?? 0 };
   }, []);
 
+  // A mouse press on an event card or icon drags it, not the canvas. Touches still reach the canvas, so a pinch over any element zooms.
+  useEffect(() => {
+    const element = wrapRef.current;
+    if (!element) return;
+    const keep = (event: MouseEvent) => {
+      if (event.target instanceof Element && event.target.closest('.hit-dot, .ev-card'))
+        event.stopPropagation();
+    };
+    element.addEventListener('mousedown', keep, { capture: true });
+    return () => element.removeEventListener('mousedown', keep, { capture: true });
+  }, []);
   useEffect(() => {
     const element = wrapRef.current;
     if (!element) return;
