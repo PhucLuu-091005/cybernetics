@@ -255,7 +255,7 @@ test('revert preview: a conflicting inverse becomes a proposal, an unrelated lat
   );
   await expect(preview.getByTestId('preserved')).toContainText('Unrelated later work stays');
   await expect(preview.getByTestId('preserved')).toContainText(
-    'Revert "Ignore the out-of-office reply',
+    'Undo "Ignore the out-of-office reply',
   );
   await preview.getByRole('button', { name: 'Apply undo as a new version' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/history/[0-9a-f-]{36}$`));
@@ -284,10 +284,10 @@ test('restore preview lists removed later changes and apply creates a new restor
   await page.goto(`/projects/${projectId}/history`);
   const before = await commits(page).getByRole('link').count();
   await commits(page)
-    .getByRole('link', { name: /^Seed Larkspur main snapshot/ })
+    .getByRole('link', { name: /^Larkspur history up to 9 October/ })
     .click();
   await expect(
-    page.getByRole('heading', { level: 2, name: /^Seed Larkspur main snapshot/ }),
+    page.getByRole('heading', { level: 2, name: /^Larkspur history up to 9 October/ }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Preview go back' }).click();
   const preview = page.getByRole('region', { name: /Go back preview/ });
@@ -298,7 +298,7 @@ test('restore preview lists removed later changes and apply creates a new restor
   await expect(commits(page).getByRole('link')).toHaveCount(before + 1);
   const top = commits(page).getByRole('link').first();
   await expect(top).toContainText('Go back');
-  await expect(top).toContainText('Seed Larkspur main snapshot');
+  await expect(top).toContainText('Larkspur history up to 9 October');
 });
 
 test('loop panel edits on main open a proposal first; change type, move and hide then edit that draft; main stays unchanged', async ({

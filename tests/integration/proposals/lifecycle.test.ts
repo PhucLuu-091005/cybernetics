@@ -1,6 +1,15 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { agentActor, createTestDatabase, testActor, type TestDb } from '../../support/db';
-import { T, ingestText, putAct, putLoop, quote, seedProject } from '../../support/proposals';
+import {
+  T,
+  ingestText,
+  proposalIds,
+  putAct,
+  putLoop,
+  quote,
+  seedProject,
+} from '../../support/proposals';
 import { createProject } from '../../../src/server/domain/projects';
 import {
   closeProposal,
@@ -77,6 +86,35 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('proposal lifecycle', () => {
       }),
     ).rejects.toMatchObject({ code: 'VALIDATION' });
     expect((await getProposal(t.db, ctx, { projectId, proposalId: proposal.id })).revision).toBe(0);
+  });
+  it('rejects a note whose marker cites an act outside actIds', async () => {
+    const note = (text: string) => ({
+      op: 'put' as const,
+      collection: 'annotations' as const,
+      value: { id: randomUUID(), text, actIds: [proposalIds.act] },
+    });
+    await expect(
+      updateProposal(t.db, ctx, {
+        projectId,
+        proposalId,
+        expectedProposalRevision: 1,
+        expectedEvidenceRevision: 1,
+        operations: [note(`See [act:${randomUUID()}]`)],
+        idempotencyKey: randomUUID(),
+      }),
+    ).rejects.toMatchObject({
+      code: 'VALIDATION',
+      extras: { errors: [{ path: 'operations.0.value.text' }] },
+    });
+    const accepted = await updateProposal(t.db, ctx, {
+      projectId,
+      proposalId,
+      expectedProposalRevision: 1,
+      expectedEvidenceRevision: 1,
+      operations: [note(`See [act:${proposalIds.act}]`)],
+      idempotencyKey: randomUUID(),
+    });
+    expect(accepted.candidate.annotations).toHaveLength(1);
   });
   it('a stale expectedProposalRevision conflicts and keeps the winner edit', async () => {
     const proposal = await createProposal(t.db, ctx, {

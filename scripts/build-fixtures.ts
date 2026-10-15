@@ -236,6 +236,7 @@ const slug = (value: string) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
 const clone = <T>(value: T): T => structuredClone(value);
+const NOTE_MARKER = /\{act:([^}]+)\}/g;
 const fail = (message: string): never => {
   throw new Error(message);
 };
@@ -586,7 +587,11 @@ export function buildFixtures(source: StorySource) {
       for (const note of step.annotations ?? []) {
         const annotation: Annotation = {
           id: uuidFromKey(`annotation:${note.key}`),
-          text: note.text,
+          text: note.text.replace(NOTE_MARKER, (_match, key: string) =>
+            note.acts.includes(key)
+              ? `[act:${larkspur.actId(key)}]`
+              : fail(`Note ${note.key} cites ${key} outside its acts`),
+          ),
           actIds: note.acts.map(larkspur.actId),
         };
         next.annotations.push(annotation);

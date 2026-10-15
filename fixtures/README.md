@@ -19,7 +19,7 @@ The builder imports only types from `src`, so plain Node runs it without a TypeS
 | `story-source.json` | Narrative: people, departments, milestones, 30 loops with events, no-act records, escalations, history, proposals, isolation project. Every `expect` field is hand-written from SRD 15. |
 | `records.json` | 121 Larkspur records (source `agent`) and 3 isolation records (source `paste`). `sourceLabel` is the channel. Larkspur records are in chronological order. |
 | `main-snapshot.json` | The initial Larkspur commit: 30 loops, 114 acts, 114 included and 3 ignored record decisions. 4 records stay pending. |
-| `history.json` | Snapshots to commit after the initial one, in order: a merge, a later unrelated merge, and a revert of the first merge. Each entry has `expectedDiff`. |
+| `history.json` | Snapshots to commit after the initial one, in order: a merge, a later unrelated merge, a revert of the first merge, and a merge that adds the project summary note. Each entry has `expectedDiff`. |
 | `proposals.json` | Drafts based on the last history commit: two competing loop-title proposals and one agent proposal. Each has `operations`, `candidate` and `expectedDiff`. |
 | `gold.json` | Owner-facing expectations at `T = 2026-10-09T18:00:00+07:00`: loop state and breakdowns keyed by loop UUID, milestone status by name, escalation claims with verdicts, and the isolation loop. |
 | `project.json` | Project metadata, side rules, source labels and pending version IDs. `isolation.snapshot` is the isolation project graph. |
@@ -62,21 +62,22 @@ Milestones at T: Kickoff to CRM integration live are `reached`, Go-live and firs
 
 1. `ignore-out-of-office` (merge): ignores Tom's out-of-office reply and adds an annotation on the secret loop.
 2. `annotate-dynamics-scope` (merge): adds an annotation that cites the hedged reply and the SOW act.
-3. `revert-ignore-out-of-office` (revert of 1): removes the decision and the annotation and keeps merge 2. The out-of-office reply is pending again. The result equals `inverseCommit(initial, merge 1, merge 2)`.
+3. `revert-ignore-out-of-office` (revert of 1, message `Undo "…"`): removes the decision and the annotation and keeps merge 2. The out-of-office reply is pending again. The result equals `inverseCommit(initial, merge 1, merge 2)`.
+4. `project-summary` (merge): adds one annotation that cites 5 acts. In `story-source.json` the text cites an act as `{act:<loop key>#<event index>}`; the builder writes `[act:<uuid>]` and fails when the act is not in the note's `acts`. Every claim in the text matches the engine output at T.
 
-Proposals, all based on commit 3:
+Proposals, all based on commit 4:
 
 - `crm-sync-title-phase-one` and `crm-sync-title-sow-scope` change the title of the same loop. After one merges, a rebase of the other reports one conflict on that loop.
 - `agent-incident-follow-up` (origin `agent`) adds Sarah's follow-up from the pending escalation-three email to the incident report loop and includes that record. Loop states and breakdowns stay the same. The incident loop gets one nudge.
 
 ## Sandbox seed
 
-`seedSandbox` (`src/server/domain/seed`) copies Larkspur into a new user's workspace inside the first sign-in transaction. It uses only domain paths: `ingestRecords` in batches of 25, proposal → review → merge for the main snapshot and both history merges, and revert preview → digest → apply for the revert. After every history commit it checks that main equals the re-keyed `history.json` snapshot.
+`seedSandbox` (`src/server/domain/seed`) copies Larkspur into a new user's workspace inside the first sign-in transaction. It uses only domain paths: `ingestRecords` in batches of 25, proposal → review → merge for the main snapshot and the three history merges, and revert preview → digest → apply for the revert. After every history commit it checks that main equals the re-keyed `history.json` snapshot.
 
 - Re-keying: ingestion assigns record version IDs. Every other fixture UUID becomes ``uuidFromKey(`${projectId}:${fixtureId}`)``, so two sandboxes share no entity ID. Integration tests that call `seedLarkspur` keep the fixture IDs.
 - The initial commit holds the calendar only. The first merge adds people, departments, milestones and the main snapshot.
 - Withdrawn record: `record-version:training:2` (Fundline's 1 September "Completed: run operations training" report). The `training` loop is closed with no breakdown and anchors no milestone. The act stays in the graph with unavailable evidence, so every gold state and breakdown stays the same. The record is not one of the 4 pending records. The seed withdraws it after the revert and before the drafts.
-- Drafts: the three `proposals.json` drafts are created on the revert commit after the withdrawal, with their fixture titles and rationales. The browser user authors all three. The agent draft keeps `origin: agent` on its act.
+- Drafts: the three `proposals.json` drafts are created on the last history commit after the withdrawal, with their fixture titles and rationales. The browser user authors all three. The agent draft keeps `origin: agent` on its act.
 
 ## Eval
 
