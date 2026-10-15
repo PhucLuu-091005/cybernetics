@@ -5,8 +5,8 @@ export type Size = { width: number; height: number };
 export const MIN_ZOOM = 0.1,
   MAX_ZOOM = 4;
 export const ZOOM_STEPS = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4] as const;
-// The canvas scale at 100 %: a day, a row and an act node in layout px.
-export const BASE_PX_PER_DAY = 18,
+// The canvas scale at 100 %: a day column wide enough for its "22 Sept" label, and a row.
+export const BASE_PX_PER_DAY = 64,
   BASE_ROW_HEIGHT = 64;
 /** Event card size in layout px (owner decision, 14 Oct 2026). */
 export const CARD = { width: 176, height: 108, gap: 10 } as const;
@@ -57,11 +57,6 @@ export function zoomAround(
     worldY = (point.y - view.y) / view.zoom;
   return { zoom: next, x: point.x - worldX * next, y: point.y - worldY * next };
 }
-
-export type TickStep = 'day' | 'week' | 'month';
-// A day label ("12 Sept") needs about 56 px; below 8 px per day even week labels collide.
-export const tickStep = (dayPx: number): TickStep =>
-  dayPx >= 56 ? 'day' : dayPx >= 8 ? 'week' : 'month';
 
 export type Lod = 0 | 1 | 2;
 // Under 60 % the 11 px titles fall below 7 px; under 80 % the 10 px labels fall below 8 px.

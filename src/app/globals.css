@@ -627,13 +627,125 @@
     overflow: hidden;
   }
   .time-axis {
-    display: block;
+    position: relative;
+    height: var(--axis-h);
+    overflow: hidden;
   }
-  .time-axis text {
-    fill: var(--ink-3);
+  .axis-day {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    box-sizing: border-box;
+    border-left: 1px solid var(--rule-2);
+    display: flex;
+    align-items: center;
+    padding-left: 6px;
+    font-size: 11.5px;
+    color: var(--ink-3);
+    white-space: nowrap;
   }
-  .time-axis .t-label {
-    fill: var(--panel);
+  .axis-day.thin:not(.first) {
+    border-left-color: transparent;
+  }
+  .axis-day.first {
+    border-left-color: var(--rule);
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .axis-day span {
+    pointer-events: none;
+  }
+  .axis-handle {
+    position: absolute;
+    top: 0;
+    right: -4px;
+    width: 8px;
+    height: 100%;
+    z-index: 1;
+    cursor: col-resize;
+    touch-action: none;
+  }
+  .axis-handle:hover::after,
+  .axis-handle:active::after {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 4px;
+    bottom: 4px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--focus);
+  }
+  .axis-t {
+    position: absolute;
+    top: 5px;
+    height: 18px;
+    z-index: 2;
+    border-radius: 9px;
+    background: var(--ink);
+    color: var(--panel);
+    font-size: 10.5px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .day-line {
+    stroke: var(--rule-2);
+    stroke-width: 1;
+  }
+  .lod-0 .day-line {
+    display: none;
+  }
+  .axis-menu-wrap {
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+  }
+  .axis-menu-button {
+    all: unset;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink-2);
+    padding: 2px 6px;
+    border-radius: 6px;
+  }
+  .axis-menu-button:hover,
+  .axis-menu-button[aria-expanded='true'] {
+    background: var(--rule-2);
+    color: var(--ink);
+  }
+  .axis-menu-button:focus-visible {
+    outline: 2px solid var(--focus);
+  }
+  .canvas-menu.axis-menu {
+    top: calc(var(--axis-h) + 2px);
+    left: 6px;
+    right: auto;
+    bottom: auto;
+    min-width: 240px;
+    z-index: 8;
+  }
+  .canvas-menu button[aria-disabled='true'] {
+    color: var(--ink-3);
+    cursor: not-allowed;
+  }
+  .canvas-menu button[aria-disabled='true']:hover {
+    background: transparent;
+  }
+  .canvas-menu small {
+    margin-left: auto;
+    padding-left: 12px;
+    font-size: 11px;
+    color: var(--ink-3);
+  }
+  .canvas-menu [role='menuitemradio'][aria-checked='true']::after {
+    content: '✓';
+    margin-left: auto;
   }
   .gwrap {
     position: absolute;

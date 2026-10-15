@@ -305,14 +305,15 @@ Both operations are idempotent. A revert of a revert works by the same delta rul
 
 Revised 14 October 2026 (owner decision, `docs/superpowers/specs/2026-10-14-ui-redesign-decisions.md`, part B).
 
-The graph is a canvas panel with geometric zoom from 10 % to 400 %. The layout uses one base scale (18 px per day, 64 px per row); zoom scales it.
+The graph is a canvas panel with geometric zoom from 10 % to 400 %. The layout uses one base scale (64 px per day, 64 px per row); zoom scales it.
 
 - The wheel scrolls; Shift + wheel scrolls sideways. Ctrl/Cmd + wheel or a pinch zooms around the pointer. A drag on empty canvas moves it. No keyboard shortcuts.
 - The time axis stays at the top and the department column stays at the left.
 - Floating controls: zoom out, a % menu (Fit the project, Fit this week, Fit this month, 50 %, 100 %, 200 %), zoom in, fit the project, a minimap and full screen.
 - A double-click on a branch zooms to that loop, at 150 % at most.
 - The first view is 100 % with T at 80 % of the width and the trunk at the centre.
-- Under 60 % the loop titles and milestone names hide; the axis labels days only when a day is 56 px or wider.
+- Under 60 % the loop titles and milestone names hide.
+- Time axis (revised 15 October 2026): day columns only, 64 px a day at 100 %. A user can resize one day column by its right edge (24–480 px; a double-click resets it); the widths stay in the browser per project. A corner menu lists Weeks and Months as "not implemented yet".
 - Focus on a milestone or a branch (Tab) moves the canvas when the item is outside the visible area.
 
 ### 7.3 Interactions
