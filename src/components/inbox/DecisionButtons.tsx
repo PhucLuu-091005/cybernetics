@@ -82,14 +82,14 @@ export function DecisionButtons({
 
   // Main cannot hold a draft act, so including always starts from a selected draft whose act cites the record.
   const includeHint = !proposal
-    ? 'Including needs a draft with an act that cites this record. Select a span of the text and start an act.'
+    ? 'To include it, select a quote and add an act.'
     : decision === 'included'
-      ? 'Already included in this draft.'
+      ? 'Already included in this change set.'
       : citedByVisibleAct
         ? null
-        : 'No act in this draft cites this record yet. Select a span of the text and start an act.';
+        : 'No act in this change set cites this record yet. Select a quote and add an act.';
   const ignoreHint = citedByVisibleAct
-    ? 'Visible acts cite this record. Hide or remove them in the proposal before you ignore it.'
+    ? 'Acts cite this record. Hide or remove them in the change set before you ignore it.'
     : null;
   return (
     <div className="stack">
@@ -98,7 +98,7 @@ export function DecisionButtons({
           <div style={{ flex: 1, minWidth: 220 }}>
             <b>
               {failure.status === 409
-                ? 'Conflict: the draft or the evidence changed since this page loaded.'
+                ? 'Conflict: the change set or the records changed since this page loaded.'
                 : 'The decision was not saved.'}
             </b>
             <p style={{ fontSize: 13 }}>
@@ -129,7 +129,7 @@ export function DecisionButtons({
           disabled={busy || includeHint !== null}
           onClick={() => decide('included')}
         >
-          Include in proposal
+          Include
         </button>
         <input
           className="reason"
@@ -145,7 +145,7 @@ export function DecisionButtons({
           disabled={busy || !reason.trim() || ignoreHint !== null}
           onClick={() => decide('ignored')}
         >
-          Ignore in proposal
+          Ignore
         </button>
       </div>
       {(includeHint || ignoreHint) && (
@@ -155,8 +155,8 @@ export function DecisionButtons({
       )}
       <p className="faint" style={{ fontSize: 12 }}>
         {proposal
-          ? 'Decisions go into the selected draft.'
-          : 'The first decision creates a draft from current main. Main does not change until a person merges it.'}
+          ? 'Decisions go into the selected change set.'
+          : 'Your first decision creates the change set "My review". The graph changes when a person approves it.'}
       </p>
     </div>
   );

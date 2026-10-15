@@ -63,9 +63,7 @@ export function RevertRestorePreview({
     }
     setPreview(result.data);
     setMessage(
-      kind === 'revert'
-        ? `Revert ${quoted(target.message)}`
-        : `Restore graph as of ${quoted(target.message)}`,
+      kind === 'revert' ? `Undo ${quoted(target.message)}` : `Go back to ${quoted(target.message)}`,
     );
   };
   const apply = async () => {
@@ -139,16 +137,14 @@ export function RevertRestorePreview({
         <ConflictBanner
           title={
             failure.error.status === 409
-              ? 'Conflict: main or the evidence moved since this page loaded.'
+              ? 'Conflict: the graph or the records changed since this page loaded.'
               : failure.during === 'preview'
                 ? 'The preview failed.'
                 : 'Nothing was applied.'
           }
           error={failure.error}
           message={
-            failure.error.status === 409
-              ? 'No commit was created. Reload to preview against the current main.'
-              : undefined
+            failure.error.status === 409 ? 'Nothing changed. Reload to preview again.' : undefined
           }
           actions={
             failure.error.status === 409 ? (
@@ -170,13 +166,9 @@ export function RevertRestorePreview({
       {preview && (
         <section
           className={`card pad stack preview-${preview.kind}`}
-          aria-label={`${preview.kind === 'revert' ? 'Revert' : 'Restore'} preview for ${target.id.slice(0, 7)}`}
+          aria-label={`${preview.kind === 'revert' ? 'Undo preview' : 'Go back preview'}`}
         >
-          <h2>
-            {preview.kind === 'revert'
-              ? `Revert preview for ${target.id.slice(0, 7)}`
-              : `Restore preview: graph as of ${target.id.slice(0, 7)}`}
-          </h2>
+          <h2>{preview.kind === 'revert' ? 'Undo preview' : 'Go back preview'}</h2>
           {blocked ? (
             <>
               <p style={{ fontSize: 13 }}>
@@ -205,10 +197,10 @@ export function RevertRestorePreview({
                     disabled={disabled}
                     onClick={inverse}
                   >
-                    Create proposal from inverse
+                    Create a change set that undoes it
                   </button>
                   <span className="faint" style={{ fontSize: 12 }}>
-                    The draft applies the inverse where it is safe and keeps main for each
+                    The change set undoes what is safe to undo and keeps the approved graph for each
                     conflicting entity, so you resolve them explicitly before a merge.
                   </span>
                 </div>
@@ -303,8 +295,8 @@ export function RevertRestorePreview({
                 })}
               </ul>
               <p className="faint" style={{ fontSize: 12 }}>
-                History, evidence and token settings stay. Restore is blocked when a citation in the
-                old snapshot is withdrawn.
+                Activity, records and token settings stay. Going back is blocked when a citation in
+                the old snapshot is withdrawn.
               </p>
             </>
           )}
@@ -319,7 +311,7 @@ export function RevertRestorePreview({
           {!blocked && (
             <div className="row" style={{ alignItems: 'flex-end' }}>
               <label className="field" style={{ flex: 1 }}>
-                Commit message
+                Note
                 <input
                   value={message}
                   maxLength={2000}

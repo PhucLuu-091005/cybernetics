@@ -221,20 +221,20 @@ async function ProposalGraph({
           actions={
             <>
               <Link className="btn" href={href}>
-                Open proposal
+                Open change set
               </Link>
               <Link className="btn btn-draft" href={`${href}/review`}>
                 Review changes
               </Link>
               <Link className="btn" href={`/projects/${projectId}/graph`}>
-                Main view
+                Approved graph
               </Link>
             </>
           }
         />
         <p className="faint" style={{ fontSize: 12 }}>
-          The violet halo marks loops this proposal changes. Edits in the loop panel go into this
-          draft; main does not change until a person merges it.
+          The violet halo marks loops this change set changes. Edits in the loop panel go into this
+          change set; the approved graph does not change until a person approves it.
         </p>
       </div>
       <GraphScreen
@@ -258,7 +258,7 @@ async function ProposalGraph({
         }}
         changedLoopIds={highlights.loopIds}
         agentActIds={proposal.author.kind === 'agent' ? highlights.actIds : []}
-        heading={`Candidate graph for ${proposal.title}`}
+        heading={`Change set: ${proposal.title}`}
       />
     </>
   );

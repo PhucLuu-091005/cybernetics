@@ -52,7 +52,7 @@ test('paste import stays pending, records render as untrusted text, and an ignor
     .click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/inbox`));
   await expect(tab(page, 'Pending')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByText('Main, read-only')).toBeVisible();
+  await expect(page.getByText('Approved graph')).toBeVisible();
   const pending = await countOf(page, 'Pending'),
     ignored = await countOf(page, 'Ignored');
   expect(pending).toBeGreaterThanOrEqual(4);
@@ -104,7 +104,7 @@ test('paste import stays pending, records render as untrusted text, and an ignor
   await expect(recordText(page)).toContainText(`Ref ${marker}`);
   await selectText(page, 'Investors');
   await expect(page.getByTestId('selection-bar')).toContainText('UTF-16 offsets 3–12');
-  await expect(page.getByRole('button', { name: 'Start act from selection' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Add an act from this quote' })).toBeEnabled();
 
   // A mouse drag that starts on a word and is released below the body still reports a selection that is clamped to the body.
   await page.evaluate(() => window.getSelection()?.removeAllRanges());
@@ -132,16 +132,16 @@ test('paste import stays pending, records render as untrusted text, and an ignor
   await expect(page.getByTestId('selection-bar')).toHaveCount(0);
 
   // Main holds no draft act, so including needs a selected draft first.
-  await expect(page.getByRole('button', { name: 'Include in proposal' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Include', exact: true })).toBeDisabled();
 
   // Ignoring creates a draft from main, adds the decision there and keeps main unchanged.
-  const ignore = page.getByRole('button', { name: 'Ignore in proposal' });
+  const ignore = page.getByRole('button', { name: 'Ignore', exact: true });
   await expect(ignore).toBeDisabled();
   await page.getByLabel('Reason to ignore').fill('Duplicate of the 9 October Slack follow-up');
   await ignore.click();
   await expect(page).toHaveURL(/[?&]proposal=[0-9a-f-]{36}/);
   const proposalId = new URL(page.url()).searchParams.get('proposal');
-  await expect(page.getByText('Proposal, draft')).toBeVisible();
+  await expect(page.getByText('Change set, open')).toBeVisible();
   await expect(page.getByText('Author: you')).toBeVisible();
   await expect(page.getByText('Decision in this view: ignored')).toBeVisible();
   await tab(page, 'Ignored').click();
@@ -150,7 +150,7 @@ test('paste import stays pending, records render as untrusted text, and an ignor
   await expectCount(page, 'Pending', pending);
 
   await page.goto(`/projects/${projectId}/inbox?state=pending`);
-  await expect(page.getByText('Main, read-only')).toBeVisible();
+  await expect(page.getByText('Approved graph')).toBeVisible();
   await expect(records(page).getByRole('link', { name: new RegExp(title) })).toBeVisible();
   await expectCount(page, 'Pending', pending + 1);
   await expectCount(page, 'Ignored', ignored);
@@ -179,7 +179,7 @@ test('a stale draft revision shows the conflict banner and keeps the typed reaso
   const first = records(page).getByRole('link').first();
   await first.click();
   await page.getByLabel('Reason to ignore').fill('First reason');
-  await page.getByRole('button', { name: 'Ignore in proposal' }).click();
+  await page.getByRole('button', { name: 'Ignore', exact: true }).click();
   await expect(page).toHaveURL(/[?&]proposal=[0-9a-f-]{36}/);
   const proposalId = new URL(page.url()).searchParams.get('proposal')!;
 
@@ -189,12 +189,12 @@ test('a stale draft revision shows the conflict banner and keeps the typed reaso
   const other = await page.context().newPage();
   await other.goto(page.url());
   await other.getByLabel('Reason to ignore').fill('Other tab reason');
-  await other.getByRole('button', { name: 'Ignore in proposal' }).click();
+  await other.getByRole('button', { name: 'Ignore', exact: true }).click();
   await expect(other.getByText('Decision in this view: ignored')).toBeVisible();
   await other.close();
 
   await page.getByLabel('Reason to ignore').fill('Kept after the conflict');
-  await page.getByRole('button', { name: 'Ignore in proposal' }).click();
+  await page.getByRole('button', { name: 'Ignore', exact: true }).click();
   await expect(page.getByRole('alert').filter({ hasText: 'Conflict' })).toContainText(
     'Your reason is kept',
   );

@@ -127,7 +127,7 @@ async function openProposal(page: Page, projectId: string, title: string): Promi
   await page.goto(`/projects/${projectId}/proposals`);
   await page.getByRole('link', { name: title }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/proposals/[0-9a-f-]{36}$`));
-  await expect(page.getByText('Proposal, draft')).toBeVisible();
+  await expect(page.getByText('Change set, open')).toBeVisible();
   return new URL(page.url()).pathname;
 }
 const isStale = async (page: Page) =>
@@ -135,7 +135,7 @@ const isStale = async (page: Page) =>
 /** Keeps the proposal side of every conflict that the expected pattern names; any other conflict fails the walkthrough. */
 async function rebaseOntoMain(page: Page, proposalUrl: string, expectedConflict?: RegExp) {
   await page.goto(`${proposalUrl}/rebase`);
-  await expect(page.getByRole('button', { name: 'Apply resolutions to the draft' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Apply my choices' })).toBeVisible();
   const conflicts = page.getByRole('group', { name: /^Conflict: / });
   if (expectedConflict) await expect(conflicts.first()).toBeVisible();
   for (const name of await conflicts.evaluateAll((groups) =>
@@ -144,10 +144,10 @@ async function rebaseOntoMain(page: Page, proposalUrl: string, expectedConflict?
     expect(name).toMatch(expectedConflict ?? /^$/);
     await page
       .getByRole('group', { name, exact: true })
-      .getByRole('radio', { name: 'Keep proposal' })
+      .getByRole('radio', { name: 'Keep change set' })
       .check();
   }
-  await page.getByRole('button', { name: 'Apply resolutions to the draft' }).click();
+  await page.getByRole('button', { name: 'Apply my choices' }).click();
   await expect(page).toHaveURL(new RegExp(`${proposalUrl}/review\\?rebased=1$`));
   await expect(page.getByText('Fresh review required')).toBeVisible();
 }
@@ -335,7 +335,7 @@ test('4 and 5: a proposal cites the exact quote, a wrong link is corrected, the 
     .click();
   await expect(page.getByLabel('Record text')).toContainText(`Ref ${marker}`);
   await selectText(page, QUOTE);
-  await page.getByRole('button', { name: 'Start act from selection' }).click();
+  await page.getByRole('button', { name: 'Add an act from this quote' }).click();
   await expect(page).toHaveURL(
     new RegExp(`/projects/${projectId}/proposals/[0-9a-f-]{36}\\?cite=`),
   );
@@ -367,7 +367,7 @@ test('4 and 5: a proposal cites the exact quote, a wrong link is corrected, the 
     'Client secret renewal',
   );
 
-  await page.getByRole('link', { name: 'Review changes' }).click();
+  await page.getByRole('link', { name: 'Review and approve' }).click();
   await expect(
     page
       .getByRole('region', { name: 'Structural changes' })
@@ -455,12 +455,12 @@ test('7: a revert keeps an unrelated later change, and a restore of an older gra
     page.getByRole('heading', { level: 2, name: /^Note the SOW phase 2 scope/ }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Preview revert' }).click();
-  const revert = page.getByRole('region', { name: /Revert preview/ });
+  const revert = page.getByRole('region', { name: /Undo preview/ });
   await expect(revert.getByTestId('preserved')).toContainText('Unrelated later work stays');
   await revert.getByRole('button', { name: 'Apply revert as new commit' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/history/[0-9a-f-]{36}$`));
   await expect(commits(page).getByRole('link').first()).toContainText(
-    'Revert “Note the SOW phase 2 scope',
+    'Undo “Note the SOW phase 2 scope',
   );
 
   // After the revert, main can equal the seed snapshot, so restoring the seed could change nothing; the pre-revert commit always differs.
@@ -472,7 +472,7 @@ test('7: a revert keeps an unrelated later change, and a restore of an older gra
     page.getByRole('heading', { level: 2, name: /^Note the SOW phase 2 scope/ }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Preview restore' }).click();
-  const restore = page.getByRole('region', { name: /Restore preview/ });
+  const restore = page.getByRole('region', { name: /Go back preview/ });
   await expect(restore.getByTestId('removed-later')).toContainText('Adds back annotation');
   await restore.getByRole('button', { name: 'Apply restore as new commit' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/history/[0-9a-f-]{36}$`));

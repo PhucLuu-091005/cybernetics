@@ -75,12 +75,12 @@ test('create a proposal from an inbox citation, correct its loop, review the dif
   await expect(page.getByLabel('Record text')).toContainText(`Ref ${marker}`);
 
   await selectText(page, QUOTE);
-  await page.getByRole('button', { name: 'Start act from selection' }).click();
+  await page.getByRole('button', { name: 'Add an act from this quote' }).click();
   await expect(page).toHaveURL(
     new RegExp(`/projects/${projectId}/proposals/[0-9a-f-]{36}\\?cite=`),
   );
   const proposalUrl = new URL(page.url()).pathname;
-  await expect(page.getByText('Proposal, draft')).toBeVisible();
+  await expect(page.getByText('Change set, open')).toBeVisible();
   await expect(page.getByTestId('proposal-revision')).toHaveText('0');
   const editor = page.getByRole('form', { name: 'Act editor' });
   await expect(editor.getByTestId('citation-check')).toContainText(
@@ -113,7 +113,7 @@ test('create a proposal from an inbox citation, correct its loop, review the dif
   );
   await expect(page.getByTestId('main-badge')).toHaveCount(0);
 
-  await page.getByRole('link', { name: 'Review changes' }).click();
+  await page.getByRole('link', { name: 'Review and approve' }).click();
   await expect(page).toHaveURL(`${proposalUrl}/review`);
   const structural = page.getByRole('region', { name: 'Structural changes' });
   await expect(structural.getByRole('row', { name: /Promise by Tom Becker/ })).toContainText(
@@ -164,7 +164,7 @@ test('competing drafts: a stale merge shows the conflict banner and keeps the dr
   await page.getByRole('link', { name: 'Retitle the Dynamics loop with the SOW scope' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/proposals/[0-9a-f-]{36}$`));
   const sowUrl = new URL(page.url()).pathname;
-  await page.getByRole('link', { name: 'Review changes' }).click();
+  await page.getByRole('link', { name: 'Review and approve' }).click();
   await expect(page.getByRole('region', { name: 'Structural changes' })).toContainText(
     'Dynamics CRM sync scope (SOW phase 2)',
   );
@@ -172,7 +172,7 @@ test('competing drafts: a stale merge shows the conflict banner and keeps the dr
   const other = await page.context().newPage();
   await other.goto(`/projects/${projectId}/proposals`);
   await other.getByRole('link', { name: 'Retitle the Dynamics loop as a phase 1 request' }).click();
-  await other.getByRole('link', { name: 'Review changes' }).click();
+  await other.getByRole('link', { name: 'Review and approve' }).click();
   await merge(other);
   await expect(other).toHaveURL(/\/history\/[0-9a-f-]{36}$/);
   await other.close();
@@ -182,11 +182,11 @@ test('competing drafts: a stale merge shows the conflict banner and keeps the dr
   await expect(banner).toContainText('Conflict: main moved since your review.');
   await expect(banner).toContainText('Your draft revision 1 is kept.');
   await page.goto(sowUrl);
-  await expect(page.getByText('Proposal, draft')).toBeVisible();
+  await expect(page.getByText('Change set, open')).toBeVisible();
   await expect(page.getByTestId('proposal-revision')).toHaveText('1');
   await expect(page.getByText('Main moved since this draft was based.')).toBeVisible();
 
-  await page.getByRole('link', { name: 'Preview rebase' }).click();
+  await page.getByRole('link', { name: 'Update to latest' }).click();
   await expect(page).toHaveURL(`${sowUrl}/rebase`);
   const conflict = page.getByRole('group', { name: /Conflict: Loop: Dynamics CRM sync/ });
   await expect(conflict.getByTestId('side-base')).toContainText('Dynamics CRM sync scope');
@@ -194,9 +194,9 @@ test('competing drafts: a stale merge shows the conflict banner and keeps the dr
   await expect(conflict.getByTestId('side-proposal')).toContainText(
     'Dynamics CRM sync scope (SOW phase 2)',
   );
-  const apply = page.getByRole('button', { name: 'Apply resolutions to the draft' });
+  const apply = page.getByRole('button', { name: 'Apply my choices' });
   await expect(apply).toBeDisabled();
-  await conflict.getByRole('radio', { name: 'Keep proposal' }).check();
+  await conflict.getByRole('radio', { name: 'Keep change set' }).check();
   await apply.click();
 
   await expect(page).toHaveURL(new RegExp(`${sowUrl}/review\\?rebased=1$`));
@@ -226,9 +226,9 @@ test('revert preview: a conflicting inverse becomes a proposal, an unrelated lat
     page.getByRole('heading', { level: 2, name: /^Ignore the out-of-office reply/ }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Preview revert' }).click();
-  const preview = page.getByRole('region', { name: /Revert preview/ });
+  const preview = page.getByRole('region', { name: /Undo preview/ });
   await expect(preview).toContainText('conflicts with later changes');
-  await preview.getByRole('button', { name: 'Create proposal from inverse' }).click();
+  await preview.getByRole('button', { name: 'Create a change set that undoes it' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/proposals/[0-9a-f-]{36}$`));
   await expect(
     page.getByRole('heading', { level: 1, name: /^Revert: Ignore the out-of-office reply/ }),
@@ -252,7 +252,7 @@ test('revert preview: a conflicting inverse becomes a proposal, an unrelated lat
   await preview.getByRole('button', { name: 'Apply revert as new commit' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/history/[0-9a-f-]{36}$`));
   const top = commits(page).getByRole('link').first();
-  await expect(top).toContainText('Revert “Note the SOW phase 2 scope');
+  await expect(top).toContainText('Undo “Note the SOW phase 2 scope');
   await expect(top).toContainText('revert');
 
   const graph = await page.request.get(`/api/v1/projects/${projectId}/graph`);
@@ -263,7 +263,7 @@ test('revert preview: a conflicting inverse becomes a proposal, an unrelated lat
   expect(annotations.some((text) => text.includes('the SOW puts the Dynamics sync'))).toBe(false);
   expect(annotations.some((text) => text.includes('Tom was out of the office'))).toBe(false);
   await page.goto(`/projects/${projectId}/inbox?state=pending`);
-  await expect(page.getByText('Main, read-only')).toBeVisible();
+  await expect(page.getByText('Approved graph')).toBeVisible();
   await expect(
     records(page).getByRole('link', { name: /Automatic reply: out of office/ }),
   ).toBeVisible();
@@ -282,7 +282,7 @@ test('restore preview lists removed later changes and apply creates a new restor
     page.getByRole('heading', { level: 2, name: /^Seed Larkspur main snapshot/ }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Preview restore' }).click();
-  const preview = page.getByRole('region', { name: /Restore preview/ });
+  const preview = page.getByRole('region', { name: /Go back preview/ });
   await expect(preview.getByTestId('removed-later')).toContainText('Removes annotation');
   await expect(preview.getByTestId('removed-later')).toContainText('Note the SOW phase 2 scope');
   await preview.getByRole('button', { name: 'Apply restore as new commit' }).click();
@@ -310,7 +310,7 @@ test('loop panel edits on main open a proposal first; change type, move and hide
   await expect(page).toHaveURL(
     new RegExp(`/projects/${projectId}/graph\\?.*proposal=[0-9a-f-]{36}.*rev=1`),
   );
-  await expect(page.getByText('Proposal, draft')).toBeVisible();
+  await expect(page.getByText('Change set, open')).toBeVisible();
   await expect(panel.getByLabel('Milestone')).toHaveValue(/[0-9a-f-]{36}/);
 
   await panel.getByLabel('Act actions').first().click();
@@ -318,7 +318,7 @@ test('loop panel edits on main open a proposal first; change type, move and hide
   await panel.getByLabel('New act type').selectOption({ label: 'Follow-up' });
   await panel.getByRole('button', { name: 'Apply to draft' }).click();
   await expect(page).toHaveURL(/rev=2/);
-  await expect(page.getByText('Proposal, draft')).toBeVisible();
+  await expect(page.getByText('Change set, open')).toBeVisible();
   const steps = panel.getByRole('list', { name: 'Steps' }).getByRole('listitem');
   await expect(steps).toHaveCount(2);
 

@@ -8,12 +8,12 @@ import { useHydrated } from '../review/hydrated';
 import { SecretReveal } from './SecretReveal';
 
 const SCOPES: { scope: Scope; text: string; risk?: true }[] = [
-  { scope: 'project:read', text: 'Read records, inbox, graph, history and proposals.' },
+  { scope: 'project:read', text: 'Read records, the graph, activity and change sets.' },
   { scope: 'records:import', text: 'Import records into the inbox. Main does not change.' },
-  { scope: 'graph:propose', text: 'Create and edit proposals. A person still merges.' },
+  { scope: 'graph:propose', text: 'Create and edit change sets. A person still approves.' },
   {
     scope: 'graph:merge',
-    text: 'Lets this token merge, revert and restore without you. Grant it only to an agent that you direct.',
+    text: 'Lets this token approve and undo without you. Grant it only to an agent that you direct.',
     risk: true,
   },
   {

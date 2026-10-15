@@ -22,7 +22,7 @@ import { diffSnapshots } from '../../../../../../../server/graph/diff';
 import { notFoundOn, requireActor } from '../../../../../../../server/http/rsc';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Rebase · Promise Graph' };
+export const metadata: Metadata = { title: 'Resolve conflict · Promise Graph' };
 
 export default async function RebasePage({
   params,
@@ -44,8 +44,7 @@ export default async function RebasePage({
 
   let preview: RebasePreview | null = null,
     problem: string | null = null;
-  if (proposal.status !== 'draft')
-    problem = `This proposal is ${proposal.status}. Only a draft can be rebased.`;
+  if (proposal.status !== 'draft') problem = 'This change set is no longer open.';
   else {
     try {
       preview = await previewRebase(db, actor, {
@@ -63,7 +62,7 @@ export default async function RebasePage({
     }
   }
 
-  let body: React.ReactNode = <ConflictBanner title="No rebase preview." message={problem} />;
+  let body: React.ReactNode = <ConflictBanner title="No preview." message={problem} />;
   if (preview) {
     const base =
       preview.baseCommitId === main.project.mainCommitId
@@ -138,7 +137,7 @@ export default async function RebasePage({
       </header>
       <div className="screen">
         <div className="screen-head">
-          <h1>Rebase onto current main</h1>
+          <h1>Resolve conflict</h1>
         </div>
         <ProposalFrame
           projectId={id}

@@ -148,7 +148,7 @@ export function ActEditor({
             disabled={disabled}
             onChange={(event) => chooseLoop(event.target.value)}
           >
-            <option value="">No loop (shows only in proposal previews)</option>
+            <option value="">No loop (shows only in change set previews)</option>
             {loops.map((loop) => (
               <option key={loop.id} value={loop.id}>
                 {loop.title}
@@ -302,7 +302,7 @@ export function ActEditor({
         )}
         {!editable && (
           <span className="faint" style={{ fontSize: 12 }}>
-            This proposal is not a draft, so it cannot change.
+            This change set is closed, so it cannot change.
           </span>
         )}
       </div>

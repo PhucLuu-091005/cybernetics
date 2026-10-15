@@ -63,7 +63,7 @@ export function AnswerDraft({
       ),
     [analysis.answerText, acts],
   );
-  const pinnedLine = `Analysis revision ${analysis.revision}, pinned graph commit ${analysis.graphCommitId.slice(0, 7)}, evidence revision ${analysis.evidenceRevision}.`;
+  const pinnedLine = `Analysis ${analysis.revision}, graph version ${analysis.graphCommitId.slice(0, 7)}, evidence revision ${analysis.evidenceRevision}.`;
 
   const copy = async () => {
     try {
@@ -123,28 +123,31 @@ export function AnswerDraft({
           analysis revision {analysis.revision} by {authorLabel}
         </span>
       </div>
-      <dl className="kv">
-        <dt>Pinned graph</dt>
-        <dd>
-          <span className="id" data-testid="pinned-commit" title={analysis.graphCommitId}>
-            {analysis.graphCommitId.slice(0, 7)}
-          </span>{' '}
-          <span className="faint">
-            {analysis.graphCommitId === basis.mainCommitId
-              ? 'current main'
-              : `main is now ${basis.mainCommitId.slice(0, 7)}`}
-          </span>
-        </dd>
-        <dt>Pinned evidence</dt>
-        <dd>
-          revision {analysis.evidenceRevision}{' '}
-          <span className="faint">
-            {analysis.evidenceRevision === basis.evidenceRevision
-              ? 'current'
-              : `current is ${basis.evidenceRevision}`}
-          </span>
-        </dd>
-      </dl>
+      <details>
+        <summary>Technical details</summary>
+        <dl className="kv">
+          <dt>Pinned graph</dt>
+          <dd>
+            <span className="id" data-testid="pinned-commit" title={analysis.graphCommitId}>
+              {analysis.graphCommitId.slice(0, 7)}
+            </span>{' '}
+            <span className="faint">
+              {analysis.graphCommitId === basis.mainCommitId
+                ? 'current main'
+                : `main is now ${basis.mainCommitId.slice(0, 7)}`}
+            </span>
+          </dd>
+          <dt>Pinned evidence</dt>
+          <dd>
+            revision {analysis.evidenceRevision}{' '}
+            <span className="faint">
+              {analysis.evidenceRevision === basis.evidenceRevision
+                ? 'current'
+                : `current is ${basis.evidenceRevision}`}
+            </span>
+          </dd>
+        </dl>
+      </details>
       <div className="answer" data-testid="answer">
         {parts.length ? (
           parts.map((part, index) =>

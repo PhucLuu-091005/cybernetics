@@ -4,7 +4,7 @@ import { IdSchema } from '../../../../../contracts';
 import { HistoryScreen } from './history-screen';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'History · Promise Graph' };
+export const metadata: Metadata = { title: 'Activity · Promise Graph' };
 
 export default async function HistoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

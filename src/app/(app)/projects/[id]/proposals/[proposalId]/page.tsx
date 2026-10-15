@@ -5,6 +5,7 @@ import { IdSchema, type Act } from '../../../../../../contracts';
 import { GraphScreen } from '../../../../../../components/graph/GraphScreen';
 import { parseFilters } from '../../../../../../components/graph/filters';
 import { shortStamp } from '../../../../../../components/graph/labels';
+import { reviewHref } from '../../../../../../components/review-queue/state';
 import { parseCite } from '../../../../../../components/inbox/selection';
 import type { CitedText } from '../../../../../../components/review/ActEditor';
 import {
@@ -25,7 +26,7 @@ import { diffSnapshots } from '../../../../../../server/graph/diff';
 import { notFoundOn, requireActor } from '../../../../../../server/http/rsc';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Proposal · Promise Graph' };
+export const metadata: Metadata = { title: 'Change set · Promise Graph' };
 type Search = Record<string, string | string[] | undefined>;
 
 export default async function ProposalPage({
@@ -111,8 +112,8 @@ export default async function ProposalPage({
           </small>
         </div>
         <span className="sp" />
-        <Link className="btn" href={`/projects/${id}/proposals`}>
-          All proposals
+        <Link className="btn" href={reviewHref(id, { tab: 'sets', item: proposal.id })}>
+          Back to Review
         </Link>
       </header>
       <div className="screen" style={{ paddingBottom: 0 }}>
@@ -128,10 +129,13 @@ export default async function ProposalPage({
                 className="btn"
                 href={`/projects/${id}/graph?${new URLSearchParams({ proposal: proposal.id, rev: String(proposal.revision) }).toString()}`}
               >
-                Open in graph view
+                View on graph
               </Link>
-              <Link className="btn btn-draft" href={`${href}/review`}>
-                Review changes
+              <Link
+                className="btn btn-draft"
+                href={reviewHref(id, { tab: 'sets', item: proposal.id })}
+              >
+                Review and approve
               </Link>
             </>
           }
@@ -175,7 +179,7 @@ export default async function ProposalPage({
           </p>
         )}
         <h2 style={{ margin: '6px 0 4px', fontSize: 14 }}>
-          Candidate graph at T = {shortStamp(view.T, timeZone)}{' '}
+          Change set graph as of {shortStamp(view.T, timeZone)}{' '}
           <span className="faint" style={{ fontWeight: 400, fontSize: 12 }}>
             violet halo marks changed loops
           </span>

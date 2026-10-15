@@ -120,16 +120,14 @@ export async function HistoryScreen({
         <span style={{ fontSize: 12 }}>
           <span className="faint">Main </span>
           <span className="id">{history.mainCommitId.slice(0, 7)}</span>
-          <span className="faint">, evidence revision </span>
-          {history.evidenceRevision}
         </span>
       </header>
       <div className="screen">
         <div className="screen-head">
-          <h1>History</h1>
+          <h1>Activity</h1>
           <p>
-            Commits are immutable. Revert and restore create new commits on top of main, and never
-            delete evidence or old commits.
+            Each version stays. &quot;Undo this change&quot; and &quot;Go back to this version&quot;
+            add a new version on top of the approved graph and never delete records or old versions.
           </p>
         </div>
         <div className="hist">

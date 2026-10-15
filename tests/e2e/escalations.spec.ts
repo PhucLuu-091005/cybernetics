@@ -193,7 +193,7 @@ test('an escalation analysis shows verdicts and cited acts, copies and downloads
 
   await page.goto(`/projects/${projectId}/proposals`);
   await page.getByRole('link', { name: 'Retitle the Dynamics loop as a phase 1 request' }).click();
-  await page.getByRole('link', { name: 'Review changes' }).click();
+  await page.getByRole('link', { name: 'Review and approve' }).click();
   await expect(page.getByRole('button', { name: 'Merge into main' })).toBeVisible();
   await page.getByRole('checkbox', { name: /still pending review/ }).check();
   await page.getByRole('button', { name: 'Merge into main' }).click();
