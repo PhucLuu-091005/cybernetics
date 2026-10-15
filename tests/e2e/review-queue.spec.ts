@@ -20,9 +20,7 @@ async function openSet(page: Page, name: RegExp) {
 }
 const approved = (page: Page, title: RegExp) => page.getByRole('status').filter({ hasText: title });
 
-test('approve the agent change set from Review and see the follow-up on the graph', async ({
-  page,
-}) => {
+test('approve the agent change set from Review and see it leave the queue', async ({ page }) => {
   const projectId = await signIn(page, 'queue-approve');
   await page.goto(`/projects/${projectId}/review`);
   await openSet(page, /Add Sarah's follow-up on the incident report/);
@@ -96,7 +94,52 @@ test('a second approve of the same change set shows a conflict and stays on the 
   await actions(page).getByRole('button', { name: 'Approve' }).click();
   await expect(approved(page, /^Approved:/)).toBeVisible();
   await actions(other).getByRole('button', { name: 'Approve' }).click();
+  await expect(other.getByRole('status').filter({ hasText: /^Approved:/ })).toHaveCount(0);
   await expect(other.getByRole('alert').filter({ hasText: 'Conflict' })).toBeVisible();
   await expect(other).toHaveURL(/item=/);
   await context.close();
+});
+
+test('ignored records from before and after an approval land in one My review set', async ({
+  page,
+}) => {
+  const projectId = await signIn(page, 'queue-focus');
+  await page.goto(`/projects/${projectId}/review`);
+  await openSet(page, /Add Sarah's follow-up/);
+  await actions(page).getByRole('button', { name: 'Approve' }).click();
+  await expect(approved(page, /^Approved: Add Sarah's follow-up/)).toBeVisible();
+
+  const ignoreRecord = async (title: string) => {
+    await page.goto(`/projects/${projectId}/review?tab=records`);
+    await page.getByRole('link', { name: new RegExp(title) }).click();
+    await expect(page.getByRole('heading', { level: 2, name: title })).toBeVisible();
+    await page.getByLabel('Reason to ignore').fill('Not a promise');
+    await page.getByRole('button', { name: 'Ignore', exact: true }).click();
+    await expect(page.getByRole('link', { name: new RegExp(title) })).toHaveCount(0);
+  };
+  await ignoreRecord('Automatic reply: out of office');
+  await ignoreRecord('Go-live slip');
+
+  await page.getByRole('tab', { name: /^Change sets/ }).click();
+  await expect(sets(page).getByRole('link', { name: /^My review/ })).toHaveCount(1);
+  await openSet(page, /^My review/);
+  await expect(page.getByText('Automatic reply: out of office')).toBeVisible();
+  await expect(page.getByText('Go-live slip')).toBeVisible();
+});
+
+test('an unknown or already approved change set id is handled', async ({ page }) => {
+  const projectId = await signIn(page, 'queue-ids');
+  const unknown = await page.goto(
+    `/projects/${projectId}/review?tab=sets&item=${crypto.randomUUID()}`,
+  );
+  expect(unknown?.status()).toBe(404);
+
+  await page.goto(`/projects/${projectId}/review`);
+  await openSet(page, /Add Sarah's follow-up/);
+  const itemUrl = page.url();
+  await actions(page).getByRole('button', { name: 'Approve' }).click();
+  await expect(approved(page, /^Approved: Add Sarah's follow-up/)).toBeVisible();
+  await page.goto(itemUrl);
+  await expect(page.getByText('This change set is no longer open')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'See Activity' })).toBeVisible();
 });

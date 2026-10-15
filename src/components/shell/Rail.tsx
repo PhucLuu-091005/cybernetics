@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
+import { useHydrated } from '../review/hydrated';
 import { RailIcon, type RailIconName } from './icons';
 import { ProjectSwitcher, type RailProject } from './ProjectSwitcher';
 import { railCookie, type RailState } from './rail-state';
@@ -12,6 +13,7 @@ type Props = { projectId: string; projects: RailProject[]; waiting: number; init
 
 export function Rail({ projectId, projects, waiting, initial }: Props) {
   const pathname = usePathname();
+  const hydrated = useHydrated();
   const [state, setState] = useState<RailState>(initial);
   const folded = state === 'collapsed';
   const current = projects.find((project) => project.id === projectId)!;
@@ -58,6 +60,7 @@ export function Rail({ projectId, projects, waiting, initial }: Props) {
         <button
           className="rail-item rail-fold"
           type="button"
+          disabled={!hydrated}
           onClick={toggle}
           aria-expanded={!folded}
           aria-label={folded ? 'Expand sidebar' : 'Collapse sidebar'}
