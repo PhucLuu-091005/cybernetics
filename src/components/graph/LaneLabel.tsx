@@ -1,21 +1,12 @@
-import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
+import { Handle, Position, type Node } from '@xyflow/react';
 
 export type LaneLabelNode = Node<{ name: string }, 'laneLabel'>;
 
-/** Branch edges attach here only to satisfy React Flow; BranchEdge draws the layout's own path. */
-export function LaneLabel({ data }: NodeProps<LaneLabelNode>) {
+/** Branch edges attach here only to satisfy React Flow; LaneColumn shows the names. */
+export function LaneLabel() {
   return (
-    <div
-      style={{
-        fontSize: 12,
-        fontWeight: 600,
-        color: 'var(--ink-2)',
-        whiteSpace: 'nowrap',
-        lineHeight: '16px',
-      }}
-    >
+    <div style={{ height: 16 }}>
       <Handle type="target" position={Position.Left} isConnectable={false} style={{ opacity: 0 }} />
-      {data.name}
       <Handle
         type="source"
         position={Position.Right}

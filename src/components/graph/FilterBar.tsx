@@ -1,21 +1,17 @@
 'use client';
 import { BreakdownTypeSchema, LoopStateSchema } from '../../contracts/engine';
 import type { Department, Milestone } from '../../contracts/graph';
-import type { GraphLayout } from '../../contracts/layout';
 import type { GraphFilters } from './filters';
 import { BREAKDOWN_LABEL, stateLabel } from './labels';
 
-export type ZoomChoice = GraphLayout['zoomLevel'];
 type Props = {
   filters: GraphFilters;
   query: string;
   departments: readonly Department[];
   milestones: readonly Milestone[];
-  zoomLevel: ZoomChoice;
   onChange(next: Partial<Omit<GraphFilters, 'view' | 'loopId'>>): void;
   onView(view: GraphFilters['view']): void;
   onQuery(query: string): void;
-  onZoom(level: ZoomChoice): void;
 };
 
 function Segmented<T extends string>({
@@ -50,11 +46,9 @@ export function FilterBar({
   query,
   departments,
   milestones,
-  zoomLevel,
   onChange,
   onView,
   onQuery,
-  onZoom,
 }: Props) {
   const ordered = [...departments].sort((a, b) =>
     a.side === b.side ? a.order - b.order : a.side === 'vendor' ? -1 : 1,
@@ -189,20 +183,6 @@ export function FilterBar({
           }
           onSelect={onView}
         />
-        {filters.view === 'graph' && (
-          <Segmented
-            label="Zoom level"
-            value={zoomLevel}
-            options={
-              [
-                ['milestones', 'Milestones'],
-                ['branches', 'Branches'],
-                ['detail', 'Detail'],
-              ] as const
-            }
-            onSelect={onZoom}
-          />
-        )}
       </div>
     </div>
   );

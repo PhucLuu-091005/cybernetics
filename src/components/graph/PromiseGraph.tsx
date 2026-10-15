@@ -1,11 +1,13 @@
 'use client';
 import '@xyflow/react/dist/base.css';
 import {
+  PanOnScrollMode,
   Position,
   ReactFlow,
   ReactFlowProvider,
   ViewportPortal,
-  type Viewport,
+  useReactFlow,
+  useViewport,
 } from '@xyflow/react';
 import {
   useCallback,
@@ -16,22 +18,40 @@ import {
   type FocusEvent,
   type KeyboardEvent,
   type MouseEvent,
+  type RefObject,
 } from 'react';
 import type { MilestoneStatus } from '../../contracts/engine';
 import type { GraphContext } from '../../contracts/graph';
 import type { ActGlyph, GraphLayout } from '../../contracts/layout';
-import { createTimeScale } from '../../lib/graph-layout';
+import {
+  BASE_PX_PER_DAY,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  createTimeScale,
+  fitViewport,
+  fitWidth,
+  lodOf,
+  nextZoom,
+  zoomAround,
+  type Box,
+  type Size,
+  type Viewport,
+} from '../../lib/graph-layout';
 import { ActNode, ACT_NODE_SIZE, type ActNodeType } from './ActNode';
 import { BranchEdge, type BranchEdgeType } from './BranchEdge';
+import { CanvasControls, type Preset } from './CanvasControls';
+import { LaneColumn } from './LaneColumn';
 import { LaneLabel, type LaneLabelNode } from './LaneLabel';
 import { MilestoneNode, MILESTONE_NODE, type MilestoneNodeType } from './MilestoneNode';
+import { Minimap } from './Minimap';
+import { TimeAxis } from './TimeAxis';
 import { TONE_COLOR, shortStamp } from './labels';
 import { GraphUiContext, loopKey, milestoneKey, type GraphUi } from './ui-context';
 
-// Gutters from the approved design: lane names sit left of the time axis.
-export const GRAPH_LEFT = 128;
-export const GRAPH_RIGHT = 36;
-const AXIS_LABEL_Y = 18;
+const CURVE = 16,
+  PAN_MARGIN = 400,
+  // Wide enough that the stripes never end inside the view, even at 10 %.
+  STRIPE_OVERHANG = 20_000;
 const nodeTypes = { act: ActNode, milestone: MilestoneNode, laneLabel: LaneLabel };
 const edgeTypes = { branch: BranchEdge };
 type GraphNode = ActNodeType | MilestoneNodeType | LaneLabelNode;
@@ -39,10 +59,8 @@ const NO_HALO: ReadonlySet<string> = new Set();
 
 export type PromiseGraphProps = {
   title: string;
-  clientName: string;
   context: GraphContext;
   layout: GraphLayout;
-  pxPerDay: number;
   T: string;
   milestoneStatus: ReadonlyMap<string, MilestoneStatus>;
   selectedLoopId: string | null;
@@ -50,26 +68,21 @@ export type PromiseGraphProps = {
   faded: ReadonlySet<string>;
   halo?: ReadonlySet<string>;
   currentActId: string | null;
-  revealX: number | null;
+  /** The element that goes full screen: the canvas and the open panel together. */
+  stageRef: RefObject<HTMLDivElement | null>;
   onSelectLoop(loopId: string, actId?: string): void;
   onSelectMilestone(milestoneId: string): void;
   onHoverAct(glyph: ActGlyph | null, event?: MouseEvent): void;
-  onWidth(width: number): void;
-  onZoom(pxPerDay: number): void;
 };
 
 function Backdrop({
   layout,
   context,
   T,
-  clientName,
-  contentWidth,
-  pxPerDay,
-}: Pick<PromiseGraphProps, 'layout' | 'context' | 'T' | 'clientName' | 'pxPerDay'> & {
-  contentWidth: number;
-}) {
-  const scale = createTimeScale(context, pxPerDay);
-  const xT = GRAPH_LEFT + scale.x(T);
+  content,
+}: Pick<PromiseGraphProps, 'layout' | 'context' | 'T'> & { content: Box }) {
+  const scale = createTimeScale(context, BASE_PX_PER_DAY);
+  const xT = scale.x(T);
   const months: string[] = [];
   for (
     let [year, month] = context.windowStart.split('-').map(Number);
@@ -79,17 +92,12 @@ function Backdrop({
     if (first > context.windowStart) months.push(first);
     [year, month] = month === 12 ? [year + 1, 1] : [year, month + 1];
   }
-  const dayStart = (date: string) => GRAPH_LEFT + scale.dateEndX(date) - pxPerDay;
-  const monthLabel = (date: string) =>
-    new Date(`${date}T00:00:00Z`).toLocaleDateString('en-GB', {
-      day: 'numeric',
-      month: 'short',
-      timeZone: 'UTC',
-    });
+  const x0 = content.x0 - STRIPE_OVERHANG,
+    width = content.x1 - content.x0 + STRIPE_OVERHANG * 2;
   return (
     <svg
-      width={contentWidth}
-      height={layout.height}
+      width={1}
+      height={1}
       aria-hidden="true"
       style={{
         position: 'absolute',
@@ -105,56 +113,35 @@ function Backdrop({
           <path d="M0 0 L8 4 L0 8 z" fill="var(--trunk)" />
         </marker>
       </defs>
-      <rect width={contentWidth} height={layout.height} fill="var(--surface)" />
       {layout.lanes.map((lane) => (
         <rect
           key={lane.id}
-          x={0}
+          x={x0}
           y={lane.y}
-          width={contentWidth}
+          width={width}
           height={lane.height}
-          fill={lane.order % 2 ? 'var(--panel)' : 'transparent'}
-          opacity={0.55}
+          fill={lane.order % 2 ? 'var(--stripe)' : 'transparent'}
         />
       ))}
-      <text x={12} y={AXIS_LABEL_Y} fontSize="11" fontWeight="700" fill="var(--ink-3)">
-        Vendor
-      </text>
-      <text x={12} y={layout.height - 14} fontSize="11" fontWeight="700" fill="var(--ink-3)">
-        Client, {clientName}
-      </text>
-      <line
-        x1={GRAPH_LEFT - 8}
-        y1={0}
-        x2={GRAPH_LEFT - 8}
-        y2={layout.height}
-        stroke="var(--rule)"
-      />
       {[context.windowStart, ...months, context.windowEnd].map((date, index, all) => {
-        const edge = index === 0 || index === all.length - 1,
-          x = edge && index > 0 ? GRAPH_LEFT + scale.dateEndX(date) : dayStart(date);
+        const end = index === all.length - 1,
+          x = end ? scale.dateEndX(date) : scale.dateEndX(date) - BASE_PX_PER_DAY;
         return (
-          <g key={`${date}-${index}`}>
-            <line
-              x1={x}
-              y1={AXIS_LABEL_Y + 4}
-              x2={x}
-              y2={layout.height}
-              stroke="var(--rule-2)"
-              strokeDasharray={edge ? '2 4' : undefined}
-            />
-            {!edge && (
-              <text x={x + 4} y={AXIS_LABEL_Y} fontSize="11" fill="var(--ink-3)">
-                {monthLabel(date)}
-              </text>
-            )}
-          </g>
+          <line
+            key={`${date}-${index}`}
+            x1={x}
+            y1={0}
+            x2={x}
+            y2={layout.height}
+            stroke="var(--rule-2)"
+            strokeDasharray={index === 0 || end ? '2 4' : undefined}
+          />
         );
       })}
       <line
-        x1={GRAPH_LEFT - 4}
+        x1={-CURVE}
         y1={layout.trunkY}
-        x2={GRAPH_LEFT + layout.width - 12}
+        x2={layout.width}
         y2={layout.trunkY}
         stroke="var(--trunk)"
         strokeWidth={4}
@@ -162,42 +149,36 @@ function Backdrop({
       />
       <line
         x1={xT}
-        y1={AXIS_LABEL_Y + 4}
+        y1={0}
         x2={xT}
         y2={layout.height}
         stroke="var(--ink)"
         strokeWidth={1.2}
         strokeDasharray="4 3"
       />
-      <rect x={xT - 40} y={2} width={80} height={16} rx={3} fill="var(--ink)" />
-      <text x={xT} y={14} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--surface)">
-        T {shortStamp(T, context.timeZone)}
-      </text>
-      <g transform={`translate(${GRAPH_LEFT} 0)`}>
-        {layout.milestones
-          .filter((item) => item.ghostX !== null)
-          .map((item) => (
-            <g key={item.id}>
-              <polygon
-                points={`${item.ghostX},${item.y - 8} ${item.ghostX! + 8},${item.y} ${item.ghostX},${item.y + 8} ${item.ghostX! - 8},${item.y}`}
-                fill="var(--surface)"
+      {layout.milestones
+        .filter((item) => item.ghostX !== null)
+        .map((item) => (
+          <g key={item.id}>
+            <polygon
+              points={`${item.ghostX},${item.y - 8} ${item.ghostX! + 8},${item.y} ${item.ghostX},${item.y + 8} ${item.ghostX! - 8},${item.y}`}
+              fill="var(--surface)"
+              stroke="var(--trunk)"
+              strokeWidth={1.6}
+              strokeDasharray="2 2"
+            />
+            {item.slipPath && (
+              <path
+                d={item.slipPath}
+                fill="none"
                 stroke="var(--trunk)"
-                strokeWidth={1.6}
-                strokeDasharray="2 2"
+                strokeWidth={1.4}
+                strokeDasharray="4 3"
+                markerEnd="url(#slip-arrow)"
               />
-              {item.slipPath && (
-                <path
-                  d={item.slipPath}
-                  fill="none"
-                  stroke="var(--trunk)"
-                  strokeWidth={1.4}
-                  strokeDasharray="4 3"
-                  markerEnd="url(#slip-arrow)"
-                />
-              )}
-            </g>
-          ))}
-      </g>
+            )}
+          </g>
+        ))}
     </svg>
   );
 }
@@ -207,160 +188,169 @@ function Graph(props: PromiseGraphProps) {
     layout,
     context,
     T,
-    pxPerDay,
     milestoneStatus,
-    onWidth,
-    onZoom,
-    revealX,
     selectedLoopId,
     selectedMilestoneId,
     faded,
     halo = NO_HALO,
     currentActId,
+    stageRef,
     onSelectLoop,
     onSelectMilestone,
     onHoverAct,
   } = props;
+  const flow = useReactFlow<GraphNode, BranchEdgeType>();
+  const viewport = useViewport();
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(0);
-  const [x, setX] = useState(0);
+  const [size, setSize] = useState<Size>({ width: 0, height: 0 });
   const [activeKey, setActiveKey] = useState<string | null>(null);
-  const pendingX = useRef<number | null>(null);
-  const contentWidth = GRAPH_LEFT + layout.width + GRAPH_RIGHT;
-  const clampX = useCallback(
-    (value: number) => Math.min(0, Math.max(Math.min(0, width - contentWidth), value)),
-    [width, contentWidth],
+  const [minimap, setMinimap] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [fullscreenEnabled, setFullscreenEnabled] = useState(false);
+  const content: Box = useMemo(
+    () => ({ x0: -CURVE, x1: layout.width + CURVE, y0: 0, y1: layout.height }),
+    [layout],
   );
+  const xT = useMemo(() => createTimeScale(context, BASE_PX_PER_DAY).x(T), [context, T]);
+  // Read at call time, so the handlers below never change with the size and never rebuild every node.
+  const sizeNow = useCallback((): Size => {
+    const box = wrapRef.current?.getBoundingClientRect();
+    return { width: box?.width ?? 0, height: box?.height ?? 0 };
+  }, []);
 
   useEffect(() => {
     const element = wrapRef.current;
     if (!element) return;
-    const observer = new ResizeObserver(([entry]) => {
-      setWidth(entry.contentRect.width);
-      onWidth(entry.contentRect.width);
-    });
+    const observer = new ResizeObserver(([entry]) =>
+      setSize({ width: entry.contentRect.width, height: entry.contentRect.height }),
+    );
     observer.observe(element);
     return () => observer.disconnect();
-  }, [onWidth]);
-  // A wheel zoom keeps the instant under the pointer in place, a zoom button the instant at the centre; every resize or relayout re-clamps the pan.
-  const lastPx = useRef<number | null>(null);
+  }, []);
+  // SRD 7.2 (14 Oct 2026): the first view is 100 % with T at 80 % of the width and the trunk at the centre.
+  const placed = useRef(false);
   useEffect(() => {
-    const previousPx = lastPx.current,
-      pending = pendingX.current,
-      centre = width / 2;
-    lastPx.current = pxPerDay;
-    pendingX.current = null;
-    const anchored = (current: number) =>
-      previousPx === null || previousPx === pxPerDay
-        ? current
-        : centre - GRAPH_LEFT - ((centre - current - GRAPH_LEFT) / previousPx) * pxPerDay;
-    setX((current) => clampX(pending ?? anchored(current)));
-  }, [clampX, layout, pxPerDay, width]);
-  useEffect(() => {
-    if (revealX === null || width === 0) return;
-    const target = GRAPH_LEFT + revealX;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setX((previous) =>
-      target + previous < 0 || target + previous > width - 40
-        ? clampX(width * 0.25 - target)
-        : previous,
-    );
-  }, [revealX, width, clampX]);
+    if (placed.current || size.width === 0) return;
+    placed.current = true;
+    void flow.setViewport({
+      x: size.width * 0.8 - xT,
+      y: size.height / 2 - layout.trunkY,
+      zoom: 1,
+    });
+  }, [size, flow, xT, layout.trunkY]);
 
   useEffect(() => {
-    const element = wrapRef.current;
-    if (!element) return;
-    const onWheel = (event: WheelEvent) => {
-      event.preventDefault();
-      if (Math.abs(event.deltaX) > Math.abs(event.deltaY) || event.shiftKey) {
-        setX((previous) => clampX(previous - (event.deltaX || event.deltaY)));
-        return;
-      }
-      const next = Math.min(120, Math.max(2, pxPerDay * Math.exp(-event.deltaY * 0.002)));
-      const pointer = event.clientX - element.getBoundingClientRect().left;
-      const day = (pointer - x - GRAPH_LEFT) / pxPerDay;
-      pendingX.current = pointer - GRAPH_LEFT - day * next;
-      onZoom(next);
-    };
-    element.addEventListener('wheel', onWheel, { passive: false });
-    return () => element.removeEventListener('wheel', onWheel);
-  }, [pxPerDay, x, clampX, onZoom]);
-  // Two-finger pinch scales pxPerDay around the midpoint, like the wheel around the pointer (SRD 7.2).
-  const pinch = useRef<{ distance: number; pxPerDay: number; day: number } | null>(null);
-  useEffect(() => {
-    const element = wrapRef.current;
-    if (!element) return;
-    const measure = (event: TouchEvent) => {
-      const [a, b] = [event.touches[0], event.touches[1]],
-        left = element.getBoundingClientRect().left;
-      return {
-        distance: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
-        mid: (a.clientX + b.clientX) / 2 - left,
+    // iPhone Safari has no element full screen; the button then stays hidden.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFullscreenEnabled(document.fullscreenEnabled === true);
+    const onChange = () => setFullscreen(document.fullscreenElement === stageRef.current);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, [stageRef]);
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void stageRef.current?.requestFullscreen().catch(() => undefined);
+  }, [stageRef]);
+
+  const applyPreset = useCallback(
+    (preset: Preset) => {
+      const canvas = sizeNow(),
+        current = flow.getViewport();
+      const view =
+        preset === 'project'
+          ? fitViewport(content, canvas)
+          : preset === 'week'
+            ? fitWidth(xT - 4 * BASE_PX_PER_DAY, xT + 3 * BASE_PX_PER_DAY, layout.trunkY, canvas)
+            : preset === 'month'
+              ? fitWidth(xT - 25 * BASE_PX_PER_DAY, xT + 5 * BASE_PX_PER_DAY, layout.trunkY, canvas)
+              : zoomAround(current, preset, { x: canvas.width / 2, y: canvas.height / 2 });
+      void flow.setViewport(view, { duration: 200 });
+    },
+    [sizeNow, flow, content, xT, layout.trunkY],
+  );
+  // A second press during the 150 ms animation steps from the target, not from a zoom halfway there.
+  const target = useRef<{ view: Viewport; until: number } | null>(null);
+  const step = useCallback(
+    (direction: 1 | -1) => {
+      const canvas = sizeNow(),
+        current =
+          target.current && target.current.until > performance.now()
+            ? target.current.view
+            : flow.getViewport();
+      const view = zoomAround(current, nextZoom(current.zoom, direction), {
+        x: canvas.width / 2,
+        y: canvas.height / 2,
+      });
+      target.current = { view, until: performance.now() + 150 };
+      void flow.setViewport(view, { duration: 150 });
+    },
+    [sizeNow, flow],
+  );
+  // Zoom to a loop stops at 150 %, so its text stays a normal reading size.
+  const zoomToLoop = useCallback(
+    (loopId: string) => {
+      const branch = layout.branches.find((item) => item.loopId === loopId);
+      if (!branch) return;
+      const box = {
+        x0: branch.xStart - CURVE,
+        x1: branch.xEnd + CURVE,
+        y0: Math.min(branch.y, layout.trunkY) - 30,
+        y1: Math.max(branch.y, layout.trunkY) + 30,
       };
-    };
-    const onStart = (event: TouchEvent) => {
-      if (event.touches.length !== 2) return;
-      const { distance, mid } = measure(event);
-      pinch.current = { distance, pxPerDay, day: (mid - x - GRAPH_LEFT) / pxPerDay };
-    };
-    const onMove = (event: TouchEvent) => {
-      if (event.touches.length !== 2 || !pinch.current) return;
-      event.preventDefault();
-      const { distance, mid } = measure(event),
-        start = pinch.current;
-      const next = Math.min(
-        120,
-        Math.max(2, (start.pxPerDay * distance) / Math.max(1, start.distance)),
-      );
-      pendingX.current = mid - GRAPH_LEFT - start.day * next;
-      onZoom(next);
-    };
-    const onEnd = (event: TouchEvent) => {
-      if (event.touches.length < 2) pinch.current = null;
-    };
-    element.addEventListener('touchstart', onStart, { passive: true });
-    element.addEventListener('touchmove', onMove, { passive: false });
-    element.addEventListener('touchend', onEnd);
-    element.addEventListener('touchcancel', onEnd);
-    return () => {
-      element.removeEventListener('touchstart', onStart);
-      element.removeEventListener('touchmove', onMove);
-      element.removeEventListener('touchend', onEnd);
-      element.removeEventListener('touchcancel', onEnd);
-    };
-  }, [pxPerDay, x, onZoom]);
+      void flow.setViewport(fitViewport(box, sizeNow(), 48, 1.5), { duration: 200 });
+    },
+    [layout, sizeNow, flow],
+  );
 
   const order = useMemo(
     () => [
       ...layout.navigation.milestoneIds.map(milestoneKey),
-      ...(layout.zoomLevel === 'milestones' ? [] : layout.navigation.loopIds.map(loopKey)),
+      ...layout.navigation.loopIds.map(loopKey),
     ],
     [layout],
   );
   const tabStop = activeKey !== null && order.includes(activeKey) ? activeKey : (order[0] ?? null);
-  const xOfKey = useCallback(
-    (key: string) =>
-      key.startsWith('m:')
-        ? layout.milestones.find((item) => milestoneKey(item.id) === key)?.x
-        : layout.branches.find((item) => loopKey(item.loopId) === key)?.xStart,
+  const pointOfKey = useCallback(
+    (key: string): { x: number; y: number } | undefined => {
+      if (key.startsWith('m:')) {
+        const item = layout.milestones.find((milestone) => milestoneKey(milestone.id) === key);
+        return item && { x: item.x, y: item.y };
+      }
+      const branch = layout.branches.find((item) => loopKey(item.loopId) === key);
+      return branch && { x: branch.xStart, y: branch.y };
+    },
     [layout],
   );
+  // Moves the canvas only when the item is outside the visible area, so a click on a visible item never shifts it.
   const reveal = useCallback(
     (key: string) => {
-      const at = xOfKey(key);
-      if (at === undefined) return;
-      setX((previous) =>
-        GRAPH_LEFT + at + previous < 0 || GRAPH_LEFT + at + previous > width - 40
-          ? clampX(width * 0.25 - GRAPH_LEFT - at)
-          : previous,
-      );
+      const point = pointOfKey(key),
+        area = wrapRef.current?.getBoundingClientRect();
+      const item = wrapRef.current
+        ?.querySelector(`[data-nav-key="${key}"]`)
+        ?.getBoundingClientRect();
+      if (!point || !area || !item) return;
+      const inside =
+        item.right > area.left + 24 &&
+        item.left < area.right - 24 &&
+        item.bottom > area.top + 12 &&
+        item.top < area.bottom - 12;
+      if (inside) return;
+      const current = flow.getViewport();
+      void flow.setViewport({
+        zoom: current.zoom,
+        x: area.width * 0.3 - point.x * current.zoom,
+        y: area.height / 2 - point.y * current.zoom,
+      });
     },
-    [xOfKey, width, clampX],
+    [pointOfKey, flow],
   );
+  useEffect(() => {
+    if (selectedLoopId && size.width > 0) reveal(loopKey(selectedLoopId));
+  }, [selectedLoopId, size.width, reveal]);
 
   const ui: GraphUi = useMemo(
     () => ({
-      zoomLevel: layout.zoomLevel,
       selectedLoopId,
       selectedMilestoneId,
       faded,
@@ -392,9 +382,9 @@ function Graph(props: PromiseGraphProps) {
       selectLoop: onSelectLoop,
       selectMilestone: onSelectMilestone,
       hoverAct: onHoverAct,
+      zoomToLoop,
     }),
     [
-      layout.zoomLevel,
       selectedLoopId,
       selectedMilestoneId,
       faded,
@@ -406,10 +396,10 @@ function Graph(props: PromiseGraphProps) {
       onSelectLoop,
       onSelectMilestone,
       onHoverAct,
+      zoomToLoop,
     ],
   );
 
-  const xT = useMemo(() => createTimeScale(context, pxPerDay).x(T), [context, pxPerDay, T]);
   const nodes = useMemo<GraphNode[]>(() => {
     const fixed = {
       draggable: false,
@@ -423,12 +413,12 @@ function Graph(props: PromiseGraphProps) {
       ...fixed,
       id: `lane:${lane.departmentId}`,
       type: 'laneLabel',
-      position: { x: 12, y: lane.y + lane.height / 2 - 8 },
-      width: GRAPH_LEFT - 24,
+      position: { x: 0, y: lane.y + lane.height / 2 - 8 },
+      width: 1,
       height: 16,
       data: { name: lane.name },
       handles: [
-        { type: 'source', position: Position.Right, x: GRAPH_LEFT - 24, y: 8, width: 1, height: 1 },
+        { type: 'source', position: Position.Right, x: 1, y: 8, width: 1, height: 1 },
         { type: 'target', position: Position.Left, x: 0, y: 8, width: 1, height: 1 },
       ],
     }));
@@ -437,7 +427,7 @@ function Graph(props: PromiseGraphProps) {
       id: `milestone:${milestone.id}`,
       type: 'milestone',
       position: {
-        x: GRAPH_LEFT + milestone.x - MILESTONE_NODE.width / 2,
+        x: milestone.x - MILESTONE_NODE.width / 2,
         y: milestone.y - MILESTONE_NODE.height / 2,
       },
       ...MILESTONE_NODE,
@@ -452,10 +442,9 @@ function Graph(props: PromiseGraphProps) {
           ...fixed,
           id: `act:${glyph.id}`,
           type: 'act' as const,
-          position: { x: GRAPH_LEFT + glyph.x - ACT_NODE_SIZE / 2, y: glyph.y - ACT_NODE_SIZE / 2 },
+          position: { x: glyph.x - ACT_NODE_SIZE / 2, y: glyph.y - ACT_NODE_SIZE / 2 },
           width: ACT_NODE_SIZE,
           height: ACT_NODE_SIZE,
-          hidden: layout.zoomLevel === 'milestones',
           data: { glyph, color: TONE_COLOR[segment.tone] },
         };
       }),
@@ -469,7 +458,7 @@ function Graph(props: PromiseGraphProps) {
         type: 'branch',
         source: `lane:${branch.departmentId}`,
         target: `lane:${branch.departmentId}`,
-        data: { branch, xT, left: GRAPH_LEFT },
+        data: { branch, xT },
         selectable: false,
         focusable: false,
         ariaRole: 'group',
@@ -480,56 +469,80 @@ function Graph(props: PromiseGraphProps) {
     [layout, xT],
   );
 
-  const viewport: Viewport = { x, y: 0, zoom: 1 };
+  const lod = lodOf(viewport.zoom);
   return (
     <GraphUiContext.Provider value={ui}>
-      <div
-        ref={wrapRef}
-        className="gwrap"
-        role="group"
-        aria-label={`Promise graph for ${props.title}`}
-        data-px-per-day={pxPerDay.toFixed(2)}
-        data-ready={width > 0 ? 'true' : undefined}
-        style={{ height: layout.height + 2, touchAction: 'pan-y' }}
-      >
-        <ReactFlow<GraphNode, BranchEdgeType>
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          viewport={viewport}
-          onViewportChange={(next) => setX(clampX(next.x))}
-          minZoom={1}
-          maxZoom={1}
-          translateExtent={[
-            [0, 0],
-            [Math.max(contentWidth, width), layout.height],
-          ]}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          nodesFocusable={false}
-          edgesFocusable={false}
-          elementsSelectable={false}
-          disableKeyboardA11y
-          panOnDrag
-          zoomOnScroll={false}
-          zoomOnPinch={false}
-          zoomOnDoubleClick={false}
-          panOnScroll={false}
-          preventScrolling={false}
-          proOptions={{ hideAttribution: true }}
+      <div className={`canvas-stage lod-${lod}`}>
+        <div className="canvas-corner" aria-hidden="true" />
+        <div className="canvas-axis">
+          <TimeAxis
+            context={context}
+            T={T}
+            tLabel={shortStamp(T, context.timeZone)}
+            viewport={viewport}
+            width={size.width}
+          />
+        </div>
+        <LaneColumn layout={layout} viewport={viewport} />
+        <div
+          ref={wrapRef}
+          className="gwrap"
+          role="group"
+          aria-label={`Promise graph for ${props.title}`}
+          data-zoom={viewport.zoom.toFixed(2)}
+          data-ready={size.width > 0 ? 'true' : undefined}
         >
-          <ViewportPortal>
-            <Backdrop
-              layout={layout}
-              context={context}
-              T={T}
-              clientName={props.clientName}
-              contentWidth={contentWidth}
-              pxPerDay={pxPerDay}
-            />
-          </ViewportPortal>
-        </ReactFlow>
+          <ReactFlow<GraphNode, BranchEdgeType>
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            minZoom={MIN_ZOOM}
+            maxZoom={MAX_ZOOM}
+            translateExtent={[
+              [content.x0 - PAN_MARGIN, content.y0 - PAN_MARGIN],
+              [content.x1 + PAN_MARGIN, content.y1 + PAN_MARGIN],
+            ]}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            nodesFocusable={false}
+            edgesFocusable={false}
+            elementsSelectable={false}
+            disableKeyboardA11y
+            panOnDrag
+            panOnScroll
+            panOnScrollMode={PanOnScrollMode.Free}
+            zoomOnScroll={false}
+            zoomOnPinch
+            zoomActivationKeyCode={['Meta', 'Control']}
+            zoomOnDoubleClick={false}
+            preventScrolling
+            proOptions={{ hideAttribution: true }}
+          >
+            <ViewportPortal>
+              <Backdrop layout={layout} context={context} T={T} content={content} />
+            </ViewportPortal>
+          </ReactFlow>
+        </div>
+        {minimap && size.width > 0 && (
+          <Minimap
+            layout={layout}
+            content={content}
+            viewport={viewport}
+            canvas={size}
+            onMove={(view) => void flow.setViewport(view)}
+          />
+        )}
+        <CanvasControls
+          zoom={viewport.zoom}
+          onStep={step}
+          onPreset={applyPreset}
+          minimap={minimap}
+          onMinimap={() => setMinimap((value) => !value)}
+          fullscreen={fullscreen}
+          fullscreenEnabled={fullscreenEnabled}
+          onFullscreen={toggleFullscreen}
+        />
       </div>
     </GraphUiContext.Provider>
   );
