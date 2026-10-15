@@ -356,10 +356,11 @@ test('the controls step the zoom, the % menu applies presets, and titles hide un
 test('a double-click on a branch zooms to that loop, at 150 % at most', async ({ page }) => {
   await signIn(page, 'graph-canvas');
   await controls(page).getByRole('button', { name: 'Fit the project' }).click();
-  await expect.poll(() => zoomOf(page)).toBeLessThan(0.6);
+  await expect.poll(() => zoomOf(page)).toBeLessThan(0.1);
+  const fit = await zoomOf(page);
   const branch = page.getByRole('button', { name: /^Loop: Client secret renewal/ });
   await branch.locator('.hit').dispatchEvent('dblclick');
-  await expect.poll(() => zoomOf(page)).toBeGreaterThan(0.6);
+  await expect.poll(() => zoomOf(page)).toBeGreaterThan(fit * 2);
   expect(await zoomOf(page)).toBeLessThanOrEqual(1.5);
   const area = await boxOf(graph(page));
   const hit = await boxOf(branch.locator('.hit'));
@@ -461,30 +462,44 @@ test('a press on an event card opens its loop at that act', async ({ page }) => 
   await expect(panel.locator('[aria-current="step"]')).toHaveCount(1);
 });
 
-test('a sideways drag keeps an event in its day, an upward drag moves the branch, and Reset layout restores both', async ({
+const centre = (box: { x: number; y: number; width: number; height: number }) => ({
+  x: box.x + box.width / 2,
+  y: box.y + box.height / 2,
+});
+async function drag(page: Page, from: { x: number; y: number }, dx: number, dy: number) {
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + dx, from.y + dy, { steps: 10 });
+  await page.mouse.up();
+}
+
+test('a sideways drag keeps an event in its day, an upward drag on its icon moves the branch, and Reset layout restores both', async ({
   page,
 }) => {
   await signIn(page, 'graph-cards');
   const branch = secretRenewal(page);
-  const { icon, card } = await firstCardOf(page, branch);
+  const { icon } = await firstCardOf(page, branch);
   const before = await boxOf(icon);
-  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(before.x + before.width / 2 + 300, before.y + before.height / 2, {
-    steps: 10,
-  });
-  await page.mouse.up();
+  const columns = await page
+    .getByTestId('time-axis')
+    .locator('.axis-day')
+    .evaluateAll((items) =>
+      items.map((item) => {
+        const box = item.getBoundingClientRect();
+        return { left: box.left, right: box.right };
+      }),
+    );
+  const column = columns.find(
+    (item) => item.left <= centre(before).x && centre(before).x < item.right,
+  )!;
+  await drag(page, centre(before), 600, 0);
   const after = await boxOf(icon);
-  // A day is 64 px at 100 %: the icon may move inside its day, never into the next one.
-  expect(Math.abs(after.x - before.x)).toBeLessThanOrEqual(64);
+  expect(centre(after).x).toBeGreaterThanOrEqual(column.left);
+  expect(centre(after).x).toBeLessThan(column.right);
   await expect(loopPanel(page)).toBeHidden();
 
   const line = await boxOf(branch.locator('.hit'));
-  const cardBox = await boxOf(card);
-  await page.mouse.move(cardBox.x + 20, cardBox.y + 30);
-  await page.mouse.down();
-  await page.mouse.move(cardBox.x + 20, cardBox.y - 30, { steps: 10 });
-  await page.mouse.up();
+  await drag(page, centre(after), 0, -40);
   await expect.poll(async () => (await boxOf(branch.locator('.hit'))).y).toBeLessThan(line.y - 10);
   const saved = () =>
     page.evaluate(() =>
@@ -499,6 +514,78 @@ test('a sideways drag keeps an event in its day, an upward drag moves the branch
   await reset.click();
   await expect(reset).toBeHidden();
   expect(await saved()).toHaveLength(0);
+});
+
+test('a dragged event never passes an earlier event of its loop on the same day', async ({
+  page,
+}) => {
+  await signIn(page, 'graph-cards');
+  const branch = page.getByRole('button', { name: /^Loop: Investor import sample/ });
+  await branch.focus();
+  const icons = branch.locator('.hit-dot');
+  const request = await boxOf(icons.nth(0)),
+    promise = await boxOf(icons.nth(1));
+  await drag(page, centre(promise), -600, 0);
+  await expect
+    .poll(async () => centre(await boxOf(icons.nth(1))).x)
+    .toBeGreaterThan(centre(request).x);
+  expect(centre(await boxOf(icons.nth(0))).x).toBeCloseTo(centre(request).x, 0);
+});
+
+test('a card drags on its own, keeps its place after a reload, and Reset layout puts it back', async ({
+  page,
+}) => {
+  await signIn(page, 'graph-cards');
+  const { icon, card } = await firstCardOf(page, secretRenewal(page));
+  const iconBefore = await boxOf(icon),
+    cardBefore = await boxOf(card);
+  await drag(page, { x: cardBefore.x + 30, y: cardBefore.y + 40 }, 80, -60);
+  const moved = await boxOf(card);
+  expect(moved.x - cardBefore.x).toBeCloseTo(80, -1);
+  expect(moved.y - cardBefore.y).toBeCloseTo(-60, -1);
+  expect(await boxOf(icon)).toEqual(iconBefore);
+  await expect(loopPanel(page)).toBeHidden();
+
+  await page.reload();
+  await expect(graph(page)).toHaveAttribute('data-ready', 'true');
+  await secretRenewal(page).focus();
+  const icon2 = await boxOf(icon),
+    card2 = await boxOf(card);
+  expect(card2.x - icon2.x).toBeCloseTo(moved.x - iconBefore.x, -1);
+  expect(card2.y - icon2.y).toBeCloseTo(moved.y - iconBefore.y, -1);
+  await controls(page).getByRole('button', { name: 'Reset layout' }).click();
+  await expect
+    .poll(async () => Math.round((await boxOf(card)).y - (await boxOf(icon)).y))
+    .toBe(Math.round(cardBefore.y - iconBefore.y));
+});
+
+test('the loop list jumps to a loop and shows only the chosen loops until Show all', async ({
+  page,
+}) => {
+  await signIn(page, 'graph-list');
+  const list = page.getByRole('complementary', { name: 'Loop list' });
+  await expect(list.getByRole('listitem')).toHaveCount(36);
+  const total = await branches(page).count();
+  const before = await zoomOf(page);
+  await list.getByRole('button', { name: /^Client secret renewal/ }).click();
+  await expect.poll(() => zoomOf(page)).not.toBe(before);
+  await expect(list.locator('li[aria-current="true"]')).toContainText('Client secret renewal');
+  const hit = await boxOf(secretRenewal(page).locator('.hit'));
+  const area = await boxOf(graph(page));
+  expect(hit.x + hit.width).toBeGreaterThan(area.x);
+  expect(hit.x).toBeLessThan(area.x + area.width);
+
+  await list.getByRole('button', { name: 'Show only Client secret renewal' }).click();
+  await expect(branches(page)).toHaveCount(1);
+  await list
+    .getByRole('button', { name: 'Show only CRS tax residency section with DealCloud sync' })
+    .click();
+  await expect(branches(page)).toHaveCount(7);
+  await list.getByRole('button', { name: 'Show all' }).click();
+  await expect(branches(page)).toHaveCount(total);
+
+  await controls(page).getByRole('button', { name: 'Loop list' }).click();
+  await expect(list).toBeHidden();
 });
 
 test('a promise split into tasks shows its gateways, its waiting note, its task panel and the indented list', async ({

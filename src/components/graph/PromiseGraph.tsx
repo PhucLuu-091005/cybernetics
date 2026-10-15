@@ -24,12 +24,10 @@ import type { MilestoneStatus } from '../../contracts/engine';
 import type { GraphContext } from '../../contracts/graph';
 import type { ActGlyph, GraphLayout } from '../../contracts/layout';
 import {
-  BASE_PX_PER_DAY,
   CARD,
   CARD_MIN_ZOOM,
   MAX_ZOOM,
   MIN_ZOOM,
-  createTimeScale,
   fitViewport,
   fitWidth,
   lodOf,
@@ -38,7 +36,6 @@ import {
   type Box,
   type LayoutOffsets,
   type Size,
-  type TimeScale,
   type Viewport,
 } from '../../lib/graph-layout';
 import { ActNode, ACT_NODE_SIZE, type ActNodeType } from './ActNode';
@@ -46,15 +43,22 @@ import { BranchEdge, type BranchEdgeType } from './BranchEdge';
 import { AxisMenu } from './AxisMenu';
 import { CanvasControls, type Preset } from './CanvasControls';
 import { CardNode, type CardInfo, type CardNodeType } from './CardNode';
-import type { DayWidths } from './day-width-store';
 import { GATEWAY_SIZE, GatewayNode, type GatewayNodeType } from './GatewayNode';
 import { LaneColumn } from './LaneColumn';
 import { LaneLabel, type LaneLabelNode } from './LaneLabel';
+import { LoopIndex, type IndexEntry } from './LoopIndex';
 import { MilestoneNode, MILESTONE_NODE, type MilestoneNodeType } from './MilestoneNode';
 import { Minimap } from './Minimap';
 import { TimeAxis } from './TimeAxis';
 import { TONE_COLOR, shortStamp } from './labels';
-import { GraphUiContext, loopKey, milestoneKey, type GraphUi } from './ui-context';
+import {
+  GraphUiContext,
+  loopKey,
+  milestoneKey,
+  type DragChange,
+  type DragTarget,
+  type GraphUi,
+} from './ui-context';
 
 const CURVE = 16,
   PAN_MARGIN = 400,
@@ -74,8 +78,9 @@ const DRAG_START_PX = 4;
 const NO_HALO: ReadonlySet<string> = new Set();
 const DASH = { solid: undefined, dashed: '7 5', dotted: '1.5 4' } as const;
 const NO_PAN = 'pg-no-pan:not(.react-flow__edge)';
-const daysFrom = (instant: string, days: number) =>
-  new Date(Date.parse(instant) + days * 86_400_000).toISOString();
+const LIST_KEY = 'promise-graph:loop-list',
+  // Below this screen width the list starts closed, so the canvas keeps its room.
+  LIST_MIN_SCREEN = 1100;
 
 export type PromiseGraphProps = {
   title: string;
@@ -93,40 +98,25 @@ export type PromiseGraphProps = {
   cards: ReadonlyMap<string, CardInfo>;
   offsets: LayoutOffsets;
   /** A drag in progress (`done` false) or finished; `kind` says what moves: one act in its day or the whole branch. */
-  onDrag(kind: 'acts' | 'loops', id: string, value: number, done: boolean): void;
+  onDrag(change: DragChange, done: boolean): void;
   onResetLayout: (() => void) | null;
   /** Day columns the user resized; see the time axis. */
-  dayWidths: DayWidths;
   onDayWidth(date: string, width: number | null, done: boolean): void;
   onResetDayWidths: (() => void) | null;
+  /** The loop list on the right of the canvas. */
+  index: {
+    entries: readonly IndexEntry[];
+    only: ReadonlySet<string>;
+    onToggleOnly(loopId: string): void;
+    onShowAll(): void;
+  };
   onSelectLoop(loopId: string, actId?: string): void;
   onSelectMilestone(milestoneId: string): void;
 };
 
-function Backdrop({
-  layout,
-  context,
-  T,
-  content,
-  scale,
-}: Pick<PromiseGraphProps, 'layout' | 'context' | 'T'> & { content: Box; scale: TimeScale }) {
-  const xT = scale.x(T);
-  const days: string[] = [];
-  for (let date = context.windowStart; date <= context.windowEnd;) {
-    days.push(date);
-    const next = new Date(`${date}T00:00:00Z`);
-    next.setUTCDate(next.getUTCDate() + 1);
-    date = next.toISOString().slice(0, 10);
-  }
-  const months: string[] = [];
-  for (
-    let [year, month] = context.windowStart.split('-').map(Number);
-    `${year}-${String(month).padStart(2, '0')}-01` <= context.windowEnd;
-  ) {
-    const first = `${year}-${String(month).padStart(2, '0')}-01`;
-    if (first > context.windowStart) months.push(first);
-    [year, month] = month === 12 ? [year + 1, 1] : [year, month + 1];
-  }
+function Backdrop({ layout, content }: Pick<PromiseGraphProps, 'layout'> & { content: Box }) {
+  const { xT, days } = layout;
+  const last = days.at(-1);
   const x0 = content.x0 - STRIPE_OVERHANG,
     width = content.x1 - content.x0 + STRIPE_OVERHANG * 2;
   return (
@@ -158,31 +148,27 @@ function Backdrop({
           fill={lane.order % 2 ? 'var(--stripe)' : 'transparent'}
         />
       ))}
-      {days.map((date) => (
+      {days.map((day, index) => (
         <line
-          key={date}
-          className="day-line"
-          x1={scale.dateStartX(date)}
+          key={day.date}
+          className={index > 0 && day.date.endsWith('-01') ? 'month-line' : 'day-line'}
+          x1={day.x}
           y1={0}
-          x2={scale.dateStartX(date)}
+          x2={day.x}
           y2={layout.height}
+          strokeDasharray={index === 0 ? '2 4' : undefined}
         />
       ))}
-      {[context.windowStart, ...months, context.windowEnd].map((date, index, all) => {
-        const end = index === all.length - 1,
-          x = end ? scale.dateEndX(date) : scale.dateStartX(date);
-        return (
-          <line
-            key={`${date}-${index}`}
-            x1={x}
-            y1={0}
-            x2={x}
-            y2={layout.height}
-            stroke="var(--rule-2)"
-            strokeDasharray={index === 0 || end ? '2 4' : undefined}
-          />
-        );
-      })}
+      {last && (
+        <line
+          x1={last.x + last.width}
+          y1={0}
+          x2={last.x + last.width}
+          y2={layout.height}
+          stroke="var(--rule-2)"
+          strokeDasharray="2 4"
+        />
+      )}
       {layout.connectors.map((connector) => (
         <g key={connector.id} className="handoff">
           <path
@@ -266,9 +252,9 @@ function Graph(props: PromiseGraphProps) {
     offsets,
     onDrag,
     onResetLayout,
-    dayWidths,
     onDayWidth,
     onResetDayWidths,
+    index,
     onSelectLoop,
     onSelectMilestone,
   } = props;
@@ -284,11 +270,21 @@ function Graph(props: PromiseGraphProps) {
     () => ({ x0: -CURVE, x1: layout.width + CURVE, y0: 0, y1: layout.height }),
     [layout],
   );
-  const scale = useMemo(
-    () => createTimeScale(context, BASE_PX_PER_DAY, dayWidths),
-    [context, dayWidths],
+  const { xT } = layout;
+  // x range of the days from `before` days before T to `after` days after it.
+  const daysAroundT = useCallback(
+    (before: number, after: number): [number, number] => {
+      const { days } = layout,
+        at = Math.max(
+          0,
+          days.findIndex((day) => xT >= day.x && xT < day.x + day.width),
+        );
+      const first = days[Math.max(0, at - before)],
+        last = days[Math.min(days.length - 1, at + after)];
+      return [first.x, last.x + last.width];
+    },
+    [layout, xT],
   );
-  const xT = useMemo(() => scale.x(T), [scale, T]);
   // Read at call time, so the handlers below never change with the size and never rebuild every node.
   const sizeNow = useCallback((): Size => {
     const box = wrapRef.current?.getBoundingClientRect();
@@ -348,13 +344,13 @@ function Graph(props: PromiseGraphProps) {
         preset === 'project'
           ? fitViewport(content, canvas)
           : preset === 'week'
-            ? fitWidth(scale.x(daysFrom(T, -4)), scale.x(daysFrom(T, 3)), layout.trunkY, canvas)
+            ? fitWidth(...daysAroundT(4, 3), layout.trunkY, canvas)
             : preset === 'month'
-              ? fitWidth(scale.x(daysFrom(T, -25)), scale.x(daysFrom(T, 5)), layout.trunkY, canvas)
+              ? fitWidth(...daysAroundT(25, 5), layout.trunkY, canvas)
               : zoomAround(current, preset, { x: canvas.width / 2, y: canvas.height / 2 });
       void flow.setViewport(view, { duration: 200 });
     },
-    [sizeNow, flow, content, scale, T, layout.trunkY],
+    [sizeNow, flow, content, daysAroundT, layout.trunkY],
   );
   // A second press during the 150 ms animation steps from the target, not from a zoom halfway there.
   const target = useRef<{ view: Viewport; until: number } | null>(null);
@@ -390,6 +386,50 @@ function Graph(props: PromiseGraphProps) {
     },
     [layout, sizeNow, flow],
   );
+
+  // The loop list: open by default where the canvas has room, remembered per browser.
+  const [listOpen, setListOpen] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  useEffect(() => {
+    let stored: string | null = null;
+    try {
+      stored = window.localStorage.getItem(LIST_KEY);
+    } catch {
+      // Blocked storage: fall back to the screen width.
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setListOpen(stored === null ? window.innerWidth >= LIST_MIN_SCREEN : stored === 'open');
+  }, []);
+  const toggleList = useCallback(() => {
+    setListOpen((value) => {
+      try {
+        window.localStorage.setItem(LIST_KEY, value ? 'closed' : 'open');
+      } catch {
+        // Blocked storage keeps the choice for this page view only.
+      }
+      return !value;
+    });
+  }, []);
+  // A loop hidden by "Show only" comes back first; the jump waits for the layout that holds it.
+  const pendingJump = useRef<string | null>(null);
+  const jump = useCallback(
+    (loopId: string) => {
+      setActiveId(loopId);
+      if (layout.branches.some((branch) => branch.loopId === loopId)) zoomToLoop(loopId);
+      else {
+        pendingJump.current = loopId;
+        index.onToggleOnly(loopId);
+      }
+    },
+    [layout, zoomToLoop, index],
+  );
+  useEffect(() => {
+    const loopId = pendingJump.current;
+    if (loopId && layout.branches.some((branch) => branch.loopId === loopId)) {
+      pendingJump.current = null;
+      zoomToLoop(loopId);
+    }
+  }, [layout, zoomToLoop]);
 
   const order = useMemo(
     () => [
@@ -444,7 +484,7 @@ function Graph(props: PromiseGraphProps) {
     offsetsRef.current = offsets;
   }, [offsets]);
   const startDrag = useCallback(
-    (event: PointerEvent, glyph: ActGlyph) => {
+    (event: PointerEvent, glyph: ActGlyph, target: DragTarget) => {
       if (event.button !== 0) return;
       event.stopPropagation();
       // On touch the canvas owns movement (pan and pinch); a tap still opens the loop.
@@ -454,43 +494,45 @@ function Graph(props: PromiseGraphProps) {
         y0 = event.clientY,
         dayWidth = glyph.dayEndX - glyph.dayStartX,
         fraction0 = (glyph.x - glyph.dayStartX) / dayWidth,
-        shift0 = offsetsRef.current.loops[glyph.loopId] ?? 0;
-      let axis: 'x' | 'y' | null = null,
-        last = 0;
-      const valueAt = (moveEvent: globalThis.PointerEvent) =>
-        axis === 'x'
-          ? Math.min(1, Math.max(0, fraction0 + (moveEvent.clientX - x0) / zoom / dayWidth))
-          : shift0 + (moveEvent.clientY - y0) / zoom;
-      const onMove = (moveEvent: globalThis.PointerEvent) => {
-        if (touch) {
-          if (Math.hypot(moveEvent.clientX - x0, moveEvent.clientY - y0) >= DRAG_START_PX)
-            axis = 'x';
-          return;
-        }
-        if (!axis) {
-          const dx = moveEvent.clientX - x0,
-            dy = moveEvent.clientY - y0;
+        shift0 = offsetsRef.current.loops[glyph.loopId] ?? 0,
+        card0 = offsetsRef.current.cards?.[glyph.id] ?? { dx: 0, dy: 0 };
+      // A card moves freely; an icon picks one axis: sideways inside its day, or the whole branch up or down.
+      let mode: 'card' | 'x' | 'y' | null = null,
+        last: DragChange | null = null;
+      const changeAt = (move: globalThis.PointerEvent): DragChange => {
+        const dx = (move.clientX - x0) / zoom,
+          dy = (move.clientY - y0) / zoom;
+        if (mode === 'card')
+          return { kind: 'cards', id: glyph.id, dx: card0.dx + dx, dy: card0.dy + dy };
+        if (mode === 'x')
+          return {
+            kind: 'acts',
+            id: glyph.id,
+            fraction: Math.min(1, Math.max(0, fraction0 + dx / dayWidth)),
+          };
+        return { kind: 'loops', id: glyph.loopId, shift: shift0 + dy };
+      };
+      const onMove = (move: globalThis.PointerEvent) => {
+        const dx = move.clientX - x0,
+          dy = move.clientY - y0;
+        if (!mode) {
           if (Math.hypot(dx, dy) < DRAG_START_PX) return;
-          axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+          mode = target === 'card' ? 'card' : Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
         }
-        last = valueAt(moveEvent);
-        onDrag(
-          axis === 'x' ? 'acts' : 'loops',
-          axis === 'x' ? glyph.id : glyph.loopId,
-          last,
-          false,
-        );
+        if (touch) return;
+        last = changeAt(move);
+        onDrag(last, false);
       };
       const onUp = () => {
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         window.removeEventListener('pointercancel', onUp);
-        if (!axis) {
+        if (!mode) {
           onSelectLoop(glyph.loopId, glyph.id);
           return;
         }
-        if (touch) return;
-        onDrag(axis === 'x' ? 'acts' : 'loops', axis === 'x' ? glyph.id : glyph.loopId, last, true);
+        if (touch || !last) return;
+        onDrag(last, true);
         // The browser still sends a click to the common ancestor; it must not open the loop.
         const swallow = (clickEvent: MouseEvent) => clickEvent.stopPropagation();
         window.addEventListener('click', swallow, { capture: true, once: true });
@@ -662,17 +704,16 @@ function Graph(props: PromiseGraphProps) {
   return (
     <GraphUiContext.Provider value={ui}>
       <div
-        className={`canvas-stage lod-${lod}${viewport.zoom < CARD_MIN_ZOOM ? ' cards-off' : ''}`}
+        className={`canvas-stage lod-${lod}${viewport.zoom < CARD_MIN_ZOOM ? ' cards-off' : ''}${listOpen ? ' list-open' : ''}`}
       >
         <div className="canvas-corner">
           <AxisMenu onResetWidths={onResetDayWidths} />
         </div>
         <div className="canvas-axis">
           <TimeAxis
-            context={context}
-            scale={scale}
+            days={layout.days}
+            xT={xT}
             onResize={onDayWidth}
-            T={T}
             tLabel={shortStamp(T, context.timeZone)}
             viewport={viewport}
             width={size.width}
@@ -719,7 +760,7 @@ function Graph(props: PromiseGraphProps) {
             proOptions={{ hideAttribution: true }}
           >
             <ViewportPortal>
-              <Backdrop layout={layout} context={context} T={T} content={content} scale={scale} />
+              <Backdrop layout={layout} content={content} />
             </ViewportPortal>
           </ReactFlow>
         </div>
@@ -742,7 +783,20 @@ function Graph(props: PromiseGraphProps) {
           fullscreenEnabled={fullscreenEnabled}
           onFullscreen={toggleFullscreen}
           onResetLayout={onResetLayout}
+          listOpen={listOpen}
+          onList={toggleList}
         />
+        {listOpen && (
+          <LoopIndex
+            entries={index.entries}
+            only={index.only}
+            activeId={activeId}
+            onJump={jump}
+            onToggleOnly={index.onToggleOnly}
+            onShowAll={index.onShowAll}
+            onClose={toggleList}
+          />
+        )}
       </div>
     </GraphUiContext.Provider>
   );

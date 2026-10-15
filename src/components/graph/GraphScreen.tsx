@@ -18,12 +18,21 @@ import type { EditTarget } from '../review/draft-edit';
 import { FilterBar } from './FilterBar';
 import { applyFilters, filtersToSearch, type GraphFilters } from './filters';
 import type { CardInfo } from './CardNode';
-import { ACT_LABEL, partyName, shortStamp, type Directory } from './labels';
+import { ACT_LABEL, loopColor, partyName, shortStamp, type Directory } from './labels';
+import type { IndexEntry } from './LoopIndex';
 import { readDayWidths, withDayWidth, writeDayWidths, type DayWidths } from './day-width-store';
-import { browserStore, hasOffsets, readOffsets, withOffset, writeOffsets } from './offset-store';
+import {
+  browserStore,
+  hasOffsets,
+  readOffsets,
+  withCardOffset,
+  withOffset,
+  writeOffsets,
+} from './offset-store';
+import type { DragChange } from './ui-context';
 import { actSource } from './source-link';
 import { Legend } from './Legend';
-import { LoopList } from './LoopList';
+import { LoopList, withTasksUnderParents } from './LoopList';
 import { LoopPanel, type LoopRelations, type RelatedLoop } from './LoopPanel';
 import { MilestonePanel } from './MilestonePanel';
 import { PromiseGraph } from './PromiseGraph';
@@ -130,10 +139,52 @@ export function GraphScreen({
     () => applyFilters(engine, filters, context.departments),
     [engine, filters, context.departments],
   );
-  const visibleLoops = useMemo(
+  const filteredLoops = useMemo(
     () => engine.loops.filter((loop) => visible.has(loop.loop.id)),
     [engine, visible],
   );
+  // "Show only" from the loop list; a promise keeps its tasks. Empty shows every filtered loop.
+  const [only, setOnly] = useState<ReadonlySet<string>>(() => new Set());
+  const visibleLoops = useMemo(
+    () =>
+      only.size
+        ? filteredLoops.filter(
+            (loop) =>
+              only.has(loop.loop.id) ||
+              (loop.loop.parentLoopId !== undefined && only.has(loop.loop.parentLoopId)),
+          )
+        : filteredLoops,
+    [filteredLoops, only],
+  );
+  const toggleOnly = useCallback(
+    (loopId: string) =>
+      setOnly((previous) => {
+        const next = new Set(previous);
+        if (!next.delete(loopId)) next.add(loopId);
+        return next;
+      }),
+    [],
+  );
+  const showAll = useCallback(() => setOnly(new Set()), []);
+  const indexEntries: IndexEntry[] = useMemo(() => {
+    const present = new Set(filteredLoops.map((loop) => loop.loop.id));
+    const startOf = (loop: DerivedLoop) => loop.acts[0]?.occurredAt ?? '9999';
+    const ordered = [...filteredLoops].sort(
+      (a, b) => startOf(a).localeCompare(startOf(b)) || a.loop.title.localeCompare(b.loop.title),
+    );
+    return withTasksUnderParents(ordered).map((loop) => ({
+      id: loop.loop.id,
+      title: loop.loop.title,
+      department:
+        context.departments.find((item) => item.id === loop.loop.performerDepartmentId)?.name ??
+        'Unknown',
+      color: loopColor(loop),
+      parentId:
+        loop.loop.parentLoopId !== undefined && present.has(loop.loop.parentLoopId)
+          ? loop.loop.parentLoopId
+          : null,
+    }));
+  }, [filteredLoops, context.departments]);
   const baseLayout = useMemo(
     () =>
       layoutPromiseGraph(
@@ -148,11 +199,22 @@ export function GraphScreen({
     [baseLayout, offsets],
   );
   const onDrag = useCallback(
-    (kind: 'acts' | 'loops', id: string, value: number, done: boolean) => {
-      const range = kind === 'loops' ? loopShiftRange(baseLayout, id, BASE_ROW_HEIGHT) : null;
-      const clamped = range ? Math.min(range[1], Math.max(range[0], value)) : value;
+    (change: DragChange, done: boolean) => {
+      const exact = (value: number) => Math.round(value * 1000) / 1000;
       setOffsets((previous) => {
-        const next = withOffset(previous, kind, id, Math.round(clamped * 1000) / 1000);
+        let next: LayoutOffsets;
+        if (change.kind === 'cards')
+          next = withCardOffset(previous, change.id, {
+            dx: exact(change.dx),
+            dy: exact(change.dy),
+          });
+        else if (change.kind === 'acts')
+          next = withOffset(previous, 'acts', change.id, exact(change.fraction));
+        else {
+          const range = loopShiftRange(baseLayout, change.id, BASE_ROW_HEIGHT);
+          const shift = range ? Math.min(range[1], Math.max(range[0], change.shift)) : change.shift;
+          next = withOffset(previous, 'loops', change.id, exact(shift));
+        }
         if (done) writeOffsets(browserStore(), projectId, next);
         return next;
       });
@@ -404,9 +466,9 @@ export function GraphScreen({
               offsets={offsets}
               onDrag={onDrag}
               onResetLayout={hasOffsets(offsets) ? resetLayout : null}
-              dayWidths={dayWidths}
               onDayWidth={onDayWidth}
               onResetDayWidths={Object.keys(dayWidths).length ? resetDayWidths : null}
+              index={{ entries: indexEntries, only, onToggleOnly: toggleOnly, onShowAll: showAll }}
               onSelectLoop={selectLoop}
               onSelectMilestone={selectMilestone}
               stageRef={stageRef}

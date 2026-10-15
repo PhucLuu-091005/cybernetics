@@ -23,7 +23,7 @@ import {
   ACT_LABEL,
   BREAKDOWN_LABEL,
   STATE_COLOR,
-  TONE_COLOR,
+  loopColor,
   dueLabel,
   partyDetail,
   partyName,
@@ -111,16 +111,6 @@ function useEvidence(
 function sourceName(evidence: Evidence): string | null {
   const app = sourceApp(evidence.source, evidence.permalink);
   return app === 'agent' || app === 'paste' ? null : SOURCE_APP_NAME[app];
-}
-
-function loopTone(loop: DerivedLoop): string {
-  if (loop.breakdowns.some((item) => item.severity === 'broken')) return TONE_COLOR.red;
-  if (loop.breakdowns.length || loop.dueSoon) return TONE_COLOR.amber;
-  return loop.state === 'closed'
-    ? TONE_COLOR.green
-    : loop.state === 'declined' || loop.state === 'cancelled'
-      ? TONE_COLOR.gray
-      : TONE_COLOR.blue;
 }
 
 function StepEditor({
@@ -243,7 +233,7 @@ export function LoopPanel({
     if (item.top < box.top) body.current.scrollTop += item.top - box.top - 8;
     else if (item.bottom > box.bottom) body.current.scrollTop += item.bottom - box.bottom + 8;
   }, [currentActIndex]);
-  const tone = loopTone(loop);
+  const tone = loopColor(loop);
   const milestone = milestones.find((item) => item.id === loop.loop.milestoneId);
   const changed =
     loop.due !== null && JSON.stringify(loop.due) !== JSON.stringify(loop.originalDue);
