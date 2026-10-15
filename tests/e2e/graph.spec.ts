@@ -537,7 +537,7 @@ test('a cite to a step after the As-of time is grey and not a button', async ({ 
   await expect(card.getByRole('button', { name: 'Open step 3' })).toHaveCount(0);
   await expect(card.locator('.note-cite.off', { hasText: '3' })).toHaveAttribute(
     'title',
-    /not on the graph/,
+    'This step is not on the graph in this view',
   );
 });
 

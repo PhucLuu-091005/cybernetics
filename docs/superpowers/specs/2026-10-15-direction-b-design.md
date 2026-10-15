@@ -68,7 +68,7 @@ A note may cite a step inline with `[act:<lowercase uuid>]`. The UI shows each m
 
 - **Graph, above the coverage line:** a "Notes" card. It shows the newest note (last in the array) clamped to 3 lines, a "Show all notes (n)" toggle, and the label "Interpretation, not evidence". The card is absent when the view has no notes.
 - **Loop panel:** a "Notes" section lists every note that cites a step of this loop.
-- A click on a numbered link opens that loop's panel at that step (`selectLoop(loopId, actId)`). If the step is after the As-of time, the link is grey with the tooltip "Not yet at this date".
+- A click on a numbered link opens that loop's panel at that step (`selectLoop(loopId, actId)`). A numbered link whose step is in no loop of the view is grey, not a button, with the tooltip "This step is not on the graph in this view". That covers a step after the As-of time and a cite that is not a loop step.
 - A change set shows its own notes, so a reviewer reads an agent's note before approving it.
 
 ### 4.3 Seed
