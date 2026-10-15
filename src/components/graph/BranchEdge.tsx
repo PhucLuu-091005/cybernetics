@@ -136,6 +136,12 @@ export function BranchEdge({ data }: EdgeProps<BranchEdgeType>) {
       >
         {branch.title}
       </text>
+      {branch.tasks && (
+        <text className="br-tasks" x={branch.xStart + 8} y={y + 30} fontSize="10.5">
+          {branch.tasks.count} {branch.tasks.count === 1 ? 'task' : 'tasks'} · {branch.tasks.done}{' '}
+          done
+        </text>
+      )}
       <g
         className="br"
         role="button"

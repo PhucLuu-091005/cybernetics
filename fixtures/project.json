@@ -21,10 +21,12 @@
       }
     ],
     "sourceLabels": [
+      "#fundline-crs",
       "#larkspur-it",
       "#larkspur-onboarding",
       "gmail:aml-checklist",
       "gmail:consent-capture",
+      "gmail:crs-section",
       "gmail:document-redaction",
       "gmail:escalation-dynamics",
       "gmail:escalation-go-live",
@@ -36,6 +38,9 @@
       "gmail:side-letter-mapping",
       "gmail:sow-signature",
       "gmail:subscription-documents",
+      "linear:PG-201",
+      "linear:PG-202",
+      "linear:PG-203",
       "notion:plan",
       "notion:sow"
     ],

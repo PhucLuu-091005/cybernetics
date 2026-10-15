@@ -178,7 +178,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('graph reads', () => {
       ids.push(...page.loops.map((loop) => loop.loop.id));
       cursor = page.nextCursor;
     } while (cursor);
-    expect(new Set(ids).size).toBe(30);
+    expect(new Set(ids).size).toBe(36);
   });
 
   it('a graph view is schema-valid and matches the fixture gold at T', async () => {
@@ -247,6 +247,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('graph reads', () => {
     });
     expect(promised.loops.map((loop) => loop.loop.id).sort()).toEqual(
       [
+        uuidFromKey('loop:crs'),
+        uuidFromKey('loop:crs-country-field'),
         uuidFromKey('loop:go-live'),
         uuidFromKey('loop:crm-sync'),
         uuidFromKey('loop:incident-report'),

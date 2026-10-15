@@ -121,6 +121,7 @@ export function ProposalWorkspace({
       <LoopEditor
         key={`new-loop:${saved}`}
         loop={null}
+        loops={loops}
         people={people}
         departments={departments}
         milestones={milestones}
@@ -170,6 +171,7 @@ export function ProposalWorkspace({
       <LoopEditor
         key={`${change.key}:${saved}`}
         loop={loop}
+        loops={loops}
         people={people}
         departments={departments}
         milestones={milestones}

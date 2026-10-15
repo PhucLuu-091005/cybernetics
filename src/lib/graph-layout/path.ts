@@ -2,15 +2,20 @@
 export const CURVE = 16;
 const num = (value: number) => String(Math.round(value * 100) / 100);
 
+/** A branch line from xStart to xEnd at y. It forks from forkY (none when forkY is y) and merges into mergeY. */
 export function branchPath(
   xStart: number,
   xEnd: number,
   y: number,
-  trunkY: number,
+  forkY: number,
   merge: boolean,
+  mergeY = forkY,
 ): string {
-  const fork = `M${num(xStart - CURVE)} ${num(trunkY)} C${num(xStart - 4)} ${num(trunkY)} ${num(xStart - 12)} ${num(y)} ${num(xStart)} ${num(y)} H${num(xEnd)}`;
+  const fork =
+    forkY === y
+      ? `M${num(xStart)} ${num(y)} H${num(xEnd)}`
+      : `M${num(xStart - CURVE)} ${num(forkY)} C${num(xStart - 4)} ${num(forkY)} ${num(xStart - 12)} ${num(y)} ${num(xStart)} ${num(y)} H${num(xEnd)}`;
   return merge
-    ? `${fork} C${num(xEnd + 12)} ${num(y)} ${num(xEnd + 4)} ${num(trunkY)} ${num(xEnd + CURVE)} ${num(trunkY)}`
+    ? `${fork} C${num(xEnd + 12)} ${num(y)} ${num(xEnd + 4)} ${num(mergeY)} ${num(xEnd + CURVE)} ${num(mergeY)}`
     : fork;
 }

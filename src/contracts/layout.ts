@@ -64,6 +64,36 @@ export const BranchLayoutSchema = z.strictObject({
   breakdownMarkers: z.array(z.strictObject({ x: coordinate, y: coordinate, label: TextSchema })),
   title: TextSchema,
   accessibleName: TextSchema,
+  /** On a task: what the handoff drawing needs. `wait` and `early` come from times, the rest from positions. */
+  task: z
+    .strictObject({
+      parentLoopId: IdSchema,
+      afterLoopIds: z.array(IdSchema),
+      closed: z.boolean(),
+      wait: TextSchema.nullable(),
+      early: z.boolean(),
+    })
+    .optional(),
+  /** On a loop with tasks: how many there are and how many are closed. */
+  tasks: z.strictObject({ count: RevisionSchema, done: RevisionSchema }).optional(),
+});
+export const GatewayLayoutSchema = z.strictObject({
+  id: z.string().min(1),
+  kind: z.enum(['split', 'handoff', 'join', 'return']),
+  loopId: IdSchema,
+  x: coordinate,
+  y: coordinate,
+  /** A handoff from a task that is still open: the work has not moved yet. */
+  pending: z.boolean(),
+  accessibleName: TextSchema,
+});
+export const ConnectorLayoutSchema = z.strictObject({
+  id: z.string().min(1),
+  path: z.string(),
+  tone: z.enum(['green', 'blue', 'red', 'amber', 'gray']),
+  style: z.enum(['solid', 'dotted', 'dashed']),
+  /** A waiting or early-start note, drawn at (x, y). Display only; the engine does not see it. */
+  note: z.strictObject({ x: coordinate, y: coordinate, text: TextSchema }).nullable(),
 });
 export const MilestoneLayoutSchema = z.strictObject({
   id: IdSchema,
@@ -83,6 +113,8 @@ export const GraphLayoutSchema = z.strictObject({
   lanes: z.array(LaneLayoutSchema),
   branches: z.array(BranchLayoutSchema),
   milestones: z.array(MilestoneLayoutSchema),
+  gateways: z.array(GatewayLayoutSchema),
+  connectors: z.array(ConnectorLayoutSchema),
   zoomLevel: z.enum(['milestones', 'branches', 'detail']),
   navigation: z.strictObject({ milestoneIds: z.array(IdSchema), loopIds: z.array(IdSchema) }),
 });
@@ -94,4 +126,6 @@ export type ActGlyph = z.infer<typeof ActGlyphSchema>;
 export type BranchSegment = z.infer<typeof BranchSegmentSchema>;
 export type BranchLayout = z.infer<typeof BranchLayoutSchema>;
 export type MilestoneLayout = z.infer<typeof MilestoneLayoutSchema>;
+export type GatewayLayout = z.infer<typeof GatewayLayoutSchema>;
+export type ConnectorLayout = z.infer<typeof ConnectorLayoutSchema>;
 export type GraphLayout = z.infer<typeof GraphLayoutSchema>;

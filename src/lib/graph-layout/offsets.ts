@@ -1,4 +1,5 @@
 import type { BranchLayout, GraphLayout } from '../../contracts/layout';
+import { linkTasks } from './handoffs';
 import { branchPath } from './path';
 
 export type LayoutOffsets = {
@@ -79,7 +80,7 @@ export function applyLayoutOffsets(
       path: branchPath(xStart, xEnd, y, layout.trunkY, branch.endKind === 'merge'),
     };
   });
-  return changed ? { ...layout, branches } : layout;
+  return changed ? linkTasks({ ...layout, branches }) : layout;
 }
 
 /** The vertical shift range that keeps a branch line and its card shelves inside the lane. */

@@ -39,14 +39,24 @@
         "order": 1
       },
       {
-        "name": "Engineering",
+        "name": "Solutions Engineering",
         "side": "vendor",
         "order": 2
       },
       {
-        "name": "Customer Success",
+        "name": "Engineering",
         "side": "vendor",
         "order": 3
+      },
+      {
+        "name": "Digitization QA",
+        "side": "vendor",
+        "order": 4
+      },
+      {
+        "name": "Customer Success",
+        "side": "vendor",
+        "order": 5
       },
       {
         "name": "Fund Operations",
@@ -85,6 +95,20 @@
         "department": "Engineering",
         "role": "Integration engineer",
         "email": "quang.nguyen@fundline.example"
+      },
+      {
+        "name": "Khoa Lê",
+        "side": "vendor",
+        "department": "Solutions Engineering",
+        "role": "Solutions engineer",
+        "email": "khoa.le@fundline.example"
+      },
+      {
+        "name": "Hà Đỗ",
+        "side": "vendor",
+        "department": "Digitization QA",
+        "role": "Digitization QA analyst",
+        "email": "ha.do@fundline.example"
       },
       {
         "name": "Daniel Reyes",
@@ -1859,6 +1883,281 @@
         "state": "closed",
         "breakdowns": []
       }
+    },
+    {
+      "key": "crs",
+      "title": "CRS tax residency section with DealCloud sync",
+      "customer": "Sarah Kim",
+      "performer": "Minh Trần",
+      "action": "add a CRS tax residency section to the Fund III subscription form and sync it to DealCloud",
+      "milestone": "Go-live and first close",
+      "expect": {
+        "state": "promised",
+        "breakdowns": []
+      },
+      "events": [
+        {
+          "date": "2026-09-14",
+          "person": "Sarah Kim",
+          "kind": "request",
+          "quote": "Please add a CRS tax residency section to the Fund III subscription form and sync the answers to DealCloud.",
+          "due": null,
+          "hedged": false,
+          "channel": "gmail:crs-section",
+          "before": "Hi Minh, our fund counsel flagged CRS reporting for the non-US LPs.",
+          "after": "The IR team needs the data in DealCloud for the year-end filing."
+        },
+        {
+          "date": "2026-09-15",
+          "person": "Minh Trần",
+          "kind": "promise",
+          "quote": "We will add the CRS section and the DealCloud sync by 16 October.",
+          "due": "2026-10-16",
+          "hedged": false,
+          "channel": "gmail:crs-section",
+          "before": "Hi Sarah, thanks for the heads-up.",
+          "after": "Lan will analyse the rules first, then Solutions Engineering and Engineering build it."
+        }
+      ]
+    },
+    {
+      "key": "crs-analysis",
+      "title": "Analyse the CRS and FATCA rules for the form",
+      "customer": "Minh Trần",
+      "performer": "Lan Phạm",
+      "action": "analyse the CRS and FATCA rules and list the form fields",
+      "parent": "crs",
+      "expect": {
+        "state": "closed",
+        "breakdowns": []
+      },
+      "events": [
+        {
+          "date": "2026-09-15",
+          "person": "Minh Trần",
+          "kind": "request",
+          "quote": "Lan, please analyse the CRS and FATCA rules and list the fields the form needs.",
+          "due": null,
+          "hedged": false,
+          "channel": "#fundline-crs",
+          "before": "Larkspur asked for a CRS section in the Fund III form.",
+          "after": "Sarah needs it before the first close."
+        },
+        {
+          "date": "2026-09-15",
+          "person": "Lan Phạm",
+          "kind": "promise",
+          "quote": "I will send the CRS field analysis by 22 September.",
+          "due": "2026-09-22",
+          "hedged": false,
+          "channel": "#fundline-crs",
+          "before": "On it.",
+          "after": "I will check the OECD guidance and the Hollis Law memo."
+        },
+        {
+          "date": "2026-09-21",
+          "person": "Lan Phạm",
+          "kind": "report_done",
+          "quote": "Done: the CRS analysis with the field list is in the ticket.",
+          "due": null,
+          "hedged": false,
+          "channel": "#fundline-crs",
+          "before": "Analysis is ready.",
+          "after": "Solutions Engineering and Engineering can start from it."
+        },
+        {
+          "date": "2026-09-22",
+          "person": "Minh Trần",
+          "kind": "accept",
+          "quote": "Thanks Lan, the analysis works for us.",
+          "due": null,
+          "hedged": false,
+          "channel": "#fundline-crs",
+          "before": "Read it this morning.",
+          "after": "Please hand it off to the build teams."
+        }
+      ]
+    },
+    {
+      "key": "crs-form-logic",
+      "title": "PG-201 CRS form logic",
+      "customer": "Lan Phạm",
+      "performer": "Khoa Lê",
+      "action": "build the CRS show and hide logic in the subscription form",
+      "parent": "crs",
+      "after": [
+        "crs-analysis"
+      ],
+      "expect": {
+        "state": "closed",
+        "breakdowns": []
+      },
+      "events": [
+        {
+          "date": "2026-09-23",
+          "person": "Lan Phạm",
+          "kind": "request",
+          "quote": "Please build the CRS show and hide logic from the analysis.",
+          "due": null,
+          "hedged": false,
+          "channel": "linear:PG-201",
+          "before": "Field list and rules are attached to this issue.",
+          "after": "Only non-US investors see the section."
+        },
+        {
+          "date": "2026-09-23",
+          "person": "Khoa Lê",
+          "kind": "promise",
+          "quote": "I will ship the CRS form logic by 30 September.",
+          "due": "2026-09-30",
+          "hedged": false,
+          "channel": "linear:PG-201",
+          "before": "Picked this up.",
+          "after": "I will reuse the FATCA pattern from Fund II."
+        },
+        {
+          "date": "2026-09-29",
+          "person": "Khoa Lê",
+          "kind": "report_done",
+          "quote": "Shipped: the CRS logic is live on staging.",
+          "due": null,
+          "hedged": false,
+          "channel": "linear:PG-201",
+          "before": "Merged to staging.",
+          "after": "Test investor profiles are in the issue."
+        },
+        {
+          "date": "2026-09-30",
+          "person": "Lan Phạm",
+          "kind": "accept",
+          "quote": "Checked on staging, it matches the analysis.",
+          "due": null,
+          "hedged": false,
+          "channel": "linear:PG-201",
+          "before": "Ran the six test profiles.",
+          "after": "Closing this one."
+        }
+      ]
+    },
+    {
+      "key": "crs-dealcloud",
+      "title": "PG-202 DealCloud mapping for CRS fields",
+      "customer": "Lan Phạm",
+      "performer": "Khoa Lê",
+      "action": "map the CRS fields to DealCloud",
+      "parent": "crs",
+      "after": [
+        "crs-analysis"
+      ],
+      "expect": {
+        "state": "closed",
+        "breakdowns": []
+      },
+      "events": [
+        {
+          "date": "2026-09-28",
+          "person": "Lan Phạm",
+          "kind": "request",
+          "quote": "Please map the CRS fields to DealCloud.",
+          "due": null,
+          "hedged": false,
+          "channel": "linear:PG-202",
+          "before": "The IR team confirmed the DealCloud field names today.",
+          "after": "Mapping sheet is attached."
+        },
+        {
+          "date": "2026-09-28",
+          "person": "Khoa Lê",
+          "kind": "promise",
+          "quote": "I will finish the DealCloud mapping by 2 October.",
+          "due": "2026-10-02",
+          "hedged": false,
+          "channel": "linear:PG-202",
+          "before": "Thanks for the sheet.",
+          "after": "I need the sandbox key from Larkspur IT."
+        },
+        {
+          "date": "2026-10-02",
+          "person": "Khoa Lê",
+          "kind": "report_done",
+          "quote": "Done: the CRS fields now sync to DealCloud.",
+          "due": null,
+          "hedged": false,
+          "channel": "linear:PG-202",
+          "before": "Sync ran on the sandbox.",
+          "after": "Field history is kept."
+        },
+        {
+          "date": "2026-10-02",
+          "person": "Lan Phạm",
+          "kind": "accept",
+          "quote": "Confirmed in DealCloud, the values match.",
+          "due": null,
+          "hedged": false,
+          "channel": "linear:PG-202",
+          "before": "Checked three investors.",
+          "after": "Good to go."
+        }
+      ]
+    },
+    {
+      "key": "crs-country-field",
+      "title": "PG-203 Country list field type",
+      "customer": "Lan Phạm",
+      "performer": "Quang Nguyễn",
+      "action": "add a multi-select country list field type",
+      "parent": "crs",
+      "after": [
+        "crs-analysis"
+      ],
+      "expect": {
+        "state": "promised",
+        "breakdowns": [
+          "silent_overdue"
+        ]
+      },
+      "events": [
+        {
+          "date": "2026-09-24",
+          "person": "Lan Phạm",
+          "kind": "request",
+          "quote": "We need a multi-select country list field for the CRS tax residencies.",
+          "due": null,
+          "hedged": false,
+          "channel": "linear:PG-203",
+          "before": "An investor can be tax resident in more than one country.",
+          "after": "The list must follow ISO 3166."
+        },
+        {
+          "date": "2026-09-24",
+          "person": "Quang Nguyễn",
+          "kind": "promise",
+          "quote": "I will add the country list field type by 6 October.",
+          "due": "2026-10-06",
+          "hedged": false,
+          "channel": "linear:PG-203",
+          "before": "Makes sense.",
+          "after": "It touches the form engine, so it needs a review."
+        }
+      ]
+    },
+    {
+      "key": "crs-qa",
+      "title": "Test the CRS section end to end",
+      "customer": "Minh Trần",
+      "performer": "Hà Đỗ",
+      "action": "test the CRS section end to end before launch",
+      "parent": "crs",
+      "after": [
+        "crs-form-logic",
+        "crs-dealcloud",
+        "crs-country-field"
+      ],
+      "expect": {
+        "state": null,
+        "breakdowns": []
+      },
+      "events": []
     }
   ],
   "nonacts": [

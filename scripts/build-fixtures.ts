@@ -46,8 +46,13 @@ interface StoryLoop {
   customer: string;
   performer: string;
   action: string;
-  milestone: string;
-  expect: { state: LoopState; breakdowns: BreakdownType[] };
+  /** Top-level loops only; a task takes its milestone from its parent. */
+  milestone?: string;
+  /** Key of the top-level loop whose work this task carries. */
+  parent?: string;
+  /** Keys of sibling tasks that hand off to this one (Linear "blocked by"). */
+  after?: string[];
+  expect: { state: LoopState | null; breakdowns: BreakdownType[] };
   events: StoryEvent[];
 }
 interface NonActSource {
@@ -229,6 +234,7 @@ const defaultTime: Record<ActType, string> = {
 const slackChannels: Record<string, string> = {
   '#larkspur-onboarding': 'C-ONBOARDING',
   '#larkspur-it': 'C-IT',
+  '#fundline-crs': 'C-CRS',
 };
 const slug = (value: string) =>
   value
@@ -399,7 +405,9 @@ function buildProject(
       customer: party(loop.customer),
       performer: party(loop.performer),
       performerDepartmentId: departmentOf(performer.department),
-      milestoneId: milestoneOf(loop.milestone),
+      milestoneId: loop.milestone ? milestoneOf(loop.milestone) : null,
+      ...(loop.parent ? { parentLoopId: loopId(loop.parent) } : {}),
+      ...(loop.after?.length ? { afterLoopIds: loop.after.map(loopId) } : {}),
     };
   });
   for (const item of nonacts) {
@@ -463,6 +471,10 @@ function buildProject(
       if (previous && kind === 'gmail') title = `Re: ${draft.title}`;
       if (kind === 'gmail')
         permalink = `https://mail.google.com/mail/u/0/#all/fundline-${channelName}-${String(sequence).padStart(3, '0')}`;
+      if (kind === 'linear') {
+        permalink = `https://linear.app/fundline/issue/${channelName}`;
+        title = `${channelName}: ${draft.title}`;
+      }
       lastInThread.set(draft.channel, externalId);
     }
     if (externalIds.has(externalId)) fail(`Duplicate external ID ${externalId}`);
@@ -475,7 +487,7 @@ function buildProject(
       occurredAt: draft.occurredAt,
       author: alias(draft.person, kind === 'slack'),
       recipients:
-        kind === 'slack' || kind === 'notion'
+        kind === 'slack' || kind === 'notion' || kind === 'linear'
           ? []
           : draft.recipients.map((name) => alias(name, false)),
       title,

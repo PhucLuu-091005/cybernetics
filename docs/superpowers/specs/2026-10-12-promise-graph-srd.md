@@ -98,7 +98,7 @@ Scopes: `project:read`, `records:import`, `graph:propose`, `graph:merge`, `escal
 - Record: identity `(project, source, externalId)`; current version and withdrawal status.
 - RecordVersion: immutable normalized body, digest, occurred time, author/recipient aliases, title, thread/parent identifiers, quoted ranges, attachment names, permalink and provenance. A graph act references a specific version and quote offsets, never a mutable latest message.
 - Act: the speech act in section 5; actor/parties reference snapshot people, action, due date/precision, hedged flag, exact citation and optional loop ID. Origin is `human` or `agent`; confidence is advisory only.
-- Loop: title, customer, performer, performer department and milestone. States/breakdowns are derived, not stored conclusions.
+- Loop: title, customer, performer, performer department and milestone. States/breakdowns are derived, not stored conclusions. A task (revised 14 October 2026) is a loop with `parentLoopId`, the top-level loop whose work it carries, one level deep and without a milestone; `afterLoopIds` names sibling tasks that hand off to it (Linear "blocked by"). Both keys stay absent on a top-level loop.
 - Record review decision: `(recordVersionId, included | ignored, reason)`, stored in the snapshot. Included requires at least one visible cited act; ignored requires a reason and no visible acts for that version. A version with no decision at main is pending.
 - Annotation: optional human/agent analysis text with cited act IDs, stored in the snapshot. Clearly label it as interpretation.
 - Escalation/Analysis: complaint, claims, cited supporting/contradicting acts, answer text and immutable revisions; separate from graph commits, pinned to the graph commit and evidence revision used.
@@ -330,6 +330,14 @@ The graph is a canvas panel with geometric zoom from 10 % to 400 %. The layout u
   - Left and right arrows move between the acts of the selected branch.
   - Esc closes the panel.
   - Each graph element has an accessible name, for example "Loop: CRM sync scope, Engineering, ambiguous promise".
+
+### 7.3a Tasks and handoffs (revised 14 October 2026)
+
+- Every task sits in the lane of its own performer department.
+- Gateways (a diamond with an icon) mark where work changes hands: split on the parent line, where tasks without predecessors fork off; handoff at the end of a task with successors, with connectors straight to the successors' lanes; join in front of a task that waits for two or more predecessors; return on the parent line, where a closed task without successors comes back. A handoff from an open task is drawn pending.
+- A connector notes a wait longer than one business day ("waited 4 business days", "waiting for PG-203 …") and an early start ("started before handoff"). The notes are display only; the engine and its breakdowns never see them.
+- A loop with tasks shows "N tasks · K done" under its title. The loop panel lists the tasks by department, and a task's panel shows "Part of" and "After". The list view puts tasks under their parent.
+- Selecting a promise or a task keeps the whole family at full strength.
 
 ### 7.4 Loop panel
 

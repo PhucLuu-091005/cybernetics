@@ -37,7 +37,10 @@ describe('graph filters', () => {
     const filters = parseFilters(new URLSearchParams(query));
     expect(filters.departmentIds).toEqual([dept('Customer Success'), dept('Engineering')]);
     expect(filters.breakdown).toBe('silent_overdue');
-    expect(titles(visible(query))).toEqual(['Sync incident report']);
+    expect(titles(visible(query))).toEqual([
+      'PG-203 Country list field type',
+      'Sync incident report',
+    ]);
     expect(
       titles(
         visible(
@@ -56,7 +59,7 @@ describe('graph filters', () => {
     expect(titles(visible('q=permission'))).toEqual(['Permission matrix']);
   });
 
-  it('keeps all 30 loops when no filter is set', () => {
+  it('keeps all 36 loops when no filter is set', () => {
     const filters = parseFilters(new URLSearchParams(''));
     expect(filters).toEqual({
       side: null,
@@ -69,8 +72,8 @@ describe('graph filters', () => {
       loopId: null,
       escalationId: null,
     });
-    expect(visible('').size).toBe(30);
-    expect(engine.loops).toHaveLength(30);
+    expect(visible('').size).toBe(36);
+    expect(engine.loops).toHaveLength(36);
   });
 
   it('filters by side, state and milestone', () => {
@@ -98,7 +101,7 @@ describe('graph filters', () => {
     const escalationId = '6f1c2a8e-4b1d-4c3a-9e2f-0a1b2c3d4e5f';
     const filters = parseFilters(new URLSearchParams(`escalation=${escalationId}`));
     expect(filters.escalationId).toBe(escalationId);
-    expect(applyFilters(engine, filters, departments).size).toBe(30);
+    expect(applyFilters(engine, filters, departments).size).toBe(36);
     const goLive = engine.loops.find((item) => item.loop.title === 'Go-live date')!;
     const dynamics = engine.loops.find((item) => item.loop.title === 'Dynamics CRM sync scope')!;
     const cited = citedLoops(engine, [
