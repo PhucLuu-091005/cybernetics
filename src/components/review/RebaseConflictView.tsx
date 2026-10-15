@@ -159,8 +159,8 @@ export function RebaseConflictView({ projectId, preview, names, kept }: Props) {
       )}
       {preview.conflicts.length === 0 && (
         <p style={{ fontSize: 13 }}>
-          No entity changed on both sides. Applying moves the draft onto main{' '}
-          {preview.mainCommitId.slice(0, 7)} and raises its revision.
+          No item changed on both sides. Applying moves the change set onto the latest approved
+          graph.
         </p>
       )}
       {parsed.map(({ conflict, choice, replacement }) => {

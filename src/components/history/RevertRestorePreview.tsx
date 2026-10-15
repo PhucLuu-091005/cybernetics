@@ -218,8 +218,8 @@ export function RevertRestorePreview({
                   <thead>
                     <tr>
                       <th>Entity</th>
-                      <th>Main now</th>
-                      <th>After revert</th>
+                      <th>Approved graph now</th>
+                      <th>After undo</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -260,7 +260,7 @@ export function RevertRestorePreview({
                 {preview.mainCommitId.slice(0, 7)}.{' '}
                 {preview.diff.changes.length
                   ? 'It replaces later interpretation:'
-                  : 'Main already equals this snapshot, so the restore changes no entity.'}
+                  : 'The approved graph already matches this version, so going back changes nothing.'}
               </p>
               <ul className="plain-list" data-testid="removed-later">
                 {preview.diff.changes.map((change) => {

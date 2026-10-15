@@ -213,8 +213,8 @@ export function AnswerDraft({
       </p>
       <p className="faint" style={{ fontSize: 12 }}>
         {stale
-          ? `Approval needs current pinned inputs. Ask the agent for a new analysis revision on ${basis.mainCommitId.slice(0, 7)} first. The app never sends the answer.`
-          : 'Approval records your name, the time and the content hash. A new analysis revision clears it. The app never sends the answer.'}
+          ? `Approval needs current pinned inputs. Ask the agent for a new analysis on ${basis.mainCommitId.slice(0, 7)} first. The app never sends the answer.`
+          : 'Approval records your name, the time and the content hash. A new analysis clears it. The app never sends the answer.'}
       </p>
     </section>
   );
