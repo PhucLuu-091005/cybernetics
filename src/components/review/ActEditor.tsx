@@ -214,7 +214,7 @@ export function ActEditor({
           maxLength={2000}
           disabled={disabled}
           onChange={(event) => set('action', event.target.value)}
-          placeholder="What the performer is asked or promises to do"
+          placeholder="What is asked or promised"
         />
       </label>
       <label className="check">
