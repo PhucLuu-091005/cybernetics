@@ -269,12 +269,14 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
       'expiresAt',
       'id',
       'label',
+      'lastUsedAt',
       'prefix',
       'projectId',
       'revokedAt',
       'scopes',
       'userId',
     ]);
+    expect(page.body.items[0].lastUsedAt).toBeNull();
     const rest = await call(
       'GET',
       `/projects/${projectId}/agent-tokens?limit=1&cursor=${page.body.nextCursor}`,

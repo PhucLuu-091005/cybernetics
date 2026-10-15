@@ -52,6 +52,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('DbIdentityStore', () => {
     createdAt: '2026-10-13T10:00:00.000Z',
     expiresAt: '2026-11-12T10:00:00.000Z',
     revokedAt: null,
+    lastUsedAt: null,
     hash: randomUUID().replaceAll('-', '').padEnd(64, '0'),
     label: 'Codex',
     idempotencyKey: randomUUID(),
@@ -190,6 +191,28 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('DbIdentityStore', () => {
         revokedAt: '2026-10-16T00:00:00.000Z',
       }),
     ).toBeNull();
+  });
+  it('touchToken sets lastUsedAt and listTokens returns it', async () => {
+    const owner = await testActor(t.db);
+    const project = await createProject(t.db, owner, { title: 'Touch', clientName: 'C' });
+    const stored = token({
+      userId: owner.userId,
+      projectId: project.id,
+      workspaceId: owner.workspaceId,
+    });
+    await store.insertToken(stored);
+    expect((await store.getTokenByHash(stored.hash))!.lastUsedAt).toBeNull();
+    const at = '2026-10-15T16:10:00.000Z';
+    await store.touchToken(stored.id, at);
+    expect((await store.getTokenByHash(stored.hash))!.lastUsedAt).toBe(at);
+    const [listed] = await store.listTokens({
+      userId: owner.userId,
+      workspaceId: owner.workspaceId,
+      projectId: project.id,
+      offset: 0,
+      limit: 10,
+    });
+    expect(listed.lastUsedAt).toBe(at);
   });
   it('migration 0002 drops the escalation tables and strips escalations:write from stored tokens', async () => {
     const { rows } = await t.db.execute(

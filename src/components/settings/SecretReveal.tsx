@@ -44,6 +44,10 @@ export function SecretReveal({
           {status}
         </span>
       </div>
+      <p className="faint">
+        Ask your agent to list its tools. Then press Check again: Last call shows the time of that
+        call.
+      </p>
       <div className="row">
         <button className="btn btn-ink" type="button" onClick={onClose}>
           I copied it, hide the secret

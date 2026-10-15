@@ -2,11 +2,12 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { AgentToken, RevokeAgentTokenResult } from '../../contracts';
-import { shortDay } from '../graph/labels';
+import { shortDay, shortStamp } from '../graph/labels';
 import { send, type ApiError } from '../inbox/api';
 import { ConflictBanner } from '../review/ConflictBanner';
 import { useHydrated } from '../review/hydrated';
 import { Pager } from '../shell/Pager';
+import { permissionTitles } from './scopes';
 
 function TokenRow({
   projectId,
@@ -48,14 +49,9 @@ function TokenRow({
         <br />
         <span className="faint">{token.label}</span>
       </td>
-      <td>
-        <div className="scopes">
-          {token.scopes.map((scope) => (
-            <span key={scope} className={scope === 'graph:merge' ? 'chip risk' : 'chip'}>
-              {scope}
-            </span>
-          ))}
-        </div>
+      <td>{permissionTitles(token.scopes)}</td>
+      <td data-testid="last-call">
+        {token.lastUsedAt ? shortStamp(token.lastUsedAt, timeZone) : 'Never'}
       </td>
       <td>
         {token.revokedAt
@@ -120,16 +116,22 @@ export function TokenList({
   nextCursor: string | null;
   paged: boolean;
 }) {
+  const router = useRouter();
+  const hydrated = useHydrated();
   return (
     <section className="tablewrap" aria-labelledby="token-list">
       <h2 id="token-list" className="sr">
         Your tokens for this project
       </h2>
+      <button type="button" className="btn" disabled={!hydrated} onClick={() => router.refresh()}>
+        Check again
+      </button>
       <table>
         <thead>
           <tr>
             <th>Token</th>
-            <th>Scopes</th>
+            <th>Permissions</th>
+            <th>Last call</th>
             <th>Expires</th>
             <th>
               <span className="sr">Actions</span>
@@ -148,7 +150,7 @@ export function TokenList({
           ))}
           {tokens.length === 0 && (
             <tr>
-              <td colSpan={4} className="faint">
+              <td colSpan={5} className="faint">
                 No tokens yet. Create one to connect your agent.
               </td>
             </tr>

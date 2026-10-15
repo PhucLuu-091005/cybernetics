@@ -93,6 +93,9 @@ export function createIdentityServices(options: IdentityOptions) {
       )
         throw new AppError('NOT_FOUND', 'Project not found');
       limiter.consume(`token:${token.id}`, 60, now());
+      const at = now();
+      if (!token.lastUsedAt || at - Date.parse(token.lastUsedAt) >= 60_000)
+        await store.touchToken(token.id, new Date(at).toISOString());
       if (scope !== null && !token.scopes.includes(scope))
         throw new AppError('FORBIDDEN', 'Token scope required');
       return {

@@ -2097,15 +2097,6 @@
     border-color: var(--draft);
   }
 
-  .scopes {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-  .chip.risk {
-    color: var(--caution);
-    border-color: var(--caution);
-  }
   .scope-row {
     display: flex;
     gap: 10px;
