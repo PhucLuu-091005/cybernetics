@@ -60,6 +60,10 @@ export type GraphScreenProps = {
 export type EscalationFocus =
   { state: 'cited'; loopIds: string[] } | { state: 'no-analysis' } | { state: 'missing' };
 
+const dayAndTime = (stamp: string) => {
+  const at = stamp.lastIndexOf(' ');
+  return { day: stamp.slice(0, at), time: stamp.slice(at + 1) };
+};
 const isTyping = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (/^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName) || target.isContentEditable);
@@ -233,7 +237,7 @@ export function GraphScreen({
         map.set(act.id, {
           type: act.type,
           label: ACT_LABEL[act.type],
-          when: shortStamp(act.occurredAt, context.timeZone),
+          ...dayAndTime(shortStamp(act.occurredAt, context.timeZone)),
           person: partyName(act.actor, directory),
           quote: act.quote,
           source: actSource(projectId, versionId, sources[versionId]),

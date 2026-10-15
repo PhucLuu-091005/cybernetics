@@ -10,7 +10,9 @@ import { useGraphUi } from './ui-context';
 export type CardInfo = {
   type: ActType;
   label: string;
-  when: string;
+  /** "15 Jun" and "15:10": the date sits in the header, the time beside the person. */
+  day: string;
+  time: string;
   person: string;
   quote: string | null;
   source: ActSource;
@@ -38,9 +40,12 @@ export function CardNode({ data }: NodeProps<CardNodeType>) {
       <div className="ev-h">
         <ActIcon type={info.type} />
         <b>{info.label}</b>
-        <span className="d">{info.when}</span>
+        <span className="d">{info.day}</span>
       </div>
-      <div className="ev-p">{info.person}</div>
+      <div className="ev-p">
+        <span>{info.person}</span>
+        <span className="d">{info.time}</span>
+      </div>
       <div className={info.quote === null ? 'ev-q unavailable' : 'ev-q'}>
         {info.quote ?? 'Unavailable evidence'}
       </div>
