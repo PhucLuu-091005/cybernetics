@@ -15,9 +15,9 @@ import { placeCards, shelfCount, type CardSlot } from './cards';
 import { businessDaysBetween } from '../calendar';
 import { linkTasks } from './handoffs';
 import { CURVE, branchPath } from './path';
-import { createTimeScale, type TimeScale } from './time';
+import { createTimeScale, type TimedEvent, type TimeScale } from './time';
 
-export { CARD_INSET, placeCards, type CardSize, type CardSlot } from './cards';
+export { cardInset, placeCards, type CardSize, type CardSlot } from './cards';
 export { CURVE, branchPath } from './path';
 export { linkTasks } from './handoffs';
 export { createTimeScale, xOf, type TimeScale } from './time';
@@ -113,18 +113,19 @@ function endOf(loop: DerivedLoop, T: string): { kind: BranchLayout['endKind']; a
   return { kind: 'open', at: T };
 }
 
+type ActX = (act: DerivedAct) => number;
+
 function hedgeIntervals(
   acts: readonly DerivedAct[],
-  scale: TimeScale,
+  actX: ActX,
   lineEnd: number,
 ): [number, number][] {
   const intervals: [number, number][] = [];
   let open: number | null = null;
   for (const act of acts) {
-    if (open === null && act.type === 'promise' && act.hedged)
-      open = round(scale.x(act.occurredAt));
+    if (open === null && act.type === 'promise' && act.hedged) open = actX(act);
     else if (open !== null && ((act.type === 'promise' && !act.hedged) || FIRM.has(act.type))) {
-      intervals.push([open, round(scale.x(act.occurredAt))]);
+      intervals.push([open, actX(act)]);
       open = null;
     }
   }
@@ -135,6 +136,7 @@ function hedgeIntervals(
 function segmentsOf(
   loop: DerivedLoop,
   scale: TimeScale,
+  actX: ActX,
   xStart: number,
   lineEnd: number,
   tailEnd: number,
@@ -156,12 +158,12 @@ function segmentsOf(
   );
   const changeX = changeAt === null ? null : clamp(round(scale.x(changeAt)), xStart, lineEnd);
   const tone: Tone = broken.length ? 'red' : warnings.length || loop.dueSoon ? 'amber' : base;
-  const hedges = hedgeIntervals(loop.acts, scale, lineEnd);
+  const hedges = hedgeIntervals(loop.acts, actX, lineEnd);
   const waiting =
     loop.state === 'requested' ||
     ((loop.state === 'negotiating' || loop.state === 'change_pending') &&
       loop.pendingTerms !== null);
-  const waitX = waiting && loop.acts.length ? round(scale.x(loop.acts.at(-1)!.occurredAt)) : null;
+  const waitX = waiting && loop.acts.length ? actX(loop.acts.at(-1)!) : null;
   const styleAt = (x: number): Style =>
     waitX !== null && x >= waitX
       ? 'dotted'
@@ -246,7 +248,20 @@ export function layoutPromiseGraph(
   const { pxPerDay, rowHeight, lanePadding, branchGap, cards, dayWidths } =
     LayoutOptionsSchema.parse(options);
   const { context } = input;
-  const scale = createTimeScale(context, pxPerDay, dayWidths);
+  // With cards, each act gets a slot one card wide, so a day is as wide as its busiest loop needs.
+  const events: TimedEvent[] = cards
+    ? engine.loops.flatMap((loop) => {
+        const skip = mergeAcceptIndex(loop, endOf(loop, engine.T).kind);
+        return loop.acts.map((act, index) => ({
+          id: act.id,
+          at: act.occurredAt,
+          lane: loop.loop.id,
+          width: index === skip ? 2 * CURVE : cards.width + cards.gap,
+        }));
+      })
+    : [];
+  const scale = createTimeScale(context, pxPerDay, dayWidths, events);
+  const actX: ActX = (act) => round(scale.eventX(act.id) ?? scale.x(act.occurredAt));
   const people = new Map(context.people.map((person) => [person.id, person]));
   const departments = new Map(context.departments.map((department) => [department.id, department]));
   const xT = round(scale.x(engine.T));
@@ -258,21 +273,21 @@ export function layoutPromiseGraph(
     if (!department) continue;
     // A loop with no acts at or before T still counts in the engine, so it stays visible as a point at T.
     const startAt = loop.acts[0]?.occurredAt ?? engine.T;
-    const xStart = round(scale.x(startAt)),
+    const first = loop.acts[0];
+    const xStart = first ? actX(first) : round(scale.x(startAt)),
       end = endOf(loop, engine.T);
-    const lineEnd = Math.max(xStart, end.kind === 'open' ? xT : round(scale.x(end.at)));
+    const closing = [...loop.acts].reverse().find((act) => act.occurredAt === end.at);
+    const lineEnd = Math.max(
+      xStart,
+      end.kind === 'open' ? xT : closing ? actX(closing) : round(scale.x(end.at)),
+    );
     const tailEnd =
       end.kind === 'open' && loop.dueSoon && loop.dueAt
         ? Math.max(lineEnd, round(scale.x(loop.dueAt)))
         : lineEnd;
     const skip = mergeAcceptIndex(loop, end.kind);
     const acts = loop.acts.filter((_, index) => index !== skip);
-    const slots = cards
-      ? placeCards(
-          acts.map((act) => round(scale.x(act.occurredAt))),
-          cards,
-        )
-      : [];
+    const slots = cards ? placeCards(acts.map(actX), cards) : [];
     drafts.push({
       loop,
       department,
@@ -351,7 +366,7 @@ export function layoutPromiseGraph(
   const branches: BranchLayout[] = drafts.map(
     ({ loop, department, xStart, lineEnd, xEnd, endKind, row, acts, slots }) => {
       const y = round(rowY(department.id, row));
-      const { segments, tone } = segmentsOf(loop, scale, xStart, lineEnd, xEnd);
+      const { segments, tone } = segmentsOf(loop, scale, actX, xStart, lineEnd, xEnd);
       const glyphs: ActGlyph[] = acts.map((act, index) => {
         const actor = partyLabels(act.actor, people),
           day = scale.dayRange(act.occurredAt),
@@ -360,7 +375,7 @@ export function layoutPromiseGraph(
           id: act.id,
           loopId: loop.loop.id,
           type: act.type,
-          x: round(scale.x(act.occurredAt)),
+          x: actX(act),
           y,
           dayStartX: round(day.start),
           dayEndX: round(day.end),
@@ -497,8 +512,18 @@ export function layoutPromiseGraph(
     ...branches.map((branch) => branch.xEnd + CURVE),
     ...milestones.map((item) => item.x + CURVE),
   );
+  const days: GraphLayout['days'] = [];
+  for (let date = context.windowStart; date <= context.windowEnd;) {
+    const x = round(scale.dateStartX(date));
+    days.push({ date, x, width: round(scale.dateEndX(date)) - x });
+    const next = new Date(`${date}T00:00:00Z`);
+    next.setUTCDate(next.getUTCDate() + 1);
+    date = next.toISOString().slice(0, 10);
+  }
   return linkTasks({
     width: round(Math.max(0, width)),
+    xT,
+    days,
     height: round(bottom + BOTTOM_MARGIN),
     trunkY,
     lanes,

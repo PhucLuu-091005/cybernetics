@@ -113,6 +113,12 @@ export const MilestoneLayoutSchema = z.strictObject({
 });
 export const GraphLayoutSchema = z.strictObject({
   width: z.number().nonnegative(),
+  /** x of the evaluation time T. */
+  xT: coordinate,
+  /** Every day of the project window: where its column starts and how wide it is. */
+  days: z.array(
+    z.strictObject({ date: DateSchema, x: coordinate, width: z.number().nonnegative() }),
+  ),
   height: z.number().nonnegative(),
   trunkY: coordinate,
   lanes: z.array(LaneLayoutSchema),

@@ -74,10 +74,52 @@ describe('layout with resized day columns', () => {
       .flatMap((branch) => branch.glyphs)
       .find((item) => item.id === glyph.id)!;
     expect(moved.dayEndX - moved.dayStartX).toBe(300);
-    expect(wide.width).toBe(base.width + 300 - BASE_PX_PER_DAY);
+    const before = base.days.find((day) => day.date === date)!.width;
+    expect(wide.days.find((day) => day.date === date)!.width).toBe(300);
+    expect(wide.width).toBeCloseTo(base.width + 300 - before, 1);
   });
   it('rejects a width outside 24–480 px and a key that is not a date', () => {
     for (const dayWidths of [{ '2026-06-16': 10 }, { '2026-06-16': 900 }, { tomorrow: 60 }])
       expect(LayoutOptionsSchema.safeParse({ ...options, dayWidths }).success).toBe(false);
+  });
+});
+
+describe('event slots', () => {
+  const event = (id: string, at: string, lane: string, width = 186) => ({ id, at, lane, width });
+  it('gives each event of one lane its own slot, in time order, and widens the day to fit', () => {
+    const scale = createTimeScale(utc, 64, {}, [
+      event('a', '2026-06-16T09:20:00Z', 'loop-1'),
+      event('b', '2026-06-16T10:45:00Z', 'loop-1'),
+      event('c', '2026-06-16T15:10:00Z', 'loop-1'),
+    ]);
+    expect(scale.dateStartX('2026-06-16')).toBe(64);
+    expect(scale.eventX('a')).toBe(64 + 93);
+    expect(scale.eventX('b')).toBe(64 + 93 + 186);
+    expect(scale.eventX('c')).toBe(64 + 93 + 372);
+    expect(scale.dateEndX('2026-06-16')).toBe(64 + 3 * 186);
+    expect(scale.x('2026-06-16T10:45:00Z')).toBe(scale.eventX('b'));
+    expect(scale.x('2026-06-16T10:00:00Z')).toBeGreaterThan(scale.eventX('a')!);
+    expect(scale.x('2026-06-16T10:00:00Z')).toBeLessThan(scale.eventX('b')!);
+    expect(scale.dateStartX('2026-06-17')).toBe(64 + 3 * 186);
+  });
+  it('lets events of different lanes share room, and a day without events keeps the base width', () => {
+    const scale = createTimeScale(utc, 64, {}, [
+      event('a', '2026-06-16T09:20:00Z', 'loop-1'),
+      event('b', '2026-06-16T09:20:00Z', 'loop-2'),
+      event('c', '2026-06-16T09:30:00Z', 'loop-3'),
+    ]);
+    expect(scale.eventX('a')).toBe(scale.eventX('b'));
+    expect(scale.eventX('c')).toBe(scale.eventX('a')! + 2);
+    expect(scale.dateEndX('2026-06-16') - scale.dateStartX('2026-06-16')).toBe(188);
+    expect(scale.dateEndX('2026-06-18') - scale.dateStartX('2026-06-18')).toBe(64);
+  });
+  it('scales the slots of a day the user resized', () => {
+    const scale = createTimeScale(utc, 64, { '2026-06-16': 186 }, [
+      event('a', '2026-06-16T09:20:00Z', 'loop-1'),
+      event('b', '2026-06-16T10:45:00Z', 'loop-1'),
+    ]);
+    expect(scale.eventX('a')).toBe(64 + 46.5);
+    expect(scale.eventX('b')).toBe(64 + 139.5);
+    expect(scale.dateEndX('2026-06-16')).toBe(64 + 186);
   });
 });

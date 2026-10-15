@@ -52,6 +52,8 @@ const task = (
   });
 const layoutOf = (branches: BranchLayout[]): GraphLayout => ({
   width: 600,
+  xT: 500,
+  days: [],
   height: 300,
   trunkY: 200,
   lanes: [],
