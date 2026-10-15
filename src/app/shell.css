@@ -75,6 +75,33 @@
   background: var(--draft);
   box-shadow: 0 0 0 2px var(--sunk);
 }
+/* Folded, the icons carry no text, so keyboard and pointer users get the name beside the icon. */
+@media (min-width: 761px) {
+  .rail[data-state='collapsed'] {
+    position: sticky;
+    z-index: 60;
+  }
+  .rail[data-state='collapsed'] .rail-item {
+    overflow: visible;
+  }
+  .rail[data-state='collapsed'] .rail-item[data-label]:is(:hover, :focus-visible)::before {
+    content: attr(data-label);
+    position: absolute;
+    z-index: 60;
+    top: 50%;
+    left: calc(100% + 10px);
+    transform: translateY(-50%);
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--ink);
+    color: var(--panel);
+    box-shadow: var(--shadow);
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+}
 .rail-note {
   margin: 0;
   padding: 4px 10px 8px;

@@ -15,7 +15,7 @@ export function SignOutButton() {
       type="button"
       onClick={signOut}
       aria-label="Sign out"
-      title="Sign out"
+      data-label="Sign out"
     >
       <RailIcon name="signOut" />
       <span className="rail-label">Sign out</span>

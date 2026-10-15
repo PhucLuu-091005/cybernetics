@@ -14,7 +14,9 @@ const sets = (page: Page) => page.getByRole('list', { name: 'Change sets' });
 const actions = (page: Page) => page.getByRole('group', { name: 'Change set actions' });
 async function openSet(page: Page, name: RegExp) {
   const link = sets(page).getByRole('link', { name });
+  const href = (await link.getAttribute('href'))!;
   await link.click();
+  await page.waitForURL((url) => `${url.pathname}${url.search}` === href);
   await expect(link).toHaveAttribute('aria-current', 'true');
   await expect(page.getByRole('heading', { level: 2, name })).toBeVisible();
 }
@@ -61,6 +63,23 @@ test('a change set made before another approval shows Update to latest and then 
   await expect(approved(page, /^Updated\. Check the changes again/)).toBeVisible();
   await actions(page).getByRole('button', { name: 'Approve' }).click();
   await expect(approved(page, /^Approved: Retitle the Dynamics loop as a phase 1/)).toBeVisible();
+});
+
+test('reject asks to confirm, then the change set leaves the queue', async ({ page }) => {
+  const projectId = await signIn(page, 'queue-reject');
+  await page.goto(`/projects/${projectId}/review`);
+  await openSet(page, /with the SOW scope/);
+  await actions(page).getByRole('button', { name: 'Reject' }).click();
+  await actions(page).getByRole('button', { name: 'Cancel' }).click();
+  await expect(actions(page).getByRole('button', { name: 'Confirm reject' })).toHaveCount(0);
+  await expect(sets(page).getByRole('link', { name: /with the SOW scope/ })).toHaveCount(1);
+
+  await actions(page).getByRole('button', { name: 'Reject' }).click();
+  await actions(page).getByRole('button', { name: 'Confirm reject' }).click();
+  await expect(
+    approved(page, /^Rejected: Retitle the Dynamics loop with the SOW scope\.$/),
+  ).toBeVisible();
+  await expect(sets(page).getByRole('link', { name: /with the SOW scope/ })).toHaveCount(0);
 });
 
 test('ignore the out-of-office reply: it leaves New records and sits in My review', async ({

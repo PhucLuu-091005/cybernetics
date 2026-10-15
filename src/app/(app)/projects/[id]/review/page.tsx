@@ -2,7 +2,12 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import '../../../../review.css';
-import { IdSchema, type GraphSnapshot, type RecordDecision } from '../../../../../contracts';
+import {
+  IdSchema,
+  type ActorContext,
+  type GraphSnapshot,
+  type RecordDecision,
+} from '../../../../../contracts';
 import { shortStamp } from '../../../../../components/graph/labels';
 import { InboxList } from '../../../../../components/inbox/InboxList';
 import { CreateProposalForm } from '../../../../../components/review/CreateProposalForm';
@@ -12,6 +17,7 @@ import {
   parseReviewQuery,
   reviewHref,
 } from '../../../../../components/review-queue/state';
+import { Popover } from '../../../../../components/shell/Popover';
 import { getApp } from '../../../../../server/app';
 import { readInboxView, type InboxView } from '../../../../../server/domain/inbox';
 import { getProposal } from '../../../../../server/domain/proposals';
@@ -77,16 +83,10 @@ export default async function ReviewPage({
       state: changeSetState(draft, current, null),
     }));
   const item = query.tab === 'sets' ? (query.item ?? sets[0]?.id ?? null) : null;
-  const approvedId =
-    typeof raw.approved === 'string' && IdSchema.safeParse(raw.approved).success
-      ? raw.approved
-      : null;
-  const approved = approvedId
-    ? await getProposal(db, actor, { projectId: id, proposalId: approvedId }).catch((error) => {
-        if (error instanceof AppError && error.code === 'NOT_FOUND') return null;
-        throw error;
-      })
-    : null;
+  const [approved, rejected] = await Promise.all([
+    noticeProposal(actor, id, raw.approved),
+    noticeProposal(actor, id, raw.rejected),
+  ]);
 
   return (
     <>
@@ -96,8 +96,7 @@ export default async function ReviewPage({
           <small>{main.project.title}</small>
         </div>
         <span className="sp" />
-        <details className="filter-pop new-set">
-          <summary className="btn">New change set</summary>
+        <Popover className="filter-pop new-set" summaryClassName="btn" summary="New change set">
           <div className="filter-body">
             <CreateProposalForm
               projectId={id}
@@ -107,7 +106,7 @@ export default async function ReviewPage({
               }}
             />
           </div>
-        </details>
+        </Popover>
       </header>
       {approved?.status === 'merged' && (
         <p className="card pad notice-draft queue-notice" role="status">
@@ -115,6 +114,11 @@ export default async function ReviewPage({
           <Link className="lnk" href={`/projects/${id}/graph`}>
             View on graph
           </Link>
+        </p>
+      )}
+      {rejected?.status === 'closed' && (
+        <p className="card pad notice-draft queue-notice" role="status">
+          Rejected: {rejected.title}.
         </p>
       )}
       {raw.updated === '1' && (
@@ -169,6 +173,15 @@ export default async function ReviewPage({
       </div>
     </>
   );
+}
+
+/** The notices name a change set from the URL, so an unknown id shows nothing. */
+async function noticeProposal(actor: ActorContext, projectId: string, raw: Search[string]) {
+  if (typeof raw !== 'string' || !IdSchema.safeParse(raw).success) return null;
+  return getProposal(getApp().db, actor, { projectId, proposalId: raw }).catch((error) => {
+    if (error instanceof AppError && error.code === 'NOT_FOUND') return null;
+    throw error;
+  });
 }
 
 /** The list reads the approved graph, so a record that My review decides takes its state and decision from My review, and the ignore check reads the acts there. */
