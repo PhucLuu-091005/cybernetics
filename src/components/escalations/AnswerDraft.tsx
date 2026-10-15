@@ -120,7 +120,7 @@ export function AnswerDraft({
         )}
         <span style={{ flex: 1 }} />
         <span className="faint" style={{ fontSize: 12 }}>
-          analysis revision {analysis.revision} by {authorLabel}
+          Analysis {analysis.revision} by {authorLabel}
         </span>
       </div>
       <details>
@@ -133,8 +133,8 @@ export function AnswerDraft({
             </span>{' '}
             <span className="faint">
               {analysis.graphCommitId === basis.mainCommitId
-                ? 'current main'
-                : `main is now ${basis.mainCommitId.slice(0, 7)}`}
+                ? 'Approved graph'
+                : `The approved graph is now ${basis.mainCommitId.slice(0, 7)}`}
             </span>
           </dd>
           <dt>Pinned evidence</dt>

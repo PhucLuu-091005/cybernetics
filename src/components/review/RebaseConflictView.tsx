@@ -138,7 +138,7 @@ export function RebaseConflictView({ projectId, preview, names, kept }: Props) {
           error={failure}
           actions={
             <button className="btn" type="button" onClick={() => router.refresh()}>
-              Preview again
+              Reload
             </button>
           }
         />
@@ -187,17 +187,17 @@ export function RebaseConflictView({ projectId, preview, names, kept }: Props) {
             <div className="conf">
               <Side
                 testId="side-base"
-                heading={`Base ${preview.baseCommitId.slice(0, 7)}`}
+                heading={`Starting point ${preview.baseCommitId.slice(0, 7)}`}
                 lines={base}
                 highlight={false}
               />
               <Side
                 testId="side-main"
-                heading={`Main ${preview.mainCommitId.slice(0, 7)}`}
+                heading={`Approved graph ${preview.mainCommitId.slice(0, 7)}`}
                 lines={main}
                 highlight
               />
-              <Side testId="side-proposal" heading={'Your change set'} lines={proposed} highlight />
+              <Side testId="side-proposal" heading="Your change set" lines={proposed} highlight />
               <div className="choices" role="radiogroup" aria-label={`Resolution for ${title}`}>
                 {(['main', 'proposal', 'replacement'] as const).map((option) => (
                   <label key={option}>

@@ -75,7 +75,7 @@ test('paste import stays pending, records render as untrusted text, and an ignor
   await page.getByRole('button', { name: 'Import as pending record' }).click();
   const receipt = page.getByRole('status', { name: 'Import receipt' });
   await expect(receipt).toContainText('new');
-  await expect(receipt).toContainText('Main did not change');
+  await expect(receipt).toContainText('The graph did not change');
   await expect(records(page).getByRole('link', { name: new RegExp(title) })).toBeVisible();
   await expectCount(page, 'Pending', pending + 1);
 

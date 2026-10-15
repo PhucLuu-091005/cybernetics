@@ -58,7 +58,7 @@ export default async function RebasePage({
     } catch (error) {
       if (!(error instanceof AppError) || error.code !== 'CONFLICT') throw error;
       problem =
-        'Main, the draft or the evidence changed while the preview loaded. Reload the page.';
+        'The graph, the change set or the records changed while the preview loaded. Reload the page.';
     }
   }
 

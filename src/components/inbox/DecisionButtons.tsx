@@ -35,7 +35,7 @@ export function DecisionButtons({
   if (proposal && proposal.status !== 'draft')
     return (
       <p className="faint" style={{ fontSize: 13 }}>
-        This proposal is {proposal.status}. Select a draft or main to add decisions.
+        This change set is closed. Select an open change set to add decisions.
       </p>
     );
 

@@ -85,8 +85,8 @@ export function CreateProposalForm({ projectId, basis }: { projectId: string; ba
           Create change set
         </button>
         <span className="faint" style={{ fontSize: 12 }}>
-          The draft copies main {basis.mainCommitId.slice(0, 7)} at evidence revision{' '}
-          {basis.evidenceRevision}. Main does not change until a person merges it.
+          The change set starts as a copy of the approved graph. The graph does not change until a
+          person approves it.
         </span>
       </div>
     </form>

@@ -9,7 +9,7 @@ import { SecretReveal } from './SecretReveal';
 
 const SCOPES: { scope: Scope; text: string; risk?: true }[] = [
   { scope: 'project:read', text: 'Read records, the graph, activity and change sets.' },
-  { scope: 'records:import', text: 'Import records into the inbox. Main does not change.' },
+  { scope: 'records:import', text: 'Import records. The graph does not change.' },
   { scope: 'graph:propose', text: 'Create and edit change sets. A person still approves.' },
   {
     scope: 'graph:merge',
