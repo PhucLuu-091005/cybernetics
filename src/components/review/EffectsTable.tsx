@@ -18,11 +18,11 @@ export function EffectsTable({
   return (
     <section className="card pad" aria-labelledby="effects-heading">
       <h2 id="effects-heading" style={{ marginBottom: 8 }}>
-        Effects at T = {T}
+        Effect as of {T}
       </h2>
       {effects.length === 0 ? (
         <p className="faint" style={{ fontSize: 13 }}>
-          No loop changes state or breakdowns at T.
+          No loop changes state or gets a new problem.
         </p>
       ) : (
         <div className="tablewrap" style={{ border: 0 }}>

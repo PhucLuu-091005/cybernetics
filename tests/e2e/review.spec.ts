@@ -1,5 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
+import {
+  approvedStatus,
+  changeSets,
+  clickApprove,
+  idOfUrl,
+  openChangeSet,
+  setActions,
+} from './review-helpers';
 
 const PROJECT = 'Larkspur Capital, Fund III onboarding';
 const QUOTE = "I'll renew the secret on Monday 12 October.";
@@ -33,14 +41,6 @@ async function selectText(page: Page, text: string) {
     }
     throw new Error(`Text not found: ${target}`);
   }, text);
-}
-
-async function merge(page: Page, message?: string) {
-  await expect(page.getByRole('button', { name: 'Merge into main' })).toBeVisible();
-  const ack = page.getByRole('checkbox', { name: /still pending review/ });
-  if (await ack.count()) await ack.check();
-  if (message) await page.getByLabel('Commit message').fill(message);
-  await page.getByRole('button', { name: 'Merge into main' }).click();
 }
 
 test('create a proposal from an inbox citation, correct its loop, review the diff and effects, merge, and see history and main change', async ({
@@ -97,7 +97,7 @@ test('create a proposal from an inbox citation, correct its loop, review the dif
   await editor.getByLabel('Due date').fill('2026-10-12');
   await editor.getByRole('button', { name: 'Save act to draft' }).click();
   await expect(page.getByTestId('proposal-revision')).toHaveText('1');
-  const operations = page.getByRole('listbox', { name: 'Changes in this proposal' });
+  const operations = page.getByRole('listbox', { name: 'What changes' });
   await expect(operations.getByRole('option', { name: /Promise by Tom Becker/ })).toContainText(
     'Dynamics CRM sync scope',
   );
@@ -113,38 +113,34 @@ test('create a proposal from an inbox citation, correct its loop, review the dif
   );
   await expect(page.getByTestId('main-badge')).toHaveCount(0);
 
+  const setTitle = (await page.getByRole('heading', { level: 1 }).innerText()).trim();
   await page.getByRole('link', { name: 'Review and approve' }).click();
-  await expect(page).toHaveURL(`${proposalUrl}/review`);
-  const structural = page.getByRole('region', { name: 'Structural changes' });
+  await expect(page).toHaveURL(
+    `/projects/${projectId}/review?tab=sets&item=${idOfUrl(proposalUrl)}`,
+  );
+  await expect(page.getByRole('heading', { level: 2, name: setTitle })).toBeVisible();
+  const structural = page.getByRole('region', { name: 'What changes' });
   await expect(structural.getByRole('row', { name: /Promise by Tom Becker/ })).toContainText(
     '+ added',
   );
   await expect(page.getByRole('region', { name: 'Record decisions' })).toContainText(
     `Included: ${title}`,
   );
-  const effects = page.getByRole('region', { name: /Effects at T/ });
+  const effects = page.getByRole('region', { name: 'Effect on the loops' });
   await expect(effects.getByRole('row', { name: /Client secret renewal/ })).toContainText(
     'requested → promised',
   );
   await expect(effects.getByRole('row', { name: /Client secret renewal/ })).toContainText(
     'Unanswered request',
   );
-  await expect(page.getByRole('region', { name: 'Cited sources' }).locator('mark')).toHaveText(
-    QUOTE,
-  );
-  await expect(page.getByRole('region', { name: 'Review basis' })).toContainText(
-    'Proposal revision2',
-  );
-  await expect(page.getByRole('button', { name: 'Merge into main' })).toBeDisabled();
+  await expect(page.getByRole('region', { name: 'Quotes' }).locator('mark')).toHaveText(QUOTE);
+  await page.getByText('Technical details').click();
+  await expect(page.locator('details.tech')).toContainText(/Change set revision\s*2/);
 
-  await merge(page, "Record Tom's promise on the client secret");
-  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/history/[0-9a-f-]{36}$`));
-  await expect(
-    page.getByRole('heading', { level: 2, name: "Record Tom's promise on the client secret" }),
-  ).toBeVisible();
-  await expect(commits(page).getByRole('link').first()).toContainText(
-    "Record Tom's promise on the client secret",
-  );
+  await clickApprove(page);
+  await expect(approvedStatus(page)).toBeVisible();
+  await page.goto(`/projects/${projectId}/history`);
+  await expect(commits(page).getByRole('link').first()).toContainText(setTitle);
   await expect(commits(page).getByRole('link').first()).toContainText('merge');
 
   await page.goto(`/projects/${projectId}/graph`);
@@ -156,37 +152,48 @@ test('create a proposal from an inbox citation, correct its loop, review the dif
   );
 });
 
-test('competing drafts: a stale merge shows the conflict banner and keeps the draft, a rebase choice needs a fresh review, then merges', async ({
+test('competing drafts: a stale approve shows the conflict banner and keeps the change set, a rebase choice needs a fresh look, then approves', async ({
   page,
 }) => {
   const projectId = await signIn(page, 'review-rebase');
-  await page.goto(`/projects/${projectId}/proposals`);
-  await page.getByRole('link', { name: 'Retitle the Dynamics loop with the SOW scope' }).click();
-  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/proposals/[0-9a-f-]{36}$`));
-  const sowUrl = new URL(page.url()).pathname;
-  await page.getByRole('link', { name: 'Review and approve' }).click();
-  await expect(page.getByRole('region', { name: 'Structural changes' })).toContainText(
+  await page.goto(`/projects/${projectId}/review`);
+  const sowLink = changeSets(page).getByRole('link', {
+    name: 'Retitle the Dynamics loop with the SOW scope',
+  });
+  await sowLink.click();
+  await expect(sowLink).toHaveAttribute('aria-current', 'true');
+  await expect(page).toHaveURL(/item=[0-9a-f-]{36}/);
+  const sowId = idOfUrl(new URL(page.url()).searchParams.get('item')!);
+  const sowUrl = `/projects/${projectId}/proposals/${sowId}`;
+  await expect(page.getByRole('region', { name: 'What changes' })).toContainText(
     'Dynamics CRM sync scope (SOW phase 2)',
   );
 
   const other = await page.context().newPage();
-  await other.goto(`/projects/${projectId}/proposals`);
-  await other.getByRole('link', { name: 'Retitle the Dynamics loop as a phase 1 request' }).click();
-  await other.getByRole('link', { name: 'Review and approve' }).click();
-  await merge(other);
-  await expect(other).toHaveURL(/\/history\/[0-9a-f-]{36}$/);
+  await other.goto(`/projects/${projectId}/review`);
+  const phaseOneLink = changeSets(other).getByRole('link', {
+    name: 'Retitle the Dynamics loop as a phase 1 request',
+  });
+  await phaseOneLink.click();
+  await expect(phaseOneLink).toHaveAttribute('aria-current', 'true');
+  await expect(setActions(other).getByRole('button', { name: 'Approve' })).toBeEnabled();
+  await clickApprove(other);
+  await expect(approvedStatus(other)).toBeVisible();
   await other.close();
 
-  await merge(page);
+  await clickApprove(page);
   const banner = page.getByRole('alert').filter({ hasText: 'Conflict' });
-  await expect(banner).toContainText('Conflict: main moved since your review.');
-  await expect(banner).toContainText('Your draft revision 1 is kept.');
+  await expect(banner).toContainText(
+    'Conflict: the graph or this change set changed since this page loaded.',
+  );
+  await expect(banner).toContainText('Nothing changed.');
   await page.goto(sowUrl);
   await expect(page.getByText('Change set, open')).toBeVisible();
   await expect(page.getByTestId('proposal-revision')).toHaveText('1');
-  await expect(page.getByText('Main moved since this draft was based.')).toBeVisible();
+  await openChangeSet(page, projectId, sowId);
+  await expect(page.getByText(/Choose which side stays/)).toBeVisible();
 
-  await page.getByRole('link', { name: 'Update to latest' }).click();
+  await page.getByRole('link', { name: 'Resolve conflict' }).click();
   await expect(page).toHaveURL(`${sowUrl}/rebase`);
   const conflict = page.getByRole('group', { name: /Conflict: Loop: Dynamics CRM sync/ });
   await expect(conflict.getByTestId('side-base')).toContainText('Dynamics CRM sync scope');
@@ -199,13 +206,13 @@ test('competing drafts: a stale merge shows the conflict banner and keeps the dr
   await conflict.getByRole('radio', { name: 'Keep change set' }).check();
   await apply.click();
 
-  await expect(page).toHaveURL(new RegExp(`${sowUrl}/review\\?rebased=1$`));
-  await expect(page.getByText('Fresh review required')).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Review basis' })).toContainText(
-    'Proposal revision2',
-  );
-  await merge(page);
-  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/history/[0-9a-f-]{36}$`));
+  await expect(page).toHaveURL(/\/review\?tab=sets&item=[0-9a-f-]{36}&updated=1$/);
+  await expect(page.getByText('Updated. Check the changes again, then approve.')).toBeVisible();
+  await page.getByText('Technical details').click();
+  await expect(page.locator('details.tech')).toContainText(/Change set revision\s*2/);
+  await clickApprove(page);
+  await expect(approvedStatus(page)).toBeVisible();
+  await page.goto(`/projects/${projectId}/history`);
   await expect(commits(page).getByRole('link').first()).toContainText(
     'Retitle the Dynamics loop with the SOW scope',
   );

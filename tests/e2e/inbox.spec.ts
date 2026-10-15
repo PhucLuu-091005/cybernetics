@@ -45,12 +45,8 @@ test('paste import stays pending, records render as untrusted text, and an ignor
   const mainBefore = await headCommit(page);
   expect(mainBefore).toMatch(/^[0-9a-f-]{36}$/);
 
-  await page
-    .getByRole('navigation', { name: 'Project' })
-    .getByRole('link', { name: 'Inbox' })
-    .first()
-    .click();
-  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/inbox`));
+  await page.goto(`/projects/${projectId}/inbox`);
+  await expect(page.getByRole('heading', { level: 1, name: 'All records' })).toBeVisible();
   await expect(tab(page, 'Pending')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByText('Approved graph')).toBeVisible();
   const pending = await countOf(page, 'Pending'),
@@ -64,7 +60,7 @@ test('paste import stays pending, records render as untrusted text, and an ignor
     page.getByRole('button', { name: 'Import as pending record', includeHidden: true }),
   ).toBeEnabled();
   await page.getByText('Paste a record').click();
-  await expect(page.getByText('Importing never changes main.')).toBeVisible();
+  await expect(page.getByText('Importing never changes the graph.')).toBeVisible();
   await page.getByLabel('Source label').fill('#larkspur-onboarding');
   await page.getByLabel('Title').fill(title);
   await page.getByLabel('Author').fill('Sarah Kim');
