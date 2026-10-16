@@ -28,8 +28,10 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
   const [failure, setFailure] = useState<ApiError | null>(null);
   const body = newProjectBody(form);
   const problem = newProjectProblem(form);
-  const edit = (field: keyof NewProjectForm) => (event: { target: { value: string } }) =>
-    setForm((current) => ({ ...current, [field]: event.target.value }));
+  const edit = (field: keyof NewProjectForm) => (event: { target: { value: string } }) => {
+    const { value } = event.target;
+    setForm((current) => ({ ...current, [field]: value }));
+  };
   useEffect(() => {
     dialog.current?.showModal();
     nameInput.current?.focus();
