@@ -100,7 +100,7 @@ Requirements: Node.js 24, Docker. pnpm is not needed globally; the commands use 
    node --env-file=.env.local scripts/migrate.mjs
    ```
 
-4. Start the app and open <http://localhost:3000>. With `AUTH_MODE=local`, **Continue (local dev)** signs you in without Google. Each label in `/signin?label=<name>` signs in a separate local user with its own sandbox.
+4. Start the app and open <http://localhost:3000>. With `AUTH_MODE=local`, **Continue (local dev)** signs you in without Google. `/signin?label=<label>` signs in a separate local user with its own sandbox. A label is 1 to 40 lowercase letters, digits or hyphens, for example `/signin?label=lan-test`. The sign-in page ignores any other label and uses the default local user.
 
    ```sh
    npx pnpm@11.25.0 dev

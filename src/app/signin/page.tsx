@@ -71,7 +71,7 @@ function Hero() {
       <g className="pop" style={{ animationDelay: '.5s' }}>
         <circle cx="60" cy="84" {...event} />
         <text x="60" y="66" {...label}>
-          Request
+          Message
         </text>
       </g>
       <g className="pop" style={{ animationDelay: '1s' }}>
@@ -169,7 +169,7 @@ export default async function SignInPage({
         <hr style={{ border: 0, borderTop: '1px solid var(--rule-2)', width: '100%' }} />
         <p className="faint" style={{ fontSize: 12 }}>
           The app never calls an AI model. Your own agent reads the tracker and adds events and work
-          items to the Queue through MCP. Main changes only when its owner merges a change request.
+          items to the Queue through MCP.
         </p>
       </div>
     </main>

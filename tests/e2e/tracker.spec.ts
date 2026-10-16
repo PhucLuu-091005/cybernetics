@@ -1,14 +1,10 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+import { centerOf, drag, hydrated } from './helpers';
 
-type Point = { x: number; y: number };
 type TrackerRead = {
   crs: Array<{ num: number; status: string }>;
   commits: Array<{ crNum: number | null; resolutions: Array<{ chose: string }> }>;
 };
-
-// Drags, the Demo select and the review picks need React handlers; the fold button stays disabled until hydration.
-const hydrated = (page: Page) =>
-  expect(page.getByRole('button', { name: 'Collapse sidebar' })).toBeEnabled();
 
 async function visit(page: Page, path: string) {
   await page.goto(path);
@@ -28,24 +24,6 @@ async function signIn(page: Page, label: string) {
 async function actAs(page: Page, name: string) {
   await page.getByLabel('Demo: act as').selectOption({ label: name });
   await expect(page.locator('.me b')).toHaveText(name);
-}
-
-async function centerOf(locator: Locator): Promise<Point> {
-  const box = await locator.boundingBox();
-  if (!box) throw new Error('The drag end has no box');
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-}
-
-/** Moves the mouse in small steps, as a person does, so the drag passes the start threshold. */
-async function drag(page: Page, from: Locator, to: Locator | Point) {
-  await from.scrollIntoViewIfNeeded();
-  const a = await centerOf(from);
-  const b = 'x' in to ? to : await centerOf(to);
-  await page.mouse.move(a.x, a.y);
-  await page.mouse.down();
-  await page.mouse.move(a.x + 8, a.y + 8, { steps: 3 });
-  await page.mouse.move(b.x, b.y, { steps: 12 });
-  await page.mouse.up();
 }
 
 async function readTracker(page: Page, projectId: string): Promise<TrackerRead> {
@@ -205,6 +183,8 @@ test.describe('the tracker walkthrough', () => {
       await expect(merge).toBeEnabled();
       await merge.click();
       await page.waitForURL(/\/graph/);
+      await expect(bar).toContainText('#3');
+      await expect(bar).toContainText('Merged into Main by Minh Trần');
       const commit = (await readTracker(page, projectId)).commits.find((c) => c.crNum === 3);
       expect(commit?.resolutions.map((r) => r.chose)).toEqual(['cr']);
     });
@@ -217,6 +197,16 @@ test.describe('the tracker walkthrough', () => {
       await page.getByRole('button', { name: 'Request changes' }).click();
       await page.locator('#rv-note').fill('Add the date Lan promised for the country list.');
       await page.getByRole('button', { name: 'Send back to draft' }).click();
+      await expect(page.locator('.tk-toast')).toContainText(
+        '#5 is a draft again. Khoa Lê sees your note.',
+      );
+      await expect(page.locator('.cs-head h1 .chipx')).toHaveText('Draft');
+      await expect(
+        page.getByText('This is a draft. Its editors can still change it.'),
+      ).toBeVisible();
+      await expect(page.getByText('This change request changed since you opened it.')).toHaveCount(
+        0,
+      );
       await expect
         .poll(async () => (await readTracker(page, projectId)).crs.find((c) => c.num === 5)?.status)
         .toBe('draft');
