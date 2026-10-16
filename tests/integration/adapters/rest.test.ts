@@ -59,6 +59,14 @@ const expectedRoutes = [
   '/projects/:projectId/restore',
   '/projects/:projectId/agent-tokens',
   '/projects/:projectId/agent-tokens/:tokenId',
+  '/projects/:projectId/tracker',
+  '/projects/:projectId/tracker/act-as',
+  '/projects/:projectId/tracker/queue',
+  '/projects/:projectId/tracker/queue/:queueId',
+  '/projects/:projectId/tracker/crs',
+  '/projects/:projectId/tracker/crs/:num/ops',
+  '/projects/:projectId/tracker/crs/:num/ops/:index',
+  '/projects/:projectId/tracker/crs/:num/actions',
 ];
 
 function routeFiles(): string[] {
@@ -233,7 +241,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
       label: 'Claude',
       idempotencyKey: 't1',
     });
-    expect(created.body.token.scopes).toEqual(['project:read', 'records:import', 'graph:propose']);
+    expect(created.body.token.scopes).toEqual(['project:read', 'queue:add']);
     expect(created.body.secret).toMatch(/^inv_/);
     const list = await call('GET', `/projects/${projectId}/agent-tokens`);
     expect(JSON.stringify(list.body)).not.toContain(created.body.secret);
@@ -432,6 +440,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
     const created = await call('POST', '/projects', {
       title: 'New via REST',
       clientName: 'Client',
+      teams: ['Engineering'],
     });
     expect(created).toMatchObject({
       status: 201,
@@ -453,6 +462,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
     const response = await call('POST', '/projects', {
       title: 'Smuggled graph',
       clientName: 'Client',
+      teams: ['Engineering'],
       snapshot,
     });
     expect(response).toMatchObject({

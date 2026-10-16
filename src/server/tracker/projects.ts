@@ -1,6 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { z } from 'zod';
-import { DateSchema } from '../../contracts';
 import {
   DEFAULT_TIME_ZONE,
   mainState,
@@ -31,21 +29,6 @@ import {
 import { addComment } from './store';
 
 const OWNER = { roleLabel: 'Project owner, owns Main', color: '#0f766e' };
-
-const TeamName = z.string().trim().max(200);
-/** The New project form sends one team per line, so blank lines drop out. */
-export const ProjectTeamsSchema = z
-  .array(TeamName)
-  .max(50)
-  .default([])
-  .transform((teams) => teams.filter((team) => team !== ''))
-  .refine(
-    (teams) => new Set(teams.map((team) => team.toLocaleLowerCase())).size === teams.length,
-    'Each team needs its own name',
-  );
-export const FirstMilestoneSchema = z
-  .strictObject({ name: z.string().trim().min(1).max(200), date: DateSchema })
-  .nullish();
 
 export type CreateTrackerProjectInput = {
   workspaceId: string;

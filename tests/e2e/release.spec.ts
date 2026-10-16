@@ -490,6 +490,9 @@ test('9: an agent token reads through MCP and submits a proposal, the default to
   const form = page.getByRole('form', { name: 'Create a token' });
   await expect(form.getByRole('button', { name: 'Create token' })).toBeDisabled();
   await form.getByLabel('Label').fill('Release check agent');
+  // New tokens default to the tracker scopes; this flow still needs the promise scopes.
+  await form.getByRole('checkbox', { name: /Add records/ }).check();
+  await form.getByRole('checkbox', { name: /Suggest changes/ }).check();
   await form.getByRole('button', { name: 'Create token' }).click();
   const secret = (await page.getByTestId('token-secret').innerText()).trim();
   expect(secret).toMatch(/^inv_[A-Za-z0-9_-]{43}$/);

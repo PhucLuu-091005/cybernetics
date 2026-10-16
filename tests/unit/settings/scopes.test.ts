@@ -7,14 +7,15 @@ describe('permission titles', () => {
     expect(SCOPES.map((item) => item.scope)).toEqual(ScopeSchema.options);
     expect(SCOPES.map((item) => item.title)).toEqual([
       'Read the project',
+      'Add to the Queue',
       'Add records',
       'Suggest changes',
       'Approve without you',
     ]);
     expect(SCOPES.filter((item) => item.risk).map((item) => item.scope)).toEqual(['graph:merge']);
   });
-  it('leaves the risk scope out of the defaults', () => {
-    expect(DEFAULT_AGENT_SCOPES).not.toContain('graph:merge');
+  it('gives a new token read and Queue access only', () => {
+    expect(DEFAULT_AGENT_SCOPES).toEqual(['project:read', 'queue:add']);
   });
   it('joins the titles in a fixed order and names an empty list', () => {
     expect(permissionTitles(['graph:merge', 'project:read'])).toBe(

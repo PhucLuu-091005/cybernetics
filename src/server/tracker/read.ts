@@ -3,6 +3,7 @@ import type { ActorContext } from '../../contracts';
 import { queueFromRows, type TrackerPayload } from '../../tracker';
 import { toIso, type Db } from '../db/tx';
 import { invalidInput } from '../errors';
+import { requireScope } from '../http/scopes';
 import { ProjectScopeSchema, readScope, type Scope } from './access';
 import { loadCommits, loadCrs, loadQueue, type Reader } from './store';
 
@@ -38,6 +39,7 @@ export async function getTrackerPayload(
   ctx: ActorContext,
   raw: z.input<typeof GetTrackerInputSchema>,
 ): Promise<TrackerPayload> {
+  requireScope(ctx, 'project:read');
   const parsed = GetTrackerInputSchema.safeParse(raw);
   if (!parsed.success) throw invalidInput('Invalid tracker read', parsed.error);
   const { projectId, actAs } = parsed.data;

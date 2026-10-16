@@ -7,6 +7,11 @@ export const SCOPES: { scope: Scope; title: string; text: string; risk?: true }[
     text: 'Records, the graph, notes and activity.',
   },
   {
+    scope: 'queue:add',
+    title: 'Add to the Queue',
+    text: 'Events and work items wait in the Queue. Main does not change.',
+  },
+  {
     scope: 'records:import',
     title: 'Add records',
     text: 'Paste or import messages. The graph does not change.',

@@ -13,11 +13,8 @@ import { canonicalHash } from '../../../lib/canonical-json';
 import { AppError } from '../../errors';
 import { graphCommits, projects, users, workspaceMembers } from '../../db/schema';
 import { isId, joinTransaction, withTransaction, type Db, type ProjectRow } from '../../db/tx';
-import {
-  createTrackerProject,
-  FirstMilestoneSchema,
-  ProjectTeamsSchema,
-} from '../../tracker/projects';
+import { FirstMilestoneSchema, ProjectTeamsSchema } from '../../../tracker';
+import { createTrackerProject } from '../../tracker/projects';
 const NewProjectInputSchema = z.strictObject({
   title: ProjectSchema.shape.title,
   clientName: ProjectSchema.shape.clientName,

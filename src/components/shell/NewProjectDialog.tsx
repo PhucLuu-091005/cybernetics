@@ -4,17 +4,32 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Project } from '../../contracts';
 import { send, type ApiError } from '../inbox/api';
 import { ConflictBanner } from '../review/ConflictBanner';
-import { CLIENT_MAX, NAME_MAX, newProjectBody } from './new-project';
+import {
+  CLIENT_MAX,
+  DEFAULT_TEAMS,
+  NAME_MAX,
+  newProjectBody,
+  newProjectProblem,
+  type NewProjectForm,
+} from './new-project';
 
 export function NewProjectDialog({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
   const nameInput = useRef<HTMLInputElement>(null);
-  const [name, setName] = useState('');
-  const [client, setClient] = useState('');
+  const [form, setForm] = useState<NewProjectForm>({
+    name: '',
+    client: '',
+    teams: DEFAULT_TEAMS,
+    milestoneName: '',
+    milestoneDate: '',
+  });
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<ApiError | null>(null);
-  const body = newProjectBody(name, client);
+  const body = newProjectBody(form);
+  const problem = newProjectProblem(form);
+  const edit = (field: keyof NewProjectForm) => (event: { target: { value: string } }) =>
+    setForm((current) => ({ ...current, [field]: event.target.value }));
   useEffect(() => {
     dialog.current?.showModal();
     nameInput.current?.focus();
@@ -51,23 +66,53 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
           Project name
           <input
             ref={nameInput}
-            value={name}
+            value={form.name}
             required
             maxLength={NAME_MAX}
             autoComplete="off"
-            onChange={(event) => setName(event.target.value)}
+            onChange={edit('name')}
           />
         </label>
         <label className="field">
           Client
           <input
-            value={client}
+            value={form.client}
             required
             maxLength={CLIENT_MAX}
             autoComplete="off"
-            onChange={(event) => setClient(event.target.value)}
+            onChange={edit('client')}
           />
         </label>
+        <label className="field">
+          Teams, one per line
+          <textarea
+            value={form.teams}
+            rows={3}
+            required
+            autoComplete="off"
+            onChange={edit('teams')}
+          />
+        </label>
+        <div className="grid2">
+          <label className="field">
+            First milestone (optional)
+            <input
+              value={form.milestoneName}
+              maxLength={NAME_MAX}
+              autoComplete="off"
+              onChange={edit('milestoneName')}
+            />
+          </label>
+          <label className="field">
+            Milestone date
+            <input type="date" value={form.milestoneDate} onChange={edit('milestoneDate')} />
+          </label>
+        </div>
+        {problem && (
+          <p className="new-project-problem" role="status">
+            {problem}
+          </p>
+        )}
         <div className="new-project-actions">
           <button
             className="btn"
