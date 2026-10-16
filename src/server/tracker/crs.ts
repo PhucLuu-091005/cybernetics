@@ -6,9 +6,11 @@ import {
   applyOp,
   clashesOf,
   clashLabel,
+  crVersionApplies,
   liveOps,
   mainState,
   noNul,
+  onlyMainNote,
   OpError,
   OpSchema,
   replayOps,
@@ -446,12 +448,21 @@ async function merge(run: Run, picks: Record<string, 'main' | 'cr'>) {
     });
   if (!liveOps(cr.ops, main.commits).length)
     throw new AppError('CONFLICT', `Main already has every change of #${cr.num}`);
-  // A change that no longer applies stays out of Main, so Main never replays a skipped step.
-  const ops = stillApplying(
-    mainState(main.base, main.queue, main.commits),
-    liveOps(cr.ops, main.commits, picks),
-    tz,
+  const latest = mainState(main.base, main.queue, main.commits);
+  // A kept pick that cannot apply would record "kept this change request" for a change Main never gets.
+  const blocked = clashes.find(
+    (clash) =>
+      picks[clash.key] === 'cr' &&
+      !crVersionApplies(latest, cr.ops, main.commits, picks, clash, tz),
   );
+  if (blocked)
+    throw new AppError(
+      'CONFLICT',
+      `${clashLabel(blocked, mainState(main.base, main.queue, main.commits, blocked.x.rev))}: ${onlyMainNote(blocked.key)}`,
+      { details: { key: blocked.key } },
+    );
+  // A change that no longer applies stays out of Main, so Main never replays a skipped step.
+  const ops = stillApplying(latest, liveOps(cr.ops, main.commits, picks), tz);
   const resolutions: Resolution[] = clashes.map((clash) => ({
     key: clash.key,
     label: clashLabel(clash, mainState(main.base, main.queue, main.commits, clash.x.rev)),

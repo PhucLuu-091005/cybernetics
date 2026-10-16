@@ -76,3 +76,11 @@ export function clashLabel(clash: Pick<Clash, 'key' | 'x'>, state: TrackerState)
   const item = clash.x.d?.item ?? clash.x.op;
   return kind === 'event' ? `${item} · which work item` : item;
 }
+
+export function onlyMainNote(key: string): string {
+  const kind = key.split(':')[0];
+  if (kind === 'event' || kind === 'item')
+    return "Main already used this card, so only Main's version can be kept.";
+  if (kind === 'act') return "Main hid this event, so only Main's version can be kept.";
+  return "This change no longer fits Main, so only Main's version can be kept.";
+}

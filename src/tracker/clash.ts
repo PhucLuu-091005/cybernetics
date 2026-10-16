@@ -58,6 +58,20 @@ export function liveOps(crOps: readonly Op[], commits: readonly Commit[], picks?
   );
 }
 
+/** Main may already hold the card or have hidden the event, so a CR version can fail on top of Main. */
+export function crVersionApplies(
+  main: TrackerState,
+  crOps: readonly Op[],
+  commits: readonly Commit[],
+  picks: Picks,
+  clash: Clash,
+  timeZone: string = DEFAULT_TIME_ZONE,
+): boolean {
+  const ops = liveOps(crOps, commits, { ...picks, [clash.key]: 'cr' });
+  const at = ops.indexOf(clash.x);
+  return at >= 0 && !replayOps(main, ops, timeZone).entries[at].skipped;
+}
+
 export function mainState(
   base: TrackerBase,
   queue: QueueSource,

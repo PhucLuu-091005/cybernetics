@@ -124,6 +124,31 @@ function afterTwoMerges() {
   return { crs: [cr1, merged2, cr3, cr4], commits: [...commits, c2], cr3 };
 }
 
+/** #5 made its changes at rev 1; then #6 took the queue card qe1 and hid p31 in Main. */
+function mainTookTheSpots() {
+  const { cr1, commits } = seed();
+  const cr5 = makeCr(5, {
+    author: 'lan',
+    ops: described(commits, [
+      makeOp('attach', { eventId: 'qe1', workItemId: 'incident' }, 1, 'lan'),
+      makeOp('kind', { eventId: 'p31', kind: 'issue' }, 1, 'lan'),
+      makeOp('rename', { workItemId: 'secret', title: 'Secret renewed' }, 1, 'lan'),
+    ]),
+  });
+  const mainOps = described(commits, [
+    makeOp('attach', { eventId: 'qe1', workItemId: 'secret' }, 1, 'quang'),
+    makeOp('hide', { eventId: 'p31' }, 1, 'quang'),
+  ]);
+  const cr6 = makeCr(6, {
+    author: 'quang',
+    status: 'merged',
+    ops: mainOps,
+    mergedRev: 2,
+    mergedBy: LARKSPUR_OWNER,
+  });
+  return { crs: [cr1, cr5, cr6], commits: [...commits, commitOf(cr6, 2, mainOps)] };
+}
+
 const titleOf = (state: { workItems: Array<{ id: string; title: string }> }, id: string) =>
   state.workItems.find((w) => w.id === id)?.title;
 
@@ -252,6 +277,24 @@ describe('reviewModel', () => {
     const keepCr = reviewModel(p, 3, { 'loop:pg203:title': 'cr' });
     expect(keepCr?.canMerge).toBe(true);
     expect(titleOf(keepCr!.after, 'pg203')).toBe('PG-203 Country list field type, on staging');
+    expect(keepCr?.clashes.map((k) => k.crApplies)).toEqual([true]);
+  });
+
+  it('marks a clash whose CR version cannot apply on top of Main and never merges that pick', () => {
+    const { crs, commits } = mainTookTheSpots();
+    const p = payload(crs, commits);
+    const model = reviewModel(p, 5, {});
+    expect(model?.clashes.map((k) => [k.key, k.index, k.crApplies])).toEqual([
+      ['event:qe1', 0, false],
+      ['act:p31', 1, false],
+    ]);
+    const keepCr = reviewModel(p, 5, { 'event:qe1': 'cr', 'act:p31': 'main' });
+    expect(keepCr?.picks).toEqual({ 'event:qe1': 'cr', 'act:p31': 'main' });
+    expect(keepCr?.canMerge).toBe(false);
+    const keepMain = reviewModel(p, 5, { 'event:qe1': 'main', 'act:p31': 'main' });
+    expect(keepMain?.canMerge).toBe(true);
+    expect(keepMain?.after.events.find((e) => e.id === 'qe1')?.workItemId).toBe('secret');
+    expect(titleOf(keepMain!.after, 'secret')).toBe('Secret renewed');
   });
 
   it('reports the clash of a draft but never lets the owner merge it', () => {
