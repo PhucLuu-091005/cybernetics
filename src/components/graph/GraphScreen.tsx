@@ -403,6 +403,16 @@ export function GraphScreen({
     return () => document.removeEventListener('keydown', onKey);
   }, [selectedLoop, selectedMilestone, actIndex, close, view, readOnly]);
 
+  // A press on a card, an icon or the loop list leaves focus on the page, where read-only keys do not reach.
+  const openedKey = selectedLoop?.loop.id ?? selectedMilestone?.milestone.id ?? null;
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!readOnly || openedKey === null || !stage || stage.contains(document.activeElement)) return;
+    stage
+      .querySelector<HTMLElement>('.drawer-h button[aria-label^="Close"]')
+      ?.focus({ preventScroll: true });
+  }, [readOnly, openedKey]);
+
   const counts = useMemo(() => {
     const closed = visibleLoops.filter((loop) => loop.state === 'closed').length;
     const ended = visibleLoops.filter(

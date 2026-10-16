@@ -30,6 +30,30 @@ export function fitViewport(box: Box, size: Size, padding = 32, maxZoom = MAX_ZO
   };
 }
 
+/** Fits every box up to `maxZoom`; when that needs less than `minZoom`, shows the earliest box at `minZoom` instead. */
+export function focusViewport(
+  boxes: readonly Box[],
+  size: Size,
+  padding: number,
+  minZoom: number,
+  maxZoom: number,
+): Viewport {
+  const all = {
+    x0: Math.min(...boxes.map((box) => box.x0)),
+    x1: Math.max(...boxes.map((box) => box.x1)),
+    y0: Math.min(...boxes.map((box) => box.y0)),
+    y1: Math.max(...boxes.map((box) => box.y1)),
+  };
+  const fit = fitViewport(all, size, padding, maxZoom);
+  if (fit.zoom >= minZoom) return fit;
+  const first = boxes.reduce((earliest, box) => (box.x0 < earliest.x0 ? box : earliest));
+  return {
+    zoom: minZoom,
+    x: padding - first.x0 * minZoom,
+    y: size.height / 2 - ((first.y0 + first.y1) / 2) * minZoom,
+  };
+}
+
 export function nextZoom(zoom: number, direction: 1 | -1): number {
   return direction > 0
     ? (ZOOM_STEPS.find((step) => step > zoom + 1e-3) ?? MAX_ZOOM)
