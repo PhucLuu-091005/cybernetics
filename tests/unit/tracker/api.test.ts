@@ -174,6 +174,17 @@ describe('tracker api errors', () => {
     });
   });
 
+  it.each([
+    ['an empty body', () => new Response(null, { status: 200 })],
+    ['a body that is not JSON', () => new Response('<html>', { status: 200 })],
+    ['a JSON value that is not an object', () => Response.json([1, 2])],
+  ])('turns a 2xx with %s into an error result', async (_label, make) => {
+    reply = async () => make();
+    const result = await getTracker(PROJECT);
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error).toMatchObject({ status: 200, code: 'INTERNAL' });
+  });
+
   it('reports a network failure without throwing', async () => {
     vi.stubGlobal(
       'fetch',

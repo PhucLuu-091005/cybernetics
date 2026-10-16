@@ -58,8 +58,17 @@ function Frame({
 }) {
   const ref = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
-    ref.current?.focus({ preventScroll: true });
-  }, [label]);
+    const drawer = ref.current;
+    const opener = document.activeElement;
+    drawer?.focus({ preventScroll: true });
+    return () => {
+      const now = document.activeElement;
+      // Hand focus back only when it would otherwise be lost; a click on another control keeps its focus.
+      const lost = !now || now === document.body || !!drawer?.contains(now);
+      const focusable = opener instanceof HTMLElement || opener instanceof SVGElement;
+      if (lost && focusable && opener.isConnected) opener.focus();
+    };
+  }, []);
   return (
     <aside ref={ref} className="drawer" aria-label={label} tabIndex={-1}>
       <div className="pop-h">
@@ -169,7 +178,6 @@ export function WorkListDrawer({
                     className={`eyebtn${hidden ? ' off' : ''}`}
                     type="button"
                     aria-label={`${hidden ? 'Show' : 'Hide'} ${w.title}`}
-                    aria-pressed={hidden}
                     onClick={() => onToggleRow(w.id)}
                   >
                     <Icon name={hidden ? 'eyeoff' : 'eye'} size={14} />
@@ -204,6 +212,8 @@ export function MilestoneDrawer({
   const { status, members } = milestoneStatus(m, state.workItems, state.events, asOf, tz);
   const team = (id: string) => state.teams.find((t) => t.id === id)?.name ?? '';
   const unchanged = name === m.name && date === m.planned;
+  const shownName = edit ? name : m.name;
+  const shownDate = edit ? date : m.planned;
   return (
     <Frame
       label={m.name}
@@ -229,13 +239,17 @@ export function MilestoneDrawer({
       <p className="q-label">Edit</p>
       <label className="field">
         Name
-        <input value={name} disabled={!edit} onChange={(event) => setName(event.target.value)} />
+        <input
+          value={shownName}
+          disabled={!edit}
+          onChange={(event) => setName(event.target.value)}
+        />
       </label>
       <label className="field">
         Planned date
         <input
           type="date"
-          value={date}
+          value={shownDate}
           disabled={!edit}
           onChange={(event) => event.target.value && setDate(event.target.value)}
         />

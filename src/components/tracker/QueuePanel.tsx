@@ -52,13 +52,7 @@ export function QueuePanel({ state, dir, tz, onAdd, onEvent, onItem }: Props) {
   );
   const shownItems = items.filter((it) => hit(`${it.title} ${it.note} ${dir.name(it.doneBy)}`));
   const tabButton = (value: QueueTab, label: string, count: number) => (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={tab === value}
-      aria-controls="tk-queue-list"
-      onClick={() => setTab(value)}
-    >
+    <button type="button" aria-pressed={tab === value} onClick={() => setTab(value)}>
       {label} <span className="n">{count}</span>
     </button>
   );
@@ -75,7 +69,7 @@ export function QueuePanel({ state, dir, tz, onAdd, onEvent, onItem }: Props) {
           <Icon name="plus" size={13} /> Add
         </button>
       </div>
-      <div className="qseg" role="tablist" aria-label="Queue">
+      <div className="qseg" role="group" aria-label="Show in the queue">
         {tabButton('events', 'Events', events.length)}
         {tabButton('items', 'Work items', items.length)}
       </div>
@@ -89,7 +83,7 @@ export function QueuePanel({ state, dir, tz, onAdd, onEvent, onItem }: Props) {
           onChange={(event) => setSearch(event.target.value)}
         />
       </label>
-      <div className="qlist" id="tk-queue-list" role="tabpanel">
+      <div className="qlist">
         {tab === 'events' &&
           (shownEvents.length ? (
             shownEvents.map((e) => (
