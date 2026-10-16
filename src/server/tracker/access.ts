@@ -24,15 +24,15 @@ export function resolveActing(
   ctx: ActorContext,
   actAs?: string | null,
 ): Member | null {
-  if (actAs) {
-    if (ctx.kind === 'agent') throw new AppError('FORBIDDEN', 'An agent acts only as its user');
-    if (!tracker.demo)
-      throw new AppError('FORBIDDEN', 'Working as another person works only in a demo project');
-    const member = members.find((item) => item.id === actAs);
-    if (!member) throw new AppError('FORBIDDEN', 'That person is not a member of this project');
-    return member;
-  }
-  return members.find((item) => item.userId === ctx.userId) ?? null;
+  const own = members.find((item) => item.userId === ctx.userId) ?? null;
+  // The cookie only switches a member to another member; it never makes a guest a member.
+  if (!actAs || !own) return own;
+  if (ctx.kind === 'agent') throw new AppError('FORBIDDEN', 'An agent acts only as its user');
+  if (!tracker.demo)
+    throw new AppError('FORBIDDEN', 'Working as another person works only in a demo project');
+  const member = members.find((item) => item.id === actAs);
+  if (!member) throw new AppError('FORBIDDEN', 'That person is not a member of this project');
+  return member;
 }
 
 export async function actingMember(

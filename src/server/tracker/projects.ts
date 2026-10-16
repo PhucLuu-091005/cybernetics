@@ -108,10 +108,10 @@ export async function createTrackerProject(
   return { ownerMemberId };
 }
 
-/** The owner member keeps the story name Minh Trần (spec 2.19) instead of `userName`. */
+/** The owner member keeps the story name Minh Trần (spec 2.19), so it needs no user name. */
 export async function seedTrackerDemo(
   tx: Tx,
-  input: { workspaceId: string; projectId: string; userId: string; userName: string },
+  input: { workspaceId: string; projectId: string; userId: string },
 ): Promise<{ ids: Record<string, string> }> {
   const queueRows = larkspurQueueRows();
   const ids: Record<string, string> = Object.fromEntries(

@@ -68,14 +68,58 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker permissions', () => {
 
   it('lets only the owner of Main merge, close or request changes', async () => {
     for (const key of ['lan', 'quang', 'ha']) {
-      await expect(action(key, 2, { action: 'merge', picks: {} })).rejects.toMatchObject(forbidden);
-      await expect(action(key, 2, { action: 'close' })).rejects.toMatchObject(forbidden);
       await expect(
-        action(key, 2, { action: 'request-changes', note: 'Please change it.' }),
+        action(key, 2, { action: 'merge', picks: {}, expectedRevision: 0 }),
+      ).rejects.toMatchObject(forbidden);
+      await expect(action(key, 2, { action: 'close', expectedRevision: 0 })).rejects.toMatchObject(
+        forbidden,
+      );
+      await expect(
+        action(key, 2, {
+          action: 'request-changes',
+          note: 'Please change it.',
+          expectedRevision: 0,
+        }),
       ).rejects.toMatchObject(forbidden);
     }
     const payload = await getTrackerPayload(t.db, demo.owner, as('minh'));
     expect(payload.crs.find((cr) => cr.num === 2)?.status).toBe('ready');
+  });
+
+  it('needs expectedRevision to merge, close or request changes', async () => {
+    for (const body of [
+      { action: 'merge', picks: {} },
+      { action: 'close' },
+      { action: 'request-changes', note: 'Please change it.' },
+    ])
+      await expect(action('minh', 2, body)).rejects.toMatchObject({ code: 'VALIDATION' });
+  });
+
+  it('ignores act-as for a person without a member: reads show no member, writes are forbidden', async () => {
+    const guest = await workspaceGuest(t.db, demo.owner);
+    const asMinh = { projectId: demo.projectId, actAs: demo.ids.minh };
+    expect((await getTrackerPayload(t.db, guest, asMinh)).me).toBeNull();
+    await expect(createCr(t.db, guest, { ...asMinh, title: 'Not mine' })).rejects.toMatchObject(
+      forbidden,
+    );
+    await expect(
+      crAction(t.db, guest, { ...asMinh, num: 2, action: 'merge', picks: {}, expectedRevision: 0 }),
+    ).rejects.toMatchObject(forbidden);
+    await expect(
+      appendOp(t.db, guest, {
+        projectId: demo.projectId,
+        actAs: demo.ids.ha,
+        num: 4,
+        expectedRevision: 0,
+        op: rename,
+      }),
+    ).rejects.toMatchObject(forbidden);
+    await expect(
+      addQueueEntry(t.db, guest, { ...asMinh, kind: 'event', fields: event('sarah') }),
+    ).rejects.toMatchObject(forbidden);
+    const after = await getTrackerPayload(t.db, demo.owner, { projectId: demo.projectId });
+    expect(after.crs).toHaveLength(4);
+    expect(after.crs.find((cr) => cr.num === 2)?.status).toBe('ready');
   });
 
   it('acts as a member only in a demo project and only for its members', async () => {

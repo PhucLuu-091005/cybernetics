@@ -25,7 +25,6 @@ export async function seedDemo(db: Db, owner?: ActorContext): Promise<Demo> {
       workspaceId: project.workspaceId,
       projectId: project.id,
       userId: ctx.userId,
-      userName: 'Sandbox User',
     }),
   );
   return { owner: ctx, projectId: project.id, workspaceId: project.workspaceId, ids };
