@@ -19,7 +19,7 @@ The approved graph with the loop panel open. The red branch has an `unanswered_r
 
 ![Approved graph with the loop panel for the client secret renewal loop](docs/screenshots/graph-loop-panel.png)
 
-The Review screen with a change set selected: the change, its effect on the loops, the quotes and the Approve and Reject buttons:
+The Review screen with a change set selected: the title with the Reject and Approve buttons, the change, and the change set on the graph:
 
 ![Review screen with a change set](docs/screenshots/review-queue.png)
 

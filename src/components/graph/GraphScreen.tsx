@@ -63,7 +63,10 @@ export type GraphScreenProps = {
   changedLoopIds?: readonly string[];
   agentActIds?: readonly string[];
   heading?: string;
-  headingLevel?: 1 | 2;
+  headingLevel?: 1 | 2 | 3;
+  initialFocusLoopIds?: readonly string[];
+  readOnly?: boolean;
+  listInitiallyClosed?: boolean;
 };
 
 const dayAndTime = (stamp: string) => {
@@ -89,8 +92,11 @@ export function GraphScreen({
   agentActIds,
   heading = 'Main graph',
   headingLevel = 1,
+  initialFocusLoopIds,
+  readOnly = false,
+  listInitiallyClosed = false,
 }: GraphScreenProps) {
-  const Heading = headingLevel === 1 ? 'h1' : 'h2';
+  const Heading = (['h1', 'h2', 'h3'] as const)[headingLevel - 1];
   const halo = useMemo(() => new Set(changedLoopIds ?? []), [changedLoopIds]);
   const agentActs = useMemo(() => new Set(agentActIds ?? []), [agentActIds]);
   const loopTargets = useMemo(
@@ -499,6 +505,8 @@ export function GraphScreen({
               onSelectMilestone={selectMilestone}
               onViewRecord={viewRecord}
               stageRef={stageRef}
+              initialFocusLoopIds={initialFocusLoopIds}
+              listInitiallyClosed={listInitiallyClosed}
             />
             {selectedLoop && (
               <LoopPanel
@@ -515,6 +523,7 @@ export function GraphScreen({
                 loops={loopTargets}
                 snapshot={snapshot}
                 agentActIds={agentActs}
+                readOnly={readOnly}
                 relations={relations}
                 onOpenLoop={selectLoop}
                 onViewRecord={viewRecord}

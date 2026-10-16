@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const PROJECT = 'Larkspur Capital';
 
@@ -27,7 +27,11 @@ test('approve the agent change set from Review and see it leave the queue', asyn
   await page.goto(`/projects/${projectId}/review`);
   await openSet(page, /Add Sarah's follow-up on the incident report/);
   await expect(page.getByRole('heading', { name: 'What changes' })).toBeVisible();
-  await expect(page.getByText('Where is the root cause report you promised?')).toBeVisible();
+  await expect(
+    page
+      .getByRole('region', { name: 'Quotes' })
+      .getByText('Where is the root cause report you promised?'),
+  ).toBeVisible();
   await actions(page).getByRole('button', { name: 'Approve' }).click();
   await expect(approved(page, /^Approved: Add Sarah's follow-up/)).toBeVisible();
   await expect(sets(page).getByRole('link', { name: /Add Sarah's follow-up/ })).toHaveCount(0);
@@ -178,4 +182,86 @@ test('an unknown or already approved change set id is handled', async ({ page })
   await page.goto(itemUrl);
   await expect(page.getByText('This change set is no longer open')).toBeVisible();
   await expect(page.getByRole('link', { name: 'See Activity' })).toBeVisible();
+});
+
+const box = async (locator: Locator) => (await locator.boundingBox())!;
+const graphRegion = (page: Page) => page.getByRole('region', { name: 'On the graph' });
+
+test('the change set header holds the title with Reject and Approve on its right', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const projectId = await signIn(page, 'queue-header');
+  await page.goto(`/projects/${projectId}/review`);
+  await openSet(page, /Add Sarah's follow-up/);
+  const title = await box(page.getByRole('heading', { level: 2, name: /Add Sarah's follow-up/ }));
+  const reject = await box(actions(page).getByRole('button', { name: 'Reject' }));
+  const approve = await box(actions(page).getByRole('button', { name: 'Approve' }));
+  expect(reject.x).toBeGreaterThanOrEqual(title.x + title.width);
+  expect(approve.x).toBeGreaterThan(reject.x);
+  for (const button of [reject, approve]) {
+    expect(button.y).toBeLessThan(title.y + title.height);
+    expect(button.y + button.height).toBeGreaterThan(title.y);
+  }
+  await expect(actions(page).getByRole('link')).toHaveCount(0);
+});
+
+test('What changes comes first, then the change set graph with the canvas', async ({ page }) => {
+  const projectId = await signIn(page, 'queue-graph');
+  await page.goto(`/projects/${projectId}/review`);
+  await openSet(page, /Add Sarah's follow-up/);
+  const changes = page.getByRole('region', { name: 'What changes' });
+  await expect(changes.getByRole('link', { name: 'Edit' })).toHaveAttribute(
+    'href',
+    new RegExp(`/projects/${projectId}/proposals/[0-9a-f-]{36}$`),
+  );
+  const region = graphRegion(page);
+  await expect(region.getByRole('group', { name: /promise graph for/i })).toBeVisible();
+  expect((await box(changes)).y + (await box(changes)).height).toBeLessThanOrEqual(
+    (await box(region)).y,
+  );
+});
+
+test('the change set graph has no edit control, keeps the Review URL and lets another set open', async ({
+  page,
+}) => {
+  const projectId = await signIn(page, 'queue-readonly');
+  await page.goto(`/projects/${projectId}/review`);
+  await openSet(page, /Add Sarah's follow-up/);
+  const region = graphRegion(page);
+  await expect(region.getByRole('group', { name: /promise graph for/i })).toHaveAttribute(
+    'data-ready',
+    'true',
+  );
+  const branch = region.getByRole('button', { name: /^Loop: Sync incident report/ });
+  await branch.focus();
+  await branch.click();
+  const panel = region.getByRole('complementary', { name: /loop panel/i });
+  await expect(panel.getByRole('heading', { level: 2 })).toHaveText('Sync incident report');
+  await expect(panel.getByRole('listitem').first()).toBeVisible();
+  await expect(panel.getByLabel('Act actions')).toHaveCount(0);
+  await expect(panel.getByRole('combobox')).toHaveCount(0);
+  await expect(panel.getByText('Go-live and first close')).toBeVisible();
+  await expect(
+    region.getByRole('button', {
+      name: /Change type|Move to another loop|Hide this act|Apply to change set/,
+    }),
+  ).toHaveCount(0);
+  await expect(page).toHaveURL(/[?&]tab=sets&item=[0-9a-f-]{36}.*[?&]loop=[0-9a-f-]{36}/);
+
+  await openSet(page, /as a phase 1 request/);
+  await expect(region.getByRole('complementary', { name: /loop panel/i })).toHaveCount(0);
+  await expect(page).not.toHaveURL(/[?&]loop=/);
+});
+
+test('Open full graph leads to the change set on the graph page', async ({ page }) => {
+  const projectId = await signIn(page, 'queue-full-graph');
+  await page.goto(`/projects/${projectId}/review`);
+  await openSet(page, /Add Sarah's follow-up/);
+  const proposalId = new URL(page.url()).searchParams.get('item')!;
+  await graphRegion(page).getByRole('link', { name: 'Open full graph' }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/projects/${projectId}/graph\\?proposal=${proposalId}&rev=\\d+$`),
+  );
+  await expect(page.getByText('Change set, open')).toBeVisible();
 });
