@@ -503,6 +503,51 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       expect(main.events.find((event) => event.id === 'qd1')?.workItemId).toBe('pg203');
     });
 
+    it('rejects a pick of this change request when its change cannot apply on top of Main', async () => {
+      await fresh();
+      const x = await createCr(t.db, demo.owner, {
+        ...as('lan'),
+        title: 'Incident notes',
+        ops: [
+          { op: 'attach', a: { eventId: demo.ids.qe1, workItemId: 'incident' } },
+          { op: 'kind', a: { eventId: 'p31', kind: 'issue' } },
+          { op: 'rename', a: { workItemId: 'secret', title: 'Secret renewed' } },
+        ],
+      });
+      const y = await createCr(t.db, demo.owner, {
+        ...as('quang'),
+        title: 'Other home',
+        ops: [
+          { op: 'attach', a: { eventId: demo.ids.qe1, workItemId: 'secret' } },
+          { op: 'hide', a: { eventId: 'p31' } },
+        ],
+      });
+      await action('lan', x.num, { action: 'ready' });
+      await action('quang', y.num, { action: 'ready' });
+      await review(y.num, { action: 'merge', picks: {} });
+      const card = `event:${demo.ids.qe1}`;
+      await expect(
+        review(x.num, { action: 'merge', picks: { [card]: 'cr', 'act:p31': 'main' } }),
+      ).rejects.toMatchObject({
+        code: 'CONFLICT',
+        message: expect.stringContaining('Main already used this card'),
+      });
+      await expect(
+        review(x.num, { action: 'merge', picks: { [card]: 'main', 'act:p31': 'cr' } }),
+      ).rejects.toMatchObject({
+        code: 'CONFLICT',
+        message: expect.stringContaining('only Main'),
+      });
+      expect(crOf(await getTrackerPayload(t.db, demo.owner, as('minh')), x.num).status).toBe(
+        'ready',
+      );
+      const merged = await review(x.num, {
+        action: 'merge',
+        picks: { [card]: 'main', 'act:p31': 'main' },
+      });
+      expect(merged.commits.at(-1)?.ops.map((op) => op.op)).toEqual(['rename']);
+    });
+
     it('merges only a ready change request', async () => {
       await fresh();
       await expect(review(4, { action: 'merge', picks: {} })).rejects.toMatchObject({

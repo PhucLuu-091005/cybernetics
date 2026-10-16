@@ -1,4 +1,4 @@
-import { clashesOf, liveOps, mainState, type Clash, type Picks } from './clash';
+import { clashesOf, crVersionApplies, liveOps, mainState, type Clash, type Picks } from './clash';
 import { clashLabel } from './describe';
 import type { TrackerEvent, TrackerState } from './model';
 import { replayOps, sameOp, type Marks, type Op, type OpDescription, type Replay } from './ops';
@@ -9,6 +9,8 @@ export type ReviewClash = Clash & {
   fromAuthor: string | null;
   mainVal: string;
   crVal: string;
+  /** False when Main already took the spot, so a pick of the CR would merge nothing. */
+  crApplies: boolean;
 };
 
 export type ReviewChange = {
@@ -136,7 +138,7 @@ function shapeOf(payload: TrackerPayload, cr: Cr, picks: Picks): Shape {
   };
 }
 
-function reviewClashes(payload: TrackerPayload, cr: Cr): ReviewClash[] {
+function reviewClashes(payload: TrackerPayload, cr: Cr): Array<Omit<ReviewClash, 'crApplies'>> {
   if (cr.status !== 'draft' && cr.status !== 'ready') return [];
   const { base, queue, commits, crs } = payload;
   return clashesOf(cr.ops, commits).map((clash) => ({
@@ -155,10 +157,15 @@ export function reviewModel(
 ): ReviewModel | null {
   const cr = payload.crs.find((c) => c.num === num);
   if (!cr) return null;
-  const clashes = reviewClashes(payload, cr);
+  const found = reviewClashes(payload, cr);
   const current: Picks = {};
-  for (const clash of clashes) if (picks[clash.key]) current[clash.key] = picks[clash.key];
+  for (const clash of found) if (picks[clash.key]) current[clash.key] = picks[clash.key];
   const shape = shapeOf(payload, cr, current);
+  const tz = payload.project.timeZone;
+  const clashes: ReviewClash[] = found.map((clash) => ({
+    ...clash,
+    crApplies: crVersionApplies(shape.before, cr.ops, payload.commits, current, clash, tz),
+  }));
   const after = shape.after.state;
   const changes = shape.described.entries.map(({ i, skipped, ...d }): ReviewChange => {
     const op = shape.ops[i];
@@ -191,7 +198,10 @@ export function reviewModel(
       cr.status === 'ready' &&
       owner &&
       changes.length > 0 &&
-      clashes.every((clash) => !!current[clash.key]),
+      clashes.every(
+        (clash) =>
+          current[clash.key] === 'main' || (current[clash.key] === 'cr' && clash.crApplies),
+      ),
     dropped: cr.status === 'merged' ? cr.resolutions.filter((r) => r.chose === 'main') : [],
   };
 }

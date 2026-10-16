@@ -17,6 +17,7 @@ import {
   formatStamp,
   KIND_LABEL,
   layoutTracker,
+  onlyMainNote,
   toInstant,
   type Cr,
   type CrCommentKind,
@@ -306,6 +307,7 @@ function ClashBox({
       {model.clashes.map((clash, i) => {
         const side = (value: 'main' | 'cr', label: string, text: string) => {
           const on = picks[clash.key] === value;
+          const blocked = value === 'cr' && !clash.crApplies;
           const body = (
             <>
               <small>{label}</small>
@@ -315,16 +317,24 @@ function ClashBox({
                   name={`rp${i}`}
                   value={value}
                   checked={on}
+                  disabled={blocked}
+                  aria-describedby={blocked ? `rp${i}-note` : undefined}
                   onChange={() => onPick(clash.key, value)}
                 />
               )}
               {text}
+              {blocked && (
+                <span className="side-note" id={`rp${i}-note`}>
+                  {onlyMainNote(clash.key)}
+                </span>
+              )}
             </>
           );
+          const cls = `side${on ? ' on' : ''}${blocked ? ' off' : ''}`;
           return canPick ? (
-            <label className={`side${on ? ' on' : ''}`}>{body}</label>
+            <label className={cls}>{body}</label>
           ) : (
-            <div className={`side${on ? ' on' : ''}`}>{body}</div>
+            <div className={cls}>{body}</div>
           );
         };
         return (

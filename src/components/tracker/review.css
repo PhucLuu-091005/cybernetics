@@ -154,6 +154,19 @@
 .tk .conf input {
   margin: 0 6px 0 0;
 }
+.tk .conf .side.off {
+  color: var(--ink-3);
+  background: var(--gray-bg);
+}
+.tk .conf label.side.off {
+  cursor: not-allowed;
+}
+.tk .conf .side-note {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
 
 .tk .ask-box {
   margin-top: 12px;
