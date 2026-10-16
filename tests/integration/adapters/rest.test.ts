@@ -14,7 +14,7 @@ type Handler = (
   request: Request,
   context: { params?: Promise<Record<string, string>> },
 ) => Promise<Response>;
-type RouteModule = Partial<Record<'GET' | 'POST' | 'PATCH' | 'DELETE', Handler>> & {
+type RouteModule = Partial<Record<'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', Handler>> & {
   runtime?: string;
 };
 type Reply = { status: number; headers: Headers; body: any }; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -31,6 +31,7 @@ const expectedRoutes = [
   '/projects/:projectId/tracker/crs/:num/ops',
   '/projects/:projectId/tracker/crs/:num/ops/:index',
   '/projects/:projectId/tracker/crs/:num/actions',
+  '/projects/:projectId/tracker/offsets/:eventId',
 ];
 
 function routeFiles(): string[] {
@@ -70,7 +71,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
     return candidates[0];
   }
   async function call(
-    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     path: string,
     body?: unknown,
     opts: { origin?: string; cookie?: string | null; raw?: string } = {},
@@ -131,6 +132,13 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
       { origin: 'https://evil.example' },
     );
     expect(response.status).toBe(403);
+    const moved = await call(
+      'PUT',
+      `/projects/${projectId}/tracker/offsets/p31`,
+      { minutes: 30 },
+      { origin: 'https://evil.example' },
+    );
+    expect(moved.status).toBe(403);
   });
   it('returns 404 for a project in another workspace', async () => {
     const foreign = await seedDemo(t.db, await testActor(t.db));

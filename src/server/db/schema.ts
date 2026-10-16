@@ -300,3 +300,21 @@ export const trackerCrComments = pgTable(
     memberIn('tracker_cr_comments_member_fk', table.projectId, table.memberId),
   ],
 );
+// A display choice of one person, so it lives outside the change requests and the graph history.
+export const trackerEventOffsets = pgTable(
+  'tracker_event_offsets',
+  {
+    workspaceId: tenantWorkspaceId(),
+    projectId: tenantProjectId(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    eventId: text('event_id').notNull(),
+    offsetMinutes: integer('offset_minutes').notNull(),
+    updatedAt: tz('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.userId, table.eventId] }),
+    inProject('tracker_event_offsets', table),
+  ],
+);

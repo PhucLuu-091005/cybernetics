@@ -95,4 +95,6 @@ export type TrackerPayload = {
   queue: TrackerQueue;
   commits: Commit[];
   crs: Cr[];
+  /** The day offsets of the signed-in person, so another person never sees them. */
+  offsets: Record<string, number>;
 };

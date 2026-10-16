@@ -51,6 +51,8 @@ export type Scope = {
   tracker: TrackerRow;
   members: Member[];
   me: Member | null;
+  /** The signed-in person, who stays the same while they act as another member. */
+  userId: string;
   tenant: Tenant;
 };
 
@@ -67,6 +69,7 @@ async function scopeOf(
     tracker,
     members,
     me: resolveActing(tracker, members, ctx, actAs),
+    userId: ctx.userId,
     tenant: { workspaceId: project.workspaceId, projectId: project.id },
   };
 }
