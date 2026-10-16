@@ -254,6 +254,22 @@ describe('reviewModel', () => {
     expect(titleOf(keepCr!.after, 'pg203')).toBe('PG-203 Country list field type, on staging');
   });
 
+  it('reports the clash of a draft but never lets the owner merge it', () => {
+    const { crs, commits, cr3 } = afterTwoMerges();
+    const draft: Cr = { ...cr3, status: 'draft' };
+    const p = payload([...crs.filter((c) => c.num !== 3), draft], commits);
+    const model = reviewModel(p, 3, { 'loop:pg203:title': 'cr' });
+    if (!model) throw new Error('no model');
+    expect(model.owner).toBe(true);
+    expect(model.clashes.map((k) => [k.key, k.index, k.fromAuthor])).toEqual([
+      ['loop:pg203:title', 1, 'lan'],
+    ]);
+    expect(model.changes.map((c) => c.clash?.key ?? null)).toEqual([null, 'loop:pg203:title']);
+    expect(model.picks).toEqual({ 'loop:pg203:title': 'cr' });
+    expect(titleOf(model.after, 'pg203')).toBe('PG-203 Country list field type, on staging');
+    expect(model.canMerge).toBe(false);
+  });
+
   it('shows a merged CR as Main around its merge, with the ops of its commit and the dropped picks', () => {
     const { crs, commits, cr3 } = afterTwoMerges();
     const resolution: Resolution = {

@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation';
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
-  useSyncExternalStore,
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
@@ -29,7 +29,7 @@ import { Avatar, Avatars, makeDirectory, type Directory } from './avatar';
 import { editorsOf, isOpen, plural, StatusChip, trunc } from './ContextBar';
 import { Icon, KindIcon } from './icons';
 import { TrackerGraph } from './TrackerGraph';
-import { useTracker } from './TrackerScreen';
+import { useNow, useTracker } from './TrackerScreen';
 import {
   browserStore,
   EMPTY_VIEW,
@@ -58,13 +58,6 @@ const TLK: Record<CrCommentKind, string> = {
   decline: 'said not now',
 };
 
-const MINUTE = 60_000;
-const everyHalfMinute = (onChange: () => void) => {
-  const timer = setInterval(onChange, MINUTE / 2);
-  return () => clearInterval(timer);
-};
-// Whole minutes keep the server render and the hydrating client on the same clock.
-const minuteNow = () => Math.floor(Date.now() / MINUTE) * MINUTE;
 const noop = () => {};
 
 type Ctx = { dir: Directory; tz: string; cr: Cr };
@@ -365,17 +358,19 @@ export function ReviewScreen({
   projectId,
   num,
   initialTab,
+  serverNow,
 }: {
   payload: TrackerPayload;
   projectId: string;
   num: number;
   initialTab: ReviewTab;
+  serverNow: number;
 }) {
   const router = useRouter();
   const { payload, setPayload } = useTracker(initial, projectId);
   const { project } = payload;
   const tz = project.timeZone;
-  const now = useSyncExternalStore(everyHalfMinute, minuteNow, minuteNow);
+  const now = useNow(serverNow);
   const asOf = project.asOf ?? toInstant(now, tz);
 
   const [tab, setTabState] = useState<ReviewTab>(initialTab);
@@ -384,7 +379,10 @@ export function ReviewScreen({
   const [viewed, setViewed] = useState<number[]>([]);
   const [picks, setPicks] = useState<Picks>({});
   const [asking, setAsking] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
   const [note, setNote] = useState('');
+  const noteRef = useRef<HTMLTextAreaElement>(null);
+  const keepRef = useRef<HTMLButtonElement>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ text: string; at: number } | null>(null);
   const [hidden, setHidden] = useState<ViewState>(EMPTY_VIEW);
@@ -401,6 +399,13 @@ export function ReviewScreen({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setHidden(readViewState(browserStore(), projectId));
   }, [projectId]);
+  useEffect(() => {
+    if (asking) noteRef.current?.focus();
+  }, [asking]);
+  useEffect(() => {
+    // Cancel takes the focus, so Enter right after the first press does not close the change request.
+    if (confirmClose) keepRef.current?.focus();
+  }, [confirmClose]);
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(null), 4500);
@@ -528,14 +533,28 @@ export function ReviewScreen({
   if (canPick)
     buttons = (
       <>
-        <button className="btn btn-danger big" type="button" disabled={busy} onClick={close}>
+        <button
+          className="btn btn-danger big"
+          type="button"
+          aria-expanded={confirmClose}
+          aria-controls="rv-close"
+          disabled={busy}
+          onClick={() => {
+            setAsking(false);
+            setConfirmClose(true);
+          }}
+        >
           Close without merging
         </button>
         <button
           className="btn big"
           type="button"
           aria-expanded={asking}
-          onClick={() => setAsking((a) => !a)}
+          aria-controls="rv-ask"
+          onClick={() => {
+            setConfirmClose(false);
+            setAsking((a) => !a);
+          }}
         >
           <Icon name="pencil" /> Request changes
         </button>
@@ -627,10 +646,10 @@ export function ReviewScreen({
             <h5>
               <Icon name="check" size={15} /> Resolved before merge
             </h5>
-            {cr.resolutions.map((x) => {
+            {cr.resolutions.map((x, i) => {
               const main = x.chose === 'main';
               return (
-                <div className="res-item" key={x.key}>
+                <div className="res-item" key={i}>
                   <b>{x.label}</b>
                   <span>
                     {dir.name(x.by)} kept{' '}
@@ -645,12 +664,31 @@ export function ReviewScreen({
             })}
           </div>
         )}
+        {confirmClose && canPick && (
+          <div className="ask-box" id="rv-close" role="group" aria-label="Close without merging">
+            <b>Close #{cr.num} without merging?</b>
+            <div className="row-btns">
+              <button className="btn btn-danger" type="button" disabled={busy} onClick={close}>
+                Close
+              </button>
+              <button
+                ref={keepRef}
+                className="btn"
+                type="button"
+                onClick={() => setConfirmClose(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
         {asking && canPick && (
-          <div className="ask-box">
+          <div className="ask-box" id="rv-ask">
             <label htmlFor="rv-note">
               <b>What should change?</b>
             </label>
             <textarea
+              ref={noteRef}
               id="rv-note"
               value={note}
               maxLength={4000}
@@ -696,12 +734,8 @@ export function ReviewScreen({
                     onComment={comment}
                   />
                 ))}
-                {model.dropped.map((x) => (
-                  <article
-                    className="dcard dropped"
-                    key={x.key}
-                    aria-label={`${x.label}, not merged`}
-                  >
+                {model.dropped.map((x, i) => (
+                  <article className="dcard dropped" key={i} aria-label={`${x.label}, not merged`}>
                     <header>
                       <Icon name="x" size={15} />
                       <b>{x.label}</b>

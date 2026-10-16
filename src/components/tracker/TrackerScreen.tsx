@@ -178,7 +178,7 @@ const everyHalfMinute = (onChange: () => void) => {
 };
 const minuteNow = () => Math.floor(Date.now() / MINUTE) * MINUTE;
 // Hydration renders with the server's minute, so the T line matches the server HTML; the client clock takes over after.
-const useNow = (serverNow: number) =>
+export const useNow = (serverNow: number) =>
   useSyncExternalStore(everyHalfMinute, minuteNow, () => serverNow);
 
 type Current = { state: TrackerState; marks?: Marks };
