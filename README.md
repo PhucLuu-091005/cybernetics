@@ -143,7 +143,7 @@ BASE_URL=https://localhost:3443 RELEASE_INSECURE_TLS=1 \
 
 **Timing budgets.** The walkthrough always records the first contentful paint and the graph API p50 and p95. It enforces the SRD 14 budgets (paint under 2 s, p95 under 500 ms) only when `RELEASE_TIMING_BUDGET` is set, for example `RELEASE_TIMING_BUDGET=1`. Leave it unset against the free Render plan, which does not meet these budgets (see [Measured results](#measured-results)).
 
-**Live deployment.** Sign in with Google once and save the session, then run the walkthrough. Each test waits for a new minute so that one user stays under the limit of 20 writes a minute.
+**Live deployment.** Sign in with Google once and save the session, then run the walkthrough. Each test waits for a new minute so that one user stays under the limit of 120 writes a minute.
 
 ```sh
 npx playwright codegen --save-storage=live-session.json https://<service>.onrender.com/signin
@@ -202,4 +202,4 @@ Live external-agent run (to fill in after step 7 of the deploy):
 - **Coverage.** The graph covers only imported and reviewed records. Pending records are a coverage limit: the graph header shows how many records wait for review, so an empty warning list is not proof of health.
 - **No connectors.** The P1 connectors (Slack events, Slack history, Gmail fetch, scheduled collection) are not built. Records arrive through paste or MCP import only.
 - **Free hosting.** The free web service sleeps after 15 minutes without traffic, and the free database expires 30 days after creation. On its 0.1 CPU the graph paints in several seconds and the first sign-in can take about 10 seconds, so the SRD 14 timing budgets hold only on a larger instance. See [Deploy on Render](#deploy-on-render-free-plan) and [Measured results](#measured-results).
-- **One instance.** Rate limits (60 reads and 20 writes a minute for each user, 60 calls a minute for each token) are kept in process memory.
+- **One instance.** Rate limits (300 reads and 120 writes a minute for each user, 60 calls a minute for each token) are kept in process memory.

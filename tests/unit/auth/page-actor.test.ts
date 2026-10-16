@@ -71,7 +71,7 @@ describe('page actor: one session resolution and one read charge per request', (
     const inbox = await requireActor(`/projects/${projectId}/inbox`);
     await optionalActor(`/projects/${projectId}/inbox`);
     expect(consume).toHaveBeenCalledTimes(1);
-    expect(consume).toHaveBeenCalledWith(`user:${userId}:read`, 60, expect.any(Number));
+    expect(consume).toHaveBeenCalledWith(`user:${userId}:read`, 300, expect.any(Number));
     expect(layout).toMatchObject({ userId, projectId: null });
     expect(inbox).toMatchObject({ userId, projectId });
   });

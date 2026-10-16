@@ -33,7 +33,7 @@ export function createIdentityServices(options: IdentityOptions) {
     const user = await store.resolveSessionUser(session.userId);
     if (!user) throw new AppError('UNAUTHENTICATED', 'Unknown session');
     const write = !['GET', 'HEAD', 'OPTIONS'].includes(request.method);
-    limiter.consume(`user:${user.userId}:${write ? 'write' : 'read'}`, write ? 20 : 60, now());
+    limiter.consume(`user:${user.userId}:${write ? 'write' : 'read'}`, write ? 120 : 300, now());
     return user;
   }
   /** Current membership decides access on every call, so a cached session never carries project access. */
