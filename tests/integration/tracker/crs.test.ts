@@ -4,6 +4,7 @@ import {
   appendOp,
   createCr,
   crAction,
+  dismissQueueEntry,
   getTrackerPayload,
   removeOp,
 } from '../../../src/server/tracker';
@@ -34,6 +35,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
   const fresh = async () => {
     demo = await seedDemo(t.db);
   };
+  const revisionOf = async (num: number) =>
+    crOf(await getTrackerPayload(t.db, demo.owner, as('minh')), num).revision;
+  const review = async (num: number, body: Record<string, unknown>) =>
+    action('minh', num, { expectedRevision: await revisionOf(num), ...body });
 
   describe('create', () => {
     it('numbers change requests per project and starts a draft that its author edits', async () => {
@@ -176,9 +181,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       expect(crOf(payload, num)).toMatchObject({ ops: [], revision: 0 });
     });
 
-    it('records the acting member as the person who moves a date', async () => {
+    it('records the acting member and the server time for a date move', async () => {
       await fresh();
       const { num } = await createCr(t.db, demo.owner, { ...as('lan'), title: 'Dates' });
+      const started = Date.now();
       const payload = await appendOp(t.db, demo.owner, {
         ...as('lan'),
         num,
@@ -196,6 +202,9 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       });
       const [op] = crOf(payload, num).ops;
       expect(op.op === 'due' && op.a.by).toBe(demo.ids.lan);
+      const movedAt = op.op === 'due' ? Date.parse(op.a.at) : NaN;
+      expect(movedAt).toBeGreaterThanOrEqual(started - 1000);
+      expect(movedAt).toBeLessThanOrEqual(Date.now() + 1000);
       expect(op.d).toMatchObject({ before: '6 Oct', after: '12 Oct', why: expect.any(String) });
     });
 
@@ -285,6 +294,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       expect(crOf(again, 4).comments.filter((c) => c.kind === 'ask')).toHaveLength(1);
       const cancelled = await action('khoa', 4, { action: 'cancel-ask' });
       expect(crOf(cancelled, 4).asks).toEqual([]);
+      const again2 = await action('khoa', 4, { action: 'cancel-ask' });
+      expect(crOf(again2, 4).updatedAt).toBe(crOf(cancelled, 4).updatedAt);
     });
 
     it('hands over to a member with edit right, and not to anyone else', async () => {
@@ -324,6 +335,9 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       await expect(
         action('ha', 4, { action: 'decline', who: demo.ids.khoa }),
       ).rejects.toMatchObject({ code: 'VALIDATION' });
+      await expect(action('ha', 4, { action: 'decline', who: 'junk' })).rejects.toMatchObject({
+        code: 'VALIDATION',
+      });
     });
   });
 
@@ -392,7 +406,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
   describe('merge', () => {
     it('merges a change request without a clash as commit rev N+1', async () => {
       await fresh();
-      const merged = await action('minh', 2, { action: 'merge', picks: {} });
+      const merged = await review(2, { action: 'merge', picks: {} });
       expect(merged.commits.map((commit) => commit.rev)).toEqual([1, 2]);
       const commit = merged.commits[1];
       expect(commit).toMatchObject({
@@ -415,33 +429,33 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       expect(main.workItems.find((item) => item.id === 'pg203')?.title).toBe(
         'PG-203 Country list field (multi-select)',
       );
-      await expect(action('minh', 2, { action: 'merge', picks: {} })).rejects.toMatchObject({
+      await expect(review(2, { action: 'merge', picks: {} })).rejects.toMatchObject({
         code: 'CONFLICT',
       });
     });
 
     it('rejects a merge with a clash and no pick, and a pick for a spot that does not clash', async () => {
       await fresh();
-      await expect(
-        action('minh', 2, { action: 'merge', picks: { [PG203]: 'cr' } }),
-      ).rejects.toMatchObject({ code: 'CONFLICT' });
-      const afterTwo = await action('minh', 2, { action: 'merge', picks: {} });
+      await expect(review(2, { action: 'merge', picks: { [PG203]: 'cr' } })).rejects.toMatchObject({
+        code: 'CONFLICT',
+      });
+      const afterTwo = await review(2, { action: 'merge', picks: {} });
       expect(clashesOf(crOf(afterTwo, 3).ops, afterTwo.commits).map((c) => c.key)).toEqual([PG203]);
-      await expect(action('minh', 3, { action: 'merge', picks: {} })).rejects.toMatchObject({
+      await expect(review(3, { action: 'merge', picks: {} })).rejects.toMatchObject({
         code: 'CONFLICT',
       });
       await expect(
-        action('minh', 3, { action: 'merge', picks: { [PG203]: 'cr', 'ms:golive:date': 'cr' } }),
+        review(3, { action: 'merge', picks: { [PG203]: 'cr', 'ms:golive:date': 'cr' } }),
       ).rejects.toMatchObject({ code: 'CONFLICT' });
       await expect(
-        action('minh', 3, { action: 'merge', picks: { [PG203]: 'both' } }),
+        review(3, { action: 'merge', picks: { [PG203]: 'both' } }),
       ).rejects.toMatchObject({ code: 'VALIDATION' });
     });
 
     it('records the picks as resolutions and a resolved comment', async () => {
       await fresh();
-      await action('minh', 2, { action: 'merge', picks: {} });
-      const merged = await action('minh', 3, { action: 'merge', picks: { [PG203]: 'cr' } });
+      await review(2, { action: 'merge', picks: {} });
+      const merged = await review(3, { action: 'merge', picks: { [PG203]: 'cr' } });
       const resolution = {
         key: PG203,
         label: 'PG-203 Country list field type · name',
@@ -474,8 +488,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
 
     it('drops the op of a clash picked as main from the commit', async () => {
       await fresh();
-      await action('minh', 2, { action: 'merge', picks: {} });
-      const merged = await action('minh', 3, { action: 'merge', picks: { [PG203]: 'main' } });
+      await review(2, { action: 'merge', picks: {} });
+      const merged = await review(3, { action: 'merge', picks: { [PG203]: 'main' } });
       expect(merged.commits[2].ops.map((op) => op.op)).toEqual(['addEvent']);
       expect(merged.commits[2].resolutions[0]).toMatchObject({ chose: 'main', from: 2 });
       expect(lastComment(merged, 3)?.kind).toBe('merged');
@@ -491,7 +505,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
 
     it('merges only a ready change request', async () => {
       await fresh();
-      await expect(action('minh', 4, { action: 'merge', picks: {} })).rejects.toMatchObject({
+      await expect(review(4, { action: 'merge', picks: {} })).rejects.toMatchObject({
         code: 'CONFLICT',
       });
     });
@@ -500,10 +514,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
   describe('request changes and close', () => {
     it('returns a ready change request to draft with a changes note', async () => {
       await fresh();
-      await expect(
-        action('minh', 2, { action: 'request-changes', note: '  ' }),
-      ).rejects.toMatchObject({ code: 'VALIDATION' });
-      const back = await action('minh', 2, {
+      await expect(review(2, { action: 'request-changes', note: '  ' })).rejects.toMatchObject({
+        code: 'VALIDATION',
+      });
+      const back = await review(2, {
         action: 'request-changes',
         note: 'Add the tax ID rules first.',
       });
@@ -513,14 +527,14 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
         memberId: demo.ids.minh,
         body: 'Add the tax ID rules first.',
       });
-      await expect(
-        action('minh', 2, { action: 'request-changes', note: 'Again' }),
-      ).rejects.toMatchObject({ code: 'CONFLICT' });
+      await expect(review(2, { action: 'request-changes', note: 'Again' })).rejects.toMatchObject({
+        code: 'CONFLICT',
+      });
     });
 
     it('closes a ready change request without merging', async () => {
       await fresh();
-      const closed = await action('minh', 3, { action: 'close' });
+      const closed = await review(3, { action: 'close' });
       expect(crOf(closed, 3)).toMatchObject({
         status: 'closed',
         closedBy: demo.ids.minh,
@@ -529,12 +543,109 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       });
       expect(lastComment(closed, 3)).toMatchObject({ kind: 'closed', memberId: demo.ids.minh });
       expect(closed.commits).toHaveLength(1);
-      await expect(action('minh', 3, { action: 'close' })).rejects.toMatchObject({
+      await expect(review(3, { action: 'close' })).rejects.toMatchObject({
         code: 'CONFLICT',
       });
       await expect(
         action('khoa', 3, { action: 'comment', body: 'Too late' }),
       ).rejects.toMatchObject({ code: 'CONFLICT' });
+    });
+  });
+
+  describe('races and dropped changes', () => {
+    it('gives exactly one success to two appends with the same expectedRevision', async () => {
+      await fresh();
+      const { num } = await createCr(t.db, demo.owner, { ...as('lan'), title: 'Race' });
+      const append = (title: string) =>
+        appendOp(t.db, demo.owner, {
+          ...as('lan'),
+          num,
+          expectedRevision: 0,
+          op: { op: 'rename', a: { workItemId: 'incident', title } },
+        });
+      const results = await Promise.allSettled([append('First'), append('Second')]);
+      expect(results.map((result) => result.status).sort()).toEqual(['fulfilled', 'rejected']);
+      const failed = results.find((result) => result.status === 'rejected');
+      expect((failed as PromiseRejectedResult).reason).toMatchObject({ code: 'CONFLICT' });
+      const payload = await getTrackerPayload(t.db, demo.owner, as('lan'));
+      expect(crOf(payload, num)).toMatchObject({ revision: 1 });
+      expect(crOf(payload, num).ops).toHaveLength(1);
+    });
+
+    it('rejects a merge of changes the owner did not see', async () => {
+      await fresh();
+      const seen = await revisionOf(2);
+      await action('lan', 2, { action: 'unready' });
+      await appendOp(t.db, demo.owner, {
+        ...as('lan'),
+        num: 2,
+        expectedRevision: await revisionOf(2),
+        op: { op: 'rename', a: { workItemId: 'secret', title: 'Secret renewed late' } },
+      });
+      await action('lan', 2, { action: 'ready' });
+      for (const body of [
+        { action: 'merge', picks: {} },
+        { action: 'request-changes', note: 'Wait' },
+        { action: 'close' },
+      ])
+        await expect(action('minh', 2, { ...body, expectedRevision: seen })).rejects.toMatchObject({
+          code: 'CONFLICT',
+        });
+      const merged = await review(2, { action: 'merge', picks: {} });
+      expect(merged.commits.at(-1)?.ops.map((op) => op.op)).toEqual(['place', 'rename', 'rename']);
+    });
+
+    it('checks expectedRevision on any action that sends it', async () => {
+      await fresh();
+      await expect(
+        action('khoa', 4, { action: 'comment', body: 'Hi', expectedRevision: 7 }),
+      ).rejects.toMatchObject({ code: 'CONFLICT' });
+      const ok = await action('khoa', 4, { action: 'comment', body: 'Hi', expectedRevision: 0 });
+      expect(lastComment(ok, 4)?.body).toBe('Hi');
+    });
+
+    it('leaves out a change that Main already has', async () => {
+      await fresh();
+      const same = { op: 'rename', a: { workItemId: 'incident', title: 'Root cause report' } };
+      const a = await createCr(t.db, demo.owner, { ...as('lan'), title: 'A', ops: [same] });
+      const b = await createCr(t.db, demo.owner, {
+        ...as('quang'),
+        title: 'B',
+        ops: [same, { op: 'rename', a: { workItemId: 'secret', title: 'Secret renewed' } }],
+      });
+      await action('lan', a.num, { action: 'ready' });
+      await action('quang', b.num, { action: 'ready' });
+      await review(a.num, { action: 'merge', picks: {} });
+      const merged = await review(b.num, { action: 'merge', picks: {} });
+      const commit = merged.commits.at(-1)!;
+      expect(commit).toMatchObject({ crNum: b.num, resolutions: [] });
+      expect(commit.ops).toEqual([
+        expect.objectContaining({
+          op: 'rename',
+          a: { workItemId: 'secret', title: 'Secret renewed' },
+        }),
+      ]);
+    });
+
+    it('leaves out a change that no longer fits Main at merge time', async () => {
+      await fresh();
+      const { num } = await createCr(t.db, demo.owner, {
+        ...as('quang'),
+        title: 'Scope call',
+        ops: [
+          { op: 'attach', a: { eventId: demo.ids.qe2, workItemId: 'dynamics' } },
+          { op: 'rename', a: { workItemId: 'dynamics', title: 'Dynamics CRM sync in phase 1' } },
+        ],
+      });
+      await action('quang', num, { action: 'ready' });
+      await dismissQueueEntry(t.db, demo.owner, { ...as('lan'), queueId: demo.ids.qe2 });
+      const merged = await review(num, { action: 'merge', picks: {} });
+      expect(merged.commits.at(-1)?.ops.map((op) => op.op)).toEqual(['rename']);
+      const main = mainState(merged.base, merged.queue, merged.commits);
+      expect(main.events.some((event) => event.id === demo.ids.qe2)).toBe(false);
+      expect(main.workItems.find((item) => item.id === 'dynamics')?.title).toBe(
+        'Dynamics CRM sync in phase 1',
+      );
     });
   });
 

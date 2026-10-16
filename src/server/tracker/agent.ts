@@ -11,9 +11,8 @@ import {
   type Cr,
   type TrackerPayload,
 } from '../../tracker';
-import { AppError } from '../errors';
+import { AppError, invalidInput } from '../errors';
 import type { Db } from '../db/tx';
-import { invalid } from '../domain/records/metadata';
 import { addQueueCard } from './queue';
 import { getTrackerPayload } from './read';
 import { mainRevision } from './store';
@@ -40,7 +39,7 @@ export const GetChangeRequestInputSchema = z.strictObject({
 
 const parse = <S extends z.ZodType>(schema: S, raw: unknown, what: string): z.infer<S> => {
   const parsed = schema.safeParse(raw);
-  if (!parsed.success) throw invalid(what, parsed.error);
+  if (!parsed.success) throw invalidInput(what, parsed.error);
   return parsed.data;
 };
 

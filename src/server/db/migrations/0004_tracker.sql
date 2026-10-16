@@ -131,6 +131,4 @@ CREATE INDEX "tracker_cr_asks_project_idx" ON "tracker_cr_asks" USING btree ("pr
 CREATE INDEX "tracker_cr_comments_cr_idx" ON "tracker_cr_comments" USING btree ("cr_id");--> statement-breakpoint
 CREATE INDEX "tracker_cr_comments_project_idx" ON "tracker_cr_comments" USING btree ("project_id");--> statement-breakpoint
 CREATE INDEX "tracker_cr_shares_project_idx" ON "tracker_cr_shares" USING btree ("project_id");--> statement-breakpoint
-CREATE INDEX "tracker_crs_project_idx" ON "tracker_crs" USING btree ("project_id");--> statement-breakpoint
-CREATE INDEX "tracker_members_project_idx" ON "tracker_members" USING btree ("project_id");--> statement-breakpoint
 CREATE INDEX "tracker_queue_project_idx" ON "tracker_queue" USING btree ("project_id");

@@ -2,9 +2,8 @@ import { z } from 'zod';
 import { IdSchema, type ActorContext } from '../../contracts';
 import { getApp } from '../app';
 import type { Db } from '../db/tx';
-import { invalid } from '../domain/records/metadata';
 import { readAuthEnvironment } from '../env';
-import { AppError, privateJson } from '../errors';
+import { AppError, invalidInput, privateJson } from '../errors';
 import { getTrackerPayload } from '../tracker/read';
 import type { Handler, Input } from './route';
 import { cookieValue } from './session';
@@ -44,7 +43,7 @@ const ActAsInputSchema = z.strictObject({
 
 export const setActingMember: Handler = async (ctx, _request, _params, input) => {
   const parsed = ActAsInputSchema.safeParse(input);
-  if (!parsed.success) throw invalid('Invalid act-as request', parsed.error);
+  if (!parsed.success) throw invalidInput('Invalid act-as request', parsed.error);
   const { projectId, memberId } = parsed.data;
   const payload = await getTrackerPayload(getApp().db, ctx, { projectId, actAs: memberId });
   const response = privateJson(payload);
