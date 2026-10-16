@@ -59,7 +59,7 @@ const TLK: Record<CrCommentKind, string> = {
   resolved: 'resolved clashes with Main',
   merged: 'merged it into Main',
   closed: 'closed it without merging',
-  shared: 'shared it',
+  shared: 'changed who has access',
   ask: 'asked to edit',
   handover: 'handed over editing',
   decline: 'said not now',

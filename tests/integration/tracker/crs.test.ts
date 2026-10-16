@@ -422,6 +422,17 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       });
       expect(crOf(removed, 4).shares).toEqual([{ memberId: demo.ids.khoa, permission: 'edit' }]);
       expect(crOf(removed, 4).asks).toEqual([]);
+      expect(lastComment(removed, 4)).toMatchObject({
+        kind: 'shared',
+        memberId: demo.ids.ha,
+        body: 'Lan Phạm no longer has access.',
+      });
+      const again = await action('ha', 4, {
+        action: 'share',
+        memberId: demo.ids.lan,
+        permission: 'remove',
+      });
+      expect(crOf(again, 4).comments).toHaveLength(crOf(removed, 4).comments.length);
       await expect(
         action('ha', 4, { action: 'share', memberId: demo.ids.ha, permission: 'view' }),
       ).rejects.toMatchObject({ code: 'VALIDATION' });

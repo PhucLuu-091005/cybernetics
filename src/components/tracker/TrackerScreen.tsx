@@ -13,18 +13,13 @@ import {
   type ReactNode,
 } from 'react';
 import {
-  crState,
   formatDay,
   KIND_LABEL,
   layoutTracker,
-  mainState,
-  replayOps,
   toInstant,
   type Cr,
   type CrPermission,
   type EventKind,
-  type Marks,
-  type Op,
   type TrackerLayout,
   type TrackerPayload,
   type TrackerState,
@@ -78,6 +73,7 @@ import {
 } from './Drawers';
 import { Icon, KIND_COLOR, KindIcon } from './icons';
 import { Modal, type ModalHandlers, type ModalState } from './Modals';
+import { currentState, fits, pendingMisfit } from './pending';
 import { Pop, type PopTarget } from './Pops';
 import { QueuePanel, type QueueTab } from './QueuePanel';
 import { Toast, type ToastState } from './Toast';
@@ -235,32 +231,12 @@ const minuteNow = () => Math.floor(Date.now() / MINUTE) * MINUTE;
 export const useNow = (serverNow: number) =>
   useSyncExternalStore(everyHalfMinute, minuteNow, () => serverNow);
 
-type Current = { state: TrackerState; marks?: Marks };
-
-function currentState(payload: TrackerPayload, cr: Cr | null): Current {
-  const main = () => ({ state: mainState(payload.base, payload.queue, payload.commits) });
-  if (!cr) return main();
-  // crState throws for a merged CR whose commit is not in this payload; show Main instead of a crash.
-  if (cr.status === 'merged' && !payload.commits.some((c) => c.rev === cr.mergedRev)) return main();
-  return crState(payload.base, payload.queue, payload.commits, cr, payload.project.timeZone);
-}
-
 const crByNum = (p: TrackerPayload, num: number) => p.crs.find((c) => c.num === num);
 const withoutNum = (data: TrackerPayload & { num?: number }): TrackerPayload => {
   const copy = { ...data };
   delete copy.num;
   return copy;
 };
-
-/** An op that no longer fits the view the editor sees would come back as a 400; check it here first. */
-function fits(state: TrackerState, ops: readonly OpInput[], tz: string) {
-  const replay = replayOps(
-    state,
-    ops.map((op) => ({ ...op, rev: 0, by: 'me' }) as Op),
-    tz,
-  );
-  return replay.entries.every((e) => !e.skipped);
-}
 
 type EditorAction = Exclude<CrAction, { action: 'merge' | 'request-changes' | 'close' }>;
 type DragView = {
@@ -505,6 +481,11 @@ export function TrackerScreen({
   const undoLast = (num: number) => removeAt(num, 'last');
 
   const appendAll = async (num: number, ops: readonly OpInput[]) => {
+    const misfit = pendingMisfit(live.current.payload, num, ops);
+    if (misfit) {
+      showToast(misfit);
+      return null;
+    }
     let last: TrackerPayload | null = null;
     for (const op of ops) {
       last = await write((p) => appendOp(projectId, num, op, revisionOf(p, num)), {
@@ -539,6 +520,8 @@ export function TrackerScreen({
 
   const onCreateCr = async (title: string, pending: OpInput[]) => {
     closeModal();
+    const misfit = pending.length ? pendingMisfit(live.current.payload, 'main', pending) : null;
+    if (misfit) return showToast(misfit);
     const created = await write(() =>
       createCr(projectId, { title, ...(pending.length ? { ops: pending } : {}) }),
     );

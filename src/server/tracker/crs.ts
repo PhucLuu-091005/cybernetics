@@ -407,7 +407,17 @@ async function share(run: Run, memberId: string, permission: 'edit' | 'view' | '
   if (permission !== 'edit') await tx.delete(trackerCrAsks).where(askOf(cr, member.id));
   await touchCr(tx, cr);
   if (permission === 'remove') {
-    await tx.delete(trackerCrShares).where(row);
+    const removed = await tx
+      .delete(trackerCrShares)
+      .where(row)
+      .returning({ memberId: trackerCrShares.memberId });
+    if (removed.length)
+      await addComment(tx, scope.tenant, {
+        crId: cr.id,
+        memberId: me.id,
+        kind: 'shared',
+        body: `${member.name} no longer has access.`,
+      });
     return;
   }
   const [current] = await tx
