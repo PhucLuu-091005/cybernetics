@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { IdSchema } from '../../../../../../contracts';
-import { shortDay } from '../../../../../../components/graph/labels';
+import { shortDay } from '../../../../../../components/settings/dates';
 import { McpSnippet } from '../../../../../../components/settings/McpSnippet';
 import { TokenCreate } from '../../../../../../components/settings/TokenCreate';
 import { TokenList } from '../../../../../../components/settings/TokenList';
 import { getApp, listAgentTokens } from '../../../../../../server/app';
 import { readAuthEnvironment } from '../../../../../../server/env';
-import { getProject } from '../../../../../../server/domain/graph';
+import { getProject } from '../../../../../../server/domain/projects';
 import {
   notFoundOn,
   notFoundOnCursor,
@@ -22,12 +22,11 @@ const DAY = 86_400_000;
 /** The request time belongs to the data load: token expiry and the expiry choices are read at the same instant. */
 async function loadTokens(projectId: string, cursor: string | null) {
   const actor = await requireActor(`/projects/${projectId}/settings/tokens`);
-  const [{ project, context }, page] = await Promise.all([
+  const [{ project, timeZone }, page] = await Promise.all([
     notFoundOn(getProject(getApp().db, actor, { projectId })),
     notFoundOnCursor(listAgentTokens(actor, { projectId, cursor }), cursor),
   ]);
-  const now = Date.now(),
-    timeZone = context.timeZone;
+  const now = Date.now();
   const expiryOptions = [30, 7].map((days) => ({
     days,
     label: `In ${days} days (${shortDay(new Date(now + days * DAY).toISOString(), timeZone, true)})`,

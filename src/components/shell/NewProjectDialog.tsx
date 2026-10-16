@@ -2,8 +2,8 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Project } from '../../contracts';
-import { send, type ApiError } from '../inbox/api';
-import { ConflictBanner } from '../review/ConflictBanner';
+import { send, type ApiError } from './api';
+import { ConflictBanner } from './ConflictBanner';
 import {
   CLIENT_MAX,
   DEFAULT_TEAMS,

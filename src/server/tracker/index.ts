@@ -9,6 +9,7 @@ export {
   listChangeRequests,
   ListChangeRequestsInputSchema,
   listQueue,
+  ListQueueInputSchema,
   TrackerInputSchema,
   trackerSummary,
 } from './agent';

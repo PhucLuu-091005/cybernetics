@@ -7,13 +7,7 @@ import {
   TextSchema,
 } from './primitives';
 
-export const ScopeSchema = z.enum([
-  'project:read',
-  'queue:add',
-  'records:import',
-  'graph:propose',
-  'graph:merge',
-]);
+export const ScopeSchema = z.enum(['project:read', 'queue:add']);
 export type Scope = z.infer<typeof ScopeSchema>;
 export const DEFAULT_AGENT_SCOPES: readonly Scope[] = ['project:read', 'queue:add'];
 export const ActorReferenceSchema = z.discriminatedUnion('kind', [
