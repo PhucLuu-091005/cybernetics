@@ -68,8 +68,8 @@ test.describe('the tracker walkthrough', () => {
       await hydrated(page);
     };
 
-    await test.step('1. the Go-live date flag shows the first date, the move and its reason', async () => {
-      await page.locator('svg.pg [data-due="golive"]').click();
+    await test.step('1. the Go-live date mark shows the first date, the move and its reason', async () => {
+      await page.locator('svg.pg [data-due="golive"] .due-hit').click();
       const pop = page.locator('.pop');
       await expect(pop).toContainText(/First planned 30 Sept/i);
       await expect(pop).toContainText('30 Sept → 15 Oct');
@@ -90,10 +90,10 @@ test.describe('the tracker walkthrough', () => {
       await expect(bar).toContainText('1 change');
     });
 
-    await test.step('3. Lan drags the PG-203 flag and must write a reason', async () => {
-      const flag = page.locator('svg.pg [data-due="pg203"]');
-      const at = await centerOf(flag);
-      await drag(page, flag, { x: at.x + 70, y: at.y });
+    await test.step('3. Lan drags the PG-203 date mark and must write a reason', async () => {
+      const mark = page.locator('svg.pg [data-due="pg203"] .due-hit');
+      const at = await centerOf(mark);
+      await drag(page, mark, { x: at.x + 70, y: at.y });
       await expect(dialog).toContainText('Move the planned finish');
       expect((await dialog.locator('input[type=date]').inputValue()) > '2026-10-06').toBe(true);
       const save = dialog.getByRole('button', { name: 'Move the date' });
@@ -250,6 +250,48 @@ test.describe('the tracker walkthrough', () => {
     });
 
     expect(problems).toEqual([]);
+  });
+});
+
+test.describe('the planned finish mark', () => {
+  test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
+
+  test('shows for planned and late work only; the work item pop moves any date', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-due');
+    const mark = (id: string) => page.locator(`svg.pg [data-due="${id}"]`);
+    const pop = page.locator('.pop');
+    const dialog = page.locator('.m-card');
+
+    for (const id of ['golive', 'crs', 'pg202', 'pg203']) await expect(mark(id)).toHaveCount(1);
+    for (const id of ['rehearsal', 'pg201']) await expect(mark(id)).toHaveCount(0);
+    await expect(page.locator('svg.pg .due-ghost')).toHaveCount(1);
+    await expect(mark('golive')).toHaveAttribute(
+      'aria-label',
+      'Planned finish 15 Oct, Planned, first planned 30 Sept',
+    );
+    await expect(mark('golive').locator('.due-date')).toHaveText('15 Oct');
+
+    await mark('crs').focus();
+    await page.keyboard.press(' ');
+    await expect(pop).toContainText('Planned finish · 16 Oct');
+    await page.keyboard.press('Escape');
+    await expect(pop).toHaveCount(0);
+
+    for (const [id, title] of [
+      ['pg201', 'PG-201'],
+      ['rehearsal', 'rehearsal'],
+    ] as const) {
+      await page.locator(`svg.pg [data-loop="${id}"]`).focus();
+      await page.keyboard.press('Enter');
+      await expect(pop).toContainText(/Finished (early|on time)/);
+      await pop.getByRole('button', { name: 'Move the date' }).click();
+      await expect(dialog).toContainText('Move the planned finish');
+      await expect(dialog).toContainText(new RegExp(title, 'i'));
+      await page.keyboard.press('Escape');
+      await expect(dialog).toHaveCount(0);
+    }
   });
 });
 

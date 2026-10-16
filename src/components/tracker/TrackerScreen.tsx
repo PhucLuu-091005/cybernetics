@@ -831,8 +831,8 @@ export function TrackerScreen({
         const label =
           kind === 'ms' && ms
             ? `${ms.name} · ${formatDay(next)}${next !== cur ? ` (was ${formatDay(cur)})` : ''}`
-            : undefined;
-        setPreview({ kind, id, x: noonX(L, next, tz), ...(label ? { label } : {}) });
+            : formatDay(next);
+        setPreview({ kind, id, x: noonX(L, next, tz), label });
       },
       onDrop: () => {
         endDrag();

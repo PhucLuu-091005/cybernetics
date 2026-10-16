@@ -944,26 +944,31 @@ svg.pg .due {
 svg.pg .due-hit {
   fill: transparent;
 }
-svg.pg .due-pole {
-  stroke: var(--ink-2);
-  stroke-width: 1.5;
+svg.pg .due-bar {
+  stroke-width: 3.2;
+  stroke-linecap: round;
 }
-svg.pg .due.draft .due-pole {
-  stroke: var(--draft);
-  stroke-width: 2.5;
+svg.pg .due:hover .due-bar,
+svg.pg .due:focus .due-bar {
+  stroke-width: 4.4;
 }
-svg.pg .due:hover .due-flag,
-svg.pg .due:focus .due-flag {
-  stroke: var(--ink);
-  stroke-width: 1;
-}
-svg.pg .slip {
+/* The date text and the ghost take no pointer, so they never block a click on an event or the row. */
+svg.pg .due-ghost {
   stroke: var(--ink-3);
-  stroke-width: 1.6;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  opacity: 0.35;
+  pointer-events: none;
 }
-svg.pg .slip-o {
-  stroke: var(--ink-3);
-  stroke-width: 1.5;
+/* The date can sit on an event of the same day; the halo keeps both readable. */
+svg.pg .due-date {
+  font-size: 9.5px;
+  font-weight: 600;
+  pointer-events: none;
+  stroke: var(--panel);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  paint-order: stroke;
 }
 
 .tk .pop {
