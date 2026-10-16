@@ -760,6 +760,28 @@ describe('layoutTracker: draft marks', () => {
     expect(L.milestones.find((m) => m.id === 'golive')?.draft).toBe(false);
   });
 
+  it('shows the earlier date of a moved milestone in a change request only', () => {
+    const move = (date: string, why: string) =>
+      makeOp('msDate', { milestoneId: 'crm', date, why, by: 'minh', at: at('2026-10-08T16:55') });
+    const replay = replayOps(larkspurState(), [
+      move('2026-09-22', 'The sandbox is late.'),
+      move('2026-09-25', 'The vendor needs more time.'),
+    ]);
+    const crm = (L: TrackerLayout) => L.milestones.find((m) => m.id === 'crm')!;
+    const draft = crm(layoutTracker(replay.state, view(), replay.marks));
+    expect(draft.label).toBe('CRM integration live · 25 Sept · Late (was 22 Sept)');
+    expect(draft.ariaLabel).toBe(draft.label);
+    expect(crm(layoutTracker(replay.state, view())).label).toBe(
+      'CRM integration live · 25 Sept · Late',
+    );
+    const renamed = replayOps(larkspurState(), [
+      makeOp('msName', { milestoneId: 'crm', name: 'CRM sync live' }),
+    ]);
+    expect(crm(layoutTracker(renamed.state, view(), renamed.marks)).label).toBe(
+      'CRM sync live · 18 Sept · Late',
+    );
+  });
+
   it('reads the marks of a replay', () => {
     const replay = replayOps(larkspurState(), [
       makeOp('rename', { workItemId: 'pg203', title: 'PG-203 Country list field (multi-select)' }),
