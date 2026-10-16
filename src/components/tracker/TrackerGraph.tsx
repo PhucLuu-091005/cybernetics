@@ -639,6 +639,15 @@ export function TrackerGraph(props: Props) {
 
   return (
     <div className={cls('tgraph', edit && 'editable')} ref={root}>
+      <div className="gscroll">
+        <div className="gframe" ref={frame}>
+          {side}
+          <div className="gtime" ref={scroller}>
+            {time}
+          </div>
+          {rail}
+        </div>
+      </div>
       <div className="zoombar" role="group" aria-label="Time zoom">
         <button
           type="button"
@@ -669,15 +678,6 @@ export function TrackerGraph(props: Props) {
         >
           Fit
         </button>
-      </div>
-      <div className="gscroll">
-        <div className="gframe" ref={frame}>
-          {side}
-          <div className="gtime" ref={scroller}>
-            {time}
-          </div>
-          {rail}
-        </div>
       </div>
     </div>
   );

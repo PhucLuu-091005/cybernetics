@@ -304,11 +304,9 @@ export function ContextBar(props: Props) {
 }
 
 export function MainNotice({
-  onNewCr,
   onClose,
   onNeverAgain,
 }: {
-  onNewCr: () => void;
   onClose: () => void;
   onNeverAgain: () => void;
 }) {
@@ -317,9 +315,6 @@ export function MainNotice({
       <Icon name="lock" size={15} />
       <p>Main is read-only. To change it, create a change request.</p>
       <span className="ro-acts">
-        <button className="btn sm btn-ink" type="button" onClick={onNewCr}>
-          <Icon name="plus" size={13} /> New change request
-        </button>
         <button className="lnk" type="button" onClick={onNeverAgain}>
           Don&apos;t show again
         </button>
