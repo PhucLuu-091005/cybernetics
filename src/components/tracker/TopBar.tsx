@@ -1,5 +1,5 @@
 'use client';
-import type { Cr } from '../../tracker';
+import type { Cr, TrackerState } from '../../tracker';
 import { useDismissibleDetails } from '../shell/Popover';
 import { Avatar } from './avatar';
 import {
@@ -12,12 +12,15 @@ import {
   type Session,
 } from './ContextBar';
 import { Icon } from './icons';
+import { WorkSearch } from './Search';
 import type { DrawerMode, TrackerActions, TrackerView } from './TrackerScreen';
 
 type Props = {
   session: Session;
   view: TrackerView;
   cr: Cr | null;
+  state: TrackerState;
+  asOf: string;
   hiddenCount: number;
   drawer: DrawerMode | null;
   actions: TrackerActions;
@@ -25,6 +28,7 @@ type Props = {
   onDrawer: (mode: DrawerMode) => void;
   onShowAll: () => void;
   onActAs: (memberId: string) => void;
+  onPick: (workItemId: string) => void;
 };
 
 function ViewMenu({ session, view, cr, actions, onView, onDrawer }: Props) {
@@ -102,8 +106,8 @@ function ViewMenu({ session, view, cr, actions, onView, onDrawer }: Props) {
 }
 
 export function TopBar(props: Props) {
-  const { session, hiddenCount, drawer, onDrawer, onShowAll, onActAs } = props;
-  const { payload, me, isOwner, dir } = session;
+  const { session, state, asOf, hiddenCount, drawer, onDrawer, onShowAll, onActAs, onPick } = props;
+  const { payload, me, isOwner, dir, tz } = session;
   const waiting =
     (isOwner
       ? payload.crs.filter((c) => c.status === 'ready').length
@@ -124,14 +128,7 @@ export function TopBar(props: Props) {
           </button>
         </span>
       )}
-      <button
-        className="btn"
-        type="button"
-        aria-expanded={drawer === 'list'}
-        onClick={() => onDrawer('list')}
-      >
-        <Icon name="list" /> Work list
-      </button>
+      <WorkSearch state={state} asOf={asOf} tz={tz} onPick={onPick} />
       <button
         className="btn"
         type="button"

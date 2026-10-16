@@ -28,11 +28,12 @@ type Common = {
   dir: Directory;
   tz: string;
   asOf: string;
-  /** The view takes changes, so a stack lists the actions of each event. */
+  /** Only a draft that the acting member edits shows the actions that change the graph. */
   edit?: boolean;
   actions: TrackerActions;
   onClose: () => void;
   onHideRow: (workItemId: string) => void;
+  onDetails: (workItemId: string) => void;
 };
 
 export function Moves({
@@ -95,18 +96,26 @@ function PopFrame({
     if (!pop || !box) return;
     const r = target.anchor.getBoundingClientRect();
     const w = box.getBoundingClientRect();
+    // An open drawer covers the right of the graph, so the pop stays left of it when it fits there.
+    const drawer = box
+      .closest('.gwrap')
+      ?.querySelector(':scope > .drawer-slot > .drawer')
+      ?.getBoundingClientRect();
+    const room = drawer ? drawer.left - w.left : w.width;
+    const right = room >= pop.offsetWidth + 16 ? room : w.width;
     // A zoomed row reaches past the visible graph, so the pop centres on the part in view.
     const l = Math.max(r.left, w.left);
-    const rr = Math.min(r.right, w.right);
+    const rr = Math.min(r.right, w.left + right);
     const left = Math.max(
       8,
-      Math.min(l - w.left + (rr - l) / 2 - pop.offsetWidth / 2, w.width - pop.offsetWidth - 8),
+      Math.min(l - w.left + (rr - l) / 2 - pop.offsetWidth / 2, right - pop.offsetWidth - 8),
     );
     let top = r.bottom - w.top + 8;
-    if (top + pop.offsetHeight > w.height - 8)
+    if (top + pop.offsetHeight > box.clientHeight - 8)
       top = Math.max(8, r.top - w.top - pop.offsetHeight - 8);
-    pop.style.left = `${left}px`;
-    pop.style.top = `${top}px`;
+    // The container can scroll, and an absolute child sits in its scrolled content.
+    pop.style.left = `${left + box.scrollLeft}px`;
+    pop.style.top = `${top + box.scrollTop}px`;
     pop.style.visibility = 'visible';
     if (focusSelf) pop.focus({ preventScroll: true });
   }, [target, container, focusSelf]);
@@ -187,23 +196,27 @@ function ActPop({
       onClose={c.onClose}
     >
       <blockquote>{ev.text}</blockquote>
-      <div className="pop-btns">
-        <Btn icon="tag" label="Change kind" onClick={() => c.actions.changeKind(ev.id)} />
-        <Btn
-          icon="move"
-          label="Move to another work item"
-          onClick={() => c.actions.moveEvent(ev.id)}
-        />
-        <Btn
-          icon="eyeoff"
-          label="Hide this event"
-          tone="danger"
-          onClick={() => c.actions.hideEvent(ev.id)}
-        />
-      </div>
-      <p className="tip">
-        Tip: drag an event up or down to another work item. Drag it to the bin to hide it.
-      </p>
+      {c.edit && (
+        <>
+          <div className="pop-btns">
+            <Btn icon="tag" label="Change kind" onClick={() => c.actions.changeKind(ev.id)} />
+            <Btn
+              icon="move"
+              label="Move to another work item"
+              onClick={() => c.actions.moveEvent(ev.id)}
+            />
+            <Btn
+              icon="eyeoff"
+              label="Hide this event"
+              tone="danger"
+              onClick={() => c.actions.hideEvent(ev.id)}
+            />
+          </div>
+          <p className="tip">
+            Tip: drag an event up or down to another work item. Drag it to the bin to hide it.
+          </p>
+        </>
+      )}
     </PopFrame>
   );
 }
@@ -261,7 +274,7 @@ function LoopPop({
       onClose={c.onClose}
     >
       <div className="pop-btns">
-        {!info.done && (
+        {c.edit && !info.done && (
           <>
             <Btn
               icon="plus"
@@ -272,12 +285,17 @@ function LoopPop({
             <Btn kind="done" label="Mark done" onClick={() => c.actions.markDone(item.id)} />
           </>
         )}
-        <Btn
-          icon="cal"
-          label="Move the date"
-          onClick={() => c.actions.moveDate({ kind: 'item', id: item.id })}
-        />
-        <Btn icon="pencil" label="Rename" onClick={() => c.actions.rename(item.id)} />
+        {c.edit && (
+          <>
+            <Btn
+              icon="cal"
+              label="Move the date"
+              onClick={() => c.actions.moveDate({ kind: 'item', id: item.id })}
+            />
+            <Btn icon="pencil" label="Rename" onClick={() => c.actions.rename(item.id)} />
+          </>
+        )}
+        <Btn icon="list" label="See details" onClick={() => c.onDetails(item.id)} />
         <Btn icon="eyeoff" label="Hide from the graph" onClick={() => c.onHideRow(item.id)} />
       </div>
     </PopFrame>
@@ -309,14 +327,16 @@ function DuePop({
     >
       <span className={`badge st-${status}`}>{STATUS_LABEL[status]}</span>
       <Moves moves={item.moves} first={item.firstPlannedFinish} dir={c.dir} tz={c.tz} />
-      <div className="pop-btns" style={{ marginTop: 10 }}>
-        <Btn
-          icon="cal"
-          label="Move the date"
-          tone="ink"
-          onClick={() => c.actions.moveDate({ kind: 'item', id: item.id })}
-        />
-      </div>
+      {c.edit && (
+        <div className="pop-btns" style={{ marginTop: 10 }}>
+          <Btn
+            icon="cal"
+            label="Move the date"
+            tone="ink"
+            onClick={() => c.actions.moveDate({ kind: 'item', id: item.id })}
+          />
+        </div>
+      )}
     </PopFrame>
   );
 }

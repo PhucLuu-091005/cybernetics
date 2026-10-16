@@ -302,3 +302,31 @@ export function ContextBar(props: Props) {
     </div>
   );
 }
+
+export function MainNotice({
+  onNewCr,
+  onClose,
+  onNeverAgain,
+}: {
+  onNewCr: () => void;
+  onClose: () => void;
+  onNeverAgain: () => void;
+}) {
+  return (
+    <div className="ro-note" role="note" aria-label="Main is read-only">
+      <Icon name="lock" size={15} />
+      <p>Main is read-only. To change it, create a change request.</p>
+      <span className="ro-acts">
+        <button className="btn sm btn-ink" type="button" onClick={onNewCr}>
+          <Icon name="plus" size={13} /> New change request
+        </button>
+        <button className="lnk" type="button" onClick={onNeverAgain}>
+          Don&apos;t show again
+        </button>
+      </span>
+      <button className="x" type="button" aria-label="Close the notice" onClick={onClose}>
+        ×
+      </button>
+    </div>
+  );
+}

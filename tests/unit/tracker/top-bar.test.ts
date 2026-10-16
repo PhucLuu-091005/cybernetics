@@ -46,6 +46,8 @@ function render(me: Member | null) {
       session,
       view: 'main',
       cr: null,
+      state: { ...base, queue },
+      asOf: '2026-10-09T18:00:00+07:00',
       hiddenCount: 0,
       drawer: null,
       actions: NO_ACTIONS,
@@ -53,6 +55,7 @@ function render(me: Member | null) {
       onDrawer: () => {},
       onShowAll: () => {},
       onActAs: () => {},
+      onPick: () => {},
     }),
   );
 }
@@ -66,5 +69,12 @@ describe('TopBar', () => {
     const html = render(null);
     expect(html).not.toContain('Demo: act as');
     expect(html).not.toContain('Nobody');
+  });
+
+  it('has a work item search in place of the Work list', () => {
+    const html = render(members[1]);
+    expect(html).toContain('role="combobox"');
+    expect(html).toContain('placeholder="Search work items"');
+    expect(html).not.toContain('Work list');
   });
 });

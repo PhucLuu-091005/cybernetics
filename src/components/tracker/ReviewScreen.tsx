@@ -847,7 +847,6 @@ export function ReviewScreen({
                     flash={null}
                     focusRow={focusRow}
                     focusMs={focusMs}
-                    dimmed={() => false}
                     onToggleRow={(id) =>
                       changeHidden({ ...hidden, hiddenRows: toggleId(hidden.hiddenRows, id) })
                     }

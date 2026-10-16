@@ -65,3 +65,22 @@ export function revealRows(
     hiddenTeams: view.hiddenTeams.filter((id) => !teams.has(id)),
   };
 }
+
+const noticeKey = (userId: string) => `promise-graph:main-notice-off:v1:${userId}`;
+
+/** True when this person chose "Don't show again" for the Main notice on this browser. */
+export function readNoticeOff(store: KeyValueStore | null, userId: string): boolean {
+  try {
+    return store?.getItem(noticeKey(userId)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function writeNoticeOff(store: KeyValueStore | null, userId: string): void {
+  try {
+    store?.setItem(noticeKey(userId), '1');
+  } catch {
+    // Without storage the notice stays closed for this page view only.
+  }
+}
