@@ -105,24 +105,25 @@ export async function loadCrs(
   projectId: string,
   members: readonly Member[],
 ): Promise<Cr[]> {
-  const [crs, shares, asks, comments] = await Promise.all([
-    db
-      .select()
-      .from(trackerCrs)
-      .where(eq(trackerCrs.projectId, projectId))
-      .orderBy(asc(trackerCrs.num)),
-    db.select().from(trackerCrShares).where(eq(trackerCrShares.projectId, projectId)),
-    db
-      .select()
-      .from(trackerCrAsks)
-      .where(eq(trackerCrAsks.projectId, projectId))
-      .orderBy(asc(trackerCrAsks.createdAt)),
-    db
-      .select()
-      .from(trackerCrComments)
-      .where(eq(trackerCrComments.projectId, projectId))
-      .orderBy(asc(trackerCrComments.createdAt), asc(trackerCrComments.seq)),
-  ]);
+  const crs = await db
+    .select()
+    .from(trackerCrs)
+    .where(eq(trackerCrs.projectId, projectId))
+    .orderBy(asc(trackerCrs.num));
+  const shares = await db
+    .select()
+    .from(trackerCrShares)
+    .where(eq(trackerCrShares.projectId, projectId));
+  const asks = await db
+    .select()
+    .from(trackerCrAsks)
+    .where(eq(trackerCrAsks.projectId, projectId))
+    .orderBy(asc(trackerCrAsks.createdAt));
+  const comments = await db
+    .select()
+    .from(trackerCrComments)
+    .where(eq(trackerCrComments.projectId, projectId))
+    .orderBy(asc(trackerCrComments.createdAt), asc(trackerCrComments.seq));
   const position = new Map(members.map((member, index) => [member.id, index]));
   const byMember = (a: { memberId: string }, b: { memberId: string }) =>
     (position.get(a.memberId) ?? 0) - (position.get(b.memberId) ?? 0);

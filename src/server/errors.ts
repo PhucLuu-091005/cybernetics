@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { z } from 'zod';
 import type { ErrorCode, FieldError } from '../contracts';
 
 const STATUS: Record<ErrorCode, number> = {
@@ -21,6 +22,11 @@ export class AppError extends Error {
   }
 }
 export const statusFor = (code: ErrorCode) => STATUS[code];
+export function invalidInput(message: string, error: z.ZodError): AppError {
+  return new AppError('VALIDATION', message, {
+    errors: error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message })),
+  });
+}
 export const newRequestId = () => randomUUID();
 export function privateJson(data: unknown, status = 200): Response {
   return Response.json(data, {
