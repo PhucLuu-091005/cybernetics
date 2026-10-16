@@ -46,6 +46,9 @@ export const setActingMember: Handler = async (ctx, _request, _params, input) =>
   if (!parsed.success) throw invalidInput('Invalid act-as request', parsed.error);
   const { projectId, memberId } = parsed.data;
   const payload = await getTrackerPayload(getApp().db, ctx, { projectId, actAs: memberId });
+  // The read ignores the cookie for a person without a member, so a mismatch means it was not accepted.
+  if (payload.me?.id !== memberId)
+    throw new AppError('FORBIDDEN', 'You can read this project, but you are not a member of it');
   const response = privateJson(payload);
   response.headers.append('Set-Cookie', actAsCookie(projectId, memberId));
   return response;
