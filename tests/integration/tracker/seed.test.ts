@@ -143,6 +143,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker demo seed', () => {
       num: 2,
       action: 'merge',
       picks: {},
+      expectedRevision: crOf(payload, 2).revision,
     });
     expect(clashesOf(crOf(merged, 3).ops, merged.commits).map((clash) => clash.key)).toEqual([
       'loop:pg203:title',
