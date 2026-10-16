@@ -1,6 +1,9 @@
 'use client';
 import Link from 'next/link';
+import { useState } from 'react';
+import { useHydrated } from '../review/hydrated';
 import { RailIcon } from './icons';
+import { NewProjectDialog } from './NewProjectDialog';
 import { useDismissibleDetails } from './Popover';
 
 export type RailProject = { id: string; clientName: string; title: string };
@@ -13,37 +16,58 @@ export function ProjectSwitcher({
   projects: RailProject[];
 }) {
   const ref = useDismissibleDetails();
+  const hydrated = useHydrated();
+  const [creating, setCreating] = useState(false);
+  const closeDialog = () => {
+    setCreating(false);
+    ref.current?.querySelector('summary')?.focus();
+  };
   return (
-    <details ref={ref} className="proj-switch">
-      <summary
-        aria-label={`Project: ${current.clientName}. Switch project`}
-        title={current.clientName}
-      >
-        <span className="proj-avatar" aria-hidden="true">
-          {current.clientName.slice(0, 1).toUpperCase()}
-        </span>
-        <span className="rail-label proj-names">
-          <b>{current.clientName}</b>
-          <small>{current.title}</small>
-        </span>
-        <span className="rail-label proj-caret">
-          <RailIcon name="chevron" />
-        </span>
-      </summary>
-      <ul className="proj-menu" aria-label="Projects">
-        {projects.map((project) => (
-          <li key={project.id}>
-            <Link
-              onClick={(event) => event.currentTarget.closest('details')?.removeAttribute('open')}
-              href={`/projects/${project.id}/graph`}
-              aria-current={project.id === current.id ? 'true' : undefined}
+    <>
+      <details ref={ref} className="proj-switch">
+        <summary
+          aria-label={`Project: ${current.clientName}. Switch project`}
+          title={current.clientName}
+        >
+          <span className="proj-avatar" aria-hidden="true">
+            {current.clientName.slice(0, 1).toUpperCase()}
+          </span>
+          <span className="rail-label proj-names">
+            <b>{current.clientName}</b>
+            <small>{current.title}</small>
+          </span>
+          <span className="rail-label proj-caret">
+            <RailIcon name="chevron" />
+          </span>
+        </summary>
+        <ul className="proj-menu" aria-label="Projects">
+          {projects.map((project) => (
+            <li key={project.id}>
+              <Link
+                onClick={(event) => event.currentTarget.closest('details')?.removeAttribute('open')}
+                href={`/projects/${project.id}/graph`}
+                aria-current={project.id === current.id ? 'true' : undefined}
+              >
+                <b>{project.clientName}</b>
+                <small>{project.title}</small>
+              </Link>
+            </li>
+          ))}
+          <li className="proj-new">
+            <button
+              type="button"
+              disabled={!hydrated}
+              onClick={() => {
+                ref.current?.removeAttribute('open');
+                setCreating(true);
+              }}
             >
-              <b>{project.clientName}</b>
-              <small>{project.title}</small>
-            </Link>
+              + New project
+            </button>
           </li>
-        ))}
-      </ul>
-    </details>
+        </ul>
+      </details>
+      {creating && <NewProjectDialog onClose={closeDialog} />}
+    </>
   );
 }

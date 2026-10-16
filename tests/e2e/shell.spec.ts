@@ -73,6 +73,93 @@ test('popovers close on Escape and on a press outside', async ({ page }) => {
   await expect(newSet).not.toHaveAttribute('open');
 });
 
+test('the project switcher creates a project, opens its empty graph and lists both projects', async ({
+  page,
+}) => {
+  await page.goto('/signin?label=new-project');
+  await page.getByRole('button', { name: /continue/i }).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  const larkspur = new URL(page.url()).pathname;
+  // The dialog opens from a React handler, so the click must wait for hydration.
+  await expect(page.getByRole('button', { name: 'Collapse sidebar' })).toBeEnabled();
+
+  const switcher = page.locator('details.proj-switch');
+  await switcher.locator('summary').click();
+  await switcher.getByRole('button', { name: '+ New project' }).click();
+  await expect(switcher).not.toHaveAttribute('open');
+  const dialog = page.getByRole('dialog', { name: 'New project' });
+  await expect(dialog.getByLabel('Project name')).toBeFocused();
+  const create = dialog.getByRole('button', { name: 'Create project' });
+  await expect(create).toBeDisabled();
+  await dialog.getByLabel('Project name').fill('Brightwater Bank KYC portal');
+  await dialog.getByLabel('Client').fill('Brightwater Bank');
+  await expect(create).toBeEnabled();
+  await dialog.getByLabel('Client').press('Enter');
+
+  await page.waitForURL(
+    (url) => url.pathname !== larkspur && /^\/projects\/[0-9a-f-]{36}\/graph$/.test(url.pathname),
+  );
+  const created = new URL(page.url()).pathname;
+  await expect(dialog).toBeHidden();
+  await expect(page.getByText('This project has no work yet.')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Review', exact: true }).last()).toHaveAttribute(
+    'href',
+    created.replace(/graph$/, 'review'),
+  );
+  await expect(page.getByRole('link', { name: 'Settings', exact: true }).last()).toHaveAttribute(
+    'href',
+    created.replace(/graph$/, 'settings/tokens'),
+  );
+
+  await switcher.locator('summary').click();
+  const projects = page.getByRole('list', { name: 'Projects' }).getByRole('link');
+  await expect(projects).toHaveCount(2);
+  await expect(projects.nth(1)).toContainText('Brightwater Bank');
+  await expect(projects.nth(1)).toHaveAttribute('aria-current', 'true');
+  await projects.nth(0).click();
+  await expect(page).toHaveURL(larkspur);
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+});
+
+test('the New project dialog keeps the typed values after a failure and closes on Escape', async ({
+  page,
+}) => {
+  await page.goto('/signin?label=new-project-failure');
+  await page.getByRole('button', { name: /continue/i }).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Collapse sidebar' })).toBeEnabled();
+  await page.route('**/api/v1/projects', (route) =>
+    route.fulfill({
+      status: 500,
+      contentType: 'application/json',
+      body: JSON.stringify({ code: 'INTERNAL', message: 'Internal error' }),
+    }),
+  );
+
+  const switcher = page.locator('details.proj-switch');
+  await switcher.locator('summary').click();
+  await switcher.getByRole('button', { name: '+ New project' }).click();
+  const dialog = page.getByRole('dialog', { name: 'New project' });
+  await dialog.getByLabel('Project name').fill('Brightwater Bank KYC portal');
+  await dialog.getByLabel('Client').fill('Brightwater Bank');
+  await dialog.getByRole('button', { name: 'Create project' }).click();
+  await expect(dialog.getByRole('alert')).toContainText('The project was not created.');
+  await expect(dialog.getByRole('alert')).toContainText('Internal error');
+  await expect(dialog.getByLabel('Project name')).toHaveValue('Brightwater Bank KYC portal');
+  await expect(dialog.getByLabel('Client')).toHaveValue('Brightwater Bank');
+
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(switcher.locator('summary')).toBeFocused();
+  await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+
+  await switcher.locator('summary').click();
+  await switcher.getByRole('button', { name: '+ New project' }).click();
+  await expect(dialog.getByLabel('Project name')).toHaveValue('');
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog).toBeHidden();
+});
+
 test('Settings shows plain permission names, and Last call changes from Never after an agent call and Check again', async ({
   page,
 }) => {
