@@ -418,6 +418,7 @@ export function ReviewScreen({
   const [tab, setTabState] = useState<ReviewTab>(initialTab);
   const [sel, setSel] = useState(0);
   const [view, setView] = useState<'before' | 'after'>('after');
+  const [zoom, setZoom] = useState(1);
   const [viewed, setViewed] = useState<number[]>([]);
   const [picks, setPicks] = useState<Picks>({});
   const [asking, setAsking] = useState(false);
@@ -465,12 +466,13 @@ export function ReviewScreen({
               hiddenTeams: new Set(hidden.hiddenTeams),
               asOf,
               timeZone: tz,
+              zoom,
               ...(project.windowStart ? { windowStart: project.windowStart } : {}),
             },
             view === 'after' ? model.marks : undefined,
           )
         : null,
-    [graphState, model, view, hidden, asOf, tz, project.windowStart],
+    [graphState, model, view, hidden, asOf, tz, zoom, project.windowStart],
   );
 
   const graphHref = `/projects/${projectId}/graph?cr=${num}`;
@@ -831,45 +833,44 @@ export function ReviewScreen({
                 </span>
                 <span className="muted small">
                   {view === 'after'
-                    ? 'Violet rings mark the changes. Yellow marks the change you picked.'
+                    ? 'Yellow marks show the changes. The shaded row is the change you picked.'
                     : 'Main before this change request.'}
                 </span>
               </div>
               <div className="pr-grid">
                 {list(false)}
                 <div className="box">
-                  <div className="gscroll">
-                    <TrackerGraph
-                      layout={layout}
-                      edit={false}
-                      selectedMs={null}
-                      flash={null}
-                      focusRow={focusRow}
-                      focusMs={focusMs}
-                      dimmed={() => false}
-                      onToggleRow={(id) =>
-                        changeHidden({ ...hidden, hiddenRows: toggleId(hidden.hiddenRows, id) })
-                      }
-                      onToggleTeam={(id) =>
-                        changeHidden({ ...hidden, hiddenTeams: toggleId(hidden.hiddenTeams, id) })
-                      }
-                      onReveal={(ids) =>
-                        changeHidden(
-                          revealRows(
-                            hidden,
-                            ids,
-                            (id) => graphState?.workItems.find((w) => w.id === id)?.teamId ?? null,
-                          ),
-                        )
-                      }
-                      onPop={noop}
-                      onMilestone={noop}
-                      onAddEvent={noop}
-                      onNewMilestone={noop}
-                      onNewTeam={noop}
-                      onBackground={noop}
-                    />
-                  </div>
+                  <TrackerGraph
+                    layout={layout}
+                    edit={false}
+                    selectedMs={null}
+                    flash={null}
+                    focusRow={focusRow}
+                    focusMs={focusMs}
+                    dimmed={() => false}
+                    onToggleRow={(id) =>
+                      changeHidden({ ...hidden, hiddenRows: toggleId(hidden.hiddenRows, id) })
+                    }
+                    onToggleTeam={(id) =>
+                      changeHidden({ ...hidden, hiddenTeams: toggleId(hidden.hiddenTeams, id) })
+                    }
+                    onReveal={(ids) =>
+                      changeHidden(
+                        revealRows(
+                          hidden,
+                          ids,
+                          (id) => graphState?.workItems.find((w) => w.id === id)?.teamId ?? null,
+                        ),
+                      )
+                    }
+                    onPop={noop}
+                    onMilestone={noop}
+                    onAddEvent={noop}
+                    onNewMilestone={noop}
+                    onNewTeam={noop}
+                    onBackground={noop}
+                    onZoom={setZoom}
+                  />
                 </div>
               </div>
             </>

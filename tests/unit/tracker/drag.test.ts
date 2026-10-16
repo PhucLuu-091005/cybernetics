@@ -79,7 +79,8 @@ describe('targetAt: the drop target under a point of the graph', () => {
     const y = rowY(L, 'b');
     expect(targetAt(L, { x: 60, y })).toEqual({ type: 'loop', id: 'b' });
     expect(targetAt(L, { x: X0 + 300, y: y + 14 })).toEqual({ type: 'loop', id: 'b' });
-    expect(targetAt(L, { x: X1, y: y - 14 })).toEqual({ type: 'loop', id: 'b' });
+    expect(targetAt(L, { x: L.x1, y: y - 14 })).toEqual({ type: 'loop', id: 'b' });
+    expect(L.x1).toBeLessThan(X1);
   });
 
   it('falls back to the team band outside a row', () => {
@@ -92,10 +93,21 @@ describe('targetAt: the drop target under a point of the graph', () => {
     expect(targetAt(L, { x: 4, y: eng.top + 30 })).toEqual({ type: 'lane', teamId: 'eng' });
   });
 
-  it('maps a folded row and a hidden team to their team band', () => {
+  it('finds the row of a zoomed time line out to its right end', () => {
+    const L = layout({ zoom: 4 });
+    const y = rowY(L, 'b');
+    expect(targetAt(L, { x: L.x1 + 4, y })).toEqual({ type: 'loop', id: 'b' });
+    expect(targetAt(L, { x: L.x1 + 20, y })).toEqual({ type: 'lane', teamId: 'eng' });
+  });
+
+  it('maps the space of a hidden row and a hidden team to their team band', () => {
     const L = layout({ hiddenRows: new Set(['b']), hiddenTeams: new Set(['qa']) });
-    expect(targetAt(L, { x: X0 + 300, y: rowY(L, 'b') })).toEqual({ type: 'lane', teamId: 'eng' });
-    expect(targetAt(L, { x: X0 + 300, y: lane(L, 'qa').top + 26 })).toEqual({
+    expect(L.rows.map((r) => r.id)).toEqual(['a']);
+    expect(targetAt(L, { x: X0 + 300, y: lane(L, 'eng').bottom - 2 })).toEqual({
+      type: 'lane',
+      teamId: 'eng',
+    });
+    expect(targetAt(L, { x: X0 + 300, y: lane(L, 'qa').top + 10 })).toEqual({
       type: 'lane',
       teamId: 'qa',
     });
@@ -195,12 +207,12 @@ describe('dropAction: what a drop does', () => {
   });
 });
 
-describe('dayAtX and noonX: the day under a dragged date mark', () => {
-  it('reads the day at the noon of a date mark', () => {
+describe('dayAtX and noonX: the day under a dragged milestone', () => {
+  it('reads the day at the noon of a date', () => {
     const L = layout();
-    const mark = L.dueMarks.find((d) => d.workItemId === 'c')!;
-    expect(noonX(L, '2026-10-12', TIME_ZONE)).toBeCloseTo(mark.x, 6);
-    expect(dayAtX(L, mark.x, TIME_ZONE)).toBe('2026-10-12');
+    const x = noonX(L, '2026-10-12', TIME_ZONE);
+    expect(x).toBeCloseTo(L.x(Date.parse('2026-10-12T12:00:00+07:00')), 6);
+    expect(dayAtX(L, x, TIME_ZONE)).toBe('2026-10-12');
     expect(dayAtX(L, noonX(L, '2026-09-20', TIME_ZONE) + 8, TIME_ZONE)).toBe('2026-09-20');
   });
 
@@ -210,9 +222,12 @@ describe('dayAtX and noonX: the day under a dragged date mark', () => {
     expect(dayAtX(L, X1 + 500, TIME_ZONE)).toBe('2026-10-16');
   });
 
-  it('matches the milestone diamond position', () => {
-    const L = layout();
-    expect(noonX(L, '2026-10-15', TIME_ZONE)).toBeCloseTo(L.milestones[0].x, 6);
+  it('matches the milestone circle position, also when zoomed', () => {
+    for (const zoom of [1, 5]) {
+      const L = layout({ zoom });
+      expect(noonX(L, '2026-10-15', TIME_ZONE)).toBeCloseTo(L.milestones[0].x, 6);
+      expect(noonX(L, '2026-12-01', TIME_ZONE)).toBe(L.x1 - 4);
+    }
   });
 });
 

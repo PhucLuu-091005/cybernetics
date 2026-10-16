@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { centerOf, drag, hydrated } from './helpers';
+import { drag, hydrated } from './helpers';
 
 type TrackerRead = {
   crs: Array<{ num: number; status: string }>;
@@ -68,9 +68,11 @@ test.describe('the tracker walkthrough', () => {
       await hydrated(page);
     };
 
-    await test.step('1. the Go-live date mark shows the first date, the move and its reason', async () => {
-      await page.locator('svg.pg [data-due="golive"] .due-hit').click();
+    await test.step('1. the Go-live work item pop shows the first date, the move and its reason', async () => {
+      await row('golive').focus();
+      await page.keyboard.press('Enter');
       const pop = page.locator('.pop');
+      await pop.getByRole('button', { name: 'See the 1 date moves' }).click();
       await expect(pop).toContainText(/First planned 30 Sept/i);
       await expect(pop).toContainText('30 Sept → 15 Oct');
       await expect(pop).toContainText('The CRS section is not ready.');
@@ -90,12 +92,12 @@ test.describe('the tracker walkthrough', () => {
       await expect(bar).toContainText('1 change');
     });
 
-    await test.step('3. Lan drags the PG-203 date mark and must write a reason', async () => {
-      const mark = page.locator('svg.pg [data-due="pg203"] .due-hit');
-      const at = await centerOf(mark);
-      await drag(page, mark, { x: at.x + 70, y: at.y });
+    await test.step('3. Lan moves the PG-203 date from its pop and must write a reason', async () => {
+      await row('pg203').focus();
+      await page.keyboard.press('Enter');
+      await page.locator('.pop').getByRole('button', { name: 'Move the date' }).click();
       await expect(dialog).toContainText('Move the planned finish');
-      expect((await dialog.locator('input[type=date]').inputValue()) > '2026-10-06').toBe(true);
+      await dialog.locator('input[type=date]').fill('2026-10-10');
       const save = dialog.getByRole('button', { name: 'Move the date' });
       await expect(save).toBeDisabled();
       await dialog.locator('textarea').fill('   ');
@@ -253,31 +255,46 @@ test.describe('the tracker walkthrough', () => {
   });
 });
 
-test.describe('the planned finish mark', () => {
+test.describe('milestone ticks, chips, hiding and the time zoom', () => {
   test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
 
-  test('shows for planned and late work only; the work item pop moves any date', async ({
+  test('ticks the milestone date on its rows and opens the milestone from a tick or a chip', async ({
     page,
   }) => {
-    await signIn(page, 'tracker-due');
-    const mark = (id: string) => page.locator(`svg.pg [data-due="${id}"]`);
+    await signIn(page, 'tracker-goal');
     const pop = page.locator('.pop');
     const dialog = page.locator('.m-card');
-
-    for (const id of ['golive', 'crs', 'pg202', 'pg203']) await expect(mark(id)).toHaveCount(1);
-    for (const id of ['rehearsal', 'pg201']) await expect(mark(id)).toHaveCount(0);
-    await expect(page.locator('svg.pg .due-ghost')).toHaveCount(1);
-    await expect(mark('golive')).toHaveAttribute(
-      'aria-label',
-      'Planned finish 15 Oct, Planned, first planned 30 Sept',
+    const drawer = page.locator('.drawer');
+    const goLive = page.locator(
+      'svg.pg .goal[aria-label="Milestone Go-live and first close due 15 Oct"]',
     );
-    await expect(mark('golive').locator('.due-date')).toHaveText('15 Oct');
+    const crm = page.locator(
+      'svg.pg .goal[aria-label="Milestone CRM integration live due 18 Sept"]',
+    );
 
-    await mark('crs').focus();
+    await expect(goLive).toHaveCount(5);
+    await expect(crm).toHaveCount(1);
+    await expect(page.locator('svg.pg [data-due], svg.pg .due-ghost, svg.pg .mslink')).toHaveCount(
+      0,
+    );
+    await expect(goLive.first().locator('.goal-date')).toHaveText('15 Oct');
+    await expect(page.locator('svg.pg [data-ms="crm"] .ms-c')).toHaveCount(1);
+
+    await crm.focus();
     await page.keyboard.press(' ');
-    await expect(pop).toContainText('Planned finish · 16 Oct');
+    await expect(drawer).toContainText('CRM integration live');
     await page.keyboard.press('Escape');
-    await expect(pop).toHaveCount(0);
+    await expect(drawer).toHaveCount(0);
+
+    const chips = page.locator('svg.pg-rail .ms-chip');
+    await expect(chips).toHaveCount(8);
+    await page
+      .locator(
+        'svg.pg-rail [aria-label="Milestone CRM integration live, due 18 Sept, this work item makes it late"]',
+      )
+      .click();
+    await expect(drawer).toContainText('CRM integration live');
+    await page.keyboard.press('Escape');
 
     for (const [id, title] of [
       ['pg201', 'PG-201'],
@@ -292,6 +309,50 @@ test.describe('the planned finish mark', () => {
       await page.keyboard.press('Escape');
       await expect(dialog).toHaveCount(0);
     }
+  });
+
+  test('lists a stack, zooms it apart, and hides rows without a trace but an arrow', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-zoom');
+    const pop = page.locator('.pop');
+    const scroller = page.locator('.gtime');
+    const overflow = () => scroller.evaluate((e) => e.scrollWidth - e.clientWidth);
+
+    const stack = page.locator('svg.pg [data-act="r3"]');
+    await expect(stack).toHaveAttribute('data-stack', 'r1,r2,r3');
+    await stack.click();
+    await expect(pop).toContainText('3 events here');
+    await pop.locator('.stack-ev', { hasText: 'Delivery by Minh Trần' }).click();
+    await expect(pop).toContainText('Minh sends the rehearsal report.');
+    await page.keyboard.press('Escape');
+
+    expect(await overflow()).toBe(0);
+    const zoomIn = page.getByRole('button', { name: 'Zoom in' });
+    for (let i = 0; i < 4; i += 1) await zoomIn.click();
+    await expect.poll(overflow).toBeGreaterThan(1000);
+    await expect(page.locator('svg.pg [data-act="r1"]')).toHaveCount(1);
+    await expect(page.locator('svg.pg-side .row-label').first()).toBeInViewport();
+    await page.getByRole('button', { name: 'Fit to width' }).click();
+    await expect.poll(overflow).toBe(0);
+
+    await page.locator('svg.pg-side [data-eyerow="crs"]').click();
+    await expect(page.locator('svg.pg [data-loop="crs"]')).toHaveCount(0);
+    await expect(page.locator('svg.tg .fold')).toHaveCount(0);
+    const arrows = page.locator(
+      'svg.pg .chip[aria-label="Show CRS tax residency section with DealCloud sync"]',
+    );
+    await expect(arrows).toHaveCount(5);
+    await expect(arrows.first().locator('title')).toHaveText(
+      'From CRS tax residency section with DealCloud sync (hidden)',
+    );
+    await arrows.first().click();
+    await expect(page.locator('svg.pg [data-loop="crs"]')).toHaveCount(1);
+
+    await page.locator('svg.pg-side [data-eyeteam="engineering"]').click();
+    await expect(page.locator('svg.pg [data-loop="pg203"]')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Show 4 hidden work items in Engineering' }).click();
+    await expect(page.locator('svg.pg [data-loop="pg203"]')).toHaveCount(1);
   });
 });
 
