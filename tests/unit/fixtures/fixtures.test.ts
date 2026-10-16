@@ -6,11 +6,9 @@ import project from '../../../fixtures/project.json';
 import history from '../../../fixtures/history.json';
 import proposals from '../../../fixtures/proposals.json';
 import {
-  ACT_MARKER,
   GraphSnapshotSchema,
   RecordInputSchema,
   BreakdownTypeSchema,
-  markerErrors,
   type GraphSnapshot,
 } from '../../../src/contracts';
 import { deriveProject } from '../../../src/server/loops/engine';
@@ -151,9 +149,9 @@ describe('fixture invariants', () => {
       Object.fromEntries(output.milestones.map((item) => [item.milestone.name, item.status])),
     ).toEqual(gold.milestones);
   });
-  it('replays history: two merges, a revert that keeps the later merge, then the summary merge, each with its expected diff', () => {
+  it('replays history: two merges with their expected diffs, then a revert that keeps the later merge', () => {
     const [first, second, revert] = history;
-    expect(history.map((item) => item.kind)).toEqual(['merge', 'merge', 'revert', 'merge']);
+    expect(history.map((item) => item.kind)).toEqual(['merge', 'merge', 'revert']);
     for (const item of history)
       expect(GraphSnapshotSchema.safeParse(item.snapshot).success).toBe(true);
     let parent = snapshot;
@@ -172,16 +170,6 @@ describe('fixture invariants', () => {
     expect(inverse.conflicts).toEqual([]);
     expect(canonicalHash(inverse.snapshot)).toBe(canonicalHash(revert.snapshot));
     expect(loopStates(head)).toEqual(loopStates(snapshot));
-  });
-  it('ends the history with a cited project summary note', () => {
-    const last = history.at(-1)!;
-    expect(last.message).toBe('Summarise where the project stands on 9 October');
-    const note = last.snapshot.annotations.find(
-      (item) => item.id === uuidFromKey('annotation:project-summary'),
-    )!;
-    expect(note.actIds).toHaveLength(5);
-    expect(markerErrors(note.text, note.actIds)).toEqual([]);
-    expect([...note.text.matchAll(ACT_MARKER)].map((match) => match[1])).toEqual(note.actIds);
   });
   it('defines two competing proposals that conflict on one loop and an agent proposal for a pending record', () => {
     expect(proposals).toHaveLength(3);

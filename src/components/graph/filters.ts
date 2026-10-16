@@ -21,16 +21,6 @@ export type GraphFilters = {
   loopId: string | null;
 };
 
-export const NO_FILTERS: Omit<GraphFilters, 'view' | 'loopId'> = {
-  side: null,
-  departmentIds: [],
-  state: null,
-  breakdown: null,
-  problems: false,
-  milestoneId: null,
-  q: '',
-};
-
 const id = (value: string | null) => IdSchema.safeParse(value).data ?? null;
 
 export function parseFilters(search: URLSearchParams): GraphFilters {

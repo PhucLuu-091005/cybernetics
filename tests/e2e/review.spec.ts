@@ -342,14 +342,14 @@ test('Activity uses plain words and logs no console error', async ({ page }) => 
 
   await page.goto(`/projects/${projectId}/history`);
   await commits(page)
-    .getByRole('link', { name: /^Summarise where the project stands/ })
+    .getByRole('link', { name: /^Note the SOW phase 2 scope/ })
     .click();
   const changes = page.getByRole('table', { name: 'Changes in this version' });
   await expect(changes.getByRole('cell', { name: 'Note', exact: true })).toBeVisible();
-  await expect(changes).not.toContainText('[act:');
+  await expect(changes).toContainText('supports the client reading. [1][2]');
 
   await page.goto(`/projects/${projectId}/history`);
-  await expect(page.getByText(/^Undo "Ignore the out-of-office reply/)).toBeVisible();
+  await expect(commits(page).getByText(/^Undo "Ignore the out-of-office reply/)).toBeVisible();
   expect(errors).toEqual([]);
 });
 

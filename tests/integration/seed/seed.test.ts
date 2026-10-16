@@ -39,6 +39,18 @@ import { createTestDatabase, type TestDb } from '../../support/db';
 const stableKinds = (changes: { collection: string; id: string; kind: string }[]) =>
   changes.map(({ collection, id, kind }) => `${collection}/${id}/${kind}`).sort();
 
+describe('rekeyFixture', () => {
+  it('re-keys an [act:] marker in note text with the same ID as the cited act', () => {
+    const act = uuidFromKey('act:fixture');
+    const note = rekeyFixture(
+      { text: `See [act:${act}].`, actIds: [act] },
+      { versionIds: new Map(), entityId: (id) => uuidFromKey(`project:${id}`) },
+    );
+    expect(note.actIds[0]).not.toBe(act);
+    expect([...note.text.matchAll(ACT_MARKER)].map((match) => match[1])).toEqual(note.actIds);
+  });
+});
+
 describe.skipIf(!process.env.TEST_DATABASE_URL)('seeded sandbox', () => {
   let t: TestDb;
   beforeAll(async () => {
@@ -136,7 +148,6 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('seeded sandbox', () => {
       'merge',
       'merge',
       'revert',
-      'merge',
     ]);
     expect(commits.map((commit) => commit.message).slice(2)).toEqual(
       history.map((item) => item.message),
@@ -166,23 +177,6 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('seeded sandbox', () => {
     expect(derived).toEqual(expected);
     expect(graph.engine.unavailableEvidenceCount).toBe(1);
     expect(graph.pendingEvidenceCount).toBe(4);
-  });
-
-  it('main holds the summary note with markers rekeyed to the sandbox acts', async () => {
-    const { userId } = await seededStore().provisionUser({
-      subject: `google:${randomUUID()}`,
-      email: null,
-      name: 'G',
-    });
-    const ctx = await actorFor(userId);
-    const [project] = await listProjects(t.db, ctx);
-    const main = await mainSnapshot(project.id);
-    const note = main.annotations.at(-1)!;
-    expect(note.text).toMatch(/^As of 9 October, 27 of 36 loops are closed\./);
-    const acts = new Set(main.acts.map((act) => act.id));
-    const markers = [...note.text.matchAll(ACT_MARKER)].map((match) => match[1]);
-    expect(markers).toEqual(note.actIds);
-    for (const actId of markers) expect(acts.has(actId)).toBe(true);
   });
 
   it('withdraws one cited record of a healthy closed loop, never a pending one', async () => {

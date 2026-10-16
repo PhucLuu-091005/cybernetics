@@ -2330,24 +2330,6 @@
       "kind": "revert",
       "target": "ignore-out-of-office",
       "message": "Undo \"Ignore the out-of-office reply and note why Tom did not answer\""
-    },
-    {
-      "key": "project-summary",
-      "kind": "merge",
-      "message": "Summarise where the project stands on 9 October",
-      "annotations": [
-        {
-          "key": "project-summary",
-          "text": "As of 9 October, 27 of 36 loops are closed. Go-live and first close is at risk. Minh Trần moved go-live from 30 September to 15 October on 12 September {act:go-live#2}, and Sarah Kim agreed the next day {act:go-live#3}. On the same milestone, Daniel Reyes promised the sync root cause report by 3 October {act:incident-report#0} and has sent nothing since. Two items wait on the client: Tom Becker in IT has not answered Quang Nguyễn's request to renew the Azure client secret {act:secret#0}, and Priya Shah has not confirmed the side-letter mapping that Minh Trần delivered on 29 August {act:side-letter#2}.",
-          "acts": [
-            "go-live#2",
-            "go-live#3",
-            "incident-report#0",
-            "secret#0",
-            "side-letter#2"
-          ]
-        }
-      ]
     }
   ],
   "proposals": [

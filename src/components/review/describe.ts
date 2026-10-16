@@ -13,7 +13,7 @@ import type {
   RecordDecision,
 } from '../../contracts';
 import { ACT_LABEL, dueLabel, shortDate } from '../graph/labels';
-import { noteText } from '../notes/note-view';
+import { noteText } from './note-view';
 
 /** Display names gathered on the server from every snapshot a screen compares, so a removed entity still has a name. */
 export type Names = {

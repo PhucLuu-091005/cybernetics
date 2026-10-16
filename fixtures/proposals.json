@@ -8,7 +8,7 @@
       "kind": "user",
       "name": "Minh Trần"
     },
-    "baseCommitKey": "project-summary",
+    "baseCommitKey": "revert-ignore-out-of-office",
     "competesWith": "crm-sync-title-sow-scope",
     "operations": [
       {
@@ -4512,17 +4512,6 @@
             "34ea80c9-52b5-4f2d-812d-7620d6929478",
             "32ff2949-ea99-4272-94ba-9481ca5265b5"
           ]
-        },
-        {
-          "id": "6e5e205c-ce09-49f0-bafa-8d5683a4de61",
-          "text": "As of 9 October, 27 of 36 loops are closed. Go-live and first close is at risk. Minh Trần moved go-live from 30 September to 15 October on 12 September [act:fe8cb040-d525-4e8b-9009-a911e6098e6b], and Sarah Kim agreed the next day [act:94e84396-211b-4c56-95bb-1464890069cc]. On the same milestone, Daniel Reyes promised the sync root cause report by 3 October [act:5e5b6b44-de1f-4701-8d3c-ff4e54e77328] and has sent nothing since. Two items wait on the client: Tom Becker in IT has not answered Quang Nguyễn's request to renew the Azure client secret [act:55e19ec6-af3e-4d9e-b2e0-aa6825a7bfb9], and Priya Shah has not confirmed the side-letter mapping that Minh Trần delivered on 29 August [act:b92bf796-de71-4c4a-a392-dfb139294488].",
-          "actIds": [
-            "fe8cb040-d525-4e8b-9009-a911e6098e6b",
-            "94e84396-211b-4c56-95bb-1464890069cc",
-            "5e5b6b44-de1f-4701-8d3c-ff4e54e77328",
-            "55e19ec6-af3e-4d9e-b2e0-aa6825a7bfb9",
-            "b92bf796-de71-4c4a-a392-dfb139294488"
-          ]
         }
       ],
       "recordDecisions": [
@@ -5210,7 +5199,7 @@
       "kind": "user",
       "name": "Daniel Reyes"
     },
-    "baseCommitKey": "project-summary",
+    "baseCommitKey": "revert-ignore-out-of-office",
     "competesWith": "crm-sync-title-phase-one",
     "operations": [
       {
@@ -9714,17 +9703,6 @@
             "34ea80c9-52b5-4f2d-812d-7620d6929478",
             "32ff2949-ea99-4272-94ba-9481ca5265b5"
           ]
-        },
-        {
-          "id": "6e5e205c-ce09-49f0-bafa-8d5683a4de61",
-          "text": "As of 9 October, 27 of 36 loops are closed. Go-live and first close is at risk. Minh Trần moved go-live from 30 September to 15 October on 12 September [act:fe8cb040-d525-4e8b-9009-a911e6098e6b], and Sarah Kim agreed the next day [act:94e84396-211b-4c56-95bb-1464890069cc]. On the same milestone, Daniel Reyes promised the sync root cause report by 3 October [act:5e5b6b44-de1f-4701-8d3c-ff4e54e77328] and has sent nothing since. Two items wait on the client: Tom Becker in IT has not answered Quang Nguyễn's request to renew the Azure client secret [act:55e19ec6-af3e-4d9e-b2e0-aa6825a7bfb9], and Priya Shah has not confirmed the side-letter mapping that Minh Trần delivered on 29 August [act:b92bf796-de71-4c4a-a392-dfb139294488].",
-          "actIds": [
-            "fe8cb040-d525-4e8b-9009-a911e6098e6b",
-            "94e84396-211b-4c56-95bb-1464890069cc",
-            "5e5b6b44-de1f-4701-8d3c-ff4e54e77328",
-            "55e19ec6-af3e-4d9e-b2e0-aa6825a7bfb9",
-            "b92bf796-de71-4c4a-a392-dfb139294488"
-          ]
         }
       ],
       "recordDecisions": [
@@ -10412,7 +10390,7 @@
       "kind": "agent",
       "name": "External agent"
     },
-    "baseCommitKey": "project-summary",
+    "baseCommitKey": "revert-ignore-out-of-office",
     "competesWith": null,
     "operations": [
       {
@@ -14967,17 +14945,6 @@
           "actIds": [
             "34ea80c9-52b5-4f2d-812d-7620d6929478",
             "32ff2949-ea99-4272-94ba-9481ca5265b5"
-          ]
-        },
-        {
-          "id": "6e5e205c-ce09-49f0-bafa-8d5683a4de61",
-          "text": "As of 9 October, 27 of 36 loops are closed. Go-live and first close is at risk. Minh Trần moved go-live from 30 September to 15 October on 12 September [act:fe8cb040-d525-4e8b-9009-a911e6098e6b], and Sarah Kim agreed the next day [act:94e84396-211b-4c56-95bb-1464890069cc]. On the same milestone, Daniel Reyes promised the sync root cause report by 3 October [act:5e5b6b44-de1f-4701-8d3c-ff4e54e77328] and has sent nothing since. Two items wait on the client: Tom Becker in IT has not answered Quang Nguyễn's request to renew the Azure client secret [act:55e19ec6-af3e-4d9e-b2e0-aa6825a7bfb9], and Priya Shah has not confirmed the side-letter mapping that Minh Trần delivered on 29 August [act:b92bf796-de71-4c4a-a392-dfb139294488].",
-          "actIds": [
-            "fe8cb040-d525-4e8b-9009-a911e6098e6b",
-            "94e84396-211b-4c56-95bb-1464890069cc",
-            "5e5b6b44-de1f-4701-8d3c-ff4e54e77328",
-            "55e19ec6-af3e-4d9e-b2e0-aa6825a7bfb9",
-            "b92bf796-de71-4c4a-a392-dfb139294488"
           ]
         }
       ],
