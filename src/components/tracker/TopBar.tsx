@@ -150,15 +150,14 @@ export function TopBar(props: Props) {
         <Icon name="pr" /> <span className="lbl">Change requests</span>{' '}
         <span className="cnt">{waiting}</span>
       </button>
-      {payload.project.demo && (
+      {payload.project.demo && me && (
         <label className="demo">
           Demo
           <select
             aria-label="Demo: act as"
-            value={me ?? ''}
+            value={me}
             onChange={(event) => onActAs(event.target.value)}
           >
-            {!me && <option value="">Nobody</option>}
             {payload.members.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
