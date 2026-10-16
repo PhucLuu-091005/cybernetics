@@ -12,6 +12,10 @@ import type {
   WorkItem,
 } from '../../../tracker';
 
+export const LARKSPUR_PROJECT = {
+  title: 'Larkspur Capital, Fund III onboarding',
+  clientName: 'Larkspur Capital',
+};
 export const LARKSPUR_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 export const LARKSPUR_AS_OF = '2026-10-09T18:00:00+07:00';
 export const LARKSPUR_WINDOW_START = '2026-09-10';
