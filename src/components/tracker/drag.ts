@@ -32,6 +32,9 @@ export type DropAction =
 const { X1 } = GEOMETRY;
 // The hit boxes that TrackerGraph draws: the milestone `ms-hit`, the row `hit` and the lane `lane-drop`.
 const MS_HIT = 15;
+// The label is part of the milestone group, so the prototype drops on its 11 px text too.
+const LABEL_UP = 11;
+const LABEL_DOWN = 3;
 const ROW_X0 = 22;
 const ROW_X1 = X1 + 8;
 const ROW_HALF = 15;
@@ -41,11 +44,18 @@ const HOUR = 3_600_000;
 const inBox = (p: Point, b: { x: number; y: number; width: number; height: number }) =>
   p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height;
 
-/** The SVG draws the milestones last, so a diamond wins over a row or a team under it. */
+/** The SVG draws the milestones last, so a milestone wins over a row or a team under it. */
 export function targetAt(layout: TrackerLayout, p: Point): DropTarget | null {
   const ms = [...layout.milestones]
     .reverse()
-    .find((m) => Math.abs(p.x - m.x) <= MS_HIT && Math.abs(p.y - m.y) <= MS_HIT);
+    .find(
+      (m) =>
+        (Math.abs(p.x - m.x) <= MS_HIT && Math.abs(p.y - m.y) <= MS_HIT) ||
+        (p.x >= m.labelBox.x0 &&
+          p.x <= m.labelBox.x1 &&
+          p.y >= m.labelY - LABEL_UP &&
+          p.y <= m.labelY + LABEL_DOWN),
+    );
   if (ms) return { type: 'ms', id: ms.id };
   const drop = layout.laneDrops.find((d) => inBox(p, d));
   if (drop) return { type: 'lane', teamId: drop.teamId };

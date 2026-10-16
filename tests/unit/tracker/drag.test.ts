@@ -59,6 +59,14 @@ describe('targetAt: the drop target under a point of the graph', () => {
     expect(targetAt(L, { x: m.x + 16, y: m.y })).not.toEqual({ type: 'ms', id: 'golive' });
   });
 
+  it('finds a milestone by its label, as the prototype does', () => {
+    const L = layout();
+    const m = L.milestones[0];
+    const mid = (m.labelBox.x0 + m.labelBox.x1) / 2;
+    expect(targetAt(L, { x: mid, y: m.labelY - 4 })).toEqual({ type: 'ms', id: 'golive' });
+    expect(targetAt(L, { x: mid, y: m.labelY + 12 })).toBeNull();
+  });
+
   it('finds the drop strip at the head of a team', () => {
     const L = layout();
     const qa = lane(L, 'qa');
