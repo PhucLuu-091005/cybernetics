@@ -402,8 +402,100 @@ test.describe('milestone ticks, chips, hiding and the time zoom', () => {
 
     await page.locator('svg.pg-side [data-eyeteam="engineering"]').click();
     await expect(page.locator('svg.pg [data-loop="pg203"]')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Show 4 hidden work items in Engineering' }).click();
+    await page.locator('.hid-menu > summary').click();
+    await page.getByRole('button', { name: 'Unhide Engineering' }).click();
     await expect(page.locator('svg.pg [data-loop="pg203"]')).toHaveCount(1);
+  });
+
+  test('a handoff mark finds the receiving row, focus shows one tree, and hiding leaves no row', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-view');
+    const row = (id: string) => page.locator(`svg.pg [data-loop="${id}"]`);
+    const rows = page.locator('svg.pg [data-loop]');
+    const side = page.locator('svg.pg-side');
+    const tip = page.getByRole('tooltip');
+    const fit = page.getByRole('button', { name: 'Fit to width' });
+    await expect(rows).toHaveCount(13);
+
+    await test.step('a link into another team is a mark at the source, with a tooltip on hover and focus', async () => {
+      await expect(page.locator('svg.pg path.link')).toHaveCount(0);
+      const text = 'Handed over to Engineering · received in PG-203 Country list field type';
+      const mark = page.getByRole('button', { name: text });
+      await mark.hover();
+      await expect(tip).toHaveText(text);
+      await page.mouse.move(5, 5);
+      await expect(tip).toHaveCount(0);
+      await side.locator('[data-eyerow="pg203"]').click();
+      await expect(row('pg203')).toHaveCount(0);
+      await mark.focus();
+      await expect(tip).toHaveText(text);
+      await page.keyboard.press('Enter');
+      await expect(row('pg203')).toHaveCount(1);
+      await expect(page.locator('svg.pg .hit.flash[data-loop="pg203"]')).toHaveCount(1);
+      await expect(fit).toBeEnabled();
+      await fit.click();
+    });
+
+    await test.step('focus shows the work item and its descendants, with a tree in the side panel', async () => {
+      await side.getByRole('button', { name: 'Focus on Analyse the CRS and FATCA rules' }).click();
+      await expect(rows).toHaveCount(5);
+      await expect(side.locator('[data-eyeteam="implementation"]')).toHaveCount(0);
+      const panel = page.getByRole('complementary', {
+        name: 'Focus on Analyse the CRS and FATCA rules',
+      });
+      await expect(panel).toContainText('5 work items');
+      await panel.getByRole('button', { name: /Test the CRS section end to end/ }).click();
+      await expect(page.locator('svg.pg .hit.flash[data-loop="test"]')).toHaveCount(1);
+      await fit.click();
+      await panel
+        .getByRole('button', { name: /CRS tax residency section with DealCloud sync/ })
+        .click();
+      await expect(rows).toHaveCount(6);
+      await expect(
+        page.getByRole('complementary', {
+          name: 'Focus on CRS tax residency section with DealCloud sync',
+        }),
+      ).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(rows).toHaveCount(13);
+      await side.getByRole('button', { name: 'Focus on PG-201 CRS form logic' }).click();
+      await expect(rows).toHaveCount(2);
+      await side.getByRole('button', { name: 'Leave focus' }).click();
+      await expect(rows).toHaveCount(13);
+      await side.getByRole('button', { name: 'Focus on PG-201 CRS form logic' }).click();
+      await page.getByRole('complementary').getByRole('button', { name: 'Leave focus' }).click();
+      await expect(rows).toHaveCount(13);
+    });
+
+    await test.step('a hidden team and a team with every row hidden take no room, and the badge unhides them', async () => {
+      const height = () => side.evaluate((svg) => (svg as SVGSVGElement).viewBox.baseVal.height);
+      const full = await height();
+      await side.locator('[data-eyeteam="engineering"]').click();
+      await side.locator('[data-eyerow="pg201"]').click();
+      await side.locator('[data-eyerow="pg202"]').click();
+      await expect(rows).toHaveCount(7);
+      await expect(side.locator('[data-eyeteam="engineering"]')).toHaveCount(0);
+      await expect(side.locator('[data-eyeteam="solutions-engineering"]')).toHaveCount(0);
+      await expect(side.getByText(/hidden/)).toHaveCount(0);
+      expect(await height()).toBe(full - 6 * 32 - 2 * (22 + 6));
+
+      const badge = page.locator('.hid-menu > summary');
+      await expect(badge).toContainText('3 hidden');
+      const list = page.getByRole('dialog', { name: 'Hidden teams and work items' });
+      await badge.click();
+      await expect(list).toBeVisible();
+      await expect(list).toContainText('Engineering');
+      await page.keyboard.press('Escape');
+      await expect(list).toBeHidden();
+      await badge.click();
+      await list.getByRole('button', { name: 'Unhide PG-201 CRS form logic' }).click();
+      await expect(row('pg201')).toHaveCount(1);
+      await expect(badge).toContainText('2 hidden');
+      await list.getByRole('button', { name: 'Unhide all' }).click();
+      await expect(rows).toHaveCount(13);
+      await expect(page.locator('.hid-menu')).toHaveCount(0);
+    });
   });
 });
 
