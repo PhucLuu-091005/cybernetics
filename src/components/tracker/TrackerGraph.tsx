@@ -543,9 +543,7 @@ export function TrackerGraph(props: Props) {
               {...button(c.ariaLabel)}
             >
               <rect width={c.size} height={c.size} rx={4} />
-              <text x={c.size / 2} y={c.size / 2 + 3.5} textAnchor="middle">
-                ↖
-              </text>
+              <SvgIcon name="branch" x={c.size / 2} y={c.size / 2} size={10} />
               <title>{c.tooltip}</title>
             </g>
           ))}
