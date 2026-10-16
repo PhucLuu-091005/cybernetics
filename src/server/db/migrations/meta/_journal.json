@@ -43,6 +43,13 @@
       "when": 1792144939928,
       "tag": "0005_drop_promise",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792168189725,
+      "tag": "0006_event_offsets",
+      "breakpoints": true
     }
   ]
 }

@@ -32,6 +32,7 @@ function render(me: Member | null) {
     queue,
     commits: [],
     crs: [],
+    offsets: {},
   };
   const session: Session = {
     projectId: 'p1',

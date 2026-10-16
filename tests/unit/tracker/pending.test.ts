@@ -50,6 +50,7 @@ const payload: TrackerPayload = {
   queue: queueFromRows(larkspurQueueRows()),
   commits: [],
   crs: [draft],
+  offsets: {},
 };
 
 const attachQe4 = { op: 'attach', a: { eventId: 'qe4', workItemId: 'pg203' } } as const;
