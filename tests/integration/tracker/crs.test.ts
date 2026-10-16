@@ -245,6 +245,55 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
     });
   });
 
+  describe('per-change comments', () => {
+    it('keeps each comment on its change when an earlier change is removed', async () => {
+      await fresh();
+      const { num } = await createCr(t.db, demo.owner, {
+        ...as('lan'),
+        title: 'Renames',
+        ops: [
+          { op: 'rename', a: { workItemId: 'incident', title: 'Incident A' } },
+          { op: 'rename', a: { workItemId: 'secret', title: 'Secret B' } },
+          { op: 'msAdd', a: { workItemId: 'test', milestoneId: 'golive' } },
+          { op: 'rename', a: { workItemId: 'dynamics', title: 'Dynamics D' } },
+        ],
+      });
+      for (const opIndex of [0, 1, 2, 3])
+        await action('quang', num, { action: 'comment', body: `On ${opIndex}`, opIndex });
+      await action('quang', num, { action: 'comment', body: 'General' });
+      const notes = (payload: TrackerPayload) =>
+        crOf(payload, num)
+          .comments.filter((c) => c.kind === 'comment')
+          .map((c) => [c.body, c.opIndex]);
+      const removed = await removeOp(t.db, demo.owner, {
+        ...as('lan'),
+        num,
+        index: 1,
+        expectedRevision: 0,
+      });
+      expect(notes(removed)).toEqual([
+        ['On 0', 0],
+        ['On 1', null],
+        ['On 2', 1],
+        ['On 3', 2],
+        ['General', null],
+      ]);
+      const undone = await removeOp(t.db, demo.owner, {
+        ...as('lan'),
+        num,
+        index: 'last',
+        expectedRevision: 1,
+      });
+      expect(notes(undone)).toEqual([
+        ['On 0', 0],
+        ['On 1', null],
+        ['On 2', 1],
+        ['On 3', null],
+        ['General', null],
+      ]);
+    });
+  });
+
   describe('ready and edit again', () => {
     it('needs at least one change, locks the ops, and unlocks with Edit again', async () => {
       await fresh();

@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, gt, sql } from 'drizzle-orm';
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { RevisionSchema, type ActorContext } from '../../contracts';
@@ -23,7 +23,13 @@ import {
   type TrackerState,
 } from '../../tracker';
 import { AppError, invalidInput } from '../errors';
-import { trackerCommits, trackerCrAsks, trackerCrShares, trackerCrs } from '../db/schema';
+import {
+  trackerCommits,
+  trackerCrAsks,
+  trackerCrComments,
+  trackerCrShares,
+  trackerCrs,
+} from '../db/schema';
 import { withTransaction, type Db, type Tx } from '../db/tx';
 import {
   hasEditRight,
@@ -273,6 +279,19 @@ export async function removeOp(
     if (index < 0 || index >= cr.ops.length)
       throw new AppError('VALIDATION', `#${cr.num} has no change ${input.index}`);
     await updateCr(tx, cr, { ops: cr.ops.filter((_, i) => i !== index) });
+    const comments = and(
+      eq(trackerCrComments.projectId, cr.projectId),
+      eq(trackerCrComments.crId, cr.id),
+    );
+    // Comments name a change by its position, so they must follow the changes after it.
+    await tx
+      .update(trackerCrComments)
+      .set({ opIndex: null })
+      .where(and(comments, eq(trackerCrComments.opIndex, index)));
+    await tx
+      .update(trackerCrComments)
+      .set({ opIndex: sql`${trackerCrComments.opIndex} - 1` })
+      .where(and(comments, gt(trackerCrComments.opIndex, index)));
     return buildPayload(tx, scope);
   });
 }
