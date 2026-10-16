@@ -60,3 +60,12 @@ export function milestoneStatus(
   }
   return { status: lateOrPlanned(asOf, m.planned, timeZone), finishedAt: null, members };
 }
+
+const HOUR = 3_600_000;
+
+/** Time from the first event to the finish (or to now while open), as "123 h (5.1 days)". */
+export function timeSpent(start: string | null, end: string | null): string | null {
+  if (!start || !end) return null;
+  const ms = Math.max(0, time(end) - time(start));
+  return `${Math.round(ms / HOUR)} h (${(ms / (24 * HOUR)).toFixed(1)} days)`;
+}
