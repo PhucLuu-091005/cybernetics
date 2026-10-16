@@ -1,5 +1,5 @@
 /* Ported from the review screen of docs/design/2026-10-16-event-tracker-v8.html (renderReview).
-   The rules sit under .tk because the old global .seg and .conf rules stay loaded. */
+   The rules sit under .tk because the global .seg rules stay loaded. */
 :root {
   --page: #f6f6f6;
 }
