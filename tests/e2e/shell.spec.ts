@@ -101,12 +101,13 @@ test('the project switcher creates a project, opens its empty graph and lists bo
   );
   const created = new URL(page.url()).pathname;
   await expect(dialog).toBeHidden();
-  await expect(page.getByText('This project has no work yet.')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Review', exact: true }).last()).toHaveAttribute(
+  const empty = page.locator('.graph-empty');
+  await expect(empty.getByText('This project has no work yet.')).toBeVisible();
+  await expect(empty.getByRole('link', { name: 'Review', exact: true })).toHaveAttribute(
     'href',
     created.replace(/graph$/, 'review'),
   );
-  await expect(page.getByRole('link', { name: 'Settings', exact: true }).last()).toHaveAttribute(
+  await expect(empty.getByRole('link', { name: 'Settings', exact: true })).toHaveAttribute(
     'href',
     created.replace(/graph$/, 'settings/tokens'),
   );
