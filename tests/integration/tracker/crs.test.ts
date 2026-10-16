@@ -597,6 +597,32 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       expect(merged.commits.at(-1)?.ops.map((op) => op.op)).toEqual(['rename']);
     });
 
+    it('rejects a merge when no change of the change request applies to Main', async () => {
+      await fresh();
+      const x = await createCr(t.db, demo.owner, {
+        ...as('lan'),
+        title: 'Incident note',
+        ops: [{ op: 'attach', a: { eventId: demo.ids.qe1, workItemId: 'incident' } }],
+      });
+      const y = await createCr(t.db, demo.owner, {
+        ...as('quang'),
+        title: 'Other home',
+        ops: [{ op: 'attach', a: { eventId: demo.ids.qe1, workItemId: 'secret' } }],
+      });
+      await action('lan', x.num, { action: 'ready' });
+      await action('quang', y.num, { action: 'ready' });
+      await review(y.num, { action: 'merge', picks: {} });
+      await expect(
+        review(x.num, { action: 'merge', picks: { [`event:${demo.ids.qe1}`]: 'main' } }),
+      ).rejects.toMatchObject({
+        code: 'CONFLICT',
+        message: `No change of #${x.num} applies to Main now`,
+      });
+      const payload = await getTrackerPayload(t.db, demo.owner, as('minh'));
+      expect(payload.commits).toHaveLength(2);
+      expect(crOf(payload, x.num).status).toBe('ready');
+    });
+
     it('merges only a ready change request', async () => {
       await fresh();
       await expect(review(4, { action: 'merge', picks: {} })).rejects.toMatchObject({

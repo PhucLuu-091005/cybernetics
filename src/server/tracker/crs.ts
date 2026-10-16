@@ -482,6 +482,7 @@ async function merge(run: Run, picks: Record<string, 'main' | 'cr'>) {
     );
   // A change that no longer applies stays out of Main, so Main never replays a skipped step.
   const ops = stillApplying(latest, liveOps(cr.ops, main.commits, picks), tz);
+  if (!ops.length) throw new AppError('CONFLICT', `No change of #${cr.num} applies to Main now`);
   const resolutions: Resolution[] = clashes.map((clash) => ({
     key: clash.key,
     label: clashLabel(clash, mainState(main.base, main.queue, main.commits, clash.x.rev)),

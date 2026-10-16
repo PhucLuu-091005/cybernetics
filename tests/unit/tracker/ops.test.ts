@@ -549,7 +549,7 @@ describe('replayOps', () => {
     ]);
     expect(entries[1]).toMatchObject({
       i: 1,
-      change: 'skipped (depends on a removed change)',
+      change: 'no longer applies',
       before: '',
       after: '',
       skipped: true,

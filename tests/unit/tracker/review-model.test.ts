@@ -385,12 +385,50 @@ describe('reviewModel', () => {
     expect(model.canMerge).toBe(false);
   });
 
-  it('marks a change that no longer applies as skipped', () => {
+  it('marks a change whose queue card was removed as skipped, and never merges only that', () => {
     const { cr1, commits } = seed();
     const gone = makeOp('attach', { eventId: 'nope', workItemId: 'pg203' }, 1, 'lan');
     const cr = makeCr(5, { author: 'lan', ops: [gone] });
     const model = reviewModel(payload([cr1, cr], commits), 5, {});
-    expect(model?.changes[0]).toMatchObject({ skipped: true, opIndex: 0 });
-    expect(model?.changes[0].d.change).toBe('skipped (depends on a removed change)');
+    expect(model?.changes[0]).toMatchObject({ skipped: true, skipReason: 'queue', opIndex: 0 });
+    expect(model?.changes[0].d.change).toBe('no longer applies');
+    expect(model?.canMerge).toBe(false);
+  });
+
+  it('says why each change no longer applies', () => {
+    const { crs, commits } = mainTookTheSpots();
+    const fromEvent = makeOp(
+      'fromEvent',
+      {
+        id: 'scopecall',
+        eventId: 'qe1',
+        teamId: 'engineering',
+        title: 'Scope call',
+        doneBy: 'quang',
+        requestedBy: 'lan',
+        after: null,
+        plannedFinish: '2026-10-20',
+      },
+      1,
+      'lan',
+    );
+    const rename = makeOp('rename', { workItemId: 'scopecall', title: 'Scope call, Sarah' }, 1);
+    const orphan = makeOp('rename', { workItemId: 'nowhere', title: 'X' }, 1, 'lan');
+    const ops = [...described(commits.slice(0, 1), [fromEvent, rename]), orphan];
+    const cr7 = makeCr(7, { author: 'lan', ops });
+    const p = payload([...crs, cr7], commits);
+    expect(reviewModel(p, 5, {})?.changes.map((c) => [c.opIndex, c.skipped, c.skipReason])).toEqual(
+      [
+        [0, true, 'main'],
+        [1, true, 'main'],
+        [2, false, null],
+      ],
+    );
+    expect(reviewModel(p, 7, {})?.changes.map((c) => [c.opIndex, c.skipReason])).toEqual([
+      [0, 'main'],
+      [1, 'skipped'],
+      [2, 'removed'],
+    ]);
+    expect(reviewModel(p, 7, { 'event:qe1': 'main' })?.canMerge).toBe(false);
   });
 });
