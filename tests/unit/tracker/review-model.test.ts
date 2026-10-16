@@ -7,7 +7,7 @@ import {
 import { liveOps, mainState, type Commit } from '../../../src/tracker/clash';
 import { queueFromRows, replayOps, type Op } from '../../../src/tracker/ops';
 import type { Cr, Member, Resolution, TrackerPayload } from '../../../src/tracker/payload';
-import { reviewModel } from '../../../src/tracker/review';
+import { openedReview, reviewModel } from '../../../src/tracker/review';
 import {
   at,
   larkspurBase,
@@ -430,5 +430,43 @@ describe('reviewModel', () => {
       [2, 'removed'],
     ]);
     expect(reviewModel(p, 7, { 'event:qe1': 'main' })?.canMerge).toBe(false);
+  });
+});
+
+describe('openedReview', () => {
+  it('shows the live payload while the change request keeps the revision the owner opened', () => {
+    const { cr1, cr2, commits } = seed();
+    const live = payload([cr1, cr2], commits);
+    expect(openedReview(live, cr2)).toEqual({ payload: live, changed: false });
+    expect(openedReview(live, null)).toEqual({ payload: live, changed: false });
+  });
+
+  it('keeps the opened changes and status after an edit, with the live conversation', () => {
+    const { cr1, cr2, commits } = seed();
+    const rename = makeOp('rename', { workItemId: 'secret', title: 'Secret renewed' }, 1, 'lan');
+    const comment = {
+      id: 'm1',
+      memberId: 'quang',
+      kind: 'comment' as const,
+      body: 'Looks fine.',
+      opIndex: null,
+      createdAt: at('2026-10-09T17:10'),
+    };
+    const edited: Cr = {
+      ...cr2,
+      status: 'draft',
+      revision: 3,
+      ops: [...cr2.ops, rename],
+      comments: [comment],
+      asks: [{ memberId: 'khoa', createdAt: at('2026-10-09T17:12') }],
+    };
+    const { payload: shown, changed } = openedReview(payload([cr1, edited], commits), cr2);
+    expect(changed).toBe(true);
+    const cr = shown.crs.find((c) => c.num === 2);
+    expect(cr).toMatchObject({ status: 'ready', revision: 1, ops: cr2.ops });
+    expect(cr?.comments).toEqual([comment]);
+    expect(cr?.asks).toEqual(edited.asks);
+    expect(shown.crs.find((c) => c.num === 1)).toBe(cr1);
+    expect(reviewModel(shown, 2, {})?.changes).toHaveLength(2);
   });
 });
