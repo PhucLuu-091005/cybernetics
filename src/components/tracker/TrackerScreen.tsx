@@ -765,7 +765,11 @@ export function TrackerScreen({
     start: { clientX: number; clientY: number; pointerId: number },
     t: PointerTrack,
   ) => {
-    stopDrag.current?.();
+    // A second touch replaces the first gesture, so the first one's ghost and marks must go too.
+    if (stopDrag.current) {
+      stopDrag.current();
+      endDrag();
+    }
     stopDrag.current = trackPointer(start, { ...t, onRelease: swallowClick });
   };
 
