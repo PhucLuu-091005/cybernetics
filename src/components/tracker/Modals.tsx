@@ -30,6 +30,7 @@ import type { OpInput, QueueEntry } from './api';
 import { Avatar } from './avatar';
 import { myDrafts, roleIn, trunc, type Session } from './ContextBar';
 import { Icon, KindIcon } from './icons';
+import { newTeamOp } from './team';
 
 export type ModalState =
   | { mode: 'add'; what: 'event' | 'item' }
@@ -38,6 +39,7 @@ export type ModalState =
   | { mode: 'event'; workItemId: string; done?: boolean }
   | { mode: 'fromEvent'; eventId: string; teamId: string }
   | { mode: 'ms' }
+  | { mode: 'team' }
   | { mode: 'due'; kind: 'item' | 'ms'; id: string; date: string }
   | { mode: 'newcr'; pending: OpInput[] }
   | { mode: 'share' }
@@ -741,6 +743,47 @@ function MilestoneModal({ session, state, asOf, busy, on, onClose }: PropsOf<'ms
   );
 }
 
+function TeamModal({ state, busy, on, onClose }: PropsOf<'team'>) {
+  const [name, setName] = useState('');
+  const [leadId, setLeadId] = useState('');
+  const create = () => {
+    const made = newTeamOp(state, { id: newId(), name, leadId });
+    if (made.ok) on.commit([made.op]);
+    else on.toast(made.message);
+  };
+  return (
+    <ModalFrame title="New team" onClose={onClose}>
+      <div className="grid2">
+        <label className="field">
+          Name
+          <input
+            value={name}
+            maxLength={200}
+            placeholder="For example: Design"
+            onChange={(event) => setName(event.target.value)}
+            onKeyDown={(event) => event.key === 'Enter' && create()}
+          />
+        </label>
+        <label className="field">
+          Lead (optional)
+          <select value={leadId} onChange={(event) => setLeadId(event.target.value)}>
+            <option value="">No lead</option>
+            {state.people.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <p className="tip">
+        The team gets its own lane. Its lead is the first choice for Done by on new work items.
+      </p>
+      <Foot label="Add team" busy={busy} onCancel={onClose} onCreate={create} />
+    </ModalFrame>
+  );
+}
+
 function DueModal({ modal, session, state, busy, on, onClose }: PropsOf<'due'>) {
   const [date, setDate] = useState(modal.date);
   const [why, setWhy] = useState('');
@@ -1080,6 +1123,8 @@ export function Modal(props: Props) {
       return <FromEventModal {...props} modal={modal} />;
     case 'ms':
       return <MilestoneModal {...props} modal={modal} />;
+    case 'team':
+      return <TeamModal {...props} modal={modal} />;
     case 'due':
       return <DueModal {...props} modal={modal} />;
     case 'newcr':

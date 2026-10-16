@@ -123,6 +123,7 @@ export type TrackerActions = {
   moveEvent: (eventId: string) => void;
   hideEvent: (eventId: string) => void;
   newMilestone: () => void;
+  newTeam: () => void;
   saveMilestone: (milestoneId: string, name: string, date: string) => void;
   removeFromMilestone: (workItemId: string) => void;
   addToMilestone: (workItemId: string, milestoneId: string) => void;
@@ -153,6 +154,7 @@ export const NO_ACTIONS: TrackerActions = {
   moveEvent: noop,
   hideEvent: noop,
   newMilestone: noop,
+  newTeam: noop,
   saveMilestone: noop,
   removeFromMilestone: noop,
   addToMilestone: noop,
@@ -689,6 +691,7 @@ export function TrackerScreen({
     hideEvent: (eventId) => commitOps([{ op: 'hide', a: { eventId } }]),
     newMilestone: () =>
       edit ? openModal({ mode: 'ms' }) : openModal({ mode: 'readonly', pending: [] }),
+    newTeam: () => openModal({ mode: 'team' }),
     saveMilestone: (milestoneId, name, date) => {
       const m = state.milestones.find((x) => x.id === milestoneId);
       if (!m) return;
@@ -1019,6 +1022,7 @@ export function TrackerScreen({
               }}
               onAddEvent={actions.addEvent}
               onNewMilestone={actions.newMilestone}
+              onNewTeam={actions.newTeam}
               onBackground={() => setPop(null)}
             />
           </div>
@@ -1090,6 +1094,9 @@ export function TrackerScreen({
                   onClick={() => actions.addToQueue('event')}
                 >
                   <Icon name="plus" /> Add an event
+                </button>
+                <button className="btn big" type="button" onClick={actions.newTeam}>
+                  <Icon name="plus" /> New team
                 </button>
               </div>
             </div>
