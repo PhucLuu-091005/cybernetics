@@ -95,12 +95,14 @@ function CommentBox({
   className,
   sm,
   busy,
+  disabled,
   onSend,
 }: {
   label: string;
   className?: string;
   sm?: boolean;
   busy: boolean;
+  disabled?: boolean;
   onSend: (body: string) => Promise<boolean>;
 }) {
   const [text, setText] = useState('');
@@ -117,9 +119,10 @@ function CommentBox({
         placeholder={label}
         aria-label={label}
         maxLength={4000}
+        disabled={disabled}
         onChange={(event) => setText(event.target.value)}
       />
-      <button className={`btn${sm ? ' sm' : ''}`} type="submit" disabled={busy}>
+      <button className={`btn${sm ? ' sm' : ''}`} type="submit" disabled={busy || disabled}>
         Comment
       </button>
     </form>
@@ -189,6 +192,7 @@ function DiffCard({
   on,
   viewed,
   canComment,
+  frozen,
   busy,
   onFind,
   onViewed,
@@ -200,6 +204,7 @@ function DiffCard({
   on: boolean;
   viewed: boolean;
   canComment: boolean;
+  frozen: boolean;
   busy: boolean;
   onFind: () => void;
   onViewed: (checked: boolean) => void;
@@ -290,6 +295,7 @@ function DiffCard({
               label="Comment on this change"
               sm
               busy={busy}
+              disabled={frozen}
               onSend={(body) => onComment(body, opIndex)}
             />
           )}
@@ -566,6 +572,7 @@ export function ReviewScreen({
   const reviewAgain = () => {
     setOpened(live.crs.find((c) => c.num === num) ?? null);
     setViewed([]);
+    setPicks({});
   };
 
   let buttons: ReactNode = (
@@ -775,6 +782,7 @@ export function ReviewScreen({
                     on={sel === i}
                     viewed={viewed.includes(i)}
                     canComment={canComment}
+                    frozen={changed}
                     busy={busy}
                     onFind={() => find(i)}
                     onViewed={(checked) =>

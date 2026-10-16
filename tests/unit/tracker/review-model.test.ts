@@ -431,6 +431,36 @@ describe('reviewModel', () => {
     ]);
     expect(reviewModel(p, 7, { 'event:qe1': 'main' })?.canMerge).toBe(false);
   });
+
+  it('blames Main, not the queue, for a closed change whose card or spot Main used before the close', () => {
+    const { crs, commits } = mainTookTheSpots();
+    const [, cr5] = crs;
+    const closed: Cr = { ...cr5, status: 'closed', closedRev: 2, closedBy: LARKSPUR_OWNER };
+    const sameAsMain = makeCr(8, {
+      author: 'lan',
+      status: 'closed',
+      closedRev: 2,
+      closedBy: LARKSPUR_OWNER,
+      ops: described(commits.slice(0, 1), [
+        makeOp('attach', { eventId: 'qe1', workItemId: 'secret' }, 1, 'quang'),
+      ]),
+    });
+    const p = payload([...crs.filter((c) => c.num !== 5), closed, sameAsMain], commits);
+    expect(reviewModel(p, 5, {})?.changes.map((c) => [c.opIndex, c.skipReason])).toEqual([
+      [0, 'main'],
+      [1, 'main'],
+      [2, null],
+    ]);
+    expect(reviewModel(p, 8, {})?.changes.map((c) => c.skipReason)).toEqual(['main']);
+  });
+
+  it('keeps the queue reason for a closed change whose card Main did not use', () => {
+    const { crs, commits } = mainTookTheSpots();
+    const gone = makeOp('attach', { eventId: 'nope', workItemId: 'pg203' }, 1, 'lan');
+    const closed = makeCr(9, { author: 'lan', status: 'closed', closedRev: 2, ops: [gone] });
+    const model = reviewModel(payload([...crs, closed], commits), 9, {});
+    expect(model?.changes.map((c) => c.skipReason)).toEqual(['queue']);
+  });
 });
 
 describe('openedReview', () => {
@@ -439,6 +469,16 @@ describe('openedReview', () => {
     const live = payload([cr1, cr2], commits);
     expect(openedReview(live, cr2)).toEqual({ payload: live, changed: false });
     expect(openedReview(live, null)).toEqual({ payload: live, changed: false });
+  });
+
+  it('shows the live payload to a viewer who is not the owner, even after an edit', () => {
+    const { cr1, cr2, commits } = seed();
+    const rename = makeOp('rename', { workItemId: 'secret', title: 'Secret renewed' }, 1, 'lan');
+    const edited: Cr = { ...cr2, status: 'draft', revision: 3, ops: [...cr2.ops, rename] };
+    for (const me of ['lan', 'nobody']) {
+      const live = payload([cr1, edited], commits, me);
+      expect(openedReview(live, cr2)).toEqual({ payload: live, changed: false });
+    }
   });
 
   it('keeps the opened changes and status after an edit, with the live conversation', () => {
