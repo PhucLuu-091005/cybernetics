@@ -325,7 +325,6 @@ export const trackerMembers = pgTable(
     createdAt: createdAt(),
   },
   (table) => [
-    index('tracker_members_project_idx').on(table.projectId),
     unique('tracker_members_project_id_unique').on(table.projectId, table.id),
     unique('tracker_members_project_user_unique').on(table.projectId, table.userId),
     inProject('tracker_members', table),
@@ -399,7 +398,6 @@ export const trackerCrs = pgTable(
   (table) => [
     unique('tracker_crs_project_num_unique').on(table.projectId, table.num),
     unique('tracker_crs_project_id_unique').on(table.projectId, table.id),
-    index('tracker_crs_project_idx').on(table.projectId),
     inProject('tracker_crs', table),
     memberIn('tracker_crs_author_fk', table.projectId, table.author),
     memberIn('tracker_crs_editor_fk', table.projectId, table.editor),

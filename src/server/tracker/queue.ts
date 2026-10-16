@@ -10,10 +10,9 @@ import {
   type TrackerPayload,
   type TrackerState,
 } from '../../tracker';
-import { AppError } from '../errors';
+import { AppError, invalidInput } from '../errors';
 import { trackerQueue } from '../db/schema';
 import { isId, withTransaction, type Db } from '../db/tx';
-import { invalid } from '../domain/records/metadata';
 import { ProjectScopeSchema, requireMember, requireQueueWriter, writeScope } from './access';
 import { buildPayload } from './read';
 import { loadCommits, loadQueue } from './store';
@@ -57,15 +56,13 @@ export async function addQueueEntry(
   raw: z.input<typeof AddQueueEntryInputSchema>,
 ): Promise<TrackerPayload> {
   const parsed = AddQueueEntryInputSchema.safeParse(raw);
-  if (!parsed.success) throw invalid('Invalid queue card', parsed.error);
+  if (!parsed.success) throw invalidInput('Invalid queue card', parsed.error);
   const entry = parsed.data;
   return withTransaction(db, async (tx) => {
     const scope = await writeScope(tx, ctx, entry.projectId, entry.actAs);
     const me = requireQueueWriter(scope.me);
-    const [queue, commits] = await Promise.all([
-      loadQueue(tx, scope.project.id),
-      loadCommits(tx, scope.project.id),
-    ]);
+    const queue = await loadQueue(tx, scope.project.id);
+    const commits = await loadCommits(tx, scope.project.id);
     const problems = unknownReferences(entry, mainState(scope.tracker.base, queue, commits));
     if (problems.length)
       throw new AppError('VALIDATION', 'The queue card names something Main does not have', {
@@ -95,7 +92,7 @@ export async function dismissQueueEntry(
   raw: z.input<typeof DismissQueueEntryInputSchema>,
 ): Promise<TrackerPayload> {
   const parsed = DismissQueueEntryInputSchema.safeParse(raw);
-  if (!parsed.success) throw invalid('Invalid queue dismissal', parsed.error);
+  if (!parsed.success) throw invalidInput('Invalid queue dismissal', parsed.error);
   const { projectId, queueId, actAs } = parsed.data;
   return withTransaction(db, async (tx) => {
     const scope = await writeScope(tx, ctx, projectId, actAs);
