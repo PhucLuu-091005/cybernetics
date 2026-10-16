@@ -1,21 +1,7 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import { drag, hydrated } from './helpers';
 
 test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
-
-// The dialog, the Queue and the drags need React handlers; the fold button stays disabled until hydration.
-const hydrated = (page: Page) =>
-  expect(page.getByRole('button', { name: 'Collapse sidebar' })).toBeEnabled();
-
-async function drag(page: Page, from: Locator, to: Locator) {
-  const a = await from.boundingBox();
-  const b = await to.boundingBox();
-  if (!a || !b) throw new Error('A drag end has no box');
-  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(a.x + a.width / 2 + 8, a.y + a.height / 2 + 8, { steps: 3 });
-  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 12 });
-  await page.mouse.up();
-}
 
 test('a new project starts with its teams and an empty graph, and its first change request reaches Main', async ({
   page,
