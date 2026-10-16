@@ -4,6 +4,7 @@ import { getApp } from '../app';
 import type { Db } from '../db/tx';
 import { readAuthEnvironment } from '../env';
 import { AppError, invalidInput, privateJson } from '../errors';
+import { actingMember } from '../tracker/access';
 import { getTrackerPayload } from '../tracker/read';
 import type { Handler, Input } from './route';
 import { cookieValue } from './session';
@@ -21,17 +22,35 @@ export function readActAs(request: Request, projectId: string): string | undefin
   return cookieValue(request, actAsCookieName(projectId)) ?? undefined;
 }
 
+/** A cookie that names no member any more falls back to the own member, so it cannot lock the person out. */
+async function usableActAs(
+  ctx: ActorContext,
+  projectId: string,
+  cookie: string | undefined,
+): Promise<string | undefined> {
+  if (!cookie) return undefined;
+  try {
+    await getApp().db.transaction((tx) => actingMember(tx, ctx, projectId, cookie), {
+      accessMode: 'read only',
+    });
+    return cookie;
+  } catch (error) {
+    if (error instanceof AppError && error.code === 'FORBIDDEN') return undefined;
+    throw error;
+  }
+}
+
 /** Only the act-as route sets the cookie, after the use case accepts the member, so a body or query value must not pick one. */
 export function asMember<I, R>(
   fn: (db: Db, ctx: ActorContext, input: I) => Promise<R>,
   map: (input: Input) => Input = (input) => input,
 ): Handler {
-  return (ctx, request, params, input) => {
+  return async (ctx, request, params, input) => {
     if (input.actAs !== undefined)
       throw new AppError('VALIDATION', 'The acting member comes from the act-as cookie', {
         errors: [{ path: 'actAs', message: 'Use POST /tracker/act-as' }],
       });
-    const actAs = readActAs(request, params.projectId);
+    const actAs = await usableActAs(ctx, params.projectId, readActAs(request, params.projectId));
     return fn(getApp().db, ctx, { ...map(input), actAs } as I);
   };
 }
