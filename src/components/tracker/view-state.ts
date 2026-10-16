@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { TrackerState } from '../../tracker';
 
 export type KeyValueStore = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 export type ViewState = { hiddenRows: string[]; hiddenTeams: string[] };
@@ -64,6 +65,31 @@ export function revealRows(
     hiddenRows: view.hiddenRows.filter((id) => !ids.includes(id)),
     hiddenTeams: view.hiddenTeams.filter((id) => !teams.has(id)),
   };
+}
+
+export type HiddenList = {
+  teams: Array<{ id: string; name: string; items: number }>;
+  items: Array<{ id: string; title: string; team: string }>;
+  count: number;
+};
+
+/** Ids of deleted teams or work items stay in storage, so the list and its count skip them. */
+export function hiddenList(state: TrackerState, view: ViewState): HiddenList {
+  const teams = state.teams
+    .filter((t) => view.hiddenTeams.includes(t.id))
+    .map((t) => ({
+      id: t.id,
+      name: t.name,
+      items: state.workItems.filter((w) => w.teamId === t.id).length,
+    }));
+  const items = state.workItems
+    .filter((w) => view.hiddenRows.includes(w.id))
+    .map((w) => ({
+      id: w.id,
+      title: w.title,
+      team: state.teams.find((t) => t.id === w.teamId)?.name ?? '',
+    }));
+  return { teams, items, count: teams.length + items.length };
 }
 
 const noticeKey = (userId: string) => `promise-graph:main-notice-off:v1:${userId}`;

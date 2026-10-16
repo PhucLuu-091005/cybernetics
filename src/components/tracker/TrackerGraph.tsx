@@ -28,6 +28,7 @@ const ZOOM_STEP = 1.5;
 const REVEAL_ZOOM = 2;
 const REVEAL_FLASH_MS = 1500;
 const REVEAL_PAD = 40;
+const TIP_ROOM = 180;
 
 export type PopKind = 'act' | 'loop' | 'stack';
 export type DatePreview = { kind: 'item' | 'ms'; id: string; x: number; label?: string };
@@ -51,6 +52,9 @@ type Props = {
   onToggleRow: (workItemId: string) => void;
   onToggleTeam: (teamId: string) => void;
   onReveal: (workItemIds: string[]) => void;
+  /** Without it, rows have no focus button. */
+  onFocusItem?: (workItemId: string) => void;
+  onHandoff?: (workItemId: string) => void;
   onPop: (kind: PopKind, id: string, anchor: Element) => void;
   onMilestone: (milestoneId: string) => void;
   onAddEvent: (workItemId: string) => void;
@@ -73,7 +77,7 @@ function groupBy<T extends { workItemId: string }>(list: readonly T[]): Map<stri
 }
 
 const TARGETS =
-  '[data-eyerow],[data-eyeteam],[data-show],[data-act],[data-ms],[data-goal],[data-plus],[data-newms],[data-newteam],[data-rowlabel],[data-loop]';
+  '[data-eyerow],[data-eyeteam],[data-focusitem],[data-show],[data-handoff],[data-act],[data-ms],[data-goal],[data-plus],[data-newms],[data-newteam],[data-rowlabel],[data-loop]';
 const ROWS = '[data-loop],[data-act],[data-rowlabel],[data-plus]';
 
 function MilestoneMark({ m }: { m: LayoutMilestone }) {
@@ -205,11 +209,26 @@ export function TrackerGraph(props: Props) {
   }, [revealed]);
   const flash = revealed?.id ?? props.flash;
 
+  // An SVG title shows only on hover, and the handoff text must also show on keyboard focus.
+  const [tip, setTip] = useState<{ text: string; x: number; y: number; align: string } | null>(
+    null,
+  );
+  const showTip = (el: Element, text: string) => {
+    const box = root.current?.getBoundingClientRect();
+    if (!box) return;
+    const r = el.getBoundingClientRect();
+    const x = r.left + r.width / 2 - box.left;
+    const align = x < TIP_ROOM ? 'start' : x > box.width - TIP_ROOM ? 'end' : 'mid';
+    setTip({ text, x, y: r.top - box.top, align });
+  };
+  const hideTip = () => setTip(null);
+
   const run = (target: Element) => {
     const el = target.closest<SVGElement>(TARGETS);
     const d = el?.dataset;
     if (d?.eyerow) return props.onToggleRow(d.eyerow);
     if (d?.eyeteam) return props.onToggleTeam(d.eyeteam);
+    if (d?.focusitem) return props.onFocusItem?.(d.focusitem);
     if (d?.show) return props.onReveal(d.show.split(','));
     // In move mode the graph background and any other target end the move, as in the prototype.
     if (props.moving) {
@@ -219,6 +238,10 @@ export function TrackerGraph(props: Props) {
       );
     }
     if (!el || !d) return props.onBackground();
+    if (d.handoff) {
+      setTip(null);
+      return props.onHandoff?.(d.handoff);
+    }
     if (d.act) return props.onPop(d.stack ? 'stack' : 'act', d.stack ?? d.act, el);
     if (d.ms) return props.onMilestone(d.ms);
     if (d.goal) return props.onMilestone(d.goal);
@@ -266,36 +289,14 @@ export function TrackerGraph(props: Props) {
       {bands(0, SIDE)}
       {L.lanes.map((lane) => (
         <Fragment key={lane.teamId}>
-          <g
-            className={cls('eye', lane.hidden && 'off')}
-            data-eyeteam={lane.teamId}
-            {...button(lane.eyeLabel)}
-          >
+          <g className="eye" data-eyeteam={lane.teamId} {...button(lane.eyeLabel)}>
             <rect x={X0 - 34} y={lane.top + 2} width={20} height={18} />
-            <SvgIcon
-              name={lane.hidden ? 'eyeoff' : 'eye'}
-              x={X0 - 24}
-              y={lane.top + 11}
-              size={13}
-            />
+            <SvgIcon name="eye" x={X0 - 24} y={lane.top + 11} size={13} />
           </g>
           <text className="lane-name" x={12} y={lane.top + 15}>
             {lane.label}
             {lane.label !== lane.name.toUpperCase() && <title>{lane.name}</title>}
           </text>
-          {lane.more && (
-            <g
-              className="more"
-              data-show={lane.more.ids.join(',')}
-              transform={`translate(${lane.more.x} ${lane.top + 4})`}
-              {...button(lane.more.ariaLabel)}
-            >
-              <rect width={lane.more.width} height={14} rx={7} />
-              <text x={lane.more.width / 2} y={10} textAnchor="middle">
-                {lane.more.text}
-              </text>
-            </g>
-          )}
           {lane.guide && (
             <line className="guide" x1={16} x2={16} y1={lane.guide.y1} y2={lane.guide.y2} />
           )}
@@ -358,11 +359,25 @@ export function TrackerGraph(props: Props) {
             data-rowlabel={r.id}
             x={26}
             y={r.y - 10}
-            width={X0 - 64}
+            width={X0 - (props.onFocusItem ? 82 : 64)}
             height={20}
           >
             {edit && <title>Drag onto a milestone to add it</title>}
           </rect>
+          {props.onFocusItem && (
+            <g
+              className={cls('eye', 'focus-btn', r.focused && 'on')}
+              data-focusitem={r.id}
+              aria-pressed={r.focused}
+              {...button(r.focusLabel)}
+            >
+              <rect x={X0 - 52} y={r.y - 9} width={18} height={18} rx={4} />
+              <SvgIcon name="focus" x={X0 - 43} y={r.y} size={12} />
+              <title>
+                {r.focused ? 'Leave focus' : 'Focus: show only this and the work from it'}
+              </title>
+            </g>
+          )}
           <g className="eye" data-eyerow={r.id} {...button(r.eyeLabel)}>
             <rect x={X0 - 33} y={r.y - 9} width={18} height={18} />
             <SvgIcon name="eye" x={X0 - 24} y={r.y} size={12} />
@@ -549,6 +564,28 @@ export function TrackerGraph(props: Props) {
           ))}
         </Fragment>
       ))}
+      {L.handoffs.map((h) => (
+        <g
+          key={`hand-${h.fromId}-${h.toId}`}
+          className="handoff"
+          data-handoff={h.toId}
+          transform={`translate(${h.x} ${h.y})`}
+          {...button(h.ariaLabel)}
+          onPointerEnter={(event) => showTip(event.currentTarget, h.tooltip)}
+          onPointerLeave={hideTip}
+          onFocus={(event) => showTip(event.currentTarget, h.tooltip)}
+          onBlur={hideTip}
+        >
+          <rect width={h.size} height={h.size} rx={4} />
+          <SvgIcon
+            name={h.dir === 'up' ? 'cornerUp' : 'cornerDown'}
+            x={h.size / 2}
+            y={h.size / 2}
+            size={10}
+            color={color(h.tone)}
+          />
+        </g>
+      ))}
       {L.laneDrops.map((d) => (
         <Fragment key={`drop-${d.teamId}`}>
           <rect
@@ -642,12 +679,17 @@ export function TrackerGraph(props: Props) {
       <div className="gscroll">
         <div className="gframe" ref={frame}>
           {side}
-          <div className="gtime" ref={scroller}>
+          <div className="gtime" ref={scroller} onScroll={tip ? hideTip : undefined}>
             {time}
           </div>
           {rail}
         </div>
       </div>
+      {tip && (
+        <div className={`hand-tip ${tip.align}`} role="tooltip" style={{ left: tip.x, top: tip.y }}>
+          {tip.text}
+        </div>
+      )}
       <div className="zoombar" role="group" aria-label="Time zoom">
         <button
           type="button"

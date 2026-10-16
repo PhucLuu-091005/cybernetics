@@ -11,22 +11,21 @@ import {
   trunc,
   type Session,
 } from './ContextBar';
+import { HiddenMenu, type HiddenMenuProps } from './HiddenMenu';
 import { Icon } from './icons';
 import { WorkSearch } from './Search';
 import type { DrawerMode, TrackerActions, TrackerView } from './TrackerScreen';
 
-type Props = {
+type Props = HiddenMenuProps & {
   session: Session;
   view: TrackerView;
   cr: Cr | null;
   state: TrackerState;
   asOf: string;
-  hiddenCount: number;
   drawer: DrawerMode | null;
   actions: TrackerActions;
   onView: (view: TrackerView) => void;
   onDrawer: (mode: DrawerMode) => void;
-  onShowAll: () => void;
   onActAs: (memberId: string) => void;
   onPick: (workItemId: string) => void;
 };
@@ -106,7 +105,7 @@ function ViewMenu({ session, view, cr, actions, onView, onDrawer }: Props) {
 }
 
 export function TopBar(props: Props) {
-  const { session, state, asOf, hiddenCount, drawer, onDrawer, onShowAll, onActAs, onPick } = props;
+  const { session, state, asOf, drawer, onDrawer, onActAs, onPick } = props;
   const { payload, me, isOwner, dir, tz } = session;
   const waiting =
     (isOwner
@@ -120,14 +119,12 @@ export function TopBar(props: Props) {
       </h1>
       <ViewMenu {...props} />
       <span className="sp" />
-      {hiddenCount > 0 && (
-        <span className="hid-pill">
-          <Icon name="eyeoff" size={13} /> {hiddenCount} hidden{' '}
-          <button className="btn sm" type="button" onClick={onShowAll}>
-            Show all
-          </button>
-        </span>
-      )}
+      <HiddenMenu
+        hidden={props.hidden}
+        onUnhideTeam={props.onUnhideTeam}
+        onUnhideItem={props.onUnhideItem}
+        onUnhideAll={props.onUnhideAll}
+      />
       <WorkSearch state={state} asOf={asOf} tz={tz} onPick={onPick} />
       <button
         className="btn"

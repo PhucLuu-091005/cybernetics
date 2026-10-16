@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  descendantsOf,
   drawnAt,
   formatDay,
   KIND_LABEL,
@@ -69,6 +70,7 @@ import {
 } from './drag';
 import {
   ChangesDrawer,
+  FocusDrawer,
   HistoryDrawer,
   MilestoneDrawer,
   RequestsDrawer,
@@ -85,6 +87,7 @@ import { Legend, TrackerGraph, type DatePreview, type Reveal } from './TrackerGr
 import {
   browserStore,
   EMPTY_VIEW,
+  hiddenList,
   readNoticeOff,
   readViewState,
   revealRows,
@@ -288,7 +291,11 @@ export function TrackerScreen({
   const asOf = project.asOf ?? toInstant(now, tz);
   const cr = view === 'main' ? null : (payload.crs.find((c) => c.num === view) ?? null);
   const current = useMemo(() => currentState(payload, cr), [payload, cr]);
+  // A view choice like hiding: never saved, and it leaves the hidden lists alone.
+  const [focus, setFocus] = useState<string | null>(null);
   const { state } = current;
+  const focused = focus && state.workItems.some((w) => w.id === focus) ? focus : null;
+  const inFocus = useMemo(() => (focused ? descendantsOf(state, focused) : null), [state, focused]);
   const me = payload.me?.id ?? null;
   const isOwner = !!me && me === project.ownerMemberId;
   const dir = useMemo(
@@ -389,11 +396,12 @@ export function TrackerScreen({
       else if (moving) setMoving(null);
       else if (shownPop) closePop(true);
       else if (drawer) setDrawer(null);
+      else if (focused) setFocus(null);
     };
     // Capture runs before the view menu's own Escape handler closes it, so one Esc closes one layer.
     document.addEventListener('keydown', onKey, { capture: true });
     return () => document.removeEventListener('keydown', onKey, { capture: true });
-  }, [modal, moving, shownPop, drawer, closePop, closeModal]);
+  }, [modal, moving, shownPop, drawer, focused, closePop, closeModal]);
   useEffect(() => {
     if (!shownPop) return;
     const onClick = (event: MouseEvent) => {
@@ -423,11 +431,12 @@ export function TrackerScreen({
           timeZone: tz,
           zoom,
           offsets,
+          focus: focused,
           ...(project.windowStart ? { windowStart: project.windowStart } : {}),
         },
         current.marks,
       ),
-    [state, hidden, asOf, tz, zoom, offsets, project.windowStart, current.marks],
+    [state, hidden, asOf, tz, zoom, offsets, focused, project.windowStart, current.marks],
   );
   // Pointer handlers outlive the render that started a drag, and a poll can land in between.
   const live = useRef<{
@@ -451,9 +460,7 @@ export function TrackerScreen({
     setPop({ kind: popFor.kind, id: popFor.id, anchor, view });
   }, [popFor, payload, view]);
 
-  const hiddenCount =
-    hidden.hiddenRows.filter((id) => state.workItems.some((w) => w.id === id)).length +
-    hidden.hiddenTeams.filter((id) => state.teams.some((t) => t.id === id)).length;
+  const hiddenNow = useMemo(() => hiddenList(state, hidden), [state, hidden]);
   const isHidden = (workItemId: string) => {
     const w = state.workItems.find((x) => x.id === workItemId);
     return hidden.hiddenRows.includes(workItemId) || (!!w && hidden.hiddenTeams.includes(w.teamId));
@@ -472,6 +479,7 @@ export function TrackerScreen({
   };
   const toggleRow = (id: string) => {
     setPop(null);
+    if (id === focused && !hidden.hiddenRows.includes(id)) setFocus(null);
     changeHidden({ ...hidden, hiddenRows: toggleId(hidden.hiddenRows, id) });
   };
   const toggleTeam = (id: string) => {
@@ -482,18 +490,40 @@ export function TrackerScreen({
     changeHidden(
       revealRows(hidden, ids, (id) => state.workItems.find((w) => w.id === id)?.teamId ?? null),
     );
-  const openItem = (workItemId: string, { find = true }: { find?: boolean } = {}) => {
+  /** A row that the person asks to see comes back from a hide, and a focus that leaves it out ends. */
+  const bringIn = (workItemId: string) => {
+    if (isHidden(workItemId)) reveal([workItemId]);
+    if (inFocus && !inFocus.has(workItemId)) setFocus(null);
+  };
+  const find = (workItemId: string) =>
+    setInView((r) => ({ rowId: workItemId, key: (r?.key ?? 0) + 1 }));
+  const openItem = (workItemId: string, { find: scroll = true }: { find?: boolean } = {}) => {
     if (!state.workItems.some((w) => w.id === workItemId)) return;
     setPop(null);
     setMoving(null);
-    if (isHidden(workItemId)) reveal([workItemId]);
-    if (find) setInView((r) => ({ rowId: workItemId, key: (r?.key ?? 0) + 1 }));
+    bringIn(workItemId);
+    if (scroll) find(workItemId);
     setDrawer({ mode: 'item', id: workItemId });
+  };
+  const showRow = (workItemId: string) => {
+    if (!state.workItems.some((w) => w.id === workItemId)) return;
+    setPop(null);
+    setMoving(null);
+    bringIn(workItemId);
+    find(workItemId);
+  };
+  const toggleFocus = (workItemId: string) => {
+    setPop(null);
+    setMoving(null);
+    if (focused === workItemId) return setFocus(null);
+    setFocus(workItemId);
+    // The focus panel takes the drawer's place.
+    setDrawer(null);
   };
   const showEvent = (eventId: string) => {
     const ev = state.events.find((e) => e.id === eventId);
     if (!ev || ev.hidden) return;
-    if (isHidden(ev.workItemId)) reveal([ev.workItemId]);
+    bringIn(ev.workItemId);
     setPop(null);
     setPopFor({ kind: 'act', id: eventId });
   };
@@ -1046,12 +1076,16 @@ export function TrackerScreen({
         cr={cr}
         state={state}
         asOf={asOf}
-        hiddenCount={hiddenCount}
+        hidden={hiddenNow}
         drawer={drawer?.mode ?? null}
         actions={actions}
         onView={openView}
         onDrawer={(mode) => mode !== 'ms' && mode !== 'item' && toggleDrawer(mode)}
-        onShowAll={() => changeHidden(EMPTY_VIEW)}
+        onUnhideTeam={(id) =>
+          changeHidden({ ...hidden, hiddenTeams: hidden.hiddenTeams.filter((t) => t !== id) })
+        }
+        onUnhideItem={(id) => reveal([id])}
+        onUnhideAll={() => changeHidden(EMPTY_VIEW)}
         onActAs={(id) => void onActAs(id)}
         onPick={(id) => openItem(id)}
       />
@@ -1120,6 +1154,8 @@ export function TrackerScreen({
               onToggleRow={toggleRow}
               onToggleTeam={toggleTeam}
               onReveal={reveal}
+              onFocusItem={toggleFocus}
+              onHandoff={showRow}
               onPop={(kind, id, anchor) => setPop({ kind, id, anchor, view })}
               onMilestone={(id) => {
                 setPop(null);
@@ -1238,6 +1274,17 @@ export function TrackerScreen({
             <RequestsDrawer {...base} actions={actions} onView={openView} />
           )}
           {drawer?.mode === 'history' && <HistoryDrawer {...base} onView={openView} />}
+          {!drawer && focused && (
+            <FocusDrawer
+              key={focused}
+              {...base}
+              focusId={focused}
+              isHidden={isHidden}
+              onClose={() => setFocus(null)}
+              onFocus={toggleFocus}
+              onShow={showRow}
+            />
+          )}
         </div>
       </div>
       <Legend />

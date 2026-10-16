@@ -101,17 +101,14 @@ describe('targetAt: the drop target under a point of the graph', () => {
     expect(targetAt(L, { x: L.x1 + 20, y })).toEqual({ type: 'lane', teamId: 'eng' });
   });
 
-  it('maps the space of a hidden row and a hidden team to their team band', () => {
+  it('maps the band of a team with a hidden row to the team, and gives a hidden team no band', () => {
     const L = layout({ hiddenRows: new Set(['b']), hiddenTeams: new Set(['qa']) });
     expect(L.rows.map((r) => r.id)).toEqual(['a']);
     expect(targetAt(L, { x: X0 + 300, y: lane(L, 'eng').bottom - 2 })).toEqual({
       type: 'lane',
       teamId: 'eng',
     });
-    expect(targetAt(L, { x: X0 + 300, y: lane(L, 'qa').top + 10 })).toEqual({
-      type: 'lane',
-      teamId: 'qa',
-    });
+    expect(L.lanes.map((l) => l.teamId)).not.toContain('qa');
   });
 
   it('finds nothing above the teams or below the graph', () => {

@@ -7,6 +7,7 @@ import {
   type TrackerState,
   type WorkItem,
 } from './model';
+import { descendantsOf } from './focus';
 import { drawnAt, type Offsets } from './offsets';
 import type { Marks } from './ops';
 import { itemInfo, itemStatus, milestoneStatus, type ItemInfo } from './status';
@@ -59,6 +60,7 @@ export type View = {
   /** 1 fits the window to the width; more widens the time line. */
   zoom?: number;
   offsets?: Offsets;
+  focus?: string | null;
 };
 
 export type Point = { x: number; y: number };
@@ -73,7 +75,6 @@ export type LayoutWindow = {
 };
 export type LayoutTick = { date: string; x: number; label: string; labelled: boolean };
 export type LayoutTLine = { x: number; y1: number; y2: number; label: string };
-export type LaneMore = { ids: string[]; text: string; ariaLabel: string; x: number; width: number };
 export type LayoutLane = {
   teamId: string;
   name: string;
@@ -82,10 +83,8 @@ export type LayoutLane = {
   top: number;
   bottom: number;
   alt: boolean;
-  hidden: boolean;
   count: number;
   hiddenCount: number;
-  more: LaneMore | null;
   guide: { y1: number; y2: number } | null;
   eyeLabel: string;
 };
@@ -100,6 +99,8 @@ export type LayoutRow = {
   milestoneId: string | null;
   changed: boolean;
   eyeLabel: string;
+  focused: boolean;
+  focusLabel: string;
 };
 type SegmentBase = { workItemId: string; x1: number; x2: number; y: number; tone: Tone };
 export type LayoutSegment =
@@ -157,6 +158,19 @@ export type LayoutLink = Curve & {
   toId: string;
   tone: Tone;
   wait: boolean;
+};
+export type LayoutHandoff = {
+  fromId: string;
+  toId: string;
+  toTeamId: string;
+  x: number;
+  y: number;
+  size: number;
+  dir: 'up' | 'down';
+  tone: Tone;
+  wait: boolean;
+  ariaLabel: string;
+  tooltip: string;
 };
 export type LayoutTrunk = { x1: number; x2: number; y: number };
 export type LayoutTrunkSegment = {
@@ -229,6 +243,7 @@ export type TrackerLayout = {
   msChips: LayoutMsChip[];
   stems: LayoutStem[];
   links: LayoutLink[];
+  handoffs: LayoutHandoff[];
   trunk: LayoutTrunk;
   trunkSegments: LayoutTrunkSegment[];
   milestones: LayoutMilestone[];
@@ -253,6 +268,8 @@ type Ctx = {
   inWindow: Set<string>;
   /** Work items in the window that the viewer hid, by row or by team. */
   hidden: Set<string>;
+  /** Work items in the window outside the focus; they get no chip, as the focus panel lists the parent. */
+  outside: Set<string>;
   eventsOf: (id: string) => TrackerEvent[];
   rows: Map<string, LayoutRow>;
   name: (id: string) => string;
@@ -264,7 +281,6 @@ type Ctx = {
 type MsStatus = ReturnType<typeof milestoneStatus>;
 
 const trunc = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const later = (a: string, b: string) => (compareDay(a, b) >= 0 ? a : b);
 const baseTone = (info: ItemInfo): Tone => (info.done ? 'proceed' : 'route');
 const lateTone = (info: ItemInfo): Tone => (info.done ? 'caution' : 'danger');
@@ -313,73 +329,57 @@ function windowDays(
   return { start, end: compareDay(end, start) > 0 ? end : addDays(start, 1) };
 }
 
-// The lane name is 10.5 px bold capitals with letter spacing; the hidden button is 9.5 px text.
+// The lane name is 10.5 px bold capitals with letter spacing.
 const LANE_CHAR = 7.6;
-const MORE_CHAR = 5.4;
-
-function laneMore(team: { name: string }, ids: string[]): LaneMore | null {
-  if (!ids.length) return null;
-  const text = `${ids.length} hidden`;
-  const width = text.length * MORE_CHAR + 12;
-  return {
-    ids,
-    text,
-    ariaLabel: `Show ${plural(ids.length, 'hidden work item')} in ${team.name}`,
-    x: X0 - 38 - width,
-    width,
-  };
-}
 
 function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
   const { state, view } = c;
   const lanes: LayoutLane[] = [];
   let y = TRUNK_Y + 16;
-  state.teams.forEach((team, index) => {
-    const top = y;
-    const hidden = view.hiddenTeams.has(team.id);
+  for (const team of state.teams) {
     const members = state.workItems.filter((w) => w.teamId === team.id && c.inWindow.has(w.id));
-    const shown = members.filter((w) => !c.hidden.has(w.id));
+    const shown = members.filter((w) => !c.hidden.has(w.id) && !c.outside.has(w.id));
+    if (view.hiddenTeams.has(team.id)) continue;
+    if (!shown.length && (members.length || view.focus)) continue;
+    const top = y;
     y += HEAD;
     for (const w of shown) {
       const info = c.infos.get(w.id)!;
+      const focused = view.focus === w.id;
       c.rows.set(w.id, {
         id: w.id,
         teamId: team.id,
         title: w.title,
-        label: trunc(w.title, 26),
+        label: trunc(w.title, 24),
         y: y + ROW / 2,
         done: info.done,
         status: itemStatus(w, c.eventsOf(w.id), view.asOf, c.tz),
         milestoneId: w.milestoneId,
         changed: !!c.marks?.workItems.has(w.id),
         eyeLabel: `Hide ${w.title}`,
+        focused,
+        focusLabel: focused ? 'Leave focus' : `Focus on ${w.title}`,
       });
       y += ROW;
     }
-    if (!hidden && !shown.length) y += 18;
-    y += hidden ? 2 : 6;
+    if (!shown.length) y += 18;
+    y += 6;
     const lastY = Math.max(0, ...shown.map((w) => c.rows.get(w.id)!.y));
-    const more = laneMore(
-      team,
-      members.filter((w) => c.hidden.has(w.id)).map((w) => w.id),
-    );
-    const upper = team.name.toUpperCase();
+    const index = lanes.length;
     lanes.push({
       teamId: team.id,
       name: team.name,
-      label: trunc(upper, Math.floor(((more ? more.x - 6 : X0 - 40) - 12) / LANE_CHAR)),
+      label: trunc(team.name.toUpperCase(), Math.floor((X0 - 40 - 12) / LANE_CHAR)),
       index,
       top,
       bottom: y,
       alt: index % 2 === 1,
-      hidden,
       count: members.length,
-      hiddenCount: more?.ids.length ?? 0,
-      more,
-      guide: !hidden && lastY ? { y1: top + 20, y2: lastY } : null,
-      eyeLabel: `${hidden ? 'Show' : 'Hide'} ${team.name}`,
+      hiddenCount: members.filter((w) => c.hidden.has(w.id)).length,
+      guide: lastY ? { y1: top + 20, y2: lastY } : null,
+      eyeLabel: `Hide ${team.name}`,
     });
-  });
+  }
   return { lanes, height: y + 56 };
 }
 
@@ -460,6 +460,7 @@ function stemOf(
   return { workItemId: w.id, parentId, x: sx, y1: parentRow?.y ?? TRUNK_Y, y2: r.y, tone };
 }
 
+/** Same-team links curve; a link into another team draws only a handoff mark, so long lines do not cross the graph. */
 function leadLinks(c: Ctx, shown: LayoutRow[], addChip: AddChip): LayoutLink[] {
   const links: LayoutLink[] = [];
   for (const r of shown) {
@@ -473,6 +474,7 @@ function leadLinks(c: Ctx, shown: LayoutRow[], addChip: AddChip): LayoutLink[] {
         addChip(w.id, src);
         continue;
       }
+      if (sr.teamId !== r.teamId) continue;
       const wait = !si.finishedAt;
       const path = si.finishedAt
         ? curve(c.x(Date.parse(si.finishedAt)), sr.y, begin, r.y)
@@ -481,6 +483,54 @@ function leadLinks(c: Ctx, shown: LayoutRow[], addChip: AddChip): LayoutLink[] {
     }
   }
   return links;
+}
+
+const MARK = 14;
+const MARK_GAP = 3;
+// A done source ends in its Done icon (radius 10); an open one ends at the T line, where an editor has the + button.
+const MARK_AFTER_DONE = 12;
+const MARK_AFTER_OPEN = 32;
+
+function handoffsOf(c: Ctx): LayoutHandoff[] {
+  const teamIndex = new Map(c.state.teams.map((t, i) => [t.id, i]));
+  const teamName = new Map(c.state.teams.map((t) => [t.id, t.name]));
+  const order = (w: WorkItem) => teamIndex.get(w.teamId) ?? Infinity;
+  const targets = [...c.items.values()]
+    .filter((w) => c.inWindow.has(w.id) && teamIndex.has(w.teamId))
+    .sort((a, b) => order(a) - order(b));
+  const bySource = new Map<string, WorkItem[]>();
+  for (const w of targets) {
+    for (const src of w.after) {
+      const sr = c.rows.get(src);
+      if (!sr || sr.teamId === w.teamId) continue;
+      bySource.set(src, [...(bySource.get(src) ?? []), w]);
+    }
+  }
+  return [...bySource].flatMap(([src, list]) => {
+    const sr = c.rows.get(src)!;
+    const finishedAt = c.infos.get(src)!.finishedAt;
+    const wait = !finishedAt;
+    const x0 = wait ? c.xt + MARK_AFTER_OPEN : c.x(Date.parse(finishedAt)) + MARK_AFTER_DONE;
+    return list.map((w, i): LayoutHandoff => {
+      const team = teamName.get(w.teamId)!;
+      const text = wait
+        ? `Hands over to ${team} when done · received in ${w.title}`
+        : `Handed over to ${team} · received in ${w.title}`;
+      return {
+        fromId: src,
+        toId: w.id,
+        toTeamId: w.teamId,
+        x: x0 + i * (MARK + MARK_GAP),
+        y: sr.y - MARK / 2,
+        size: MARK,
+        dir: order(w) < (teamIndex.get(sr.teamId) ?? 0) ? 'up' : 'down',
+        tone: wait ? 'danger' : 'proceed',
+        wait,
+        ariaLabel: text,
+        tooltip: text,
+      };
+    });
+  });
 }
 
 /** Owner rule: done after the milestone day, or open while today or its own date is past that day. */
@@ -731,12 +781,19 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
       return view.hiddenRows.has(id) || view.hiddenTeams.has(w.teamId);
     }),
   );
+  const focus = view.focus && items.has(view.focus) ? view.focus : null;
+  const inFocus = focus ? descendantsOf(state, focus) : null;
+  const outside = new Set(inFocus ? [...inWindow].filter((id) => !inFocus.has(id)) : []);
   const milestoneIds = new Set(state.milestones.map((m) => m.id));
   const teamIds = new Set(state.teams.map((tm) => tm.id));
   const rail = [...inWindow].some((id) => {
     const w = items.get(id)!;
     return (
-      !hidden.has(id) && teamIds.has(w.teamId) && !!w.milestoneId && milestoneIds.has(w.milestoneId)
+      !hidden.has(id) &&
+      !outside.has(id) &&
+      teamIds.has(w.teamId) &&
+      !!w.milestoneId &&
+      milestoneIds.has(w.milestoneId)
     );
   })
     ? RAIL
@@ -749,7 +806,7 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
   const people = new Map(state.people.map((p) => [p.id, p.name]));
   const c: Ctx = {
     state,
-    view,
+    view: { ...view, focus },
     marks,
     tz,
     today: dayOf(view.asOf, tz),
@@ -763,6 +820,7 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     infos,
     inWindow,
     hidden,
+    outside,
     eventsOf,
     rows: new Map(),
     name: (id) => (id === 'agent' ? 'Agent' : (people.get(id) ?? id)),
@@ -773,8 +831,9 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
   const { lanes, height } = placeRows(c);
   const shown = [...c.rows.values()];
   const chipSources = new Map<string, Set<string>>();
-  const addChip: AddChip = (id, source) =>
-    chipSources.set(id, (chipSources.get(id) ?? new Set()).add(source));
+  const addChip: AddChip = (id, source) => {
+    if (!outside.has(source)) chipSources.set(id, (chipSources.get(id) ?? new Set()).add(source));
+  };
   const { segments, stems } = linesOf(c, shown, addChip);
   const links = leadLinks(c, shown, addChip);
   const statusOf = new Map(
@@ -809,6 +868,7 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     msChips: msChipsOf(c, shown),
     stems,
     links,
+    handoffs: handoffsOf(c),
     trunk: { x1: X0, x2: x1, y: TRUNK_Y },
     trunkSegments: trunkSegmentsOf(c, statusOf),
     milestones: placeMilestones(c, statusOf),
@@ -817,17 +877,15 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
       const sources = [...(chipSources.get(r.id) ?? [])].filter((id) => !throughShownRow(c, w, id));
       return sources.length ? [chipOf(c, w, r, sources)] : [];
     }),
-    laneDrops: lanes
-      .filter((l) => !l.hidden)
-      .map((l) => ({
-        teamId: l.teamId,
-        x: X0,
-        y: l.top + 2,
-        width: x1 - X0,
-        height: 18,
-        text: `Drop here: ${l.name}`,
-        textX: X0 + 10,
-        textY: l.top + 15,
-      })),
+    laneDrops: lanes.map((l) => ({
+      teamId: l.teamId,
+      x: X0,
+      y: l.top + 2,
+      width: x1 - X0,
+      height: 18,
+      text: `Drop here: ${l.name}`,
+      textX: X0 + 10,
+      textY: l.top + 15,
+    })),
   };
 }
