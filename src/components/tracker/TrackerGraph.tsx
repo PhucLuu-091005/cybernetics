@@ -64,16 +64,17 @@ export function TrackerGraph(props: Props) {
   const run = (target: Element) => {
     const el = target.closest<SVGElement>(TARGETS);
     const d = el?.dataset;
-    if (!el || !d) return props.onBackground();
-    if (d.eyerow) return props.onToggleRow(d.eyerow);
-    if (d.eyeteam) return props.onToggleTeam(d.eyeteam);
-    if (d.show) return props.onReveal(d.show.split(','));
+    if (d?.eyerow) return props.onToggleRow(d.eyerow);
+    if (d?.eyeteam) return props.onToggleTeam(d.eyeteam);
+    if (d?.show) return props.onReveal(d.show.split(','));
+    // In move mode the graph background and any other target end the move, as in the prototype.
     if (props.moving) {
       const row = target.closest<SVGElement>(ROWS)?.dataset;
       return props.onMoveTo?.(
         row ? (row.loop ?? row.in ?? row.rowlabel ?? row.plus ?? null) : null,
       );
     }
+    if (!el || !d) return props.onBackground();
     if (d.due) return props.onPop('due', d.due, el);
     if (d.act) return props.onPop('act', d.act, el);
     if (d.ms) return props.onMilestone(d.ms);

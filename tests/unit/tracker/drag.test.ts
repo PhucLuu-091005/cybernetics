@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   dayAtX,
   dropAction,
   noonX,
   retarget,
   targetAt,
+  trackPointer,
   type DragSource,
 } from '../../../src/components/tracker/drag';
 import { GEOMETRY, layoutTracker, type View } from '../../../src/tracker/layout';
@@ -212,5 +213,85 @@ describe('dayAtX and noonX: the day under a dragged date flag', () => {
   it('matches the milestone diamond position', () => {
     const L = layout();
     expect(noonX(L, '2026-10-15', TIME_ZONE)).toBeCloseTo(L.milestones[0].x, 6);
+  });
+});
+
+describe('trackPointer: one pointer from pointerdown to release', () => {
+  const pointer = (type: string, fields: Record<string, number>) =>
+    Object.assign(new Event(type), { clientX: 0, clientY: 0, pointerId: 1, buttons: 1, ...fields });
+  const key = (k: string) => Object.assign(new Event('keydown'), { key: k });
+  const setup = () => {
+    const target = new EventTarget();
+    const t = {
+      threshold: 6,
+      axis: 'any' as const,
+      onStart: vi.fn(),
+      onMove: vi.fn(),
+      onDrop: vi.fn(),
+      onCancel: vi.fn(),
+      onRelease: vi.fn(),
+    };
+    const stop = trackPointer({ clientX: 0, clientY: 0, pointerId: 1 }, t, target);
+    return { target, t, stop };
+  };
+
+  it('follows only the pointer that started and drops with the distance', () => {
+    const { target, t } = setup();
+    target.dispatchEvent(pointer('pointermove', { clientX: 50, clientY: 50, pointerId: 2 }));
+    expect(t.onStart).not.toHaveBeenCalled();
+    target.dispatchEvent(pointer('pointermove', { clientX: 3, clientY: 3 }));
+    expect(t.onStart).not.toHaveBeenCalled();
+    target.dispatchEvent(pointer('pointermove', { clientX: 30, clientY: 40 }));
+    expect(t.onStart).toHaveBeenCalledTimes(1);
+    expect(t.onMove).toHaveBeenCalledTimes(1);
+    target.dispatchEvent(pointer('pointerup', { clientX: 30, clientY: 40, pointerId: 2 }));
+    expect(t.onDrop).not.toHaveBeenCalled();
+    target.dispatchEvent(pointer('pointerup', { clientX: 30, clientY: 40, buttons: 0 }));
+    expect(t.onDrop).toHaveBeenCalledWith(expect.anything(), 30, 40);
+    expect(t.onRelease).toHaveBeenCalledTimes(1);
+    target.dispatchEvent(pointer('pointermove', { clientX: 90, clientY: 90 }));
+    expect(t.onMove).toHaveBeenCalledTimes(1);
+  });
+
+  it('ends without a drop on Esc, and reports the release that follows', () => {
+    const { target, t } = setup();
+    target.dispatchEvent(pointer('pointermove', { clientX: 30, clientY: 0 }));
+    target.dispatchEvent(key('Escape'));
+    expect(t.onCancel).toHaveBeenCalledTimes(1);
+    target.dispatchEvent(pointer('pointermove', { clientX: 60, clientY: 0 }));
+    expect(t.onMove).toHaveBeenCalledTimes(1);
+    target.dispatchEvent(pointer('pointerup', { clientX: 60, clientY: 0, buttons: 0 }));
+    expect(t.onDrop).not.toHaveBeenCalled();
+    expect(t.onRelease).toHaveBeenCalledTimes(1);
+  });
+
+  it('ends without a drop when the button is up, the window loses focus or the browser cancels', () => {
+    for (const end of [
+      (target: EventTarget) =>
+        target.dispatchEvent(pointer('pointermove', { clientX: 40, clientY: 0, buttons: 0 })),
+      (target: EventTarget) => target.dispatchEvent(new Event('blur')),
+      (target: EventTarget) => target.dispatchEvent(pointer('pointercancel', {})),
+    ]) {
+      const { target, t } = setup();
+      target.dispatchEvent(pointer('pointermove', { clientX: 30, clientY: 0 }));
+      end(target);
+      expect(t.onCancel).toHaveBeenCalledTimes(1);
+      target.dispatchEvent(pointer('pointerup', { clientX: 30, clientY: 0, buttons: 0 }));
+      expect(t.onDrop).not.toHaveBeenCalled();
+      expect(t.onRelease).not.toHaveBeenCalled();
+    }
+  });
+
+  it('does nothing for a click and nothing after stop', () => {
+    const click = setup();
+    click.target.dispatchEvent(pointer('pointerup', { clientX: 2, clientY: 2, buttons: 0 }));
+    expect(click.t.onDrop).not.toHaveBeenCalled();
+    expect(click.t.onRelease).not.toHaveBeenCalled();
+    const stopped = setup();
+    stopped.stop();
+    stopped.target.dispatchEvent(pointer('pointermove', { clientX: 30, clientY: 30 }));
+    stopped.target.dispatchEvent(key('Escape'));
+    expect(stopped.t.onStart).not.toHaveBeenCalled();
+    expect(stopped.t.onCancel).not.toHaveBeenCalled();
   });
 });

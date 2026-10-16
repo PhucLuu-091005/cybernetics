@@ -19,6 +19,7 @@ import {
   layoutTracker,
   mainState,
   replayOps,
+  sameOp,
   toInstant,
   type Cr,
   type CrPermission,
@@ -64,6 +65,7 @@ import {
   trackPointer,
   type DragSource,
   type DropTarget,
+  type PointerTrack,
 } from './drag';
 import {
   ChangesDrawer,
@@ -259,6 +261,12 @@ function fits(state: TrackerState, ops: readonly OpInput[], tz: string) {
   return replay.entries.every((e) => !e.skipped);
 }
 
+const STALE_REMOVE = {
+  status: 409,
+  code: 'CONFLICT',
+  message: 'Someone changed this change request. Nothing was removed.',
+};
+
 type EditorAction = Exclude<CrAction, { action: 'merge' | 'request-changes' | 'close' }>;
 type DragView = {
   cls: string;
@@ -317,7 +325,9 @@ export function TrackerScreen({
   const [flash, setFlash] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [modal, setModal] = useState<{ key: number; state: ModalState } | null>(null);
-  const [busy, setBusy] = useState(false);
+  // A counter, so the first of two writes in flight does not clear busy for the second.
+  const [writing, setWriting] = useState(0);
+  const busy = writing > 0;
   const [drag, setDrag] = useState<DragView | null>(null);
   const [preview, setPreview] = useState<DatePreview | null>(null);
   const [moving, setMoving] = useState<{ eventId: string; from: string } | null>(null);
@@ -328,6 +338,8 @@ export function TrackerScreen({
   const ghost = useRef<HTMLDivElement>(null);
   const suppress = useRef(false);
   const modalKey = useRef(0);
+  const stopDrag = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopDrag.current?.(), []);
 
   const showToast = useCallback(
     (text: string, undo?: () => void) =>
@@ -454,17 +466,17 @@ export function TrackerScreen({
 
   // A 409 means someone wrote first: read once and retry once before the toast.
   const write = async <T extends TrackerPayload>(
-    run: (p: TrackerPayload) => Promise<ApiResult<T>>,
+    run: (p: TrackerPayload, retry: boolean) => Promise<ApiResult<T>>,
   ): Promise<T | null> => {
-    setBusy(true);
+    setWriting((n) => n + 1);
     try {
-      let result = await run(live.current.payload);
+      let result = await run(live.current.payload, false);
       if (!result.ok && result.error.status === 409) {
         const fresh = await getTracker(projectId);
         if (fresh.ok) {
           setPayload(fresh.data);
           live.current = { ...live.current, payload: fresh.data };
-          result = await run(fresh.data);
+          result = await run(fresh.data, true);
         }
       }
       if (!result.ok) {
@@ -476,7 +488,7 @@ export function TrackerScreen({
       live.current = { ...live.current, payload: next };
       return result.data;
     } finally {
-      setBusy(false);
+      setWriting((n) => n - 1);
     }
   };
   const revisionOf = (p: TrackerPayload, num: number) => crByNum(p, num)?.revision ?? 0;
@@ -486,8 +498,20 @@ export function TrackerScreen({
       crAction(projectId, num, seen ? { ...body, expectedRevision: revisionOf(p, num) } : body),
     );
 
-  const undoLast = (num: number) =>
-    void write((p) => removeOp(projectId, num, 'last', revisionOf(p, num)));
+  /** A remove after a reread goes ahead only if the change the person saw still sits at that index. */
+  const removeAt = (num: number, index: number | 'last') => {
+    const ops = crByNum(live.current.payload, num)?.ops ?? [];
+    const at = index === 'last' ? ops.length - 1 : index;
+    const seen = ops[at];
+    if (!seen) return;
+    void write((p, retry) => {
+      const now = crByNum(p, num)?.ops[at];
+      if (retry && !(now && sameOp(now, seen) && now.rev === seen.rev && now.by === seen.by))
+        return Promise.resolve({ ok: false, error: STALE_REMOVE } as const);
+      return removeOp(projectId, num, retry ? at : index, revisionOf(p, num));
+    });
+  };
+  const undoLast = (num: number) => removeAt(num, 'last');
 
   const appendAll = async (num: number, ops: readonly OpInput[]) => {
     let last: TrackerPayload | null = null;
@@ -623,7 +647,7 @@ export function TrackerScreen({
       if (cr && edit && cr.ops.length) undoLast(cr.num);
     },
     removeChange: (index) => {
-      if (cr && edit) void write((p) => removeOp(projectId, cr.num, index, revisionOf(p, cr.num)));
+      if (cr && edit) removeAt(cr.num, index);
     },
     addToQueue: (what) => openModal({ mode: 'add', what }),
     openQueueEvent: (id) =>
@@ -729,14 +753,23 @@ export function TrackerScreen({
   const endDrag = () => {
     setDrag(null);
     if (root.current) markTarget(root.current, null, null);
-    // The pointerup of a drag also ends in a click; that click must not open a pop or a modal.
+  };
+  // The pointerup of a drag also ends in a click; that click must not open a pop or a modal.
+  const swallowClick = () => {
     suppress.current = true;
     setTimeout(() => {
       suppress.current = false;
     }, 0);
   };
+  const track = (
+    start: { clientX: number; clientY: number; pointerId: number },
+    t: PointerTrack,
+  ) => {
+    stopDrag.current?.();
+    stopDrag.current = trackPointer(start, { ...t, onRelease: swallowClick });
+  };
 
-  const onDrop = (source: DragSource, target: DropTarget | null, dx: number) => {
+  const drop = (source: DragSource, target: DropTarget | null, dx: number) => {
     const done = dropAction(source, target, live.current.state, dx);
     if (done.kind === 'op')
       commitOps([done.op], done.op.op === 'attach' ? { added: done.op.a.eventId } : undefined);
@@ -745,6 +778,11 @@ export function TrackerScreen({
     else if (done.kind === 'dismiss') void onDismiss(done.id);
     else if (done.kind === 'hint') showToast(done.text);
   };
+  // A poll during the drag can change who edits, so the drop must use this render's handlers.
+  const onDrop = useRef(drop);
+  useLayoutEffect(() => {
+    onDrop.current = drop;
+  });
 
   const dragItem = (
     event: ReactPointerEvent,
@@ -753,8 +791,8 @@ export function TrackerScreen({
   ) => {
     event.preventDefault();
     let target: DropTarget | null = null;
-    const start = { clientX: event.clientX, clientY: event.clientY };
-    trackPointer(start, {
+    const start = { clientX: event.clientX, clientY: event.clientY, pointerId: event.pointerId };
+    track(start, {
       threshold: 6,
       axis: 'any',
       onStart: () => {
@@ -780,7 +818,7 @@ export function TrackerScreen({
       },
       onDrop: (_ev, dx) => {
         endDrag();
-        onDrop(source, target, dx);
+        onDrop.current(source, target, dx);
       },
       onCancel: endDrag,
     });
@@ -794,7 +832,7 @@ export function TrackerScreen({
     if (!(svg instanceof SVGSVGElement) || !cur) return;
     event.preventDefault();
     let day = cur;
-    trackPointer(event, {
+    track(event, {
       threshold: 4,
       axis: 'x',
       onStart: () => {
@@ -902,7 +940,7 @@ export function TrackerScreen({
     else if (ms?.dataset.ms) dragDate(event, 'ms', ms.dataset.ms, ms);
   };
 
-  const base = { session, state, asOf, onClose: () => setDrawer(null) };
+  const base = { session, state, asOf, busy, onClose: () => setDrawer(null) };
   const rootCls = ['tk', drag?.cls, drag?.items && 'dragging', moving && 'moving']
     .filter(Boolean)
     .join(' ');
@@ -934,6 +972,7 @@ export function TrackerScreen({
         session={session}
         cr={cr}
         actions={actions}
+        busy={busy}
         onView={openView}
         onChanges={() => toggleDrawer('changes')}
         onRequests={() => toggleDrawer('crs')}
