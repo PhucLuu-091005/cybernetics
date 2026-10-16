@@ -95,6 +95,19 @@ export function startOfDayInstant(date: string, timeZone: string): string {
   return toInstant(start, timeZone);
 }
 
+/** `time` is `HH:mm` on the clock of `timeZone`; a time that the clock skips moves to the hour after. */
+export function wallTimeInstant(date: string, time: string, timeZone: string): string {
+  const [year, month, day] = parseDay(date);
+  const [hour, minute] = time.split(':').map(Number);
+  const wall = Date.UTC(year, month - 1, day, hour, minute);
+  const first = offsetMs(wall, timeZone);
+  let ms = wall - first;
+  // The offset at the wall time read as UTC can be the offset from the other side of a change.
+  const second = offsetMs(ms, timeZone);
+  if (second !== first && offsetMs(wall - second, timeZone) === second) ms = wall - second;
+  return toInstant(ms, timeZone);
+}
+
 export function formatDay(date: string): string {
   const [, month, day] = parseDay(date);
   return `${day} ${MONTHS[month - 1]}`;
