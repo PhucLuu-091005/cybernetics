@@ -19,7 +19,6 @@ import {
   layoutTracker,
   mainState,
   replayOps,
-  sameOp,
   toInstant,
   type Cr,
   type CrPermission,
@@ -263,12 +262,6 @@ function fits(state: TrackerState, ops: readonly OpInput[], tz: string) {
   return replay.entries.every((e) => !e.skipped);
 }
 
-const STALE_REMOVE = {
-  status: 409,
-  code: 'CONFLICT',
-  message: 'Someone changed this change request. Nothing was removed.',
-};
-
 type EditorAction = Exclude<CrAction, { action: 'merge' | 'request-changes' | 'close' }>;
 type DragView = {
   cls: string;
@@ -466,19 +459,23 @@ export function TrackerScreen({
       revealRows(hidden, ids, (id) => state.workItems.find((w) => w.id === id)?.teamId ?? null),
     );
 
-  // A 409 means someone wrote first: read once and retry once before the toast.
+  /**
+   * A 409 means someone wrote first, so the screen reads again. Only an append retries: it adds to
+   * whatever is there, while every other write acted on what the person saw and must not repeat.
+   */
   const write = async <T extends TrackerPayload>(
-    run: (p: TrackerPayload, retry: boolean) => Promise<ApiResult<T>>,
+    run: (p: TrackerPayload) => Promise<ApiResult<T>>,
+    { retry = false }: { retry?: boolean } = {},
   ): Promise<T | null> => {
     setWriting((n) => n + 1);
     try {
-      let result = await run(live.current.payload, false);
+      let result = await run(live.current.payload);
       if (!result.ok && result.error.status === 409) {
         const fresh = await getTracker(projectId);
         if (fresh.ok) {
           setPayload(fresh.data);
           live.current = { ...live.current, payload: fresh.data };
-          result = await run(fresh.data, true);
+          if (retry) result = await run(fresh.data);
         }
       }
       if (!result.ok) {
@@ -500,25 +497,19 @@ export function TrackerScreen({
       crAction(projectId, num, seen ? { ...body, expectedRevision: revisionOf(p, num) } : body),
     );
 
-  /** A remove after a reread goes ahead only if the change the person saw still sits at that index. */
   const removeAt = (num: number, index: number | 'last') => {
     const ops = crByNum(live.current.payload, num)?.ops ?? [];
-    const at = index === 'last' ? ops.length - 1 : index;
-    const seen = ops[at];
-    if (!seen) return;
-    void write((p, retry) => {
-      const now = crByNum(p, num)?.ops[at];
-      if (retry && !(now && sameOp(now, seen) && now.rev === seen.rev && now.by === seen.by))
-        return Promise.resolve({ ok: false, error: STALE_REMOVE } as const);
-      return removeOp(projectId, num, retry ? at : index, revisionOf(p, num));
-    });
+    if (!ops[index === 'last' ? ops.length - 1 : index]) return;
+    void write((p) => removeOp(projectId, num, index, revisionOf(p, num)));
   };
   const undoLast = (num: number) => removeAt(num, 'last');
 
   const appendAll = async (num: number, ops: readonly OpInput[]) => {
     let last: TrackerPayload | null = null;
     for (const op of ops) {
-      last = await write((p) => appendOp(projectId, num, op, revisionOf(p, num)));
+      last = await write((p) => appendOp(projectId, num, op, revisionOf(p, num)), {
+        retry: true,
+      });
       if (!last) return null;
     }
     const d = last && crByNum(last, num)?.ops.at(-1)?.d;
