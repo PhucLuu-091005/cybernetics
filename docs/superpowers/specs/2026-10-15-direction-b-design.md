@@ -2,6 +2,8 @@
 
 Date: 15 October 2026. Status: draft for owner review. The owner chose direction B from `docs/design/2026-10-15-huong-cai-thien.html` (tropicbird worktree) on 15 October: "hướng B đi bạn". The snag ids (V1 to V23) come from the user guide `docs/design/2026-10-15-huong-dan-su-dung.html`.
 
+Update 16 October 2026: the owner removed the Notes card, the loop notes and the summary note. Section 4 and success item 2 no longer apply.
+
 ## 1. Goal
 
 The contest asks for "a tool to consolidate and organize context around a project, and give a clear picture of what has happened every step along the way". Escalations answer a different question, and the owner said they are not necessary. Direction B removes them, keeps the AI work in a simpler form (notes with cited steps), and fixes the snags that block a first-time user on the screens that stay.

@@ -1,6 +1,6 @@
 # The Investigator: Promise Graph Software Requirements Document
 
-Version: 1.2 | Date: 13 October 2026 | Status: implementation in progress. v1.2 replaces Clerk with direct Google sign-in, makes hosting provider-neutral and fixes three engine ambiguities (section 0.1). Direction B (15 October 2026) replaces the saved complaint analyses with notes; see `2026-10-15-direction-b-design.md`.
+Version: 1.2 | Date: 13 October 2026 | Status: implementation in progress. v1.2 replaces Clerk with direct Google sign-in, makes hosting provider-neutral and fixes three engine ambiguities (section 0.1). Direction B (15 October 2026) replaces the saved complaint analyses with notes; see `2026-10-15-direction-b-design.md`. On 16 October 2026 the owner removed the Notes card, the loop notes and the summary note.
 Submission deadline: 18 October 2026, 23:59 Asia/Ho_Chi_Minh.
 
 This version replaces v1.0 in this file and all 10 October planning documents. The current architecture and delivery plan are contained here and in `../plans/2026-10-12-promise-graph-implementation.md`; task ownership is in `../../agent-tasks/2026-10-12-promise-graph-tasks.md`.
@@ -60,7 +60,7 @@ The graph is a curated interpretation of imported records, not a claim of comple
 - Pure loop engine and graph layout; main graph, proposal preview, loop panel, list and filters.
 - Proposal diff, explicit merge, conflict detection and explicit rebase; graph history, revert and restore.
 - Project-scoped agent tokens with separate read/import/propose/merge permissions.
-- Notes: interpretation texts that cite steps. An agent proposes a note through the normal change flow, a person approves it and the Graph shows it. No automatic analysis and no outgoing messages.
+- Notes: interpretation texts that cite steps. An agent proposes a note through the normal change flow, and a person reads it in the change set before approval. No automatic analysis and no outgoing messages.
 - Offline deterministic evaluation, integration tests, live deployment on an owner-selected Docker host, README and demo.
 
 ### 2.2 Release gates
@@ -72,7 +72,7 @@ The graph is a curated interpretation of imported records, not a claim of comple
 5. A human merges a reviewed proposal. A default agent token cannot merge; an explicitly granted token can perform an explicit merge call.
 6. Two stale proposals cannot overwrite each other. The losing proposal gets a conflict and can be explicitly rebased/resolved.
 7. Revert preserves unrelated later changes or reports a conflict; restore creates a new commit. Neither deletes source evidence or old commits.
-8. A note that cites a step lists that step in its `actIds`; the server rejects a note with any other marker. The Graph labels a note "Interpretation, not evidence".
+8. A note that cites a step lists that step in its `actIds`; the server rejects a note with any other marker.
 9. `pnpm eval` measures engine correctness, citation integrity and proposal lifecycle correctness without a model or provider credentials.
 10. REST/MCP isolation, token revocation, retries and concurrent writes are tested. App is deployed and awake through 22 October.
 
@@ -359,18 +359,14 @@ A panel on the right of the canvas lists the loops the filters let through, in s
    - "Open in Slack" or "Open in Gmail" (the permalink) and "View record" (the internal viewer);
    - an "agent proposed" badge when the committed author is an agent;
    - a menu with "Change type", "Move to another loop", "Hide this act".
-5. A "Notes" section (accessible name "Loop notes") lists every note that cites a step of this loop (section 7.4a).
-6. An Inbox badge opens unreviewed record versions. Acts without a loop appear only in a proposal preview. Every edit opens or updates a proposal, never writes to main.
+5. An Inbox badge opens unreviewed record versions. Acts without a loop appear only in a proposal preview. Every edit opens or updates a proposal, never writes to main.
 
 ### 7.4a Notes (direction B, 15 October 2026)
 
 The snapshot collection `annotations` holds notes: `{ id, text, actIds }`. An agent proposes a note with `update_proposal` and the `graph:propose` scope, and a person approves it like any change.
 
-- **Text format.** A note may cite a step inline as `[act:<lowercase uuid>]`. The UI shows each marker as a numbered link (1, 2, 3 …) in reading order. A marker whose act is not in `actIds` is invalid: `update_proposal` rejects the batch with a `VALIDATION` field error on `text`. A note without markers lists its `actIds` as numbered links after the text.
-- **Graph.** A "Notes" card sits above the coverage line. It shows the newest note (the last in the array) clamped to 3 lines, a "Show all notes (n)" toggle and the label "Interpretation, not evidence". The card is absent when the view has no notes. A change set view shows its own notes, so a reviewer reads an agent's note before approving it.
-- **Loop panel.** A "Notes" section (accessible name "Loop notes") lists every note that cites a step of this loop.
-- **Cite links.** A numbered link opens the panel of that step's loop at that step. If a filter hides the loop, the link resets the filters, the search and Show only, then opens the panel. A step that the selected view does not hold shows as a grey number, not a link.
-- **Seed.** The fixture history ends with a fourth step, "Summarise where the project stands on 9 October", that adds one note with 5 cited steps. Every date and name in it matches the engine output at T.
+- **Text format.** A note may cite a step inline as `[act:<lowercase uuid>]`. A marker whose act is not in `actIds` is invalid: `update_proposal` rejects the batch with a `VALIDATION` field error on `text`.
+- **Change set and Activity tables.** A note row has the kind "Note" and shows the full text. Each marker shows as a number in brackets ("[1]", "[2]" …) in reading order. A note without markers lists its `actIds` as numbers after the text. The `actIds` field reads "cited steps".
 
 ### 7.4b Past problems (direction B, 15 October 2026)
 
@@ -505,7 +501,7 @@ Stack: TypeScript, supported Node LTS, Next.js App Router with Node Route Handle
 ```text
 src/contracts/                     types and Zod schemas
 src/app/                           pages and thin /api/v1, /mcp adapters
-src/components/{graph,inbox,review,history,notes}/
+src/components/{graph,inbox,review,history}/
 src/lib/{calendar,record-header,graph-layout}/
 src/server/http/                   session/token actor, errors, limits, Origin
 src/server/domain/{projects,records,inbox,proposals,commits,tokens}/
@@ -598,7 +594,7 @@ The dataset also holds: about 20 healthy closed loops, records with no act, a qu
 
 Three client emails complain about the go-live date, the Dynamics scope and the sync incident. They stay pending in the sandbox as evidence for an agent to read.
 
-A second workspace holds one small project for isolation tests. Fixtures additionally include two competing proposals, a merged commit, a revert commit, a merge that adds a project summary note, and pending/ignored record versions. Seeded graph data is explicitly pre-reviewed fictional data, not a model response replay.
+A second workspace holds one small project for isolation tests. Fixtures additionally include two competing proposals, a merged commit, a revert commit and pending/ignored record versions. Seeded graph data is explicitly pre-reviewed fictional data, not a model response replay.
 
 ### 15.1 Updated demo (ten minutes)
 
@@ -609,7 +605,7 @@ A second workspace holds one small project for isolation tests. Fixtures additio
 5. Human merges; show the new commit and changed branch.
 6. Show two competing proposals; stale merge fails, resolve via explicit rebase and review.
 7. Revert one merge while keeping an unrelated later edit; restore an older graph as a new commit.
-8. Agent submits a summary note that cites steps with `[act:<id>]` markers; a person approves the change set, and the Graph shows the note with numbered step links.
+8. Agent submits a note that cites steps with `[act:<id>]` markers; a person reads the note in the change set and approves it.
 9. Show pending evidence, default agent merge denial, deterministic evaluation and known limits.
 
 ### 15.2 Submission and cut order
