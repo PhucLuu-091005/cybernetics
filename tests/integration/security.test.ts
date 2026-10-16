@@ -304,10 +304,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
     ).toBeFalsy();
   });
 
-  it('answers 429 on the 21st browser write in one minute while reads still work, and on the 61st token call', async () => {
+  it('answers 429 on the 121st browser write in one minute while reads still work, and on the 61st token call', async () => {
     vi.useFakeTimers({ toFake: ['Date'], now: Math.floor(Date.now() / 60_000) * 60_000 + 1_000 });
     const p = { projectId: aliceProject };
-    for (let write = 1; write <= 20; write++) {
+    for (let write = 1; write <= 120; write++) {
       const opened = await call(
         tokensRoute.POST,
         'POST',
@@ -324,7 +324,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
       `/projects/${aliceProject}/agent-tokens`,
       p,
       alice,
-      { body: { label: 'Write 21', idempotencyKey: 'rate-21' } },
+      { body: { label: 'Write 121', idempotencyKey: 'rate-121' } },
     );
     expect(limited).toMatchObject({
       status: 429,
