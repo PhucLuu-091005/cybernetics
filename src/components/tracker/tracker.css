@@ -809,7 +809,7 @@ svg.tg .guide {
 }
 svg.tg .tline {
   stroke: var(--ink-3);
-  stroke-dasharray: 3 3;
+  stroke-width: 1;
 }
 svg.tg .tpill rect {
   fill: var(--ink);
@@ -847,11 +847,6 @@ svg.tg .link.wait {
   stroke-width: 1.4;
   opacity: 0.7;
 }
-svg.tg .stem.ghost {
-  stroke: var(--ink-3) !important;
-  stroke-dasharray: 3 3;
-  opacity: 0.75;
-}
 svg.tg .wait-line {
   stroke: var(--ink-3);
   stroke-width: 2.5;
@@ -870,11 +865,14 @@ svg.tg .hit {
 svg.tg .hit:hover {
   fill: color-mix(in srgb, var(--draft) 5%, transparent);
 }
-svg.tg .hit.flash {
-  fill: color-mix(in srgb, var(--mark) 70%, transparent);
-}
+/* Yellow marks changes, so the picked row and a revealed row use a neutral band with an ink edge.
+   The band sits over the row line, so it stays see-through: a light grey on the light theme. */
+svg.tg .hit.flash,
 svg.tg .hit.focus {
-  fill: color-mix(in srgb, var(--mark) 65%, transparent) !important;
+  fill: color-mix(in srgb, var(--ink) 7%, transparent) !important;
+  stroke: var(--ink);
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
 }
 svg.tg .hit.rail-row {
   pointer-events: none;
@@ -1017,7 +1015,6 @@ svg.tg .plus circle {
   fill: var(--panel);
   stroke: var(--draft);
   stroke-width: 1.5;
-  stroke-dasharray: 3 2;
 }
 svg.tg .plus path {
   stroke: var(--draft);
@@ -1026,7 +1023,6 @@ svg.tg .plus path {
 }
 svg.tg .plus:hover circle {
   fill: var(--draft-bg);
-  stroke-dasharray: none;
 }
 svg.tg .pill {
   display: inline;
@@ -1700,7 +1696,7 @@ svg.tg .lane-drop.glow {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border: 2px dashed var(--ink-3);
+  border: 2px solid var(--rule);
   border-radius: 12px;
   background: var(--panel);
   color: var(--ink-2);

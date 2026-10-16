@@ -437,7 +437,6 @@ describe('layoutTracker: segments, waits and stems', () => {
       y1: 134,
       y2: 474,
       tone: 'route',
-      ghost: false,
     });
     expect(L.stems.find((s) => s.workItemId === 'rehearsal')).toMatchObject({
       parentId: null,
@@ -448,19 +447,11 @@ describe('layoutTracker: segments, waits and stems', () => {
     expect(L.stems.find((s) => s.workItemId === 'test')).toMatchObject({ tone: 'ink-3' });
   });
 
-  it('starts the stem of a row with a hidden parent at the trunk, with an arrow chip', () => {
+  it('draws no stem for a row with a hidden parent, only an arrow chip', () => {
     const H = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['crs']) }));
     const y = H.rows.find((r) => r.id === 'pg201')!.y;
     const sx = H.x(ms('2026-09-23T09:20'));
-    expect(H.stems.find((s) => s.workItemId === 'pg201')).toEqual({
-      workItemId: 'pg201',
-      parentId: 'crs',
-      x: sx,
-      y1: TRUNK_Y,
-      y2: y,
-      tone: 'ink-3',
-      ghost: true,
-    });
+    expect(H.stems.some((s) => s.workItemId === 'pg201')).toBe(false);
     expect(H.chips.find((c) => c.workItemId === 'pg201')).toEqual({
       workItemId: 'pg201',
       sources: ['crs'],
@@ -472,12 +463,9 @@ describe('layoutTracker: segments, waits and stems', () => {
     });
   });
 
-  it('starts the stem of a row with a parent in a hidden team at the trunk', () => {
+  it('draws no stem for a row with a parent in a hidden team', () => {
     const H = layoutTracker(larkspurState(), view({ hiddenTeams: new Set(['implementation']) }));
-    expect(H.stems.find((s) => s.workItemId === 'pg203')).toMatchObject({
-      y1: TRUNK_Y,
-      ghost: true,
-    });
+    expect(H.stems.some((s) => s.workItemId === 'pg203')).toBe(false);
     expect(H.chips.find((c) => c.workItemId === 'pg203')?.sources).toEqual(['crs']);
   });
 });
@@ -817,9 +805,7 @@ describe('layoutTracker: links', () => {
         size: 14,
       },
     ]);
-    expect(C.stems).toEqual([
-      { workItemId: 'c', parentId: 'p', x: sx, y1: TRUNK_Y, y2: y, tone: 'ink-3', ghost: true },
-    ]);
+    expect(C.stems).toEqual([]);
     expect(C.links).toEqual([]);
   });
 
