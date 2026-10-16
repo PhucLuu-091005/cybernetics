@@ -11,6 +11,8 @@ type Props = {
   state: TrackerState;
   dir: Directory;
   tz: string;
+  tab: QueueTab;
+  onTab: (tab: QueueTab) => void;
   onAdd: (tab: QueueTab) => void;
   onEvent: (id: string) => void;
   onItem: (id: string) => void;
@@ -39,8 +41,7 @@ function Empty({ text }: { text: string }) {
   );
 }
 
-export function QueuePanel({ state, dir, tz, onAdd, onEvent, onItem }: Props) {
-  const [tab, setTab] = useState<QueueTab>('events');
+export function QueuePanel({ state, dir, tz, tab, onTab: setTab, onAdd, onEvent, onItem }: Props) {
   const [search, setSearch] = useState('');
   const term = search.trim().toLowerCase();
   const hit = (text: string) => !term || text.toLowerCase().includes(term);
@@ -90,6 +91,7 @@ export function QueuePanel({ state, dir, tz, onAdd, onEvent, onItem }: Props) {
               <div
                 key={e.id}
                 className="qc"
+                data-qevent={e.id}
                 style={{ ['--kc' as string]: KIND_COLOR[e.kind] }}
                 role="button"
                 tabIndex={0}
@@ -119,6 +121,7 @@ export function QueuePanel({ state, dir, tz, onAdd, onEvent, onItem }: Props) {
               <div
                 key={it.id}
                 className="qc"
+                data-qitem={it.id}
                 style={{ ['--kc' as string]: 'var(--ink-2)' }}
                 role="button"
                 tabIndex={0}
