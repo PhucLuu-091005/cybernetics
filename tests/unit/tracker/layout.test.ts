@@ -334,6 +334,44 @@ describe('layoutTracker: segments, waits and stems', () => {
     expect(wait).toMatchObject({ kind: 'wait', text: 'No events yet' });
   });
 
+  it('starts an empty item placed after asOf at the T line', () => {
+    const s = buildState({
+      teams: [{ id: 't', name: 'Team', leadId: null }],
+      workItems: [
+        workItem({ id: 'src', teamId: 't' }),
+        workItem({ id: 'placed', teamId: 't', since: at('2026-10-12T09:00') }),
+        workItem({ id: 'led', teamId: 't', after: ['src'], since: at('2026-10-12T09:00') }),
+      ],
+      events: [
+        event({ id: 's1', workItemId: 'src', at: at('2026-09-20T09:00') }),
+        event({ id: 's2', workItemId: 'src', kind: 'done', at: at('2026-10-02T16:40') }),
+      ],
+    });
+    const L = layoutTracker(s, view());
+    const xt = L.x(Date.parse(AS_OF));
+    expect(L.segments.find((x) => x.workItemId === 'placed')).toMatchObject({ x1: xt });
+    expect(L.stems.find((x) => x.workItemId === 'placed')?.x).toBe(xt);
+    expect(L.segments.find((x) => x.workItemId === 'led')).toMatchObject({ x1: xt });
+  });
+
+  it('starts an empty item placed before asOf at the later of since and its finished source', () => {
+    const s = buildState({
+      teams: [{ id: 't', name: 'Team', leadId: null }],
+      workItems: [
+        workItem({ id: 'src', teamId: 't' }),
+        workItem({ id: 'led', teamId: 't', after: ['src'], since: at('2026-09-25T09:00') }),
+      ],
+      events: [
+        event({ id: 's1', workItemId: 'src', at: at('2026-09-20T09:00') }),
+        event({ id: 's2', workItemId: 'src', kind: 'done', at: at('2026-10-02T16:40') }),
+      ],
+    });
+    const L = layoutTracker(s, view());
+    expect(L.segments.find((x) => x.workItemId === 'led')).toMatchObject({
+      x1: L.x(ms('2026-10-02T16:40')),
+    });
+  });
+
   it('drops a stem from the parent row, or from the trunk without a parent', () => {
     expect(L.stems.find((s) => s.workItemId === 'pg203')).toEqual({
       workItemId: 'pg203',
