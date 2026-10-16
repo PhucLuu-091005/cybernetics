@@ -47,6 +47,7 @@ export interface HttpIdentityStore {
 }
 export const browserScopes: Scope[] = [
   'project:read',
+  'queue:add',
   'records:import',
   'graph:propose',
   'graph:merge',

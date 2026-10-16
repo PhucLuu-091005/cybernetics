@@ -149,14 +149,14 @@ describe('multi-workspace browser actors', () => {
   });
 });
 describe('hashed project agent tokens', () => {
-  it('creates 30-day tokens with read/import/propose only and stores only a hash', async () => {
+  it('creates 30-day tokens with read and queue scopes only and stores only a hash', async () => {
     const s = await setup();
     const created = await s.tokens.createToken(s.ctx, {
       projectId: s.projectId,
       label: 'Agent',
       idempotencyKey: 'create-1',
     });
-    expect(created.token.scopes).toEqual(['project:read', 'records:import', 'graph:propose']);
+    expect(created.token.scopes).toEqual(['project:read', 'queue:add']);
     expect(created.token.expiresAt).toBe('2026-11-12T00:00:00.000Z');
     expect(created.secret).toMatch(/^inv_[A-Za-z0-9_-]{43}$/);
     expect([...s.store.tokens.values()][0].idempotencyKey).toBe('create-1');
