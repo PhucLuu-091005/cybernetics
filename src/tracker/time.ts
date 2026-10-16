@@ -95,7 +95,7 @@ export function startOfDayInstant(date: string, timeZone: string): string {
   return toInstant(start, timeZone);
 }
 
-/** `time` is `HH:mm` on the clock of `timeZone`; a time that the clock skips moves to the hour after. */
+/** `time` is `HH:mm` on the clock of `timeZone`; a time that the clock skips resolves to a valid instant next to the gap. */
 export function wallTimeInstant(date: string, time: string, timeZone: string): string {
   const [year, month, day] = parseDay(date);
   const [hour, minute] = time.split(':').map(Number);
