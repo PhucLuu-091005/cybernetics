@@ -8,6 +8,7 @@ import {
   clashLabel,
   liveOps,
   mainState,
+  noNul,
   OpError,
   OpSchema,
   replayOps,
@@ -38,7 +39,7 @@ import { buildPayload } from './read';
 import { addComment, loadCommits, loadQueue, lockCr, mainRevision, type CrRow } from './store';
 
 const MAX_OPS = 500;
-const Text = (max: number) => z.string().trim().min(1, 'Must not be empty').max(max);
+const Text = (max: number) => noNul(z.string().trim().min(1, 'Must not be empty').max(max));
 const RouteNumber = z
   .union([
     z.number(),
