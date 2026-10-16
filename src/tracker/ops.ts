@@ -349,6 +349,10 @@ function mark(marks: Marks, op: Op, state: TrackerState) {
       marks.workItems.add(op.a.itemId);
       break;
     case 'msDate':
+      marks.milestones.add(op.a.milestoneId);
+      // Prefixed because demo work items and milestones can share an id (golive).
+      marks.dates.add(`ms:${op.a.milestoneId}`);
+      break;
     case 'msName':
       marks.milestones.add(op.a.milestoneId);
       break;

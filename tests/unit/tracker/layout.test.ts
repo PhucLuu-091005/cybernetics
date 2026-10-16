@@ -780,6 +780,25 @@ describe('layoutTracker: draft marks', () => {
     expect(crm(layoutTracker(renamed.state, view(), renamed.marks)).label).toBe(
       'CRM sync live · 18 Sept · Late',
     );
+    const renamedAfterMove = replayOps(replay.state, [
+      makeOp('msName', { milestoneId: 'crm', name: 'CRM sync live' }),
+    ]);
+    expect(crm(layoutTracker(renamedAfterMove.state, view(), renamedAfterMove.marks)).label).toBe(
+      'CRM sync live · 25 Sept · Late',
+    );
+    const itemMoved = replayOps(larkspurState(), [
+      makeOp('due', {
+        workItemId: 'golive',
+        date: '2026-10-16',
+        why: 'Later.',
+        by: 'minh',
+        at: at('2026-10-08T16:55'),
+      }),
+    ]);
+    const golive = layoutTracker(itemMoved.state, view(), itemMoved.marks).milestones.find(
+      (m) => m.id === 'golive',
+    )!;
+    expect(golive.label).not.toContain('(was');
   });
 
   it('reads the marks of a replay', () => {

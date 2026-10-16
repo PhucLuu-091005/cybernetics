@@ -589,7 +589,7 @@ function placeMilestones(c: Ctx, statusOf: Map<string, MsStatus>): LayoutMilesto
     const draft = !!c.marks?.milestones.has(m.id);
     const mx = c.noonX(m.planned);
     const right = mx > X1 - 280;
-    const previous = draft ? m.moves.at(-1) : undefined;
+    const previous = c.marks?.dates.has(`ms:${m.id}`) ? m.moves.at(-1) : undefined;
     const was = previous ? ` (was ${formatDay(previous.from)})` : '';
     const label = `${m.name} · ${formatDay(m.planned)} · ${STATUS_LABEL[status]}${was}`;
     const w = label.length * 5.9;
