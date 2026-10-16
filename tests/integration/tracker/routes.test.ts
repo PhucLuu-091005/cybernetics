@@ -186,6 +186,27 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
     ).toBe(404);
   });
 
+  it('merges a ready CR through the actions route only at the revision the owner saw', async () => {
+    const target = { ...p(), num: '2' };
+    const { revision } = crOf(await call('GET', tracker, p()), 2);
+    const unseen = await call('POST', `${tracker}/crs/[num]/actions`, target, {
+      action: 'merge',
+    });
+    expect(unseen).toMatchObject({ status: 400, body: { code: 'VALIDATION' } });
+    const stale = await call('POST', `${tracker}/crs/[num]/actions`, target, {
+      action: 'merge',
+      expectedRevision: revision + 1,
+    });
+    expect(stale).toMatchObject({ status: 409, body: { code: 'CONFLICT' } });
+    const merged = await call('POST', `${tracker}/crs/[num]/actions`, target, {
+      action: 'merge',
+      expectedRevision: revision,
+    });
+    expect(merged.status).toBe(200);
+    expect(crOf(merged, 2)).toMatchObject({ status: 'merged', mergedRev: 2 });
+    expect(merged.body.commits.map((commit: { rev: number }) => commit.rev)).toEqual([1, 2]);
+  });
+
   it('works as Lan after act-as: the cookie is set, and Lan cannot append to the CR of Minh', async () => {
     await call('POST', `${tracker}/crs`, p(), { title: 'Owned by Minh' });
     const switched = await call('POST', `${tracker}/act-as`, p(), { memberId: demo.ids.lan });
