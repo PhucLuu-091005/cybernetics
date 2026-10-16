@@ -2,7 +2,13 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { trackerQueue } from '../../../src/server/db/schema';
 import { createEmptyProject } from '../../../src/server/domain/projects';
-import { addQueueEntry, dismissQueueEntry, getTrackerPayload } from '../../../src/server/tracker';
+import {
+  addQueueEntry,
+  createCr,
+  crAction,
+  dismissQueueEntry,
+  getTrackerPayload,
+} from '../../../src/server/tracker';
 import { mainState } from '../../../src/tracker';
 import { agentActor, createTestDatabase, testActor, type TestDb } from '../../support/db';
 import { seedDemo, workspaceGuest } from '../../support/tracker-db';
@@ -183,6 +189,88 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker queue', () => {
     const main = mainState(payload.base, payload.queue, payload.commits);
     expect(main.queue.events.map((event) => event.id)).not.toContain(demo.ids.qe3);
     expect(main.events.find((event) => event.id === demo.ids.qe3)?.workItemId).toBe('golive');
+  });
+
+  it('keeps a card that an open change request uses: dismiss names the change request', async () => {
+    const demo = await seedDemo(t.db);
+    const scope = (key: string) => ({ projectId: demo.projectId, actAs: demo.ids[key] });
+    const dismiss = (card: string) =>
+      dismissQueueEntry(t.db, demo.owner, { ...scope('khoa'), queueId: demo.ids[card] });
+    await expect(dismiss('qe4')).rejects.toMatchObject({
+      code: 'CONFLICT',
+      message: expect.stringContaining('Used in #4'),
+    });
+    await expect(dismiss('q1')).rejects.toMatchObject({
+      code: 'CONFLICT',
+      message: expect.stringContaining('Used in #2'),
+    });
+    const qms = await createCr(t.db, demo.owner, {
+      ...scope('lan'),
+      title: 'Template on go-live',
+      ops: [{ op: 'qms', a: { itemId: demo.ids.q2, milestoneId: 'golive' } }],
+    });
+    await expect(dismiss('q2')).rejects.toMatchObject({
+      code: 'CONFLICT',
+      message: expect.stringContaining(`Used in #${qms.num}`),
+    });
+    const fromEvent = await createCr(t.db, demo.owner, {
+      ...scope('quang'),
+      title: 'Scope call',
+      ops: [
+        {
+          op: 'fromEvent',
+          a: {
+            id: 'scopecall',
+            eventId: demo.ids.qe2,
+            teamId: 'engineering',
+            title: 'Scope call',
+            doneBy: demo.ids.quang,
+            requestedBy: demo.ids.lan,
+            after: null,
+            plannedFinish: '2026-10-20',
+          },
+        },
+      ],
+    });
+    await expect(dismiss('qe2')).rejects.toMatchObject({
+      code: 'CONFLICT',
+      message: expect.stringContaining(`Used in #${fromEvent.num}`),
+    });
+    const ready = await crAction(t.db, demo.owner, {
+      ...scope('quang'),
+      num: fromEvent.num,
+      action: 'ready',
+    });
+    const revision = ready.crs.find((cr) => cr.num === fromEvent.num)!.revision;
+    await crAction(t.db, demo.owner, {
+      ...scope('minh'),
+      num: fromEvent.num,
+      action: 'close',
+      expectedRevision: revision,
+    });
+    const payload = await dismiss('qe2');
+    expect(payload.queue.events.map((event) => event.id)).not.toContain(demo.ids.qe2);
+  });
+
+  it('counts a milestone set on a waiting card in Main as a use', async () => {
+    const demo = await seedDemo(t.db);
+    const scope = (key: string) => ({ projectId: demo.projectId, actAs: demo.ids[key] });
+    const { num } = await createCr(t.db, demo.owner, {
+      ...scope('lan'),
+      title: 'Template on go-live',
+      ops: [{ op: 'qms', a: { itemId: demo.ids.q2, milestoneId: 'golive' } }],
+    });
+    const ready = await crAction(t.db, demo.owner, { ...scope('lan'), num, action: 'ready' });
+    await crAction(t.db, demo.owner, {
+      ...scope('minh'),
+      num,
+      action: 'merge',
+      picks: {},
+      expectedRevision: ready.crs.find((cr) => cr.num === num)!.revision,
+    });
+    await expect(
+      dismissQueueEntry(t.db, demo.owner, { ...scope('lan'), queueId: demo.ids.q2 }),
+    ).rejects.toMatchObject({ code: 'CONFLICT', message: 'Main already uses this queue card' });
   });
 
   it('lets any member dismiss, and no one without a member or an agent', async () => {

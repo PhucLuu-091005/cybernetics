@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { ActorContext } from '../../contracts';
 import {
@@ -11,10 +11,10 @@ import {
   type TrackerState,
 } from '../../tracker';
 import { AppError, invalidInput } from '../errors';
-import { trackerQueue } from '../db/schema';
+import { trackerCrs, trackerQueue } from '../db/schema';
 import { isId, withTransaction, type Db } from '../db/tx';
 import { requireScope } from '../http/scopes';
-import { ProjectScopeSchema, requireMember, requireQueueWriter, writeScope } from './access';
+import { OPEN, ProjectScopeSchema, requireMember, requireQueueWriter, writeScope } from './access';
 import { buildPayload } from './read';
 import { loadCommits, loadQueue } from './store';
 
@@ -95,12 +95,12 @@ export async function addQueueEntry(
   return (await addQueueCard(db, ctx, raw)).payload;
 }
 
-const consumes = (op: Op, queueId: string) =>
+const uses = (op: Op, queueId: string) =>
   ((op.op === 'attach' || op.op === 'fromEvent') && op.a.eventId === queueId) ||
-  (op.op === 'place' && op.a.itemId === queueId);
+  ((op.op === 'place' || op.op === 'qms') && op.a.itemId === queueId);
 
 const usedByMain = (commits: readonly Commit[], queueId: string) =>
-  commits.some((commit) => commit.ops.some((op) => consumes(op, queueId)));
+  commits.some((commit) => commit.ops.some((op) => uses(op, queueId)));
 
 export async function dismissQueueEntry(
   db: Db,
@@ -125,6 +125,19 @@ export async function dismissQueueEntry(
     // Main replays start from the queue, so removing a card that Main used would skip that change forever.
     if (usedByMain(await loadCommits(tx, scope.project.id), queueId))
       throw new AppError('CONFLICT', 'Main already uses this queue card');
+    // The open change request would lose that change without a word.
+    const open = await tx
+      .select({ num: trackerCrs.num, ops: trackerCrs.ops })
+      .from(trackerCrs)
+      .where(and(eq(trackerCrs.projectId, scope.project.id), inArray(trackerCrs.status, [...OPEN])))
+      .orderBy(asc(trackerCrs.num));
+    const users = open.filter((cr) => cr.ops.some((op) => uses(op, queueId))).map((cr) => cr.num);
+    if (users.length)
+      throw new AppError(
+        'CONFLICT',
+        `Used in ${users.map((num) => `#${num}`).join(', ')}, so it stays in the queue.`,
+        { details: { crs: users } },
+      );
     await tx
       .update(trackerQueue)
       .set({ dismissedAt: sql`now()` })
