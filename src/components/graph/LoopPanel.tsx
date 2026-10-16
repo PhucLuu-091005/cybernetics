@@ -50,6 +50,7 @@ type Props = {
   snapshot: Pick<GraphSnapshot, 'acts' | 'recordDecisions'>;
   /** Acts added or changed by an agent-authored proposal; only a proposal view can derive this. */
   agentActIds: ReadonlySet<string>;
+  readOnly?: boolean;
   /** The promise a task belongs to, the tasks that hand off to it, and a promise's own tasks. */
   relations: LoopRelations;
   onOpenLoop(loopId: string): void;
@@ -276,6 +277,7 @@ export function LoopPanel({
   loops,
   snapshot,
   agentActIds,
+  readOnly = false,
   relations,
   onOpenLoop,
   onViewRecord,
@@ -384,30 +386,34 @@ export function LoopPanel({
             {changed && <span className="faint"> (changed)</span>}
           </dd>
           <dt>Milestone</dt>
-          <dd>
-            <select
-              aria-label="Milestone"
-              value={milestone?.id ?? ''}
-              disabled={!edit.editable || edit.busy}
-              onChange={(event) => {
-                void edit.apply(setLoopMilestone(loop.loop, event.target.value || null), title);
-              }}
-            >
-              <option value="">None</option>
-              {milestones.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>{' '}
-            <span className="faint" style={{ fontSize: 12 }}>
-              {!edit.editable
-                ? 'This change set is closed, so it cannot change.'
-                : onMain
-                  ? 'The approved graph is read-only. A change here starts a change set first.'
-                  : 'Changes go into this change set.'}
-            </span>
-          </dd>
+          {readOnly ? (
+            <dd>{milestone?.name ?? 'None'}</dd>
+          ) : (
+            <dd>
+              <select
+                aria-label="Milestone"
+                value={milestone?.id ?? ''}
+                disabled={!edit.editable || edit.busy}
+                onChange={(event) => {
+                  void edit.apply(setLoopMilestone(loop.loop, event.target.value || null), title);
+                }}
+              >
+                <option value="">None</option>
+                {milestones.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>{' '}
+              <span className="faint" style={{ fontSize: 12 }}>
+                {!edit.editable
+                  ? 'This change set is closed, so it cannot change.'
+                  : onMain
+                    ? 'The approved graph is read-only. A change here starts a change set first.'
+                    : 'Changes go into this change set.'}
+              </span>
+            </dd>
+          )}
         </dl>
         {edit.failure && (
           <ConflictBanner
@@ -499,37 +505,39 @@ export function LoopPanel({
                       {agentActIds.has(act.id) && (
                         <span className="badge b-agent">agent proposed</span>
                       )}
-                      <details className="menu">
-                        <summary aria-label="Act actions">⋯</summary>
-                        <ul>
-                          <li className="hint">
-                            {!edit.editable
-                              ? 'This change set is closed.'
-                              : act.quote === null
-                                ? 'Unavailable evidence: edit this act in a change set.'
-                                : onMain
-                                  ? 'The approved graph is read-only. An edit starts a change set first.'
-                                  : 'Edits go into this change set.'}
-                          </li>
-                          {(
-                            [
-                              ['type', 'Change type'],
-                              ['move', 'Move to another loop'],
-                              ['hide', 'Hide this act'],
-                            ] as const
-                          ).map(([action, label]) => (
-                            <li key={action}>
-                              <button
-                                type="button"
-                                disabled={!edit.editable || act.quote === null || edit.busy}
-                                onClick={(event) => openStep(event, { actId: act.id, action })}
-                              >
-                                {label}
-                              </button>
+                      {!readOnly && (
+                        <details className="menu">
+                          <summary aria-label="Act actions">⋯</summary>
+                          <ul>
+                            <li className="hint">
+                              {!edit.editable
+                                ? 'This change set is closed.'
+                                : act.quote === null
+                                  ? 'Unavailable evidence: edit this act in a change set.'
+                                  : onMain
+                                    ? 'The approved graph is read-only. An edit starts a change set first.'
+                                    : 'Edits go into this change set.'}
                             </li>
-                          ))}
-                        </ul>
-                      </details>
+                            {(
+                              [
+                                ['type', 'Change type'],
+                                ['move', 'Move to another loop'],
+                                ['hide', 'Hide this act'],
+                              ] as const
+                            ).map(([action, label]) => (
+                              <li key={action}>
+                                <button
+                                  type="button"
+                                  disabled={!edit.editable || act.quote === null || edit.busy}
+                                  onClick={(event) => openStep(event, { actId: act.id, action })}
+                                >
+                                  {label}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
                     </div>
                     {stepEdit?.actId === act.id && (
                       <StepEditor

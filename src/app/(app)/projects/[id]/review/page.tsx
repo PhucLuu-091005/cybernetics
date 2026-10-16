@@ -149,6 +149,7 @@ export default async function ReviewPage({
             item ? (
               <ChangeSetDetail
                 projectId={id}
+                projectTitle={main.project.title}
                 proposalId={item}
                 actor={actor}
                 current={current}

@@ -129,6 +129,10 @@ export type PromiseGraphProps = {
   onViewRecord(recordVersionId: string, quote: string | null): void;
   /** Where this project's lane heights are remembered. */
   laneScaleKey: string;
+  /** The first view fits these loops instead of the whole project. */
+  initialFocusLoopIds?: readonly string[];
+  /** The loop list starts closed, whatever the stored choice and the screen width. */
+  listInitiallyClosed?: boolean;
 };
 
 function Backdrop({
@@ -280,6 +284,8 @@ function Graph(props: PromiseGraphProps) {
     onSelectMilestone,
     onViewRecord,
     laneScaleKey,
+    initialFocusLoopIds,
+    listInitiallyClosed = false,
   } = props;
   const flow = useReactFlow<GraphNode, BranchEdgeType>();
   const viewport = useViewport();
@@ -408,14 +414,6 @@ function Graph(props: PromiseGraphProps) {
     const view = fitViewport(content, sizeNow());
     void flow.setViewport({ ...view, y: TRUNK_VIEW_TOP - trunkAt(view.zoom) }, { duration: 200 });
   }, [sizeNow, flow, content, trunkAt]);
-  // Fit once, on the first measured size, so a new reader sees the whole project, not 10 days around T.
-  const placed = useRef(false);
-  useEffect(() => {
-    if (placed.current || size.width === 0) return;
-    placed.current = true;
-    const view = fitViewport(content, size);
-    void flow.setViewport({ ...view, y: TRUNK_VIEW_TOP - trunkAt(view.zoom) });
-  }, [size, flow, content, trunkAt]);
   // A second press during the 150 ms animation steps from the target, not from a zoom halfway there.
   const target = useRef<{ view: Viewport; until: number } | null>(null);
   const step = useCallback(
@@ -435,33 +433,63 @@ function Graph(props: PromiseGraphProps) {
     },
     [sizeNow, flow, trunkAt],
   );
-  // Zoom to a loop stops at 150 %, so its text stays a normal reading size.
-  const zoomToLoop = useCallback(
-    (loopId: string) => {
-      const branch = readingLayout.branches.find((item) => item.loopId === loopId);
-      if (!branch) return;
-      const cards = branch.glyphs.flatMap((glyph) => (glyph.card ? [glyph.card] : []));
+  // Zoom to loops stops at 150 %, so their text stays a normal reading size.
+  const loopsView = useCallback(
+    (loopIds: readonly string[]): Viewport | null => {
+      const branches = readingLayout.branches.filter((item) => loopIds.includes(item.loopId));
+      if (!branches.length) return null;
+      const cards = branches.flatMap((branch) =>
+        branch.glyphs.flatMap((glyph) => (glyph.card ? [glyph.card] : [])),
+      );
       const box = {
-        x0: Math.min(branch.xStart - CURVE, ...cards.map((card) => card.x)),
-        x1: Math.max(branch.xEnd + CURVE, ...cards.map((card) => card.x + CARD.width)),
-        y0: Math.min(branch.y - 30, ...cards.map((card) => card.y)),
-        y1: branch.y + 30,
+        x0: Math.min(
+          ...branches.map((branch) => branch.xStart - CURVE),
+          ...cards.map((card) => card.x),
+        ),
+        x1: Math.max(
+          ...branches.map((branch) => branch.xEnd + CURVE),
+          ...cards.map((card) => card.x + CARD.width),
+        ),
+        y0: Math.min(...branches.map((branch) => branch.y - 30), ...cards.map((card) => card.y)),
+        y1: Math.max(...branches.map((branch) => branch.y + 30)),
       };
       const canvas = sizeNow(),
         fit = fitViewport(box, canvas, JUMP_PADDING, 1.5);
       // A long loop would fit only at an unreadable zoom; show its start at a reading zoom instead.
-      const view =
-        fit.zoom >= JUMP_MIN_ZOOM
-          ? fit
-          : {
-              zoom: JUMP_MIN_ZOOM,
-              x: JUMP_PADDING - box.x0 * JUMP_MIN_ZOOM,
-              y: (canvas.height - (box.y1 - box.y0) * JUMP_MIN_ZOOM) / 2 - box.y0 * JUMP_MIN_ZOOM,
-            };
-      void flow.setViewport(view, { duration: 200 });
+      return fit.zoom >= JUMP_MIN_ZOOM
+        ? fit
+        : {
+            zoom: JUMP_MIN_ZOOM,
+            x: JUMP_PADDING - box.x0 * JUMP_MIN_ZOOM,
+            y: (canvas.height - (box.y1 - box.y0) * JUMP_MIN_ZOOM) / 2 - box.y0 * JUMP_MIN_ZOOM,
+          };
     },
-    [readingLayout, sizeNow, flow],
+    [readingLayout, sizeNow],
   );
+  const zoomToLoop = useCallback(
+    (loopId: string) => {
+      const view = loopsView([loopId]);
+      if (view) void flow.setViewport(view, { duration: 200 });
+    },
+    [loopsView, flow],
+  );
+  // Place once, on the first measured size, so a new reader sees the whole project, not 10 days around T.
+  const placed = useRef(false);
+  useEffect(() => {
+    if (placed.current || size.width === 0) return;
+    placed.current = true;
+    const focus = initialFocusLoopIds?.length ? loopsView(initialFocusLoopIds) : null;
+    if (focus) {
+      // Loops sit under the trunk, so the view moves up to the trunk instead of showing empty canvas above it.
+      void flow.setViewport({
+        ...focus,
+        y: Math.min(focus.y, TRUNK_VIEW_TOP - trunkAt(focus.zoom)),
+      });
+      return;
+    }
+    const view = fitViewport(content, size);
+    void flow.setViewport({ ...view, y: TRUNK_VIEW_TOP - trunkAt(view.zoom) });
+  }, [size, flow, content, trunkAt, initialFocusLoopIds, loopsView]);
 
   const stageBox = useRef<HTMLDivElement>(null);
   const [laneWidth, setLaneWidth] = useStoredSize('promise-graph:width:lane-column', 88, 320);
@@ -478,6 +506,7 @@ function Graph(props: PromiseGraphProps) {
   const [listOpen, setListOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   useEffect(() => {
+    if (listInitiallyClosed) return;
     let stored: string | null = null;
     try {
       stored = window.localStorage.getItem(LIST_KEY);
@@ -486,7 +515,7 @@ function Graph(props: PromiseGraphProps) {
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setListOpen(stored === null ? window.innerWidth >= LIST_MIN_SCREEN : stored === 'open');
-  }, []);
+  }, [listInitiallyClosed]);
   const listShown = listOpen && !panelOpen;
   const toggleList = useCallback(() => {
     if (panelOpen) {

@@ -108,6 +108,8 @@ The list computes only the cheap states. The detail runs the rebase preview for 
 
 ### 6.3 Change set detail
 
+Update 16 October 2026: the owner moved Reject and Approve to the right of the title and removed View on graph. Edit sits on the What changes heading. An "On the graph" box under What changes shows the change set graph, read-only, with an "Open full graph" link.
+
 - Title, author (agent badge for an MCP author), rationale.
 - Actions: **View on graph** (graph with `?proposal=`), **Edit** (existing proposal workspace), **Reject** (existing close endpoint), **Approve**.
 - **What changes**: the existing diff, in plain sentences.
