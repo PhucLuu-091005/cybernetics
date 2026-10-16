@@ -70,7 +70,8 @@ export function route(handler: Handler, opts: { status?: number } = {}) {
     let ctx: ActorContext | undefined;
     try {
       ctx = await browserActor(request);
-      const params = await context.params;
+      // Next passes no params to a static route such as /api/v1/projects, whatever the type says.
+      const params = (await context.params) ?? {};
       const input =
         request.method === 'GET' || request.method === 'HEAD'
           ? readQuery(request)

@@ -27,7 +27,7 @@ const secret = 'rest-adapter-test-secret-of-32-bytes!';
 const apiRoot = join(process.cwd(), 'src/app/api/v1');
 type Handler = (
   request: Request,
-  context: { params: Promise<Record<string, string>> },
+  context: { params?: Promise<Record<string, string>> },
 ) => Promise<Response>;
 type RouteModule = Partial<Record<'GET' | 'POST' | 'PATCH' | 'DELETE', Handler>> & {
   runtime?: string;
@@ -118,7 +118,9 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
       headers,
       body: method === 'GET' ? undefined : (opts.raw ?? JSON.stringify(body ?? {})),
     });
-    const response = await handler(request, { params: Promise.resolve(params) });
+    const response = await handler(request, {
+      params: Object.keys(params).length ? Promise.resolve(params) : undefined,
+    });
     return { status: response.status, headers: response.headers, body: await response.json() };
   }
   const reviewedProposal = async (title: string) => {

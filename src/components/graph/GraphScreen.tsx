@@ -15,6 +15,7 @@ import {
   type LayoutOffsets,
 } from '../../lib/graph-layout';
 import type { EditTarget } from '../review/draft-edit';
+import { EmptyGraph } from './EmptyGraph';
 import { FilterBar } from './FilterBar';
 import type { PanelLevel } from './headings';
 import { applyFilters, filtersToSearch, type GraphFilters } from './filters';
@@ -426,6 +427,7 @@ export function GraphScreen({
     };
   }, [visibleLoops]);
   const panelOpen = view === 'graph' && (selectedLoop !== null || selectedMilestone !== null);
+  const noWork = graphView.kind === 'main' && engine.loops.length === 0;
 
   return (
     <section className="screen" aria-labelledby="graph-heading" style={{ paddingTop: 0 }}>
@@ -469,7 +471,9 @@ export function GraphScreen({
           </span>
         )}
       </p>
-      {view === 'list' ? (
+      {noWork ? (
+        <EmptyGraph projectId={projectId} />
+      ) : view === 'list' ? (
         <LoopList
           loops={visibleLoops}
           directory={directory}
