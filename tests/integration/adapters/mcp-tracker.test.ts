@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { configureApp, createAgentToken, resetApp } from '../../../src/server/app';
+import { trackerQueue } from '../../../src/server/db/schema';
 import { getTrackerPayload } from '../../../src/server/tracker';
 import { DELETE, GET, POST } from '../../../src/app/mcp/route';
 import type { Scope } from '../../../src/contracts';
@@ -12,6 +13,7 @@ import { seedDemo, type Demo } from '../../support/tracker-db';
 const origin = 'http://localhost:3000';
 type Structured = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 type ToolReply = { isError?: boolean; structuredContent?: Structured };
+type Card = { id: string; createdAt: string };
 
 describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP tracker tools', () => {
   let t: TestDb, demo: Demo;
@@ -174,7 +176,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP tracker tools', () => {
   it('lists change requests by status and reads one with its changes and comments', async () => {
     const agent = await connect();
     const all = await call(agent, 'list_change_requests');
-    expect(all.structuredContent.items.map((cr: { num: number }) => cr.num)).toEqual([1, 2, 3, 4]);
+    expect(all.structuredContent.items.map((cr: { num: number }) => cr.num)).toEqual([4, 3, 2, 1]);
+    expect(all.structuredContent.nextBefore).toBeNull();
     const merged = await call(agent, 'list_change_requests', { status: 'merged' });
     expect(merged.structuredContent.items).toMatchObject([
       { num: 1, status: 'merged', author: { id: demo.ids.minh, name: 'Minh Trần' } },
@@ -257,5 +260,96 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP tracker tools', () => {
       tools.map((tool) => [tool.name, tool.annotations?.readOnlyHint]),
     );
     expect(readOnly).toMatchObject({ get_tracker: true, add_queue_event: false });
+  });
+
+  const pageAll = async (client: Client, args: Record<string, unknown>) => {
+    const pages: Card[][] = [];
+    let before: string | null | undefined;
+    do {
+      const reply = await call(client, 'list_queue', { ...args, ...(before ? { before } : {}) });
+      expect(reply.isError).toBeFalsy();
+      expect(JSON.stringify(reply.structuredContent).length).toBeLessThan(50_000);
+      pages.push([...reply.structuredContent.events, ...reply.structuredContent.items]);
+      before = reply.structuredContent.nextBefore;
+    } while (before && pages.length < 50);
+    return pages;
+  };
+  const newest = (cards: Card[]) =>
+    [...cards].sort(
+      (a, b) =>
+        Date.parse(b.createdAt) - Date.parse(a.createdAt) ||
+        (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+    );
+
+  it('pages the Queue newest first without loss, also across cards that share a created time', async () => {
+    await t.db.insert(trackerQueue).values(
+      ['First', 'Second', 'Third'].map((text) => ({
+        workspaceId: demo.workspaceId,
+        projectId: demo.projectId,
+        kind: 'event' as const,
+        payload: { kind: 'message' as const, at: '2026-10-09T09:00:00+07:00', by: 'sarah', text },
+        createdAt: '2026-10-09T02:00:00.000Z',
+      })),
+    );
+    const agent = await connect(['project:read']);
+    const whole = (await call(agent, 'list_queue', { limit: 200 })).structuredContent;
+    expect(whole.nextBefore).toBeNull();
+    const all = newest([...whole.events, ...whole.items]);
+    expect(all).toHaveLength(8);
+    const pages = await pageAll(agent, { limit: 2 });
+    expect(pages.map((page) => page.length)).toEqual([2, 2, 2, 2]);
+    expect(pages.flatMap((page) => newest(page).map((card) => card.id))).toEqual(
+      all.map((card) => card.id),
+    );
+    expect(await pageAll(agent, { limit: 1 })).toHaveLength(8);
+  });
+
+  it('reads the Queue before a plain created time and rejects a bad cursor or limit', async () => {
+    const agent = await connect(['project:read']);
+    const whole = (await call(agent, 'list_queue')).structuredContent;
+    const all = newest([...whole.events, ...whole.items]);
+    const cut = all[2].createdAt;
+    const older = (await call(agent, 'list_queue', { before: cut })).structuredContent;
+    expect(newest([...older.events, ...older.items]).map((card) => card.id)).toEqual(
+      all.filter((card) => Date.parse(card.createdAt) < Date.parse(cut)).map((card) => card.id),
+    );
+    for (const args of [{ before: 'yesterday' }, { before: `${cut}/not-an-id` }, { limit: 201 }])
+      expect(await call(agent, 'list_queue', args)).toMatchObject({
+        isError: true,
+        structuredContent: { code: 'VALIDATION' },
+      });
+  });
+
+  it('keeps each Queue page under the character budget', async () => {
+    const agent = await connect();
+    for (let n = 0; n < 15; n++) {
+      const added = await call(agent, 'add_queue_event', {
+        kind: 'message',
+        at: '2026-10-09T16:30:00+07:00',
+        by: 'sarah',
+        text: `${n} ${'x'.repeat(3_900)}`,
+      });
+      expect(added.isError).toBeFalsy();
+    }
+    const first = await call(agent, 'list_queue', { limit: 200 });
+    expect(first.structuredContent.events.length).toBeLessThan(15);
+    expect(first.structuredContent.nextBefore).toEqual(expect.any(String));
+    const pages = await pageAll(agent, { limit: 200 });
+    expect(pages.length).toBeGreaterThan(1);
+    expect(pages.flat()).toHaveLength(15 + 3 + 2);
+  });
+
+  it('pages change requests by number, newest first', async () => {
+    const agent = await connect(['project:read']);
+    const first = (await call(agent, 'list_change_requests', { limit: 2 })).structuredContent;
+    expect(first.items.map((cr: { num: number }) => cr.num)).toEqual([4, 3]);
+    expect(first.nextBefore).toBe(3);
+    const rest = (await call(agent, 'list_change_requests', { limit: 2, before: 3 }))
+      .structuredContent;
+    expect(rest.items.map((cr: { num: number }) => cr.num)).toEqual([2, 1]);
+    expect(rest.nextBefore).toBeNull();
+    const ready = (await call(agent, 'list_change_requests', { status: 'ready', before: 3 }))
+      .structuredContent;
+    expect(ready.items.map((cr: { num: number }) => cr.num)).toEqual([2]);
   });
 });

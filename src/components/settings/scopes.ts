@@ -1,31 +1,15 @@
 import type { Scope } from '../../contracts';
 
-export const SCOPES: { scope: Scope; title: string; text: string; risk?: true }[] = [
+export const SCOPES: { scope: Scope; title: string; text: string }[] = [
   {
     scope: 'project:read',
     title: 'Read the project',
-    text: 'Records, the graph, notes and activity.',
+    text: 'Main, the Queue and the change requests.',
   },
   {
     scope: 'queue:add',
     title: 'Add to the Queue',
     text: 'Events and work items wait in the Queue. Main does not change.',
-  },
-  {
-    scope: 'records:import',
-    title: 'Add records',
-    text: 'Paste or import messages. The graph does not change.',
-  },
-  {
-    scope: 'graph:propose',
-    title: 'Suggest changes',
-    text: 'Change sets wait for a person to approve them.',
-  },
-  {
-    scope: 'graph:merge',
-    title: 'Approve without you',
-    text: 'The agent can approve and undo changes. Grant it only to an agent that you direct.',
-    risk: true,
   },
 ];
 

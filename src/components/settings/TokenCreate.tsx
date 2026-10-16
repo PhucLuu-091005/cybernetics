@@ -2,9 +2,9 @@
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { DEFAULT_AGENT_SCOPES, type Scope, type TokenCreated } from '../../contracts';
-import { send, type ApiError } from '../inbox/api';
-import { ConflictBanner } from '../review/ConflictBanner';
-import { useHydrated } from '../review/hydrated';
+import { send, type ApiError } from '../shell/api';
+import { ConflictBanner } from '../shell/ConflictBanner';
+import { useHydrated } from '../shell/hydrated';
 import { SCOPES } from './scopes';
 import { SecretReveal } from './SecretReveal';
 
@@ -82,8 +82,8 @@ export function TokenCreate({
         <legend className="field" style={{ marginBottom: 6 }}>
           Permissions
         </legend>
-        {SCOPES.map(({ scope, title, text, risk }) => (
-          <label key={scope} className={risk ? 'scope-row risk' : 'scope-row'}>
+        {SCOPES.map(({ scope, title, text }) => (
+          <label key={scope} className="scope-row">
             <input
               type="checkbox"
               checked={scopes.has(scope)}
@@ -93,7 +93,7 @@ export function TokenCreate({
             <span>
               <b>{title}</b> <span className="id faint">{scope}</span>
               <br />
-              <span className={risk ? undefined : 'faint'} style={{ fontSize: 12 }}>
+              <span className="faint" style={{ fontSize: 12 }}>
                 {text}
               </span>
             </span>

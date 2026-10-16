@@ -3,11 +3,8 @@ import { z } from 'zod';
 export const IdSchema = z.uuid();
 export const RevisionSchema = z.number().int().nonnegative();
 export const TimestampSchema = z.iso.datetime({ offset: true });
-export const DateSchema = z.iso.date();
-export const DigestSchema = z.string().regex(/^[a-f0-9]{64}$/);
 export const IdempotencyKeySchema = z.string().min(1).max(256);
 export const TextSchema = z.string().min(1);
-export const SideSchema = z.enum(['client', 'vendor']);
 export const TimeZoneSchema = z
   .string()
   .min(1)
@@ -44,20 +41,3 @@ export const DomainErrorSchema = z.strictObject({
 export type DomainError = z.infer<typeof DomainErrorSchema>;
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 export type FieldError = z.infer<typeof FieldErrorSchema>;
-
-export function utf8Bytes(value: string): number {
-  return new TextEncoder().encode(value).byteLength;
-}
-export function isUtf16Boundary(text: string, offset: number): boolean {
-  if (offset < 0 || offset > text.length) return false;
-  if (offset === 0 || offset === text.length) return true;
-  const previous = text.charCodeAt(offset - 1),
-    next = text.charCodeAt(offset);
-  return !(previous >= 0xd800 && previous <= 0xdbff && next >= 0xdc00 && next <= 0xdfff);
-}
-export function boundedJson<T extends z.ZodType>(schema: T, bytes: number): T {
-  return schema.refine(
-    (value) => utf8Bytes(JSON.stringify(value)) <= bytes,
-    `JSON exceeds ${bytes} UTF-8 bytes`,
-  );
-}

@@ -1,8 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { createTestDatabase, testActor, type TestDb } from '../../support/db';
-import { createProject } from '../../../src/server/domain/projects';
-import { graphCommits, projects, records, recordVersions } from '../../../src/server/db/schema';
+import { seedDemo } from '../../support/tracker-db';
+import {
+  trackerCrShares,
+  trackerCrs,
+  trackerMembers,
+  trackerQueue,
+} from '../../../src/server/db/schema';
 
 async function pgCode(promise: PromiseLike<unknown>): Promise<string | undefined> {
   try {
@@ -27,109 +32,61 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project-scoped references', () 
   });
   const setup = async () => {
     const ctx = await testActor(t.db);
-    const a = await createProject(t.db, ctx, { title: 'A', clientName: 'A' }),
-      b = await createProject(t.db, ctx, { title: 'B', clientName: 'B' });
-    return { ctx, a, b };
+    return { ctx, a: await seedDemo(t.db, ctx), b: await seedDemo(t.db, ctx) };
   };
-  const version = (workspaceId: string, projectId: string, recordId: string, userId: string) => ({
+  const queueRow = (workspaceId: string, projectId: string, addedByMember: string | null) => ({
     workspaceId,
     projectId,
-    recordId,
-    versionNo: 1,
-    digest: 'a'.repeat(64),
-    source: 'paste' as const,
-    sourceLabel: 'Paste',
-    title: 'T',
-    bodyText: 'Body',
-    searchText: 't\nbody',
-    searchTitle: 't',
-    occurredAt: '2026-10-13T00:00:00.000Z',
-    timePrecision: 'instant' as const,
-    author: { name: 'Ada' },
-    recipients: [],
-    quotedRanges: [],
-    attachmentNames: [],
-    provenance: {
-      actor: { kind: 'user' as const, userId },
-      importedAt: '2026-10-13T00:00:00.000Z',
-    },
-    evidenceRevision: 1,
+    kind: 'event' as const,
+    payload: { kind: 'message' as const, at: '2026-10-09T10:00:00+07:00', by: 'sarah', text: 'Hi' },
+    addedByMember,
   });
 
-  it('rejects a record version whose record belongs to another project', async () => {
+  it('rejects a queue card added by a member of another project', async () => {
     const { ctx, a, b } = await setup();
-    const [record] = await t.db
-      .insert(records)
-      .values({ workspaceId: ctx.workspaceId, projectId: a.id, source: 'paste' })
-      .returning();
     expect(
       await pgCode(
-        t.db.insert(recordVersions).values(version(ctx.workspaceId, b.id, record.id, ctx.userId)),
+        t.db.insert(trackerQueue).values(queueRow(ctx.workspaceId, b.projectId, a.ids.lan)),
       ),
     ).toBe('23503');
     expect(
       await pgCode(
-        t.db.insert(recordVersions).values(version(ctx.workspaceId, a.id, record.id, ctx.userId)),
+        t.db.insert(trackerQueue).values(queueRow(ctx.workspaceId, a.projectId, a.ids.lan)),
       ),
     ).toBeUndefined();
   });
-  it('rejects a commit parent from another project', async () => {
+  it('rejects a share of a change request from another project', async () => {
     const { ctx, a, b } = await setup();
-    const [base] = await t.db
-      .select()
-      .from(graphCommits)
-      .where(eq(graphCommits.id, a.mainCommitId));
-    const commit = (projectId: string) => ({
+    const [cr] = await t.db
+      .select({ id: trackerCrs.id })
+      .from(trackerCrs)
+      .where(and(eq(trackerCrs.projectId, a.projectId), eq(trackerCrs.num, 4)));
+    const share = (projectId: string, memberId: string) => ({
       workspaceId: ctx.workspaceId,
       projectId,
-      sequence: 1,
-      parentId: a.mainCommitId,
-      snapshot: base.snapshot,
-      snapshotHash: base.snapshotHash,
-      actor: base.actor,
-      message: 'm',
-      kind: 'merge' as const,
-      reviewedEvidenceRevision: 0,
+      crId: cr.id,
+      memberId,
+      permission: 'view' as const,
     });
-    expect(await pgCode(t.db.insert(graphCommits).values(commit(b.id)))).toBe('23503');
-    expect(await pgCode(t.db.insert(graphCommits).values(commit(a.id)))).toBeUndefined();
-  });
-  it('rejects a main commit pointer and a current version from another project', async () => {
-    const { ctx, a, b } = await setup();
+    expect(await pgCode(t.db.insert(trackerCrShares).values(share(b.projectId, b.ids.lan)))).toBe(
+      '23503',
+    );
     expect(
-      await pgCode(
-        t.db.update(projects).set({ mainCommitId: a.mainCommitId }).where(eq(projects.id, b.id)),
-      ),
-    ).toBe('23503');
-    const [recordA] = await t.db
-      .insert(records)
-      .values({ workspaceId: ctx.workspaceId, projectId: a.id, source: 'paste' })
-      .returning();
-    const [recordB] = await t.db
-      .insert(records)
-      .values({ workspaceId: ctx.workspaceId, projectId: b.id, source: 'paste' })
-      .returning();
-    const [versionA] = await t.db
-      .insert(recordVersions)
-      .values(version(ctx.workspaceId, a.id, recordA.id, ctx.userId))
-      .returning();
-    expect(
-      await pgCode(
-        t.db
-          .update(records)
-          .set({ currentVersionId: versionA.id })
-          .where(eq(records.id, recordB.id)),
-      ),
-    ).toBe('23503');
+      await pgCode(t.db.insert(trackerCrShares).values(share(a.projectId, a.ids.lan))),
+    ).toBeUndefined();
   });
   it('rejects a tenant row whose workspace does not own the project', async () => {
     const { a } = await setup();
     const stranger = await testActor(t.db);
     expect(
       await pgCode(
-        t.db
-          .insert(records)
-          .values({ workspaceId: stranger.workspaceId, projectId: a.id, source: 'paste' }),
+        t.db.insert(trackerMembers).values({
+          workspaceId: stranger.workspaceId,
+          projectId: a.projectId,
+          name: 'Intruder',
+          roleLabel: 'None',
+          color: '#000000',
+        }),
       ),
     ).toBe('23503');
   });
