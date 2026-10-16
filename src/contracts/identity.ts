@@ -9,16 +9,13 @@ import {
 
 export const ScopeSchema = z.enum([
   'project:read',
+  'queue:add',
   'records:import',
   'graph:propose',
   'graph:merge',
 ]);
 export type Scope = z.infer<typeof ScopeSchema>;
-export const DEFAULT_AGENT_SCOPES: readonly Scope[] = [
-  'project:read',
-  'records:import',
-  'graph:propose',
-];
+export const DEFAULT_AGENT_SCOPES: readonly Scope[] = ['project:read', 'queue:add'];
 export const ActorReferenceSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('user'), userId: TextSchema }),
   z.strictObject({ kind: z.literal('agent'), userId: TextSchema, tokenId: IdSchema }),

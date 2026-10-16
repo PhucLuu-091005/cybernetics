@@ -183,7 +183,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker permissions', () => {
   });
 
   it('lets an agent read and add to the Queue as its user member, and nothing else', async () => {
-    const agent = agentActor(demo.owner, demo.projectId, ['project:read']);
+    const agent = agentActor(demo.owner, demo.projectId, ['project:read', 'queue:add']);
     const payload = await getTrackerPayload(t.db, agent, { projectId: demo.projectId });
     expect(payload.me?.id).toBe(demo.ids.minh);
     const added = await addQueueEntry(t.db, agent, {
@@ -205,6 +205,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker permissions', () => {
     await expect(
       getTrackerPayload(t.db, agent, { projectId: other.projectId }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    const writer = agentActor(demo.owner, demo.projectId, ['queue:add']);
+    await expect(
+      getTrackerPayload(t.db, writer, { projectId: demo.projectId }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', message: 'Scope project:read is required' });
   });
 
   it('hides the tracker of another workspace as NOT_FOUND', async () => {
