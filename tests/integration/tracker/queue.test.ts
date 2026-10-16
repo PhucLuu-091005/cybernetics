@@ -102,7 +102,17 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker queue', () => {
 
   it('marks a card from an agent token with added_by_agent and the token user member', async () => {
     const { ctx, projectId, me } = await project();
-    const agent = agentActor(ctx, projectId, ['project:read']);
+    const reader = agentActor(ctx, projectId, ['project:read']);
+    const fields = {
+      kind: 'message' as const,
+      at: '2026-10-16T11:00:00+07:00',
+      by: me.id,
+      text: 'From the agent.',
+    };
+    await expect(
+      addQueueEntry(t.db, reader, { projectId, kind: 'event', fields }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', message: 'Scope queue:add is required' });
+    const agent = agentActor(ctx, projectId, ['project:read', 'queue:add']);
     const payload = await addQueueEntry(t.db, agent, {
       projectId,
       kind: 'event',
@@ -139,7 +149,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker queue', () => {
       addQueueEntry(t.db, ctx, {
         projectId,
         kind: 'event',
-        fields: { ...event, at: '2026-10-16T11:00+07:00' },
+        fields: { ...event, at: '2026-10-16 11:00' },
       }),
     ).rejects.toMatchObject({ code: 'VALIDATION' });
     const item = {

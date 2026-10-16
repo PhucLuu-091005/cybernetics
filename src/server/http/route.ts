@@ -41,6 +41,8 @@ async function readBody(request: Request): Promise<Input> {
       chunks.push(next.value);
     }
   }
+  // A DELETE names its target in the path, so fetch callers may send no body at all.
+  if (size === 0 && request.method === 'DELETE') return {};
   let parsed: unknown;
   try {
     parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)));
@@ -82,7 +84,8 @@ export function route(handler: Handler, opts: { status?: number } = {}) {
           throw invalid(field, `${field} must match the route`);
         input[field] = value;
       }
-      return privateJson(await handler(ctx, request, params, input), opts.status);
+      const result = await handler(ctx, request, params, input);
+      return result instanceof Response ? result : privateJson(result, opts.status);
     } catch (error) {
       return errorResponse(error, ctx?.requestId ?? newRequestId());
     }

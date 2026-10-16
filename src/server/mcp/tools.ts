@@ -56,6 +56,19 @@ import {
   updateProposal,
 } from '../domain/proposals';
 import { ingestRecords, readRecordChunk, searchRecords } from '../domain/records';
+import {
+  AddQueueEventInputSchema,
+  AddQueueItemInputSchema,
+  addQueueEvent,
+  addQueueItem,
+  getChangeRequest,
+  GetChangeRequestInputSchema,
+  getTrackerSummary,
+  listChangeRequests,
+  ListChangeRequestsInputSchema,
+  listQueue,
+  TrackerInputSchema,
+} from '../tracker';
 import { invalid } from '../domain/records/metadata';
 import { requireScope } from '../http/scopes';
 import { withDiffSummary } from './diff-summary';
@@ -115,6 +128,9 @@ function tool(
   };
 }
 
+const PEOPLE =
+  'Person ids (by, doneBy, requestedBy) must be ids from the people list of get_tracker; milestoneId and after must be ids from get_tracker.';
+
 export const MCP_TOOLS: readonly McpTool[] = [
   tool(
     'get_project',
@@ -122,6 +138,48 @@ export const MCP_TOOLS: readonly McpTool[] = [
     GetProjectInputSchema,
     'Read the project context, main commit, evidence revision and pending evidence count. Start here.',
     getProject,
+  ),
+  tool(
+    'get_tracker',
+    'project:read',
+    TrackerInputSchema,
+    'Read Main of the event tracker: people (id and name), teams, work items with status and planned finish, milestones with status, and the open change requests. Statuses use asOf in the project time zone.',
+    getTrackerSummary,
+  ),
+  tool(
+    'list_queue',
+    'project:read',
+    TrackerInputSchema,
+    'List the events and work items that wait in the Queue for a person to place them on the graph. agent is true for cards that an agent added.',
+    listQueue,
+  ),
+  tool(
+    'add_queue_event',
+    'queue:add',
+    AddQueueEventInputSchema,
+    `Add an event (kind message, task, handoff, decision, meeting, delivery, issue or done; at as ISO 8601 with offset; by; text) to the Queue. Main does not change until a person places it through a change request. ${PEOPLE}`,
+    addQueueEvent,
+  ),
+  tool(
+    'add_queue_item',
+    'queue:add',
+    AddQueueItemInputSchema,
+    `Add a work item (title, optional note, doneBy, requestedBy, optional milestoneId and after, plannedFinish as YYYY-MM-DD) to the Queue. Main does not change until a person places it through a change request. ${PEOPLE}`,
+    addQueueItem,
+  ),
+  tool(
+    'list_change_requests',
+    'project:read',
+    ListChangeRequestsInputSchema,
+    'List the change requests of the project, optionally by status (draft, ready, merged or closed).',
+    listChangeRequests,
+  ),
+  tool(
+    'get_change_request',
+    'project:read',
+    GetChangeRequestInputSchema,
+    'Read one change request by number: its changes in plain words, shares, asks, comments and merge resolutions.',
+    getChangeRequest,
   ),
   tool(
     'import_records',
