@@ -79,13 +79,25 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker projects', () => {
     expect(row.ownerMemberId).toBe(payload.members[0].id);
   });
 
-  it('creates a project without teams or a milestone', async () => {
+  it('creates a project with one team and no milestone, and refuses one without a team', async () => {
     const ctx = await testActor(t.db);
-    const project = await createEmptyProject(t.db, ctx, { title: 'Bare', clientName: 'B' });
+    const project = await createEmptyProject(t.db, ctx, {
+      title: 'Bare',
+      clientName: 'B',
+      teams: ['QA'],
+    });
     const payload = await getTrackerPayload(t.db, ctx, { projectId: project.id });
-    expect(payload.base.teams).toEqual([]);
+    expect(payload.base.teams.map((team) => team.name)).toEqual(['QA']);
     expect(payload.base.milestones).toEqual([]);
     expect(payload.me?.userId).toBe(ctx.userId);
+    for (const teams of [undefined, [], ['', '  ']])
+      await expect(
+        createEmptyProject(t.db, ctx, { title: 'None', clientName: 'N', teams }),
+      ).rejects.toMatchObject({
+        code: 'VALIDATION',
+        extras: { errors: [{ path: 'teams', message: 'Add at least one team' }] },
+      });
+    expect((await listProjects(t.db, ctx)).map((item) => item.id)).toEqual([project.id]);
   });
 
   it('rejects duplicate team names and creates nothing', async () => {
@@ -111,6 +123,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker projects', () => {
       createEmptyProject(t.db, ctx, {
         title: 'Dates',
         clientName: 'D',
+        teams: ['QA'],
         milestone: { name: 'Go-live', date: '2 November' },
       }),
     ).rejects.toMatchObject({ code: 'VALIDATION' });

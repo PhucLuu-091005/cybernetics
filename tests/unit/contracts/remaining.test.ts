@@ -15,15 +15,14 @@ const actor = {
   requestId: 'test',
 };
 
-it('defaults tokens to read/import/propose without granting merge', () => {
+it('defaults tokens to read and queue scopes without granting merge', () => {
   const parsed = CreateAgentTokenInputSchema.safeParse({
     projectId: id,
     label: 'Desktop agent',
     idempotencyKey: 'default-scope-token',
   });
   expect(parsed.success).toBe(true);
-  if (parsed.success)
-    expect(parsed.data.scopes).toEqual(['project:read', 'records:import', 'graph:propose']);
+  if (parsed.success) expect(parsed.data.scopes).toEqual(['project:read', 'queue:add']);
 });
 it('allows browser bootstrap without a project while keeping agents project bound', () => {
   expect(ActorContextSchema.safeParse(actor).success).toBe(true);

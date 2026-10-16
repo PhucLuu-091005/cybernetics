@@ -21,15 +21,20 @@ const Instant = z.preprocess(
   (value) => (typeof value === 'string' ? value.replace(MINUTE_INSTANT, '$1:00$2') : value),
   z.iso.datetime({ offset: true }),
 );
+// Postgres refuses NUL in text and jsonb, so a NUL must fail validation instead of the insert.
+export const noNul = <T extends z.ZodType<string>>(schema: T) =>
+  schema.refine((value) => !value.includes('\u0000'), 'Remove the NUL character');
 const filled = (max: number) =>
-  z
-    .string()
-    .max(max)
-    .refine((value) => value.trim() !== '', 'Must not be empty');
+  noNul(
+    z
+      .string()
+      .max(max)
+      .refine((value) => value.trim() !== '', 'Must not be empty'),
+  );
 const Title = filled(200);
 const Body = filled(4000);
 const Why = filled(1000);
-const Note = z.string().max(2000);
+const Note = noNul(z.string().max(2000));
 
 export const EventKindSchema = z.enum(EVENT_KINDS);
 
@@ -205,3 +210,22 @@ export const OpSchema = z.discriminatedUnion('op', [
   opOf('due', DueArgsSchema),
   opOf('addTeam', AddTeamArgsSchema),
 ]);
+
+const TeamName = noNul(z.string().trim().max(200, 'Keep each team name to 200 characters'));
+/** The New project form sends one team per line, so blank lines drop out. */
+export const ProjectTeamsSchema = z
+  .array(TeamName)
+  .max(50, 'Add at most 50 teams')
+  .default([])
+  .transform((teams) => teams.filter((team) => team !== ''))
+  .refine((teams) => teams.length > 0, 'Add at least one team')
+  .refine(
+    (teams) => new Set(teams.map((team) => team.toLocaleLowerCase())).size === teams.length,
+    'Each team needs its own name',
+  );
+export const FirstMilestoneSchema = z
+  .strictObject({
+    name: noNul(z.string().trim().min(1).max(200, 'Keep the milestone name to 200 characters')),
+    date: DateString,
+  })
+  .nullish();

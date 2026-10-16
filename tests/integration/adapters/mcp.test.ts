@@ -157,9 +157,11 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP adapter', () => {
   beforeEach(async () => {
     delete (globalThis as typeof globalThis & { promiseRateLimiter?: unknown }).promiseRateLimiter;
     ({ projectId } = await seedProject(t.db, ownerCtx));
+    // The promise tools keep their own scopes until the tracker replaces them.
     defaultToken = await createAgentToken(ownerCtx, {
       projectId,
       label: 'Claude',
+      scopes: ['project:read', 'records:import', 'graph:propose'],
       idempotencyKey: randomUUID(),
     });
   });
@@ -421,15 +423,18 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP adapter', () => {
   });
   it('lists all tools and none accepts a projectId argument', async () => {
     const { tools } = await (await connect(defaultToken.secret)).listTools();
-    expect(tools).toHaveLength(24);
+    expect(tools).toHaveLength(30);
     for (const tool of tools)
       expect(Object.keys(tool.inputSchema.properties ?? {})).not.toContain('projectId');
     expect(JSON.stringify({ tools }).length).toBeLessThanOrEqual(50_000);
     expect(tools.map((tool) => tool.name).sort()).toEqual([
+      'add_queue_event',
+      'add_queue_item',
       'apply_rebase',
       'close_proposal',
       'create_proposal',
       'diff_proposal',
+      'get_change_request',
       'get_commit',
       'get_graph',
       'get_loop',
@@ -437,11 +442,14 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP adapter', () => {
       'get_proposal',
       'get_record',
       'get_snapshot',
+      'get_tracker',
       'import_records',
+      'list_change_requests',
       'list_history',
       'list_inbox',
       'list_loops',
       'list_milestones',
+      'list_queue',
       'merge_proposal',
       'preview_rebase',
       'preview_restore',

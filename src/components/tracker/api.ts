@@ -57,7 +57,6 @@ async function send<T>(
         : {
             method,
             headers: { Accept: 'application/json', 'content-type': 'application/json' },
-            // The route helper parses every non-GET body as a JSON object, a DELETE too.
             body: JSON.stringify(body ?? {}),
           },
     );
@@ -72,8 +71,18 @@ async function send<T>(
     };
   }
   const data: unknown = await response.json().catch(() => null);
-  if (response.ok) return { ok: true, data: data as T };
-  const error = data && typeof data === 'object' ? (data as Partial<ApiError>) : {};
+  const isObject = !!data && typeof data === 'object' && !Array.isArray(data);
+  if (response.ok && isObject) return { ok: true, data: data as T };
+  if (response.ok)
+    return {
+      ok: false,
+      error: {
+        status: response.status,
+        code: 'INTERNAL',
+        message: 'The server answered without the tracker data. Reload the page.',
+      },
+    };
+  const error = isObject ? (data as Partial<ApiError>) : {};
   return {
     ok: false,
     error: {
