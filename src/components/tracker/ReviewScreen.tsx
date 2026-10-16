@@ -817,6 +817,7 @@ export function ReviewScreen({
                       onMilestone={noop}
                       onAddEvent={noop}
                       onNewMilestone={noop}
+                      onNewTeam={noop}
                       onBackground={noop}
                     />
                   </div>

@@ -11,6 +11,8 @@ import {
 import { SvgIcon } from './icons';
 
 const { VW, X0, X1, AXIS_Y, TRUNK_Y } = GEOMETRY;
+// The bin floats over the bottom of the graph, so the New team pill needs room above it.
+const TEAM_PILL_ROOM = 28;
 
 export type PopKind = 'act' | 'loop' | 'due';
 export type DatePreview = { kind: 'item' | 'ms'; id: string; x: number; label?: string };
@@ -35,6 +37,7 @@ type Props = {
   onMilestone: (milestoneId: string) => void;
   onAddEvent: (workItemId: string) => void;
   onNewMilestone: () => void;
+  onNewTeam: () => void;
   onBackground: () => void;
 };
 
@@ -50,7 +53,7 @@ function groupBy<T extends { workItemId: string }>(list: readonly T[]): Map<stri
 }
 
 const TARGETS =
-  '[data-eyerow],[data-eyeteam],[data-show],[data-due],[data-act],[data-ms],[data-plus],[data-newms],[data-rowlabel],[data-loop]';
+  '[data-eyerow],[data-eyeteam],[data-show],[data-due],[data-act],[data-ms],[data-plus],[data-newms],[data-newteam],[data-rowlabel],[data-loop]';
 const ROWS = '[data-loop],[data-act],[data-rowlabel],[data-plus]';
 
 export function TrackerGraph(props: Props) {
@@ -80,6 +83,7 @@ export function TrackerGraph(props: Props) {
     if (d.ms) return props.onMilestone(d.ms);
     if (d.plus) return props.onAddEvent(d.plus);
     if (d.newms) return props.onNewMilestone();
+    if (d.newteam) return props.onNewTeam();
     if (d.rowlabel) {
       const row = el.ownerSVGElement?.querySelector(`[data-loop="${d.rowlabel}"]`);
       return props.onPop('loop', d.rowlabel, row ?? el);
@@ -99,7 +103,7 @@ export function TrackerGraph(props: Props) {
   return (
     <svg
       className="pg"
-      viewBox={`0 0 ${VW} ${L.height}`}
+      viewBox={`0 0 ${VW} ${L.height + (edit ? TEAM_PILL_ROOM : 0)}`}
       role="group"
       aria-label={L.window.label}
       onClick={onClick}
@@ -166,6 +170,19 @@ export function TrackerGraph(props: Props) {
           <rect width={104} height={16} rx={8} />
           <text x={52} y={11.5} textAnchor="middle">
             + New milestone
+          </text>
+        </g>
+      )}
+      {edit && (
+        <g
+          className="pill"
+          data-newteam="1"
+          transform={`translate(12 ${(L.lanes.at(-1)?.bottom ?? TRUNK_Y + 16) + 6})`}
+          {...button('New team')}
+        >
+          <rect width={84} height={16} rx={8} />
+          <text x={42} y={11.5} textAnchor="middle">
+            + New team
           </text>
         </g>
       )}
