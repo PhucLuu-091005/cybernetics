@@ -477,7 +477,7 @@ export function ChangesDrawer({
         const skip = model?.changes.find((c) => c.opIndex === i)?.skipReason ?? null;
         return (
           <div className={`chg-row${gone ? ' dropped' : ''}${skip ? ' skipped' : ''}`} key={i}>
-            <span className="pi" style={{ color: 'var(--draft)', width: 26, height: 26 }}>
+            <span className="pi" style={{ width: 26, height: 26 }}>
               {d.icon ? <KindIcon kind={d.icon} size={13} /> : <Icon name="pencil" size={13} />}
             </span>
             <div>

@@ -14,12 +14,10 @@
   --danger: #dc2626;
   --caution: #d97706;
   --isolated: #a3a3a3;
-  --draft: #7c3aed;
   --proceed-bg: #dcfce7;
   --route-bg: #dbeafe;
   --danger-bg: #fee2e2;
   --caution-bg: #fef3c7;
-  --draft-bg: #ede9fe;
   --mark: #fef08a;
   --focus: #2563eb;
   --stripe: #fbfbfb;
@@ -44,12 +42,10 @@
   --danger: #f87171;
   --caution: #fbbf24;
   --isolated: #6b6b6b;
-  --draft: #a78bfa;
   --proceed-bg: #052e16;
   --route-bg: #0c1f3d;
   --danger-bg: #3b0d0d;
   --caution-bg: #3a2a05;
-  --draft-bg: #2e1065;
   --mark: #4d3d00;
   --focus: #60a5fa;
   --stripe: #141414;
@@ -72,12 +68,10 @@
     --danger: #f87171;
     --caution: #fbbf24;
     --isolated: #6b6b6b;
-    --draft: #a78bfa;
     --proceed-bg: #052e16;
     --route-bg: #0c1f3d;
     --danger-bg: #3b0d0d;
     --caution-bg: #3a2a05;
-    --draft-bg: #2e1065;
     --mark: #4d3d00;
     --focus: #60a5fa;
     --stripe: #141414;
@@ -100,7 +94,6 @@
   --color-danger: var(--danger);
   --color-caution: var(--caution);
   --color-isolated: var(--isolated);
-  --color-draft: var(--draft);
   --font-ui: var(--f-ui);
   --font-doc: var(--f-doc);
   --font-id: var(--f-id);
@@ -584,11 +577,6 @@
     color: var(--ink-2);
     max-width: 72ch;
   }
-  .btn-draft {
-    background: var(--draft);
-    color: #fff;
-    border-color: var(--draft);
-  }
 
   .field {
     display: flex;
@@ -670,7 +658,7 @@
   }
 
   .halo {
-    stroke: var(--draft);
+    stroke: var(--change);
     stroke-opacity: 0.35;
     stroke-width: 12;
     fill: none;

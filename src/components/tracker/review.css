@@ -150,8 +150,8 @@
   cursor: pointer;
 }
 .tk .conf .side.on {
-  border-color: var(--draft);
-  background: var(--draft-bg);
+  border-color: var(--ink);
+  background: var(--gray-bg);
 }
 .tk .conf .side small {
   display: block;
@@ -279,7 +279,7 @@
   background: var(--sunk);
 }
 .tk .pr-item.on {
-  background: var(--draft-bg);
+  background: var(--gray-bg);
 }
 .tk .pr-item > span:not(.vw) {
   min-width: 0;
