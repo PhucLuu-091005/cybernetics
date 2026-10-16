@@ -19,6 +19,7 @@ import { ConflictBanner } from '../review/ConflictBanner';
 import { useDraftEdit, type EditTarget } from '../review/draft-edit';
 import { changeActType, hideAct, moveAct, setLoopMilestone, toAct } from '../review/operations';
 import { Glyph } from './Glyph';
+import { panelHeadings, type PanelLevel } from './headings';
 import {
   ACT_LABEL,
   BREAKDOWN_LABEL,
@@ -51,6 +52,7 @@ type Props = {
   /** Acts added or changed by an agent-authored proposal; only a proposal view can derive this. */
   agentActIds: ReadonlySet<string>;
   readOnly?: boolean;
+  headingLevel?: PanelLevel;
   /** The promise a task belongs to, the tasks that hand off to it, and a promise's own tasks. */
   relations: LoopRelations;
   onOpenLoop(loopId: string): void;
@@ -278,11 +280,13 @@ export function LoopPanel({
   snapshot,
   agentActIds,
   readOnly = false,
+  headingLevel = 2,
   relations,
   onOpenLoop,
   onViewRecord,
   onClose,
 }: Props) {
+  const { Title, Sub } = panelHeadings(headingLevel);
   const { acts: evidence, rateLimited } = useEvidence(projectId, loop.loop.id, T, view);
   const steps = relationSteps(loop, relations);
   const edit = useDraftEdit(projectId, target);
@@ -322,7 +326,9 @@ export function LoopPanel({
     <aside className="drawer" role="complementary" aria-label="Loop panel">
       <div className="drawer-h">
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h2 style={{ marginBottom: 6 }}>{loop.loop.title}</h2>
+          <Title className="h2" style={{ marginBottom: 6 }}>
+            {loop.loop.title}
+          </Title>
           <div className="row">
             <span
               className="st"
@@ -376,7 +382,7 @@ export function LoopPanel({
             <span className="faint">{partyDetail(loop.loop.performer, directory)}</span>
           </div>
         </div>
-        <LoopWork relations={relations} onOpenLoop={onOpenLoop} />
+        <LoopWork relations={relations} Sub={Sub} onOpenLoop={onOpenLoop} />
         <dl className="kv">
           <dt>Original due</dt>
           <dd>{dueLabel(loop.originalDue)}</dd>
@@ -438,7 +444,9 @@ export function LoopPanel({
           />
         )}
         <div>
-          <h3 style={{ marginBottom: 8 }}>Steps</h3>
+          <Sub className="h3" style={{ marginBottom: 8 }}>
+            Steps
+          </Sub>
           {rateLimited && (
             <p role="status" className="faint" style={{ fontSize: 12, marginBottom: 8 }}>
               Too many requests — try again in a minute.
@@ -698,9 +706,11 @@ function SubIssue({ loop, onOpenLoop }: { loop: RelatedLoop; onOpenLoop(id: stri
 
 function LoopWork({
   relations,
+  Sub,
   onOpenLoop,
 }: {
   relations: LoopRelations;
+  Sub: ReturnType<typeof panelHeadings>['Sub'];
   onOpenLoop(id: string): void;
 }) {
   const { parent, after, next, tasks } = relations;
@@ -719,7 +729,7 @@ function LoopWork({
       )}
       {tasks.length > 0 && (
         <div className="subissues">
-          <h3>
+          <Sub className="h3">
             Sub-issues
             <span
               className="progress"
@@ -734,7 +744,7 @@ function LoopWork({
             <span className="faint">
               {done} of {tasks.length} done
             </span>
-          </h3>
+          </Sub>
           <ul>
             {tasks.map((task) => (
               <SubIssue key={task.id} loop={task} onOpenLoop={onOpenLoop} />

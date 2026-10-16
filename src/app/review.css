@@ -103,15 +103,15 @@
 }
 /* The box is narrower than the screen, so the loop panel goes under the canvas well before the 1100px screen rule. */
 @container (max-width: 900px) {
-  .review-graph .stage.open {
+  .review-graph .stage.open:not(:fullscreen) {
     grid-template-columns: minmax(0, 1fr);
   }
-  .review-graph .drawer {
+  .review-graph .stage:not(:fullscreen) .drawer {
     height: auto;
     max-height: var(--stage-h);
     position: static;
   }
-  .review-graph .panel-handle {
+  .review-graph .stage:not(:fullscreen) .panel-handle {
     display: none;
   }
 }

@@ -3,17 +3,12 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { IdSchema, type Act } from '../../../../../../contracts';
 import { GraphScreen } from '../../../../../../components/graph/GraphScreen';
-import { parseFilters } from '../../../../../../components/graph/filters';
 import { shortStamp } from '../../../../../../components/graph/labels';
 import { reviewHref } from '../../../../../../components/review-queue/state';
 import { parseCite } from '../../../../../../components/inbox/selection';
 import type { CitedText } from '../../../../../../components/review/ActEditor';
-import {
-  capRecordIds,
-  changeItems,
-  namesFrom,
-  proposalHighlights,
-} from '../../../../../../components/review/describe';
+import { changeSetGraph } from '../../../../../../components/review/change-set-graph';
+import { capRecordIds, changeItems, namesFrom } from '../../../../../../components/review/describe';
 import { OmittedRecordsNote } from '../../../../../../components/review/fields';
 import { ProposalFrame } from '../../../../../../components/review/ProposalFrame';
 import { ProposalWorkspace } from '../../../../../../components/review/ProposalWorkspace';
@@ -92,7 +87,6 @@ export default async function ProposalPage({
     [candidate, base.snapshot],
     Object.fromEntries([...cited].map(([versionId, record]) => [versionId, record.title])),
   );
-  const highlights = proposalHighlights(changes);
   const citeAuthor = usableCite ? cited.get(usableCite.recordVersionId)?.author : undefined;
   const citeActor = citeAuthor
     ? (candidate.context.people.find(
@@ -100,6 +94,7 @@ export default async function ProposalPage({
       )?.id ?? null)
     : null;
   const basis = { mainCommitId: view.mainCommitId, evidenceRevision: view.evidenceRevision };
+  const embed = changeSetGraph(proposal, basis, changes);
 
   return (
     <>
@@ -192,18 +187,8 @@ export default async function ProposalPage({
         engine={view.engine}
         pendingEvidenceCount={view.pendingEvidenceCount}
         sources={view.sources}
-        initialFilters={parseFilters(new URLSearchParams())}
-        view={{ kind: 'proposal', proposalId: proposal.id, proposalRevision: proposal.revision }}
+        {...embed.props}
         snapshot={candidate}
-        edit={{
-          kind: 'proposal',
-          basis,
-          proposalId: proposal.id,
-          revision: proposal.revision,
-          status: proposal.status,
-        }}
-        changedLoopIds={highlights.loopIds}
-        agentActIds={proposal.author.kind === 'agent' ? highlights.actIds : []}
         heading="Candidate graph"
         headingLevel={2}
       />

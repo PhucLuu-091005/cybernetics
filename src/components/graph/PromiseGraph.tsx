@@ -129,10 +129,12 @@ export type PromiseGraphProps = {
   onViewRecord(recordVersionId: string, quote: string | null): void;
   /** Where this project's lane heights are remembered. */
   laneScaleKey: string;
-  /** The first view fits these loops instead of the whole project. */
-  initialFocusLoopIds?: readonly string[];
+  /** The first view shows these acts, or else these loops, instead of the whole project. */
+  initialFocus?: { actIds: readonly string[]; loopIds: readonly string[] };
   /** The loop list starts closed, whatever the stored choice and the screen width. */
   listInitiallyClosed?: boolean;
+  /** False keeps list, size and lane changes in memory, so this view never changes what the main graph reads. */
+  persist?: boolean;
 };
 
 function Backdrop({
@@ -284,8 +286,9 @@ function Graph(props: PromiseGraphProps) {
     onSelectMilestone,
     onViewRecord,
     laneScaleKey,
-    initialFocusLoopIds,
+    initialFocus,
     listInitiallyClosed = false,
+    persist = true,
   } = props;
   const flow = useReactFlow<GraphNode, BranchEdgeType>();
   const viewport = useViewport();
@@ -318,7 +321,7 @@ function Graph(props: PromiseGraphProps) {
         const next = { ...previous };
         if (scale === null) delete next[departmentId];
         else next[departmentId] = Math.round(scale * 1000) / 1000;
-        if (done)
+        if (done && persist)
           try {
             window.localStorage.setItem(laneScaleKey, JSON.stringify(next));
           } catch {
@@ -326,7 +329,7 @@ function Graph(props: PromiseGraphProps) {
           }
         return next;
       }),
-    [laneScaleKey],
+    [laneScaleKey, persist],
   );
   const layout = useMemo(
     () => displayLayout(source, displayZoom, laneScale),
@@ -473,12 +476,47 @@ function Graph(props: PromiseGraphProps) {
     },
     [loopsView, flow],
   );
-  // Place once, on the first measured size, so a new reader sees the whole project, not 10 days around T.
+  // Acts open near 100 %; several acts far apart stop at the reading zoom, centred on their middle.
+  const actsView = useCallback(
+    (actIds: readonly string[]): Viewport | null => {
+      const glyphs = readingLayout.branches
+        .flatMap((branch) => branch.glyphs)
+        .filter((glyph) => actIds.includes(glyph.id));
+      if (!glyphs.length) return null;
+      const half = ACT_NODE_SIZE / 2;
+      const box = {
+        x0: Math.min(...glyphs.map((glyph) => Math.min(glyph.x - half, glyph.card?.x ?? Infinity))),
+        x1: Math.max(
+          ...glyphs.map((glyph) =>
+            Math.max(glyph.x + half, glyph.card ? glyph.card.x + CARD.width : -Infinity),
+          ),
+        ),
+        y0: Math.min(...glyphs.map((glyph) => Math.min(glyph.y - half, glyph.card?.y ?? Infinity))),
+        y1: Math.max(
+          ...glyphs.map((glyph) =>
+            Math.max(glyph.y + half, glyph.card ? glyph.card.y + CARD.height : -Infinity),
+          ),
+        ),
+      };
+      const canvas = sizeNow(),
+        fit = fitViewport(box, canvas, JUMP_PADDING, 1);
+      if (fit.zoom >= JUMP_MIN_ZOOM) return fit;
+      return {
+        zoom: JUMP_MIN_ZOOM,
+        x: canvas.width / 2 - ((box.x0 + box.x1) / 2) * JUMP_MIN_ZOOM,
+        y: canvas.height / 2 - ((box.y0 + box.y1) / 2) * JUMP_MIN_ZOOM,
+      };
+    },
+    [readingLayout, sizeNow],
+  );
+  // Place once, on the first measured size: on the focus when there is one, else on the whole project, not 10 days around T.
   const placed = useRef(false);
   useEffect(() => {
     if (placed.current || size.width === 0) return;
     placed.current = true;
-    const focus = initialFocusLoopIds?.length ? loopsView(initialFocusLoopIds) : null;
+    const focus = initialFocus
+      ? (actsView(initialFocus.actIds) ?? loopsView(initialFocus.loopIds))
+      : null;
     if (focus) {
       // Loops sit under the trunk, so the view moves up to the trunk instead of showing empty canvas above it.
       void flow.setViewport({
@@ -489,11 +527,21 @@ function Graph(props: PromiseGraphProps) {
     }
     const view = fitViewport(content, size);
     void flow.setViewport({ ...view, y: TRUNK_VIEW_TOP - trunkAt(view.zoom) });
-  }, [size, flow, content, trunkAt, initialFocusLoopIds, loopsView]);
+  }, [size, flow, content, trunkAt, initialFocus, actsView, loopsView]);
 
   const stageBox = useRef<HTMLDivElement>(null);
-  const [laneWidth, setLaneWidth] = useStoredSize('promise-graph:width:lane-column', 88, 320);
-  const [listWidth, setListWidth] = useStoredSize('promise-graph:width:loop-list', 200, 480);
+  const [laneWidth, setLaneWidth] = useStoredSize(
+    'promise-graph:width:lane-column',
+    88,
+    320,
+    persist,
+  );
+  const [listWidth, setListWidth] = useStoredSize(
+    'promise-graph:width:loop-list',
+    200,
+    480,
+    persist,
+  );
   const laneMeasure = useCallback(
     () => stageBox.current?.querySelector('.lane-col')?.getBoundingClientRect().width ?? 132,
     [],
@@ -523,14 +571,15 @@ function Graph(props: PromiseGraphProps) {
       if (listOpen) return;
     }
     setListOpen((value) => {
-      try {
-        window.localStorage.setItem(LIST_KEY, value ? 'closed' : 'open');
-      } catch {
-        // Blocked storage keeps the choice for this page view only.
-      }
+      if (persist)
+        try {
+          window.localStorage.setItem(LIST_KEY, value ? 'closed' : 'open');
+        } catch {
+          // Blocked storage keeps the choice for this page view only.
+        }
       return !value;
     });
-  }, [panelOpen, listOpen, onClosePanel]);
+  }, [panelOpen, listOpen, onClosePanel, persist]);
   // The jump waits for the panel, which narrows the canvas, and for the layout that holds a loop hidden by "Show only".
   const pendingJump = useRef<string | null>(null);
   // A list jump zooms to its loop itself; the reveal that follows a selection would cut that zoom short.

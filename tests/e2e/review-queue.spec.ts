@@ -233,11 +233,15 @@ test('the change set graph has no edit control, keeps the Review URL and lets an
     'data-ready',
     'true',
   );
-  const branch = region.getByRole('button', { name: /^Loop: Sync incident report/ });
-  await branch.focus();
-  await branch.click();
+  await region
+    .locator('.ev-card', { hasText: 'Where is the root cause report you promised?' })
+    .locator('.ev-p')
+    .click();
   const panel = region.getByRole('complementary', { name: /loop panel/i });
-  await expect(panel.getByRole('heading', { level: 2 })).toHaveText('Sync incident report');
+  await expect(panel.getByRole('heading', { level: 4 })).toHaveText('Sync incident report');
+  await page.getByRole('heading', { level: 2, name: /Add Sarah's follow-up/ }).click();
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeVisible();
   await expect(panel.getByRole('listitem').first()).toBeVisible();
   await expect(panel.getByLabel('Act actions')).toHaveCount(0);
   await expect(panel.getByRole('combobox')).toHaveCount(0);
@@ -252,6 +256,30 @@ test('the change set graph has no edit control, keeps the Review URL and lets an
   await openSet(page, /as a phase 1 request/);
   await expect(region.getByRole('complementary', { name: /loop panel/i })).toHaveCount(0);
   await expect(page).not.toHaveURL(/[?&]loop=/);
+});
+
+test('the change set graph opens on the changed step', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const projectId = await signIn(page, 'queue-step-focus');
+  await page.goto(`/projects/${projectId}/review`);
+  await openSet(page, /Add Sarah's follow-up/);
+  const canvas = graphRegion(page).getByRole('group', { name: /promise graph for/i });
+  await expect(canvas).toHaveAttribute('data-ready', 'true');
+  const step = canvas.locator('.ev-card', {
+    hasText: 'Where is the root cause report you promised?',
+  });
+  await expect(step).toBeVisible();
+  await expect
+    .poll(async () => {
+      const [area, card] = [await box(canvas), await box(step)];
+      return (
+        card.x >= area.x &&
+        card.y >= area.y &&
+        card.x + card.width <= area.x + area.width &&
+        card.y + card.height <= area.y + area.height
+      );
+    })
+    .toBe(true);
 });
 
 test('Open full graph leads to the change set on the graph page', async ({ page }) => {
