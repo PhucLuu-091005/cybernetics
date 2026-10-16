@@ -1,5 +1,5 @@
 {
-  "id": "703940bb-d186-4c2c-9ce7-178f485419b6",
+  "id": "f564073b-cd20-4f70-8647-b1fb8b16faf5",
   "prevId": "d7e27191-3bf2-400f-b732-18619174bd10",
   "version": "7",
   "dialect": "postgresql",
@@ -1772,23 +1772,7 @@
           "default": "'[]'::jsonb"
         }
       },
-      "indexes": {
-        "tracker_crs_project_idx": {
-          "name": "tracker_crs_project_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "tracker_crs_project_fk": {
           "name": "tracker_crs_project_fk",
@@ -1961,23 +1945,7 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "tracker_members_project_idx": {
-          "name": "tracker_members_project_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "tracker_members_user_id_users_id_fk": {
           "name": "tracker_members_user_id_users_id_fk",
