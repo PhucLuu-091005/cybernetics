@@ -195,6 +195,58 @@ describe('layoutTracker: time zoom', () => {
   });
 });
 
+describe('layoutTracker: day offsets', () => {
+  const groups = (L: TrackerLayout) =>
+    L.eventGroups.filter((g) => g.workItemId === 'rehearsal').map((g) => g.eventIds);
+
+  it('draws an event at its time plus the offset of the viewer', () => {
+    const L = layoutTracker(larkspurState(), view({ offsets: { p31: 120 } }));
+    expect(L.eventGroups.find((g) => g.topId === 'p31')?.x).toBeCloseTo(
+      L.x(ms('2026-09-24T11:20')),
+      9,
+    );
+  });
+
+  it('keeps the real time in the tooltip and the label', () => {
+    const L = layoutTracker(larkspurState(), view({ offsets: { p31: 120 } }));
+    expect(L.eventGroups.find((g) => g.topId === 'p31')).toMatchObject({
+      ariaLabel: 'Task by Lan Phạm, 24 Sept 09:20',
+      tooltip:
+        'Task · Lan Phạm · 24 Sept 09:20\nAdd a multi-select country list field. Target: 6 October.',
+    });
+  });
+
+  it('stops a drawn event at the start and the end of its day', () => {
+    const L = layoutTracker(larkspurState(), view({ offsets: { p31: 5000, p32: -5000 } }));
+    const p32 = larkspurState().events.find((e) => e.id === 'p32')!;
+    const day = p32.at.slice(0, 10);
+    expect(L.eventGroups.find((g) => g.topId === 'p31')?.x).toBeCloseTo(
+      L.x(ms('2026-09-24T23:59')),
+      9,
+    );
+    expect(L.eventGroups.find((g) => g.topId === 'p32')?.x).toBeCloseTo(L.x(midnight(day)), 9);
+  });
+
+  it('stacks by the drawn x, so offsets pull a stack apart', () => {
+    const offsets = { r1: -560, r3: 439 };
+    expect(groups(layoutTracker(larkspurState(), view({ zoom: 3 })))).toEqual([['r1', 'r2', 'r3']]);
+    expect(groups(layoutTracker(larkspurState(), view({ zoom: 3, offsets })))).toEqual([
+      ['r1'],
+      ['r2'],
+      ['r3'],
+    ]);
+  });
+
+  it('orders a stack by the drawn time, so the top event is the one drawn last', () => {
+    const L = layoutTracker(larkspurState(), view({ offsets: { r1: 600 } }));
+    expect(L.eventGroups.find((g) => g.workItemId === 'rehearsal')).toMatchObject({
+      eventIds: ['r2', 'r3', 'r1'],
+      topId: 'r1',
+      x: L.x(ms('2026-09-24T19:20')),
+    });
+  });
+});
+
 describe('layoutTracker: lanes and rows', () => {
   it('lists 7 lanes in team order', () => {
     const L = layoutTracker(larkspurState(), view());

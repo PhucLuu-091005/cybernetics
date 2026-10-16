@@ -13,10 +13,13 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  drawnAt,
   formatDay,
   KIND_LABEL,
   layoutTracker,
+  offsetFor,
   toInstant,
+  type Offsets,
   type Cr,
   type CrPermission,
   type EventKind,
@@ -32,6 +35,7 @@ import {
   crAction,
   dismissQueueEntry,
   getTracker,
+  putOffset,
   removeOp,
   type ApiResult,
   type CrAction,
@@ -52,6 +56,7 @@ import {
 import {
   dayAtX,
   dropAction,
+  eventGesture,
   markTarget,
   noonX,
   retarget,
@@ -117,6 +122,7 @@ export type TrackerActions = {
   setKind: (eventId: string, kind: EventKind) => void;
   moveEvent: (eventId: string) => void;
   hideEvent: (eventId: string) => void;
+  resetPosition: (eventId: string) => void;
   newMilestone: () => void;
   newTeam: () => void;
   saveMilestone: (milestoneId: string, name: string, date: string) => void;
@@ -148,6 +154,7 @@ export const NO_ACTIONS: TrackerActions = {
   setKind: noop,
   moveEvent: noop,
   hideEvent: noop,
+  resetPosition: noop,
   newMilestone: noop,
   newTeam: noop,
   saveMilestone: noop,
@@ -332,6 +339,9 @@ export function TrackerScreen({
   const busy = writing > 0;
   const [drag, setDrag] = useState<DragView | null>(null);
   const [preview, setPreview] = useState<DatePreview | null>(null);
+  // Saved positions show before the server answers, and a dragged one follows the pointer.
+  const [unsaved, setUnsaved] = useState<Record<string, number>>({});
+  const [dayDrag, setDayDrag] = useState<{ eventId: string; minutes: number } | null>(null);
   const [moving, setMoving] = useState<{ eventId: string; from: string } | null>(null);
   const [popFor, setPopFor] = useState<{ kind: 'act' | 'added'; id: string } | null>(null);
   const [queueTab, setQueueTab] = useState<QueueTab>('events');
@@ -394,6 +404,14 @@ export function TrackerScreen({
     return () => document.removeEventListener('click', onClick);
   }, [shownPop]);
 
+  const saved: Offsets = useMemo(
+    () => ({ ...payload.offsets, ...unsaved }),
+    [payload.offsets, unsaved],
+  );
+  const offsets: Offsets = useMemo(
+    () => (dayDrag ? { ...saved, [dayDrag.eventId]: dayDrag.minutes } : saved),
+    [saved, dayDrag],
+  );
   const layout = useMemo(
     () =>
       layoutTracker(
@@ -404,20 +422,22 @@ export function TrackerScreen({
           asOf,
           timeZone: tz,
           zoom,
+          offsets,
           ...(project.windowStart ? { windowStart: project.windowStart } : {}),
         },
         current.marks,
       ),
-    [state, hidden, asOf, tz, zoom, project.windowStart, current.marks],
+    [state, hidden, asOf, tz, zoom, offsets, project.windowStart, current.marks],
   );
   // Pointer handlers outlive the render that started a drag, and a poll can land in between.
-  const live = useRef<{ payload: TrackerPayload; state: TrackerState; layout: TrackerLayout }>({
-    payload,
-    state,
-    layout,
-  });
+  const live = useRef<{
+    payload: TrackerPayload;
+    state: TrackerState;
+    layout: TrackerLayout;
+    saved: Offsets;
+  }>({ payload, state, layout, saved });
   useLayoutEffect(() => {
-    live.current = { payload, state, layout };
+    live.current = { payload, state, layout, saved };
   });
 
   // An attached event, or an event picked in the detail drawer on a hidden row, gets its pop once it renders.
@@ -617,6 +637,22 @@ export function TrackerScreen({
 
   const anchorOf = (selector: string) => gwrap.current?.querySelector(`svg.pg ${selector}`) ?? null;
 
+  /** A position is a display choice of the signed-in person, so it needs no change request and works in every view. */
+  const saveOffset = async (eventId: string, minutes: number) => {
+    if ((live.current.saved[eventId] ?? 0) === minutes) return;
+    setUnsaved((o) => ({ ...o, [eventId]: minutes }));
+    const result = await putOffset(projectId, eventId, minutes);
+    setUnsaved((o) => {
+      if (o[eventId] !== minutes) return o;
+      const rest = { ...o };
+      delete rest[eventId];
+      return rest;
+    });
+    if (!result.ok) return showToast(result.error.message);
+    setPayload(result.data);
+    live.current = { ...live.current, payload: result.data };
+  };
+
   const actions: TrackerActions = {
     newCr: () => openModal({ mode: 'newcr' }),
     share: () => openModal({ mode: 'share' }),
@@ -679,6 +715,10 @@ export function TrackerScreen({
       if (ev) setMoving({ eventId, from: ev.workItemId });
     },
     hideEvent: (eventId) => commitOps([{ op: 'hide', a: { eventId } }]),
+    resetPosition: (eventId) => {
+      setPop(null);
+      void saveOffset(eventId, 0);
+    },
     newMilestone: () => edit && openModal({ mode: 'ms' }),
     newTeam: () => edit && openModal({ mode: 'team' }),
     saveMilestone: (milestoneId, name, date) => {
@@ -762,8 +802,8 @@ export function TrackerScreen({
     stopDrag.current = trackPointer(start, { ...t, onRelease: swallowClick });
   };
 
-  const drop = (source: DragSource, target: DropTarget | null, dx: number) => {
-    const done = dropAction(source, target, live.current.state, dx);
+  const drop = (source: DragSource, target: DropTarget | null) => {
+    const done = dropAction(source, target, live.current.state);
     if (done.kind === 'op')
       commitOps([done.op], done.op.op === 'attach' ? { added: done.op.a.eventId } : undefined);
     else if (done.kind === 'fromEvent')
@@ -809,11 +849,77 @@ export function TrackerScreen({
         target = retarget(source, targetUnder(root.current, L, ev.clientX, ev.clientY), s);
         markTarget(root.current, target, look.from);
       },
-      onDrop: (_ev, dx) => {
+      onDrop: () => {
         endDrag();
-        onDrop.current(source, target, dx);
+        onDrop.current(source, target);
       },
       onCancel: endDrag,
+    });
+  };
+
+  const dragEvent = (event: ReactPointerEvent, eventId: string, from: string, el: Element) => {
+    const svg = el.closest('svg.pg');
+    const ev = state.events.find((x) => x.id === eventId);
+    if (!(svg instanceof SVGSVGElement) || !ev) return;
+    event.preventDefault();
+    const start = { clientX: event.clientX, clientY: event.clientY, pointerId: event.pointerId };
+    const L0 = live.current.layout;
+    const x0 = svgPoint(svg, start.clientX, start.clientY).x;
+    const drawn0 = drawnAt(ev, live.current.saved, tz);
+    let gesture: 'day' | 'move' | null = null;
+    let minutes = live.current.saved[eventId] ?? 0;
+    let target: DropTarget | null = null;
+    track(start, {
+      threshold: 6,
+      axis: 'any',
+      onStart: (e) => {
+        gesture = eventGesture(e.clientX - start.clientX, e.clientY - start.clientY, edit);
+        setPop(null);
+        if (gesture === 'day')
+          setDrag({ cls: 'drag-day', items: false, ghost: null, x: 0, y: 0, lifted: null });
+        else if (gesture === 'move')
+          setDrag({
+            cls: 'drag-act',
+            items: true,
+            ghost: (
+              <div className="gact">
+                <KindIcon kind={ev.kind} size={15} />
+              </div>
+            ),
+            x: start.clientX,
+            y: start.clientY,
+            lifted: eventId,
+          });
+      },
+      onMove: (e) => {
+        if (gesture === 'day') {
+          const x = svgPoint(svg, e.clientX, e.clientY).x;
+          const next = offsetFor(ev.at, drawn0 + L0.t(x) - L0.t(x0), tz);
+          if (next === minutes) return;
+          minutes = next;
+          setDayDrag({ eventId, minutes });
+          return;
+        }
+        if (gesture !== 'move') return;
+        if (ghost.current) {
+          ghost.current.style.left = `${e.clientX}px`;
+          ghost.current.style.top = `${e.clientY}px`;
+        }
+        if (!root.current) return;
+        target = targetUnder(root.current, live.current.layout, e.clientX, e.clientY);
+        markTarget(root.current, target, from);
+      },
+      onDrop: () => {
+        endDrag();
+        if (gesture === 'move') onDrop.current({ kind: 'event', id: eventId, from }, target);
+        if (gesture !== 'day') return;
+        setDayDrag(null);
+        void saveOffset(eventId, minutes);
+      },
+      onCancel: () => {
+        endDrag();
+        setDayDrag(null);
+      },
     });
   };
 
@@ -856,12 +962,15 @@ export function TrackerScreen({
   };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || modal || !edit) return;
+    if (event.button !== 0 || modal) return;
     const t = event.target as Element;
+    const act = t.closest('svg.pg') && t.closest<SVGElement>('[data-act]');
+    if (act?.dataset.act && act.dataset.in)
+      return dragEvent(event, act.dataset.act, act.dataset.in, act);
+    if (!edit) return;
     const qe = t.closest<HTMLElement>('[data-qevent]');
     const qi = t.closest<HTMLElement>('[data-qitem]');
     const graph = t.closest('svg.tg');
-    const act = graph && t.closest<SVGElement>('[data-act]');
     const label = graph && t.closest<SVGElement>('[data-rowlabel]');
     const ms = graph && t.closest<SVGElement>('[data-ms]');
     if (qe?.dataset.qevent) {
@@ -895,22 +1004,6 @@ export function TrackerScreen({
           ghost: (
             <div className="grow">
               <Icon name="loop" size={12} /> {trunc(it.title, 32)}
-            </div>
-          ),
-        },
-      );
-    } else if (act?.dataset.act && act.dataset.in) {
-      const ev = state.events.find((x) => x.id === act.dataset.act);
-      if (!ev) return;
-      dragItem(
-        event,
-        { kind: 'event', id: ev.id, from: act.dataset.in },
-        {
-          cls: 'drag-act',
-          from: act.dataset.in,
-          ghost: (
-            <div className="gact">
-              <KindIcon kind={ev.kind} size={15} />
             </div>
           ),
         },
@@ -1053,6 +1146,7 @@ export function TrackerScreen({
                 tz={tz}
                 asOf={asOf}
                 edit={edit}
+                offsets={saved}
                 actions={actions}
                 onClose={() => closePop(true)}
                 onHideRow={toggleRow}
