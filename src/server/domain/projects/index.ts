@@ -11,14 +11,23 @@ import {
 import { localDate } from '../../../lib/calendar';
 import { canonicalHash } from '../../../lib/canonical-json';
 import { AppError } from '../../errors';
-import { graphCommits, projects, workspaceMembers } from '../../db/schema';
-import { isId, withTransaction, type Db, type ProjectRow } from '../../db/tx';
+import { graphCommits, projects, users, workspaceMembers } from '../../db/schema';
+import { isId, joinTransaction, withTransaction, type Db, type ProjectRow } from '../../db/tx';
+import {
+  createTrackerProject,
+  FirstMilestoneSchema,
+  ProjectTeamsSchema,
+} from '../../tracker/projects';
 const NewProjectInputSchema = z.strictObject({
   title: ProjectSchema.shape.title,
   clientName: ProjectSchema.shape.clientName,
 });
 const CreateProjectInputSchema = NewProjectInputSchema.extend({
   snapshot: GraphSnapshotSchema.optional(),
+});
+const EmptyProjectInputSchema = NewProjectInputSchema.extend({
+  teams: ProjectTeamsSchema,
+  milestone: FirstMilestoneSchema,
 });
 export type CreateProjectInput = z.input<typeof CreateProjectInputSchema>;
 const invalidProject = (error: z.ZodError) =>
@@ -121,11 +130,29 @@ export async function createProject(
 export async function createEmptyProject(
   db: Db,
   ctx: ActorContext,
-  raw: z.input<typeof NewProjectInputSchema>,
+  raw: z.input<typeof EmptyProjectInputSchema>,
 ): Promise<Project> {
-  const parsed = NewProjectInputSchema.safeParse(raw);
+  const parsed = EmptyProjectInputSchema.safeParse(raw);
   if (!parsed.success) throw invalidProject(parsed.error);
-  return createProject(db, ctx, parsed.data);
+  const { teams, milestone, ...fields } = parsed.data;
+  return withTransaction(db, async (tx) => {
+    const project = await createProject(joinTransaction(tx), ctx, fields);
+    const [user] = await tx
+      .select({ name: users.name })
+      .from(users)
+      .where(eq(users.id, ctx.userId))
+      .limit(1);
+    await createTrackerProject(tx, {
+      workspaceId: project.workspaceId,
+      projectId: project.id,
+      userId: ctx.userId,
+      userName: user.name,
+      teams,
+      milestone,
+      demo: false,
+    });
+    return project;
+  });
 }
 export async function listProjects(db: Db, ctx: ActorContext): Promise<Project[]> {
   if (!isId(ctx.userId)) return [];

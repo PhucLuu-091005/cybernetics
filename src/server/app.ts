@@ -21,7 +21,8 @@ const state = globalThis as typeof globalThis & { promiseApp?: App };
 /** Loaded on first sign-in only, so routes do not carry the fixture JSON. */
 export const seedOnUserCreated: UserCreatedHook = async (tx, { userId, workspaceId }) => {
   const { seedSandbox } = await import('./domain/seed');
-  await seedSandbox(tx, {
+  const { seedTrackerDemo } = await import('./tracker');
+  const sandbox = await seedSandbox(tx, {
     kind: 'user',
     userId,
     workspaceId,
@@ -29,6 +30,7 @@ export const seedOnUserCreated: UserCreatedHook = async (tx, { userId, workspace
     scopes: [...browserScopes],
     requestId: randomUUID(),
   });
+  await seedTrackerDemo(tx, { workspaceId, projectId: sandbox.id, userId });
 };
 const identityStore = (db: Db) => new DbIdentityStore(db, { onUserCreated: seedOnUserCreated });
 export function getApp(): App {
