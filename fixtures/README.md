@@ -67,7 +67,6 @@ Milestones at T: Kickoff to CRM integration live are `reached`, Go-live and firs
 1. `ignore-out-of-office` (merge): ignores Tom's out-of-office reply and adds an annotation on the secret loop.
 2. `annotate-dynamics-scope` (merge): adds an annotation that cites the hedged reply and the SOW act.
 3. `revert-ignore-out-of-office` (revert of 1, message `Undo "…"`): removes the decision and the annotation and keeps merge 2. The out-of-office reply is pending again. The result equals `inverseCommit(initial, merge 1, merge 2)`.
-In `story-source.json` an annotation text may cite an act as `{act:<loop key>#<event index>}`. The builder writes `[act:<uuid>]` and fails when the act is not in the note's `acts`.
 
 Proposals, all based on commit 3:
 

@@ -2,16 +2,12 @@ import Link from 'next/link';
 import { Fragment } from 'react';
 import type { Act, ActorContext, GraphSnapshot, ProposalReview } from '../../../../../contracts';
 import { GraphScreen } from '../../../../../components/graph/GraphScreen';
-import { parseFilters } from '../../../../../components/graph/filters';
 import { shortStamp } from '../../../../../components/graph/labels';
 import { ChangeSetActions } from '../../../../../components/review-queue/ChangeSetActions';
 import { changeSetState } from '../../../../../components/review-queue/state';
+import { changeSetGraph } from '../../../../../components/review/change-set-graph';
 import { CitedSources } from '../../../../../components/review/CitedSources';
-import {
-  capRecordIds,
-  namesFrom,
-  proposalHighlights,
-} from '../../../../../components/review/describe';
+import { capRecordIds, namesFrom } from '../../../../../components/review/describe';
 import { DiffView } from '../../../../../components/review/DiffView';
 import { EffectsTable } from '../../../../../components/review/EffectsTable';
 import { OmittedRecordsNote } from '../../../../../components/review/fields';
@@ -54,11 +50,6 @@ export async function ChangeSetDetail({
       </p>
     );
 
-  const view = {
-    kind: 'proposal',
-    proposalId: proposal.id,
-    proposalRevision: proposal.revision,
-  } as const;
   let review: ProposalReview | null = null;
   try {
     review = await diffProposal(db, actor, { projectId, proposalId });
@@ -66,7 +57,11 @@ export async function ChangeSetDetail({
     if (!(error instanceof AppError) || error.code !== 'CONFLICT') throw error;
   }
   const graph = review
-    ? await getGraphView(db, actor, { projectId, view, T: review.T }).catch((error) => {
+    ? await getGraphView(db, actor, {
+        projectId,
+        view: { kind: 'proposal', proposalId: proposal.id, proposalRevision: proposal.revision },
+        T: review.T,
+      }).catch((error) => {
         if (error instanceof AppError && error.code === 'CONFLICT') return null;
         throw error;
       })
@@ -93,7 +88,17 @@ export async function ChangeSetDetail({
           )
         ).snapshot;
   const cited = await readCitedRecords(db, actor, { projectId, recordVersionIds: wanted.ids });
-  const highlights = review ? proposalHighlights(review.diff.changes) : null;
+  const embed =
+    review && graph
+      ? {
+          graph,
+          ...changeSetGraph(
+            proposal,
+            { mainCommitId: graph.mainCommitId, evidenceRevision: graph.evidenceRevision },
+            review.diff.changes,
+          ),
+        }
+      : null;
   const names = namesFrom(
     [proposal.candidate, base, current.snapshot],
     Object.fromEntries([...cited].map(([versionId, record]) => [versionId, record.title])),
@@ -138,7 +143,7 @@ export async function ChangeSetDetail({
             </div>
             <DiffView changes={review.diff.changes} names={names} />
           </section>
-          {graph && highlights && (
+          {embed && (
             <section className="box" aria-labelledby="on-graph">
               <div className="box-h">
                 <h3 id="on-graph">On the graph</h3>
@@ -151,34 +156,21 @@ export async function ChangeSetDetail({
               </div>
               <div className="review-graph">
                 <GraphScreen
-                  key={`review-${proposal.id}-${proposal.revision}-${graph.T}`}
+                  key={`review-${proposal.id}-${proposal.revision}-${embed.graph.T}`}
+                  {...embed.props}
                   projectId={projectId}
                   title={projectTitle}
                   context={proposal.candidate.context}
-                  engine={graph.engine}
-                  pendingEvidenceCount={graph.pendingEvidenceCount}
-                  sources={graph.sources}
-                  initialFilters={parseFilters(new URLSearchParams())}
-                  view={view}
+                  engine={embed.graph.engine}
+                  pendingEvidenceCount={embed.graph.pendingEvidenceCount}
+                  sources={embed.graph.sources}
                   snapshot={{
                     acts: proposal.candidate.acts,
                     recordDecisions: proposal.candidate.recordDecisions,
                   }}
-                  edit={{
-                    kind: 'proposal',
-                    basis: {
-                      mainCommitId: graph.mainCommitId,
-                      evidenceRevision: graph.evidenceRevision,
-                    },
-                    proposalId: proposal.id,
-                    revision: proposal.revision,
-                    status: proposal.status,
-                  }}
-                  changedLoopIds={highlights.loopIds}
-                  agentActIds={proposal.author.kind === 'agent' ? highlights.actIds : []}
-                  initialFocusLoopIds={highlights.loopIds}
+                  initialFocus={embed.focus}
                   heading="Change set graph"
-                  headingLevel={3}
+                  headingLevel={4}
                   readOnly
                   listInitiallyClosed
                 />

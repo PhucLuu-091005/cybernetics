@@ -100,7 +100,7 @@ Scopes: `project:read`, `records:import`, `graph:propose`, `graph:merge`. Defaul
 - Act: the speech act in section 5; actor/parties reference snapshot people, action, due date/precision, hedged flag, exact citation and optional loop ID. Origin is `human` or `agent`; confidence is advisory only.
 - Loop: title, customer, performer, performer department and milestone. States/breakdowns are derived, not stored conclusions. A task (revised 14 October 2026) is a loop with `parentLoopId`, the top-level loop whose work it carries, one level deep and without a milestone; `afterLoopIds` names sibling tasks that hand off to it (Linear "blocked by"). Both keys stay absent on a top-level loop.
 - Record review decision: `(recordVersionId, included | ignored, reason)`, stored in the snapshot. Included requires at least one visible cited act; ignored requires a reason and no visible acts for that version. A version with no decision at main is pending.
-- Annotation (the screens call it a note): optional human/agent interpretation text with cited act IDs, stored in the snapshot. Clearly label it as interpretation. The text may cite a step as `[act:<lowercase uuid>]`; every cited ID must be in `actIds` (section 7.4a).
+- Annotation (the screens call it a note): optional human/agent interpretation text with cited act IDs, stored in the snapshot. The change set and Activity tables show it as a "Note" row. The text may cite a step as `[act:<lowercase uuid>]`; every cited ID must be in `actIds` (section 7.4a).
 
 ### 4.1 Two independent revision axes
 

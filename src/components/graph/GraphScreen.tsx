@@ -16,6 +16,7 @@ import {
 } from '../../lib/graph-layout';
 import type { EditTarget } from '../review/draft-edit';
 import { FilterBar } from './FilterBar';
+import type { PanelLevel } from './headings';
 import { applyFilters, filtersToSearch, type GraphFilters } from './filters';
 import type { CardInfo } from './CardNode';
 import {
@@ -63,8 +64,9 @@ export type GraphScreenProps = {
   changedLoopIds?: readonly string[];
   agentActIds?: readonly string[];
   heading?: string;
-  headingLevel?: 1 | 2 | 3;
-  initialFocusLoopIds?: readonly string[];
+  headingLevel?: 1 | 2 | 3 | 4;
+  initialFocus?: { actIds: readonly string[]; loopIds: readonly string[] };
+  /** Hides the edit controls, writes no browser storage and takes keys only from inside the graph. */
   readOnly?: boolean;
   listInitiallyClosed?: boolean;
 };
@@ -92,11 +94,13 @@ export function GraphScreen({
   agentActIds,
   heading = 'Main graph',
   headingLevel = 1,
-  initialFocusLoopIds,
+  initialFocus,
   readOnly = false,
   listInitiallyClosed = false,
 }: GraphScreenProps) {
-  const Heading = (['h1', 'h2', 'h3'] as const)[headingLevel - 1];
+  const Heading = (['h1', 'h2', 'h3', 'h4'] as const)[headingLevel - 1];
+  // A page heading is h1, and its panels are h2; an embedded graph's panels sit at its own level.
+  const panelLevel = Math.max(2, headingLevel) as PanelLevel;
   const halo = useMemo(() => new Set(changedLoopIds ?? []), [changedLoopIds]);
   const agentActs = useMemo(() => new Set(agentActIds ?? []), [agentActIds]);
   const loopTargets = useMemo(
@@ -126,7 +130,12 @@ export function GraphScreen({
   const lastFocus = useRef<string | null>(null);
 
   const stageRef = useRef<HTMLDivElement>(null);
-  const [panelWidth, setPanelWidth] = useStoredSize('promise-graph:width:panel', 320, 720);
+  const [panelWidth, setPanelWidth] = useStoredSize(
+    'promise-graph:width:panel',
+    320,
+    720,
+    !readOnly,
+  );
   const [preview, setPreview] = useState<{ versionId: string; quote: string | null } | null>(null);
   const viewRecord = useCallback(
     (versionId: string, quote: string | null) => setPreview({ versionId, quote }),
@@ -221,16 +230,16 @@ export function GraphScreen({
           const shift = range ? Math.min(range[1], Math.max(range[0], change.shift)) : change.shift;
           next = withOffset(previous, 'loops', change.id, exact(shift));
         }
-        if (done) writeOffsets(browserStore(), projectId, next);
+        if (done && !readOnly) writeOffsets(browserStore(), projectId, next);
         return next;
       });
     },
-    [baseLayout, projectId],
+    [baseLayout, projectId, readOnly],
   );
   const resetLayout = useCallback(() => {
-    writeOffsets(browserStore(), projectId, NO_OFFSETS);
+    if (!readOnly) writeOffsets(browserStore(), projectId, NO_OFFSETS);
     setOffsets(NO_OFFSETS);
-  }, [projectId]);
+  }, [projectId, readOnly]);
   const cards = useMemo(() => {
     const map = new Map<string, CardInfo>();
     for (const loop of visibleLoops)
@@ -366,6 +375,8 @@ export function GraphScreen({
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (view !== 'graph' || isTyping(event.target)) return;
+      if (readOnly && !(event.target instanceof Node && stageRef.current?.contains(event.target)))
+        return;
       const menu = event.target instanceof Element ? event.target.closest('details[open]') : null;
       if (menu) {
         if (event.key === 'Escape') {
@@ -390,7 +401,7 @@ export function GraphScreen({
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [selectedLoop, selectedMilestone, actIndex, close, view]);
+  }, [selectedLoop, selectedMilestone, actIndex, close, view, readOnly]);
 
   const counts = useMemo(() => {
     const closed = visibleLoops.filter((loop) => loop.state === 'closed').length;
@@ -505,8 +516,9 @@ export function GraphScreen({
               onSelectMilestone={selectMilestone}
               onViewRecord={viewRecord}
               stageRef={stageRef}
-              initialFocusLoopIds={initialFocusLoopIds}
+              initialFocus={initialFocus}
               listInitiallyClosed={listInitiallyClosed}
+              persist={!readOnly}
             />
             {selectedLoop && (
               <LoopPanel
@@ -524,6 +536,7 @@ export function GraphScreen({
                 snapshot={snapshot}
                 agentActIds={agentActs}
                 readOnly={readOnly}
+                headingLevel={panelLevel}
                 relations={relations}
                 onOpenLoop={selectLoop}
                 onViewRecord={viewRecord}
@@ -534,6 +547,7 @@ export function GraphScreen({
               <MilestonePanel
                 milestone={selectedMilestone}
                 loops={engine.loops}
+                headingLevel={panelLevel}
                 onOpenLoop={selectLoop}
                 onClose={close}
               />

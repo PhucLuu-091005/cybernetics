@@ -6,6 +6,7 @@ export function useStoredSize(
   key: string,
   min: number,
   max: number,
+  persist = true,
 ): [number | null, (value: number | null, done: boolean) => void] {
   const [size, setSize] = useState<number | null>(null);
   useEffect(() => {
@@ -23,7 +24,7 @@ export function useStoredSize(
     (value: number | null, done: boolean) => {
       const next = value === null ? null : Math.round(Math.min(max, Math.max(min, value)));
       setSize(next);
-      if (!done) return;
+      if (!done || !persist) return;
       try {
         if (next === null) window.localStorage.removeItem(key);
         else window.localStorage.setItem(key, String(next));
@@ -31,7 +32,7 @@ export function useStoredSize(
         // Blocked storage keeps the width for this page view only.
       }
     },
-    [key, min, max],
+    [key, min, max, persist],
   );
   return [size, update];
 }
