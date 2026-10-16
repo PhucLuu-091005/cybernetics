@@ -95,14 +95,19 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
   };
   const tool = async (client: Client, name: string, args: Record<string, unknown> = {}) =>
     (await client.callTool({ name, arguments: args })) as ToolReply;
-  const createToken = async (as: ActorContext, projectId: string, label: string) => {
+  const createToken = async (
+    as: ActorContext,
+    projectId: string,
+    label: string,
+    scopes?: string[],
+  ) => {
     const created = await call(
       tokensRoute.POST,
       'POST',
       `/projects/${projectId}/agent-tokens`,
       { projectId },
       as,
-      { body: { label, idempotencyKey: `token-${label}` } },
+      { body: { label, idempotencyKey: `token-${label}`, ...(scopes ? { scopes } : {}) } },
     );
     expect(created.status).toBe(201);
     return created.body as { token: { id: string }; secret: string };
@@ -256,7 +261,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
   });
 
   it('revoking a token stops every later MCP call, including a replay of an earlier receipt', async () => {
-    const created = await createToken(alice, aliceProject, 'revoke-me');
+    const created = await createToken(alice, aliceProject, 'revoke-me', [
+      'project:read',
+      'records:import',
+    ]);
     const agent = await connect(created.secret);
     const args = {
       source: 'agent',

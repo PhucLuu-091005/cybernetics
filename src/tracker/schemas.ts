@@ -205,3 +205,19 @@ export const OpSchema = z.discriminatedUnion('op', [
   opOf('due', DueArgsSchema),
   opOf('addTeam', AddTeamArgsSchema),
 ]);
+
+const TeamName = z.string().trim().max(200);
+/** The New project form sends one team per line, so blank lines drop out. */
+export const ProjectTeamsSchema = z
+  .array(TeamName)
+  .max(50)
+  .default([])
+  .transform((teams) => teams.filter((team) => team !== ''))
+  .refine((teams) => teams.length > 0, 'Add at least one team')
+  .refine(
+    (teams) => new Set(teams.map((team) => team.toLocaleLowerCase())).size === teams.length,
+    'Each team needs its own name',
+  );
+export const FirstMilestoneSchema = z
+  .strictObject({ name: z.string().trim().min(1).max(200), date: DateString })
+  .nullish();

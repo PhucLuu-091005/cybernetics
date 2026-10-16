@@ -232,6 +232,10 @@
 .new-project h2 {
   font-size: 16px;
 }
+.new-project-problem {
+  font-size: 12px;
+  color: var(--ink-2);
+}
 .new-project-actions {
   display: flex;
   justify-content: flex-end;
