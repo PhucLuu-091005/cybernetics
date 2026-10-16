@@ -13,7 +13,7 @@ import { canonicalHash } from '../../../lib/canonical-json';
 import { AppError } from '../../errors';
 import { graphCommits, projects, users, workspaceMembers } from '../../db/schema';
 import { isId, joinTransaction, withTransaction, type Db, type ProjectRow } from '../../db/tx';
-import { FirstMilestoneSchema, ProjectTeamsSchema } from '../../../tracker';
+import { FirstMilestoneSchema, noNul, ProjectTeamsSchema } from '../../../tracker';
 import { createTrackerProject } from '../../tracker/projects';
 const NewProjectInputSchema = z.strictObject({
   title: ProjectSchema.shape.title,
@@ -23,6 +23,8 @@ const CreateProjectInputSchema = NewProjectInputSchema.extend({
   snapshot: GraphSnapshotSchema.optional(),
 });
 const EmptyProjectInputSchema = NewProjectInputSchema.extend({
+  title: noNul(ProjectSchema.shape.title),
+  clientName: noNul(ProjectSchema.shape.clientName),
   teams: ProjectTeamsSchema,
   milestone: FirstMilestoneSchema,
 });
