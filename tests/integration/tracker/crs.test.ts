@@ -678,19 +678,44 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
         ...as('quang'),
         title: 'Scope call',
         ops: [
-          { op: 'attach', a: { eventId: demo.ids.qe2, workItemId: 'dynamics' } },
+          {
+            op: 'fromEvent',
+            a: {
+              id: 'scopecall',
+              eventId: demo.ids.qe2,
+              teamId: 'engineering',
+              title: 'Scope call',
+              doneBy: demo.ids.quang,
+              requestedBy: demo.ids.lan,
+              after: null,
+              plannedFinish: '2026-10-20',
+            },
+          },
+          { op: 'rename', a: { workItemId: 'scopecall', title: 'Scope call with Sarah' } },
           { op: 'rename', a: { workItemId: 'dynamics', title: 'Dynamics CRM sync in phase 1' } },
         ],
       });
       await action('quang', num, { action: 'ready' });
-      await dismissQueueEntry(t.db, demo.owner, { ...as('lan'), queueId: demo.ids.qe2 });
-      const merged = await review(num, { action: 'merge', picks: {} });
-      expect(merged.commits.at(-1)?.ops.map((op) => op.op)).toEqual(['rename']);
+      const other = await createCr(t.db, demo.owner, {
+        ...as('lan'),
+        title: 'Scope call on Dynamics',
+        ops: [{ op: 'attach', a: { eventId: demo.ids.qe2, workItemId: 'dynamics' } }],
+      });
+      await action('lan', other.num, { action: 'ready' });
+      await review(other.num, { action: 'merge', picks: {} });
+      await expect(
+        dismissQueueEntry(t.db, demo.owner, { ...as('lan'), queueId: demo.ids.qe2 }),
+      ).rejects.toMatchObject({ code: 'CONFLICT' });
+      const merged = await review(num, {
+        action: 'merge',
+        picks: { [`event:${demo.ids.qe2}`]: 'main' },
+      });
+      expect(merged.commits.at(-1)?.ops.map((op) => [op.op, op.a])).toEqual([
+        ['rename', { workItemId: 'dynamics', title: 'Dynamics CRM sync in phase 1' }],
+      ]);
       const main = mainState(merged.base, merged.queue, merged.commits);
-      expect(main.events.some((event) => event.id === demo.ids.qe2)).toBe(false);
-      expect(main.workItems.find((item) => item.id === 'dynamics')?.title).toBe(
-        'Dynamics CRM sync in phase 1',
-      );
+      expect(main.workItems.some((item) => item.id === 'scopecall')).toBe(false);
+      expect(main.events.find((event) => event.id === demo.ids.qe2)?.workItemId).toBe('dynamics');
     });
   });
 
