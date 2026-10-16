@@ -362,8 +362,10 @@ function startOf(c: Ctx, w: WorkItem): number {
     .map((id) => c.infos.get(id))
     .flatMap((i) => (i?.finishedAt ? [Date.parse(i.finishedAt)] : []));
   const sourcesDone = ends.length ? Math.max(...ends) : null;
-  if (w.since) return Math.max(Date.parse(w.since), sourcesDone ?? 0);
-  return sourcesDone ?? Date.parse(c.view.asOf) - EMPTY_LEAD;
+  const asOf = Date.parse(c.view.asOf);
+  // A demo project keeps asOf in the past while the item is placed today, so since can lie after the T line.
+  if (w.since) return Math.max(Math.min(Date.parse(w.since), asOf), sourcesDone ?? 0);
+  return sourcesDone ?? asOf - EMPTY_LEAD;
 }
 
 type AddChip = (id: string, source: string) => void;
