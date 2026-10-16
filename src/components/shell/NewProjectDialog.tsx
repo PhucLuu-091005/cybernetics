@@ -32,7 +32,7 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
     }
     router.push(`/projects/${result.data.id}/graph`);
     router.refresh();
-    onClose();
+    dialog.current?.close();
   };
   return (
     <dialog
