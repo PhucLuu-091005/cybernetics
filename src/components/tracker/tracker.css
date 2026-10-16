@@ -5,6 +5,7 @@
   --change: #eab308;
   --change-text: var(--ink);
   --change-bg: #fde047;
+  --edit-bg: #fefce8;
   --teal: #0d9488;
   --teal-bg: #ccfbf1;
   --gray-bg: #f1f1f1;
@@ -21,6 +22,7 @@
   --change: #facc15;
   --change-text: var(--ink);
   --change-bg: #854d0e;
+  --edit-bg: #1c1a0a;
   --teal: #2dd4bf;
   --teal-bg: #042f2e;
   --gray-bg: #1f1f1f;
@@ -38,6 +40,7 @@
     --change: #facc15;
     --change-text: var(--ink);
     --change-bg: #854d0e;
+    --edit-bg: #1c1a0a;
     --teal: #2dd4bf;
     --teal-bg: #042f2e;
     --gray-bg: #1f1f1f;
@@ -129,9 +132,9 @@
 }
 .tk .btn-draft,
 .tk .btn-draft:hover:not(:disabled) {
-  background: var(--draft);
-  color: #fff;
-  border-color: var(--draft);
+  background: var(--panel);
+  color: var(--ink);
+  border-color: var(--ink);
 }
 .tk .btn-danger {
   color: var(--danger);
@@ -151,7 +154,6 @@
   color: var(--ink-2);
   font-size: 12px;
 }
-.tk .btn-draft .cnt,
 .tk .btn-ink .cnt {
   background: rgba(255, 255, 255, 0.25);
   color: inherit;
@@ -360,7 +362,7 @@
   min-width: 0;
 }
 .tk .bbar.mine {
-  background: var(--draft-bg);
+  background: var(--edit-bg);
 }
 .tk .bbar.main {
   background: var(--sunk);
@@ -403,8 +405,8 @@
   color: var(--proceed);
 }
 .tk .chipx.pen {
-  background: var(--draft-bg);
-  color: var(--draft);
+  background: var(--change-bg);
+  color: var(--change-text);
 }
 .tk .chipx.route {
   background: var(--route-bg);
@@ -1022,7 +1024,7 @@ svg.tg .hit {
   cursor: pointer;
 }
 svg.tg .hit:hover {
-  fill: color-mix(in srgb, var(--draft) 5%, transparent);
+  fill: color-mix(in srgb, var(--ink) 4%, transparent);
 }
 /* Yellow marks changes, so the picked row and a revealed row use a neutral band with an ink edge.
    The band sits over the row line, so it stays see-through: a light grey on the light theme. */
@@ -1043,7 +1045,7 @@ svg.tg .lane-drop {
 svg.tg .lane-drop-text {
   display: none;
   font-size: 11px;
-  fill: var(--draft);
+  fill: var(--ink);
   font-weight: 600;
   pointer-events: none;
 }
@@ -1096,7 +1098,7 @@ svg.tg .ms-label {
   font-weight: 600;
 }
 svg.tg .ms.glow .ms-c {
-  filter: drop-shadow(0 0 4px var(--draft));
+  filter: drop-shadow(0 0 4px var(--ink));
 }
 svg.tg .ms-chip {
   cursor: pointer;
@@ -1131,7 +1133,7 @@ svg.tg .eye rect {
   fill: transparent;
 }
 svg.tg .eye.off {
-  color: var(--draft);
+  color: var(--ink);
 }
 svg.tg .more {
   cursor: pointer;
@@ -1169,16 +1171,16 @@ svg.tg .plus {
 }
 svg.tg .plus circle {
   fill: var(--panel);
-  stroke: var(--draft);
+  stroke: var(--ink);
   stroke-width: 1.5;
 }
 svg.tg .plus path {
-  stroke: var(--draft);
+  stroke: var(--ink);
   stroke-width: 2;
   stroke-linecap: round;
 }
 svg.tg .plus:hover circle {
-  fill: var(--draft-bg);
+  fill: var(--gray-bg);
 }
 svg.tg .pill {
   display: inline;
@@ -1187,12 +1189,17 @@ svg.tg .pill {
   cursor: pointer;
 }
 svg.tg .pill rect {
-  fill: var(--draft-bg);
+  fill: var(--panel);
+  stroke: var(--ink);
+  stroke-width: 1;
+}
+svg.tg .pill:hover rect {
+  fill: var(--gray-bg);
 }
 svg.tg .pill text {
   font-size: 10.5px;
   font-weight: 600;
-  fill: var(--draft);
+  fill: var(--ink);
 }
 svg.tg .goal {
   cursor: pointer;
@@ -1833,18 +1840,18 @@ svg.tg .act.lift {
   cursor: ew-resize;
 }
 .tk.moving svg.tg .hit {
-  fill: color-mix(in srgb, var(--draft) 6%, transparent);
+  fill: color-mix(in srgb, var(--ink) 4%, transparent);
 }
 svg.tg .hit.glow,
 svg.tg .lane-drop.glow {
-  fill: color-mix(in srgb, var(--draft) 18%, transparent) !important;
-  stroke: var(--draft);
+  fill: color-mix(in srgb, var(--ink) 9%, transparent) !important;
+  stroke: var(--ink);
   stroke-width: 2;
 }
 .tk.drag-email svg.tg .lane-drop,
 .tk.drag-qitem svg.tg .lane-drop {
-  fill: color-mix(in srgb, var(--draft) 6%, transparent);
-  stroke: var(--draft);
+  fill: color-mix(in srgb, var(--ink) 4%, transparent);
+  stroke: var(--ink);
   stroke-opacity: 0.5;
 }
 .tk.drag-email svg.tg .lane-drop-text,
@@ -1894,8 +1901,8 @@ svg.tg .lane-drop.glow {
   left: 50%;
   top: 10px;
   transform: translateX(-50%);
-  background: var(--draft);
-  color: #fff;
+  background: var(--ink);
+  color: var(--panel);
   font-size: 13px;
   font-weight: 600;
   padding: 7px 14px;
@@ -1915,17 +1922,17 @@ svg.tg .lane-drop.glow {
 }
 .tk .ghost .qc {
   box-shadow: var(--shadow);
-  border-color: var(--draft);
+  border-color: var(--ink);
 }
 .tk .ghost .gact {
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  border: 2px solid var(--draft);
+  border: 2px solid var(--ink);
   background: var(--panel);
   display: grid;
   place-items: center;
-  color: var(--draft);
+  color: var(--ink);
   box-shadow: var(--shadow);
 }
 .tk .ghost .grow {
@@ -1934,7 +1941,7 @@ svg.tg .lane-drop.glow {
   gap: 6px;
   white-space: nowrap;
   background: var(--panel);
-  border: 2px solid var(--draft);
+  border: 2px solid var(--ink);
   border-radius: 8px;
   padding: 4px 10px;
   font-size: 12px;
@@ -2026,9 +2033,9 @@ svg.tg .lane-drop.glow {
   border-color: var(--ink-3);
 }
 .tk .kind.on {
-  border-color: var(--draft);
-  background: var(--draft-bg);
-  color: var(--draft);
+  border-color: var(--ink);
+  background: var(--gray-bg);
+  color: var(--ink);
 }
 .tk .grid2 {
   display: grid;
@@ -2077,8 +2084,8 @@ svg.tg .lane-drop.glow {
   line-height: 1.4;
 }
 .tk .pcard.on {
-  border-color: var(--draft);
-  background: var(--draft-bg);
+  border-color: var(--ink);
+  background: var(--gray-bg);
 }
 .tk .share-link {
   display: flex;

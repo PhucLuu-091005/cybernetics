@@ -498,7 +498,7 @@ function AddedPop({
       target={target}
       container={container}
       label={`Added a ${KIND_LABEL[ev.kind]}`}
-      icon={ring('var(--draft)', <KindIcon kind={ev.kind} size={15} />)}
+      icon={ring('var(--ink)', <KindIcon kind={ev.kind} size={15} />)}
       head={
         <>
           <b>Added a {KIND_LABEL[ev.kind]}</b> by {c.dir.name(ev.by)}
