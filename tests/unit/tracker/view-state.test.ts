@@ -3,6 +3,7 @@ import { larkspurState } from '../../support/tracker-fixture';
 import {
   EMPTY_VIEW,
   hiddenList,
+  keepFocus,
   readNoticeOff,
   readViewState,
   revealRows,
@@ -144,5 +145,14 @@ describe('tracker view state', () => {
       count: 3,
     });
     expect(hiddenList(larkspurState(), EMPTY_VIEW).count).toBe(0);
+  });
+
+  it('ends a focus on a work item that the viewer hides, by row or by team', () => {
+    const teamOf = (id: string) => ({ a: 't1', b: 't2' })[id] ?? null;
+    expect(keepFocus('a', EMPTY_VIEW, teamOf)).toBe('a');
+    expect(keepFocus('a', { hiddenRows: ['a'], hiddenTeams: [] }, teamOf)).toBeNull();
+    expect(keepFocus('a', { hiddenRows: [], hiddenTeams: ['t1'] }, teamOf)).toBeNull();
+    expect(keepFocus('a', { hiddenRows: ['b'], hiddenTeams: ['t2'] }, teamOf)).toBe('a');
+    expect(keepFocus(null, { hiddenRows: ['a'], hiddenTeams: [] }, teamOf)).toBeNull();
   });
 });

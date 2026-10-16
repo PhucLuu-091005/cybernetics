@@ -459,13 +459,49 @@ test.describe('milestone ticks, chips, hiding and the time zoom', () => {
       ).toBeVisible();
       await page.keyboard.press('Escape');
       await expect(rows).toHaveCount(13);
-      await side.getByRole('button', { name: 'Focus on PG-201 CRS form logic' }).click();
+      const focusPg201 = side.getByRole('button', { name: 'Focus on PG-201 CRS form logic' });
+      await focusPg201.click();
       await expect(rows).toHaveCount(2);
-      await side.getByRole('button', { name: 'Leave focus' }).click();
+      await expect(focusPg201).toHaveAttribute('aria-pressed', 'true');
+      await focusPg201.click();
       await expect(rows).toHaveCount(13);
-      await side.getByRole('button', { name: 'Focus on PG-201 CRS form logic' }).click();
+      await expect(focusPg201).toHaveAttribute('aria-pressed', 'false');
+      await focusPg201.click();
       await page.getByRole('complementary').getByRole('button', { name: 'Leave focus' }).click();
       await expect(rows).toHaveCount(13);
+    });
+
+    await test.step('hiding the team of the focused row ends the focus, and the parent link shows a hidden parent', async () => {
+      const searchBox = page.getByRole('combobox', { name: 'Search work items' });
+      await side.getByRole('button', { name: 'Focus on Analyse the CRS and FATCA rules' }).click();
+      await searchBox.fill('PG-201');
+      await page.keyboard.press('Enter');
+      await expect(page.locator('.drawer h4')).toHaveText('PG-201 CRS form logic');
+      await page.keyboard.press('Escape');
+      await expect(
+        page.getByRole('complementary', { name: 'Focus on Analyse the CRS and FATCA rules' }),
+      ).toBeVisible();
+      await expect(searchBox).toBeFocused();
+      await side.locator('[data-eyeteam="digitization"]').click();
+      await expect(rows).toHaveCount(12);
+      await expect(page.getByRole('complementary')).toHaveCount(0);
+      await page.locator('.hid-menu > summary').click();
+      await page.getByRole('button', { name: 'Unhide Digitization' }).click();
+      await expect(rows).toHaveCount(13);
+      await expect(searchBox).toBeFocused();
+
+      await side.locator('[data-eyerow="crs"]').click();
+      await expect(row('crs')).toHaveCount(0);
+      await side.getByRole('button', { name: 'Focus on Analyse the CRS and FATCA rules' }).click();
+      await page
+        .getByRole('complementary')
+        .getByRole('button', { name: /CRS tax residency section with DealCloud sync/ })
+        .click();
+      await expect(row('crs')).toHaveCount(1);
+      await expect(rows).toHaveCount(6);
+      await page.keyboard.press('Escape');
+      await expect(rows).toHaveCount(13);
+      await expect(page.locator('.hid-menu')).toHaveCount(0);
     });
 
     await test.step('a hidden team and a team with every row hidden take no room, and the badge unhides them', async () => {
@@ -495,6 +531,7 @@ test.describe('milestone ticks, chips, hiding and the time zoom', () => {
       await list.getByRole('button', { name: 'Unhide all' }).click();
       await expect(rows).toHaveCount(13);
       await expect(page.locator('.hid-menu')).toHaveCount(0);
+      await expect(page.getByRole('combobox', { name: 'Search work items' })).toBeFocused();
     });
   });
 });

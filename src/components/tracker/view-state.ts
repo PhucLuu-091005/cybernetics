@@ -92,6 +92,16 @@ export function hiddenList(state: TrackerState, view: ViewState): HiddenList {
   return { teams, items, count: teams.length + items.length };
 }
 
+export function keepFocus(
+  focus: string | null,
+  view: ViewState,
+  teamOf: (id: string) => string | null,
+): string | null {
+  if (!focus || view.hiddenRows.includes(focus)) return null;
+  const team = teamOf(focus);
+  return team && view.hiddenTeams.includes(team) ? null : focus;
+}
+
 const noticeKey = (userId: string) => `promise-graph:main-notice-off:v1:${userId}`;
 
 export function readNoticeOff(store: KeyValueStore | null, userId: string): boolean {

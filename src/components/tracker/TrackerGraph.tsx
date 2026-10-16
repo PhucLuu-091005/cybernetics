@@ -3,6 +3,7 @@ import {
   Fragment,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -222,6 +223,17 @@ export function TrackerGraph(props: Props) {
     setTip({ text, x, y: r.top - box.top, align });
   };
   const hideTip = () => setTip(null);
+  const tipShown = !!tip;
+  useEffect(() => {
+    if (!tipShown) return;
+    const hide = () => setTip(null);
+    // Capture sees the scroll of every container, and any of them moves the mark away from its tip.
+    document.addEventListener('scroll', hide, { capture: true, passive: true });
+    return () => document.removeEventListener('scroll', hide, { capture: true });
+  }, [tipShown]);
+  // Label text measures differ by glyph, so a clip keeps a long label off the buttons.
+  const clipId = `labels-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const labelEnd = X0 - (props.onFocusItem ? 54 : 36);
 
   const run = (target: Element) => {
     const el = target.closest<SVGElement>(TARGETS);
@@ -287,6 +299,9 @@ export function TrackerGraph(props: Props) {
       {...svgProps}
     >
       {bands(0, SIDE)}
+      <clipPath id={clipId}>
+        <rect x={0} y={0} width={labelEnd} height={H} />
+      </clipPath>
       {L.lanes.map((lane) => (
         <Fragment key={lane.teamId}>
           <g className="eye" data-eyeteam={lane.teamId} {...button(lane.eyeLabel)}>
@@ -350,6 +365,7 @@ export function TrackerGraph(props: Props) {
             )}
             x={28}
             y={r.y + 4}
+            clipPath={`url(#${clipId})`}
           >
             {r.label}
             <title>{r.title}</title>
@@ -679,7 +695,7 @@ export function TrackerGraph(props: Props) {
       <div className="gscroll">
         <div className="gframe" ref={frame}>
           {side}
-          <div className="gtime" ref={scroller} onScroll={tip ? hideTip : undefined}>
+          <div className="gtime" ref={scroller}>
             {time}
           </div>
           {rail}

@@ -10,6 +10,20 @@ export type HiddenMenuProps = {
   onUnhideAll: () => void;
 };
 
+const FOCUSABLE = 'input, button, select, a[href], summary, [tabindex="0"]';
+
+/** The menu goes away with the last hidden entry, so the focus moves to a control next to it. */
+function neighbour(details: HTMLElement): HTMLElement | null {
+  for (const step of ['nextElementSibling', 'previousElementSibling'] as const) {
+    for (let el = details[step]; el; el = el[step]) {
+      if (!(el instanceof HTMLElement)) continue;
+      const target = el.matches(FOCUSABLE) ? el : el.querySelector<HTMLElement>(FOCUSABLE);
+      if (target) return target;
+    }
+  }
+  return null;
+}
+
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 export function HiddenMenu({ hidden, onUnhideTeam, onUnhideItem, onUnhideAll }: HiddenMenuProps) {
@@ -25,8 +39,13 @@ export function HiddenMenu({ hidden, onUnhideTeam, onUnhideItem, onUnhideAll }: 
   };
   // The row of the pressed button goes away, so the focus stays in the popup instead of falling to the page.
   const unhide = (run: () => void) => {
+    const fallback = ref.current && neighbour(ref.current);
     run();
-    requestAnimationFrame(() => panel()?.focus({ preventScroll: true }));
+    requestAnimationFrame(() => {
+      const pop = panel();
+      if (pop) pop.focus({ preventScroll: true });
+      else fallback?.focus({ preventScroll: true });
+    });
   };
   return (
     <details
@@ -92,7 +111,7 @@ export function HiddenMenu({ hidden, onUnhideTeam, onUnhideItem, onUnhideAll }: 
           </ul>
         )}
         <div className="hid-foot">
-          <button className="btn sm btn-ink" type="button" onClick={onUnhideAll}>
+          <button className="btn sm btn-ink" type="button" onClick={() => unhide(onUnhideAll)}>
             <Icon name="eye" size={13} /> Unhide all
           </button>
         </div>
