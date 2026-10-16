@@ -233,11 +233,15 @@ test('the change set graph has no edit control, keeps the Review URL and lets an
     'data-ready',
     'true',
   );
-  await region
+  const card = region
     .locator('.ev-card', { hasText: 'Where is the root cause report you promised?' })
-    .locator('.ev-p')
-    .click();
+    .locator('.ev-p');
   const panel = region.getByRole('complementary', { name: /loop panel/i });
+  await card.click();
+  await expect(panel.getByRole('heading', { level: 4 })).toHaveText('Sync incident report');
+  await page.keyboard.press('Escape');
+  await expect(panel).toHaveCount(0);
+  await card.click();
   await expect(panel.getByRole('heading', { level: 4 })).toHaveText('Sync incident report');
   await page.getByRole('heading', { level: 2, name: /Add Sarah's follow-up/ }).click();
   await page.keyboard.press('Escape');

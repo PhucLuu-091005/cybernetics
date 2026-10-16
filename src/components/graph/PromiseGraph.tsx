@@ -34,6 +34,7 @@ import {
   displayLayout,
   displayY,
   fitViewport,
+  focusViewport,
   stackGlyphs,
   type GlyphStack,
   type LaneScale,
@@ -476,7 +477,7 @@ function Graph(props: PromiseGraphProps) {
     },
     [loopsView, flow],
   );
-  // Acts open near 100 %; several acts far apart stop at the reading zoom, centred on their middle.
+  // Acts open at up to 100 %; acts too far apart for the reading zoom open on the earliest one.
   const actsView = useCallback(
     (actIds: readonly string[]): Viewport | null => {
       const glyphs = readingLayout.branches
@@ -484,28 +485,13 @@ function Graph(props: PromiseGraphProps) {
         .filter((glyph) => actIds.includes(glyph.id));
       if (!glyphs.length) return null;
       const half = ACT_NODE_SIZE / 2;
-      const box = {
-        x0: Math.min(...glyphs.map((glyph) => Math.min(glyph.x - half, glyph.card?.x ?? Infinity))),
-        x1: Math.max(
-          ...glyphs.map((glyph) =>
-            Math.max(glyph.x + half, glyph.card ? glyph.card.x + CARD.width : -Infinity),
-          ),
-        ),
-        y0: Math.min(...glyphs.map((glyph) => Math.min(glyph.y - half, glyph.card?.y ?? Infinity))),
-        y1: Math.max(
-          ...glyphs.map((glyph) =>
-            Math.max(glyph.y + half, glyph.card ? glyph.card.y + CARD.height : -Infinity),
-          ),
-        ),
-      };
-      const canvas = sizeNow(),
-        fit = fitViewport(box, canvas, JUMP_PADDING, 1);
-      if (fit.zoom >= JUMP_MIN_ZOOM) return fit;
-      return {
-        zoom: JUMP_MIN_ZOOM,
-        x: canvas.width / 2 - ((box.x0 + box.x1) / 2) * JUMP_MIN_ZOOM,
-        y: canvas.height / 2 - ((box.y0 + box.y1) / 2) * JUMP_MIN_ZOOM,
-      };
+      const boxes = glyphs.map(({ x, y, card }) => ({
+        x0: Math.min(x - half, card?.x ?? Infinity),
+        x1: Math.max(x + half, card ? card.x + CARD.width : -Infinity),
+        y0: Math.min(y - half, card?.y ?? Infinity),
+        y1: Math.max(y + half, card ? card.y + CARD.height : -Infinity),
+      }));
+      return focusViewport(boxes, sizeNow(), JUMP_PADDING, JUMP_MIN_ZOOM, 1);
     },
     [readingLayout, sizeNow],
   );
