@@ -1,6 +1,10 @@
 /* Ported from docs/design/2026-10-16-event-tracker-v8.html. HTML rules sit under .tk because a global
-   stylesheet stays loaded after client navigation; svg.pg is unique to the tracker graph. */
+   stylesheet stays loaded after client navigation; svg.tg is unique to the tracker graph. */
+/* The --change tokens mark what a change request changed; the owner picks their final colour later. */
 :root {
+  --change: #eab308;
+  --change-text: var(--ink);
+  --change-bg: #fde047;
   --teal: #0d9488;
   --teal-bg: #ccfbf1;
   --gray-bg: #f1f1f1;
@@ -14,6 +18,9 @@
   --k-done: #15803d;
 }
 :root[data-theme='dark'] {
+  --change: #facc15;
+  --change-text: var(--ink);
+  --change-bg: #854d0e;
   --teal: #2dd4bf;
   --teal-bg: #042f2e;
   --gray-bg: #1f1f1f;
@@ -28,6 +35,9 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
+    --change: #facc15;
+    --change-text: var(--ink);
+    --change-bg: #854d0e;
     --teal: #2dd4bf;
     --teal-bg: #042f2e;
     --gray-bg: #1f1f1f;
@@ -435,14 +445,68 @@
   flex: 1;
   min-width: 0;
 }
+/* Three columns share one scale: the label column and the milestone rail stay put while the time
+   line scrolls. The frame keeps 900 px so a phone scrolls the whole graph instead of squeezing it. */
+.tk .tgraph {
+  position: relative;
+}
 .tk .gscroll {
   overflow-x: auto;
 }
-.tk .gscroll svg {
-  display: block;
-  width: 100%;
+.tk .gframe {
+  display: flex;
+  align-items: flex-start;
   min-width: 900px;
+}
+.tk .gtime {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.tk .gframe svg {
+  display: block;
+  flex: none;
   height: auto;
+}
+.tk .zoombar {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 3;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--rule);
+  border-radius: 9px;
+  background: var(--panel);
+}
+.tk .zoombar button {
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--ink-2);
+  font: 600 12px/1 var(--f-ui);
+  cursor: pointer;
+}
+.tk .zoombar button svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+.tk .zoombar button:hover:not(:disabled) {
+  background: var(--sunk);
+  color: var(--ink);
+}
+.tk .zoombar button:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 .tk .empty {
   position: absolute;
@@ -498,17 +562,24 @@
   vertical-align: -2px;
   margin-right: 4px;
 }
-.tk .dia {
+.tk .ms-sw {
   display: inline-block;
-  width: 11px;
-  height: 11px;
-  transform: rotate(45deg);
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
   border: 2px solid currentColor;
-  vertical-align: 0;
   margin: 0 4px 0 2px;
 }
-.tk .dia.fill {
+.tk .ms-sw.fill {
   background: currentColor;
+}
+.tk .legend2 .chg {
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--change-bg);
+  color: var(--change-text);
+  font-style: normal;
+  font-weight: 600;
 }
 
 .tk .qtop {
@@ -683,285 +754,311 @@
   opacity: 0.6;
 }
 
-svg.pg {
+svg.tg {
   font-family: var(--f-ui);
   user-select: none;
 }
-svg.pg .lane-band {
+svg.tg .lane-band {
   fill: transparent;
 }
-svg.pg .lane-band.alt {
+svg.tg .lane-band.alt {
   fill: var(--sunk);
 }
-svg.pg .lane-name {
+svg.tg .lane-name {
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.06em;
   fill: var(--ink-2);
   pointer-events: none;
 }
-svg.pg .row-label {
+svg.tg .row-label {
   font-size: 12px;
   fill: var(--ink);
   pointer-events: none;
 }
-svg.pg .row-label.draft {
-  fill: var(--draft);
-  font-weight: 600;
+/* A highlighter stroke painted under the text, like a marker on paper. */
+svg.tg .row-label.changed,
+svg.tg .ms-label.changed {
+  fill: var(--change-text);
+  paint-order: stroke;
+  stroke: var(--change-bg);
+  stroke-width: 9px;
+  stroke-linejoin: round;
 }
-svg.pg .row-label.sel {
+svg.tg .row-label.sel {
   font-weight: 700;
 }
-svg.pg .label-hit {
+svg.tg .label-hit {
   fill: transparent;
   cursor: pointer;
 }
-svg.pg .tick {
+svg.tg .tick {
   font-size: 11px;
   fill: var(--ink-3);
   text-anchor: middle;
 }
-svg.pg .grid {
+svg.tg .grid {
   stroke: var(--rule-2);
 }
-svg.pg .divider {
+svg.tg .divider {
   stroke: var(--rule);
 }
-svg.pg .guide {
+svg.tg .guide {
   stroke: var(--rule);
   stroke-width: 1.5;
 }
-svg.pg .tline {
+svg.tg .tline {
   stroke: var(--ink-3);
   stroke-dasharray: 3 3;
 }
-svg.pg .tpill rect {
+svg.tg .tpill rect {
   fill: var(--ink);
 }
-svg.pg .tpill text {
+svg.tg .tpill text {
   fill: var(--panel);
   font-size: 10.5px;
   font-weight: 600;
   text-anchor: middle;
 }
-svg.pg .trunk {
+svg.tg .trunk {
   stroke: var(--trunk);
   stroke-width: 4;
   stroke-linecap: round;
 }
-svg.pg .trunk-seg {
+svg.tg .trunk-seg {
   stroke-width: 4;
   stroke-linecap: round;
 }
-svg.pg .seg {
+svg.tg .seg {
   stroke-width: 3;
   stroke-linecap: round;
   fill: none;
 }
-svg.pg .stem {
+svg.tg .stem {
   stroke-width: 1.6;
   fill: none;
   opacity: 1;
 }
-svg.pg .link {
+svg.tg .link {
   fill: none;
   stroke-width: 1.6;
 }
-svg.pg .link.wait {
+svg.tg .link.wait {
   stroke-width: 1.4;
   opacity: 0.7;
 }
-svg.pg .stem.ghost,
-svg.pg .link.ghost {
+svg.tg .stem.ghost {
   stroke: var(--ink-3) !important;
+  stroke-dasharray: 3 3;
   opacity: 0.75;
 }
-svg.pg .mslink {
-  fill: none;
-  stroke-width: 1;
-  opacity: 0.28;
-  stroke-linecap: round;
-}
-svg.pg .mslink.sel {
-  opacity: 0.95;
-  stroke-width: 2;
-}
-svg.pg .wait-line {
+svg.tg .wait-line {
   stroke: var(--ink-3);
   stroke-width: 2.5;
   opacity: 0.45;
   stroke-linecap: round;
 }
-svg.pg .wait-text {
+svg.tg .wait-text {
   font-size: 10.5px;
   fill: var(--ink-3);
   font-style: italic;
 }
-svg.pg .hit {
+svg.tg .hit {
   fill: transparent;
   cursor: pointer;
 }
-svg.pg .hit:hover {
+svg.tg .hit:hover {
   fill: color-mix(in srgb, var(--draft) 5%, transparent);
 }
-svg.pg .hit.flash {
+svg.tg .hit.flash {
   fill: color-mix(in srgb, var(--mark) 70%, transparent);
 }
-svg.pg .hit.focus {
+svg.tg .hit.focus {
   fill: color-mix(in srgb, var(--mark) 65%, transparent) !important;
 }
-svg.pg .lane-drop {
+svg.tg .hit.rail-row {
+  pointer-events: none;
+}
+svg.tg .lane-drop {
   fill: transparent;
   pointer-events: none;
 }
-svg.pg .lane-drop-text {
+svg.tg .lane-drop-text {
   display: none;
   font-size: 11px;
   fill: var(--draft);
   font-weight: 600;
   pointer-events: none;
 }
-svg.pg .dim {
+svg.tg .dim {
   opacity: 0.16;
 }
-svg.pg .act {
+svg.tg .act {
   cursor: pointer;
 }
-svg.pg .act .bg {
+svg.tg .act .bg {
   fill: var(--panel);
   stroke-width: 2;
 }
-svg.pg .act .layer {
+svg.tg .act .layer {
   stroke-width: 1.5;
 }
-svg.pg .act .halo {
-  fill: color-mix(in srgb, var(--draft) 16%, transparent);
-  stroke: var(--draft);
+svg.tg .act .halo {
+  fill: color-mix(in srgb, var(--change) 16%, transparent);
+  stroke: var(--change);
   stroke-width: 2;
-  stroke-opacity: 1;
-  stroke-linecap: butt;
-  stroke-dasharray: 3 2.5;
 }
-svg.pg .ms {
+svg.tg .ms {
   cursor: pointer;
 }
-svg.pg .ms:focus-visible {
+svg.tg .ms:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
-svg.pg .ms-hit {
+svg.tg .ms-hit {
   fill: transparent;
 }
-svg.pg .ms-d {
-  stroke-width: 2.5;
+svg.tg .ms-c {
+  stroke-width: 2;
 }
-svg.pg .ms.sel .ms-d {
+svg.tg .ms.sel .ms-c {
   stroke-width: 3.5;
 }
-svg.pg .ms-label {
+/* The panel colour reads white on the light theme's fills and dark on the dark theme's brighter ones. */
+svg.tg .ms-i {
+  fill: none;
+  stroke: var(--panel);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+svg.tg .ms-dot {
+  fill: var(--panel);
+  pointer-events: none;
+}
+svg.tg .ms-label {
   font-size: 11px;
   font-weight: 600;
 }
-svg.pg .ms.glow .ms-d {
+svg.tg .ms.glow .ms-c {
   filter: drop-shadow(0 0 4px var(--draft));
 }
-svg.pg .eye {
+svg.tg .ms-chip {
+  cursor: pointer;
+}
+svg.tg .ms-chip rect {
+  fill: var(--panel);
+  stroke: currentColor;
+  stroke-width: 1;
+}
+svg.tg .ms-chip text {
+  font-size: 9.5px;
+  font-weight: 700;
+  fill: currentColor;
+}
+svg.tg .ms-chip.calm rect {
+  stroke: var(--rule);
+}
+svg.tg .ms-chip.sel rect {
+  stroke-width: 2;
+}
+svg.tg .ms-chip:hover rect {
+  fill: var(--sunk);
+}
+svg.tg .eye {
   cursor: pointer;
   color: var(--ink-3);
 }
-svg.pg .eye:hover {
+svg.tg .eye:hover {
   color: var(--ink);
 }
-svg.pg .eye rect {
+svg.tg .eye rect {
   fill: transparent;
 }
-svg.pg .eye.off {
+svg.tg .eye.off {
   color: var(--draft);
 }
-svg.pg .fold {
+svg.tg .more {
   cursor: pointer;
 }
-svg.pg .fold rect.strip {
+svg.tg .more rect {
   fill: var(--gray-bg);
 }
-svg.pg .fold text {
-  font-size: 10px;
-  fill: var(--ink-3);
-  font-style: italic;
+svg.tg .more text {
+  font-size: 9.5px;
+  font-weight: 600;
+  fill: var(--ink-2);
   pointer-events: none;
 }
-svg.pg .chip {
-  display: inline;
-  padding: 0;
-  border: 0;
-  background: none;
+svg.tg .more:hover rect {
+  fill: var(--rule);
+}
+svg.tg .chip {
   cursor: pointer;
 }
-svg.pg .chip rect {
-  fill: var(--gray-bg);
+svg.tg .chip rect {
+  fill: var(--panel);
   stroke: var(--ink-3);
 }
-svg.pg .chip text {
+svg.tg .chip text {
   font-size: 10px;
   fill: var(--ink-2);
-  font-weight: 600;
+  font-weight: 700;
+  pointer-events: none;
 }
-svg.pg .plus {
+svg.tg .chip:hover rect {
+  fill: var(--gray-bg);
+}
+svg.tg .plus {
   cursor: pointer;
 }
-svg.pg .plus circle {
+svg.tg .plus circle {
   fill: var(--panel);
   stroke: var(--draft);
   stroke-width: 1.5;
   stroke-dasharray: 3 2;
 }
-svg.pg .plus path {
+svg.tg .plus path {
   stroke: var(--draft);
   stroke-width: 2;
   stroke-linecap: round;
 }
-svg.pg .plus:hover circle {
+svg.tg .plus:hover circle {
   fill: var(--draft-bg);
   stroke-dasharray: none;
 }
-svg.pg .pill {
+svg.tg .pill {
   display: inline;
   padding: 0;
   background: none;
   cursor: pointer;
 }
-svg.pg .pill rect {
+svg.tg .pill rect {
   fill: var(--draft-bg);
 }
-svg.pg .pill text {
+svg.tg .pill text {
   font-size: 10.5px;
   font-weight: 600;
   fill: var(--draft);
 }
-svg.pg .due {
+svg.tg .goal {
   cursor: pointer;
 }
-svg.pg .due-hit {
+svg.tg .goal-hit {
   fill: transparent;
 }
-svg.pg .due-bar {
+svg.tg .goal-bar {
   stroke-width: 3.2;
   stroke-linecap: round;
 }
-svg.pg .due:hover .due-bar,
-svg.pg .due:focus .due-bar {
+svg.tg .goal:hover .goal-bar,
+svg.tg .goal:focus .goal-bar {
   stroke-width: 4.4;
 }
-/* The date text and the ghost take no pointer, so they never block a click on an event or the row. */
-svg.pg .due-ghost {
-  stroke: var(--ink-3);
-  stroke-width: 2.4;
-  stroke-linecap: round;
-  opacity: 0.35;
-  pointer-events: none;
-}
-/* The date can sit on an event of the same day; the halo keeps both readable. */
-svg.pg .due-date {
+/* The date takes no pointer, so it never blocks a click on an event or the row; its halo keeps it
+   readable over an event of the same day. */
+svg.tg .goal-date {
   font-size: 9.5px;
   font-weight: 600;
   pointer-events: none;
@@ -1082,6 +1179,86 @@ svg.pg .due-date {
 .tk .moves li small {
   color: var(--ink-3);
   font-size: 11.5px;
+}
+.tk .stack-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.tk .stack-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+.tk .stack-ev {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 6px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 9px;
+  background: var(--panel);
+  color: var(--ink);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.tk .stack-ev:hover {
+  border-color: var(--ink-3);
+}
+.tk .stack-ev .sk {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+}
+.tk .stack-ev .st {
+  min-width: 0;
+  display: grid;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+.tk .stack-ev .st small {
+  color: var(--ink-3);
+  font-size: 11.5px;
+}
+.tk .stack-ev .st > span {
+  color: var(--ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tk .stack-acts {
+  display: grid;
+  gap: 2px;
+}
+.tk .stack-acts .ib {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 22px;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.tk .stack-acts .ib:hover {
+  border-color: var(--ink-3);
+  color: var(--ink);
+}
+.tk .stack-acts .ib.danger {
+  color: var(--danger);
 }
 .tk .drawer {
   position: absolute;
@@ -1477,42 +1654,39 @@ svg.pg .due-date {
 .tk .qc {
   cursor: grab;
 }
-svg.pg .act,
-svg.pg .label-hit {
+svg.tg .act,
+svg.tg .label-hit {
   cursor: grab;
   touch-action: none;
 }
-svg.pg .due {
-  touch-action: none;
-}
-svg.pg .ms {
+svg.tg .ms {
   cursor: ew-resize;
   touch-action: none;
 }
-svg.pg .act.lift {
+svg.tg .act.lift {
   opacity: 0.3;
 }
 .tk.drag-due,
-.tk.drag-due svg.pg .due {
+.tk.drag-due svg.tg .ms {
   cursor: ew-resize;
 }
-.tk.moving svg.pg .hit {
+.tk.moving svg.tg .hit {
   fill: color-mix(in srgb, var(--draft) 6%, transparent);
 }
-svg.pg .hit.glow,
-svg.pg .lane-drop.glow {
+svg.tg .hit.glow,
+svg.tg .lane-drop.glow {
   fill: color-mix(in srgb, var(--draft) 18%, transparent) !important;
   stroke: var(--draft);
   stroke-width: 2;
 }
-.tk.drag-email svg.pg .lane-drop,
-.tk.drag-qitem svg.pg .lane-drop {
+.tk.drag-email svg.tg .lane-drop,
+.tk.drag-qitem svg.tg .lane-drop {
   fill: color-mix(in srgb, var(--draft) 6%, transparent);
   stroke: var(--draft);
   stroke-opacity: 0.5;
 }
-.tk.drag-email svg.pg .lane-drop-text,
-.tk.drag-qitem svg.pg .lane-drop-text {
+.tk.drag-email svg.tg .lane-drop-text,
+.tk.drag-qitem svg.tg .lane-drop-text {
   display: block;
 }
 /* Sticky, so the bin and the hint stay on screen while a tall graph scrolls with the page. */

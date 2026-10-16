@@ -78,7 +78,7 @@ import { Pop, type PopTarget } from './Pops';
 import { QueuePanel, type QueueTab } from './QueuePanel';
 import { Toast, type ToastState } from './Toast';
 import { TopBar } from './TopBar';
-import { Legend, TrackerGraph, type DatePreview } from './TrackerGraph';
+import { Legend, TrackerGraph, type DatePreview, type Reveal } from './TrackerGraph';
 import {
   browserStore,
   EMPTY_VIEW,
@@ -158,7 +158,7 @@ export const NO_ACTIONS: TrackerActions = {
 export const POLL_MS = 5000;
 // The prototype keeps a pop open for clicks in these areas; the graph closes it on its own background.
 const OUTSIDE_EXEMPT =
-  '.p-head, .bbar, .pop, .drawer, .p-side, .empty, svg.pg, .tk-modal, .tk-toast';
+  '.p-head, .bbar, .pop, .drawer, .p-side, .empty, svg.tg, .tk-modal, .tk-toast';
 const MINUTE = 60_000;
 
 export function parseView(raw: string | null, crs: readonly Cr[]): TrackerView {
@@ -293,7 +293,8 @@ export function TrackerScreen({
   const [drawer, setDrawer] = useState<Drawer | null>(null);
   const [pop, setPop] = useState<(PopTarget & { view: TrackerView }) | null>(null);
   const [filter, setFilter] = useState<Filter>(NO_FILTER);
-  const [flash, setFlash] = useState<string | null>(null);
+  const [inView, setInView] = useState<Reveal | null>(null);
+  const [zoom, setZoom] = useState(1);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [modal, setModal] = useState<{ key: number; state: ModalState } | null>(null);
   // A counter, so the first of two writes in flight does not clear busy for the second.
@@ -318,12 +319,6 @@ export function TrackerScreen({
     [],
   );
   const closeToast = useCallback(() => setToast(null), []);
-
-  useEffect(() => {
-    if (!flash) return;
-    const timer = setTimeout(() => setFlash(null), 1400);
-    return () => clearTimeout(timer);
-  }, [flash]);
 
   const openModal = (next: ModalState) => {
     modalKey.current += 1;
@@ -377,11 +372,12 @@ export function TrackerScreen({
           hiddenTeams: new Set(hidden.hiddenTeams),
           asOf,
           timeZone: tz,
+          zoom,
           ...(project.windowStart ? { windowStart: project.windowStart } : {}),
         },
         current.marks,
       ),
-    [state, hidden, asOf, tz, project.windowStart, current.marks],
+    [state, hidden, asOf, tz, zoom, project.windowStart, current.marks],
   );
   // Pointer handlers outlive the render that started a drag, and a poll can land in between.
   const live = useRef<{ payload: TrackerPayload; state: TrackerState; layout: TrackerLayout }>({
@@ -851,10 +847,9 @@ export function TrackerScreen({
     const t = event.target as Element;
     const qe = t.closest<HTMLElement>('[data-qevent]');
     const qi = t.closest<HTMLElement>('[data-qitem]');
-    const graph = t.closest('svg.pg');
+    const graph = t.closest('svg.tg');
     const act = graph && t.closest<SVGElement>('[data-act]');
     const label = graph && t.closest<SVGElement>('[data-rowlabel]');
-    const due = graph && t.closest<SVGElement>('[data-due]');
     const ms = graph && t.closest<SVGElement>('[data-ms]');
     if (qe?.dataset.qevent) {
       const ev = state.queue.events.find((x) => x.id === qe.dataset.qevent);
@@ -920,8 +915,7 @@ export function TrackerScreen({
           ghost: <div className="grow">{trunc(item.title, 30)}</div>,
         },
       );
-    } else if (due?.dataset.due) dragDate(event, 'item', due.dataset.due, due);
-    else if (ms?.dataset.ms) dragDate(event, 'ms', ms.dataset.ms, ms);
+    } else if (ms?.dataset.ms) dragDate(event, 'ms', ms.dataset.ms, ms);
   };
 
   const base = { session, state, asOf, busy, onClose: () => setDrawer(null) };
@@ -978,31 +972,31 @@ export function TrackerScreen({
               {moving && 'Click the work item where this event belongs. Press Esc to cancel.'}
             </div>
           </div>
-          <div className="gscroll">
-            <TrackerGraph
-              layout={layout}
-              edit={edit}
-              selectedMs={drawer?.mode === 'ms' ? drawer.id : null}
-              flash={flash}
-              dimmed={dimmed}
-              lifted={drag?.lifted ?? null}
-              preview={preview}
-              moving={!!moving}
-              onMoveTo={onMoveTo}
-              onToggleRow={toggleRow}
-              onToggleTeam={toggleTeam}
-              onReveal={reveal}
-              onPop={(kind, id, anchor) => setPop({ kind, id, anchor, view })}
-              onMilestone={(id) => {
-                setPop(null);
-                setDrawer({ mode: 'ms', id });
-              }}
-              onAddEvent={actions.addEvent}
-              onNewMilestone={actions.newMilestone}
-              onNewTeam={actions.newTeam}
-              onBackground={() => setPop(null)}
-            />
-          </div>
+          <TrackerGraph
+            layout={layout}
+            edit={edit}
+            selectedMs={drawer?.mode === 'ms' ? drawer.id : null}
+            flash={null}
+            dimmed={dimmed}
+            lifted={drag?.lifted ?? null}
+            preview={preview}
+            moving={!!moving}
+            reveal={inView}
+            onZoom={setZoom}
+            onMoveTo={onMoveTo}
+            onToggleRow={toggleRow}
+            onToggleTeam={toggleTeam}
+            onReveal={reveal}
+            onPop={(kind, id, anchor) => setPop({ kind, id, anchor, view })}
+            onMilestone={(id) => {
+              setPop(null);
+              setDrawer({ mode: 'ms', id });
+            }}
+            onAddEvent={actions.addEvent}
+            onNewMilestone={actions.newMilestone}
+            onNewTeam={actions.newTeam}
+            onBackground={() => setPop(null)}
+          />
           <div className="bin" aria-hidden="true">
             <Icon name="trash" size={16} /> Drop here to hide or remove
           </div>
@@ -1015,6 +1009,7 @@ export function TrackerScreen({
               dir={dir}
               tz={tz}
               asOf={asOf}
+              edit={edit}
               actions={actions}
               onClose={() => closePop(true)}
               onHideRow={toggleRow}
@@ -1027,7 +1022,7 @@ export function TrackerScreen({
               onFilter={setFilter}
               hiddenRows={hidden.hiddenRows}
               onToggleRow={toggleRow}
-              onFlash={setFlash}
+              onFlash={(id) => setInView((r) => ({ rowId: id, key: (r?.key ?? 0) + 1 }))}
             />
           )}
           {drawer?.mode === 'ms' && (

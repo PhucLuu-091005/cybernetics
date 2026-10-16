@@ -2,7 +2,6 @@ import {
   addDays,
   compareDay,
   dayOf,
-  GEOMETRY,
   startOfDayInstant,
   type Point,
   type TrackerLayout,
@@ -29,14 +28,13 @@ export type DropAction =
   | { kind: 'dismiss'; id: string }
   | { kind: 'hint'; text: string };
 
-const { X1 } = GEOMETRY;
 // The hit boxes that TrackerGraph draws: the milestone `ms-hit`, the row `hit` and the lane `lane-drop`.
 const MS_HIT = 15;
 // The label is part of the milestone group, so the prototype drops on its 11 px text too.
 const LABEL_UP = 11;
 const LABEL_DOWN = 3;
 const ROW_X0 = 22;
-const ROW_X1 = X1 + 8;
+const ROW_PAST_END = 8;
 const ROW_HALF = 15;
 const SIDEWAYS = 40;
 const HOUR = 3_600_000;
@@ -60,7 +58,7 @@ export function targetAt(layout: TrackerLayout, p: Point): DropTarget | null {
   const drop = layout.laneDrops.find((d) => inBox(p, d));
   if (drop) return { type: 'lane', teamId: drop.teamId };
   const row = layout.rows.find(
-    (r) => r.fold === null && p.x >= ROW_X0 && p.x <= ROW_X1 && Math.abs(p.y - r.y) <= ROW_HALF,
+    (r) => p.x >= ROW_X0 && p.x <= layout.x1 + ROW_PAST_END && Math.abs(p.y - r.y) <= ROW_HALF,
   );
   if (row) return { type: 'loop', id: row.id };
   const lane = layout.lanes.find((l) => p.y >= l.top && p.y < l.bottom);
@@ -133,7 +131,7 @@ export function dropAction(
 }
 
 export function noonX(layout: TrackerLayout, date: string, tz: string): number {
-  return Math.min(X1 - 4, layout.x(Date.parse(startOfDayInstant(date, tz)) + 12 * HOUR));
+  return Math.min(layout.x1 - 4, layout.x(Date.parse(startOfDayInstant(date, tz)) + 12 * HOUR));
 }
 
 /** The first and last day of the window stay out of reach, as in the prototype. */
@@ -163,9 +161,11 @@ export function targetUnder(
   const el = document.elementFromPoint(clientX, clientY);
   if (!el || !root.contains(el)) return null;
   if (el.closest('.bin')) return { type: 'bin' };
-  const svg = el.closest('svg.pg');
+  const svg = el.closest('svg.tg');
   if (!(svg instanceof SVGSVGElement)) return null;
-  return targetAt(layout, svgPoint(svg, clientX, clientY));
+  const p = svgPoint(svg, clientX, clientY);
+  // The rail has its own x axis; any point on it lies past the right end of the time line.
+  return targetAt(layout, svg.classList.contains('pg-rail') ? { x: layout.x1, y: p.y } : p);
 }
 
 export function markTarget(root: Element, target: DropTarget | null, from: string | null) {
