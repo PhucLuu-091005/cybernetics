@@ -176,7 +176,7 @@ function admit(
 
 function requireRevision(cr: CrRow, expected: number) {
   if (cr.revision !== expected)
-    throw new AppError('CONFLICT', `#${cr.num} changed. Reload it and try again.`, {
+    throw new AppError('CONFLICT', `#${cr.num} changed since you saw it. Check it and try again.`, {
       details: { revision: cr.revision, status: cr.status },
     });
 }
