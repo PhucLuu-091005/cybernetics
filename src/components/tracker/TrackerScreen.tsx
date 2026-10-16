@@ -1066,7 +1066,6 @@ export function TrackerScreen({
       />
       {showNotice && (
         <MainNotice
-          onNewCr={actions.newCr}
           onClose={() => setNoticeClosed(true)}
           onNeverAgain={() => {
             setNoticeOff(true);

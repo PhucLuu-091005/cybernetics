@@ -474,6 +474,12 @@
    line scrolls. The frame keeps 900 px so a phone scrolls the whole graph instead of squeezing it. */
 .tk .tgraph {
   position: relative;
+  display: flex;
+  flex-direction: column;
+}
+/* The graph fills the canvas, so the zoom controls float at its bottom right even under a short graph. */
+.tk .gcanvas > .tgraph {
+  min-height: 100%;
 }
 .tk .gscroll {
   overflow-x: auto;
@@ -494,17 +500,26 @@
   flex: none;
   height: auto;
 }
+/* Sticky in a band of its own below the graph, so at the end of the scroll it covers no row. */
 .tk .zoombar {
-  position: absolute;
-  top: 4px;
-  right: 6px;
+  position: sticky;
+  bottom: 12px;
   z-index: 3;
+  align-self: flex-end;
+  margin: auto 12px 12px;
+  box-shadow: var(--shadow);
   display: flex;
   gap: 2px;
   padding: 2px;
   border: 1px solid var(--rule);
   border-radius: 9px;
   background: var(--panel);
+}
+/* An open drawer covers the right of the graph, so the zoom controls move to its left. */
+@media (min-width: 761px) {
+  .tk .gwrap:has(> .drawer-slot) .zoombar {
+    margin-right: calc(min(380px, 100%) + 12px);
+  }
 }
 .tk .zoombar button {
   display: grid;
