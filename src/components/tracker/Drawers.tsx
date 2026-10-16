@@ -206,14 +206,17 @@ export function MilestoneDrawer({
 }: Base & { milestoneId: string; edit: boolean; actions: TrackerActions }) {
   const { dir, tz } = session;
   const m = state.milestones.find((x) => x.id === milestoneId);
-  const [name, setName] = useState(m?.name ?? '');
-  const [date, setDate] = useState(m?.planned ?? '');
+  // Null until the editor types, so a hand-over or a poll shows the current milestone, not a stale copy.
+  const [draft, setDraft] = useState<{ name: string; date: string } | null>(null);
+  const [adding, setAdding] = useState('');
   if (!m) return null;
   const { status, members } = milestoneStatus(m, state.workItems, state.events, asOf, tz);
   const team = (id: string) => state.teams.find((t) => t.id === id)?.name ?? '';
+  const name = edit && draft ? draft.name : m.name;
+  const date = edit && draft ? draft.date : m.planned;
   const unchanged = name === m.name && date === m.planned;
-  const shownName = edit ? name : m.name;
-  const shownDate = edit ? date : m.planned;
+  const outside = state.workItems.filter((w) => w.milestoneId !== m.id);
+  const pick = adding && outside.some((w) => w.id === adding) ? adding : (outside[0]?.id ?? '');
   return (
     <Frame
       label={m.name}
@@ -240,18 +243,18 @@ export function MilestoneDrawer({
       <label className="field">
         Name
         <input
-          value={shownName}
+          value={name}
           disabled={!edit}
-          onChange={(event) => setName(event.target.value)}
+          onChange={(event) => setDraft({ name: event.target.value, date })}
         />
       </label>
       <label className="field">
         Planned date
         <input
           type="date"
-          value={shownDate}
+          value={date}
           disabled={!edit}
-          onChange={(event) => event.target.value && setDate(event.target.value)}
+          onChange={(event) => event.target.value && setDraft({ name, date: event.target.value })}
         />
       </label>
       {edit ? (
@@ -300,6 +303,29 @@ export function MilestoneDrawer({
           </div>
         );
       })}
+      {edit && outside.length > 0 && (
+        <div className="share-add">
+          <select
+            aria-label="Work item to add"
+            value={pick}
+            onChange={(event) => setAdding(event.target.value)}
+          >
+            {outside.map((w) => (
+              <option key={w.id} value={w.id}>
+                {trunc(w.title, 44)}
+              </option>
+            ))}
+          </select>
+          <button
+            className="btn"
+            type="button"
+            disabled={!pick}
+            onClick={() => actions.addToMilestone(pick, m.id)}
+          >
+            <Icon name="plus" /> Add
+          </button>
+        </div>
+      )}
     </Frame>
   );
 }

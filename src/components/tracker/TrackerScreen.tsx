@@ -9,20 +9,62 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from 'react';
 import {
   crState,
+  formatDay,
+  KIND_LABEL,
   layoutTracker,
   mainState,
+  replayOps,
   toInstant,
   type Cr,
+  type CrPermission,
+  type EventKind,
   type Marks,
+  type Op,
+  type TrackerLayout,
   type TrackerPayload,
   type TrackerState,
 } from '../../tracker';
-import { actAs, getTracker } from './api';
+import {
+  actAs,
+  addToQueue,
+  appendOp,
+  createCr,
+  crAction,
+  dismissQueueEntry,
+  getTracker,
+  removeOp,
+  type ApiResult,
+  type CrAction,
+  type OpInput,
+  type QueueEntry,
+} from './api';
 import { makeDirectory } from './avatar';
-import { byNumDesc, canEditCr, ContextBar, myDrafts, roleIn, type Session } from './ContextBar';
+import {
+  byNumDesc,
+  canEditCr,
+  ContextBar,
+  myDrafts,
+  roleIn,
+  trunc,
+  type Session,
+} from './ContextBar';
+import {
+  dayAtX,
+  dropAction,
+  markTarget,
+  noonX,
+  retarget,
+  svgPoint,
+  targetUnder,
+  trackPointer,
+  type DragSource,
+  type DropTarget,
+} from './drag';
 import {
   ChangesDrawer,
   HistoryDrawer,
@@ -33,11 +75,13 @@ import {
   WorkListDrawer,
   type Filter,
 } from './Drawers';
-import { Icon } from './icons';
+import { Icon, KIND_COLOR, KindIcon } from './icons';
+import { Modal, type ModalHandlers, type ModalState } from './Modals';
 import { Pop, type PopTarget } from './Pops';
-import { QueuePanel } from './QueuePanel';
+import { QueuePanel, type QueueTab } from './QueuePanel';
+import { Toast, type ToastState } from './Toast';
 import { TopBar } from './TopBar';
-import { Legend, TrackerGraph } from './TrackerGraph';
+import { Legend, TrackerGraph, type DatePreview } from './TrackerGraph';
 import {
   browserStore,
   EMPTY_VIEW,
@@ -71,12 +115,15 @@ export type TrackerActions = {
   markDone: (workItemId: string) => void;
   moveDate: (target: DateTarget) => void;
   rename: (workItemId: string) => void;
+  saveRename: (workItemId: string, title: string) => void;
   changeKind: (eventId: string) => void;
+  setKind: (eventId: string, kind: EventKind) => void;
   moveEvent: (eventId: string) => void;
   hideEvent: (eventId: string) => void;
   newMilestone: () => void;
   saveMilestone: (milestoneId: string, name: string, date: string) => void;
   removeFromMilestone: (workItemId: string) => void;
+  addToMilestone: (workItemId: string, milestoneId: string) => void;
 };
 
 const noop = () => {};
@@ -98,17 +145,21 @@ export const NO_ACTIONS: TrackerActions = {
   markDone: noop,
   moveDate: noop,
   rename: noop,
+  saveRename: noop,
   changeKind: noop,
+  setKind: noop,
   moveEvent: noop,
   hideEvent: noop,
   newMilestone: noop,
   saveMilestone: noop,
   removeFromMilestone: noop,
+  addToMilestone: noop,
 };
 
 export const POLL_MS = 5000;
 // The prototype keeps a pop open for clicks in these areas; the graph closes it on its own background.
-const OUTSIDE_EXEMPT = '.p-head, .bbar, .pop, .drawer, .p-side, .empty, svg.pg';
+const OUTSIDE_EXEMPT =
+  '.p-head, .bbar, .pop, .drawer, .p-side, .empty, svg.pg, .tk-modal, .tk-toast';
 const MINUTE = 60_000;
 
 export function parseView(raw: string | null, crs: readonly Cr[]): TrackerView {
@@ -178,7 +229,7 @@ const everyHalfMinute = (onChange: () => void) => {
 };
 const minuteNow = () => Math.floor(Date.now() / MINUTE) * MINUTE;
 // Hydration renders with the server's minute, so the T line matches the server HTML; the client clock takes over after.
-const useNow = (serverNow: number) =>
+export const useNow = (serverNow: number) =>
   useSyncExternalStore(everyHalfMinute, minuteNow, () => serverNow);
 
 type Current = { state: TrackerState; marks?: Marks };
@@ -191,6 +242,33 @@ function currentState(payload: TrackerPayload, cr: Cr | null): Current {
   return crState(payload.base, payload.queue, payload.commits, cr, payload.project.timeZone);
 }
 
+const crByNum = (p: TrackerPayload, num: number) => p.crs.find((c) => c.num === num);
+const withoutNum = (data: TrackerPayload & { num?: number }): TrackerPayload => {
+  const copy = { ...data };
+  delete copy.num;
+  return copy;
+};
+
+/** An op that no longer fits the view the editor sees would come back as a 400; check it here first. */
+function fits(state: TrackerState, ops: readonly OpInput[], tz: string) {
+  const replay = replayOps(
+    state,
+    ops.map((op) => ({ ...op, rev: 0, by: 'me' }) as Op),
+    tz,
+  );
+  return replay.entries.every((e) => !e.skipped);
+}
+
+type EditorAction = Exclude<CrAction, { action: 'merge' | 'request-changes' | 'close' }>;
+type DragView = {
+  cls: string;
+  items: boolean;
+  ghost: ReactNode;
+  x: number;
+  y: number;
+  lifted: string | null;
+};
+
 export function TrackerScreen({
   payload: initial,
   projectId,
@@ -202,7 +280,6 @@ export function TrackerScreen({
   serverNow: number;
 }) {
   const { payload, view, setPayload, setView } = useTracker(initial, projectId);
-  const actions = NO_ACTIONS;
   const { project } = payload;
   const tz = project.timeZone;
   const now = useNow(serverNow);
@@ -221,6 +298,7 @@ export function TrackerScreen({
     [projectId, payload, me, isOwner, dir, tz],
   );
   const edit = !!cr && canEditCr(cr, me);
+  const ownerName = dir.name(project.ownerMemberId);
 
   const [hidden, setHidden] = useState<ViewState>(EMPTY_VIEW);
   useLayoutEffect(() => {
@@ -237,24 +315,49 @@ export function TrackerScreen({
   const [pop, setPop] = useState<(PopTarget & { view: TrackerView }) | null>(null);
   const [filter, setFilter] = useState<Filter>(NO_FILTER);
   const [flash, setFlash] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ text: string; at: number } | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const [modal, setModal] = useState<{ key: number; state: ModalState } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [drag, setDrag] = useState<DragView | null>(null);
+  const [preview, setPreview] = useState<DatePreview | null>(null);
+  const [moving, setMoving] = useState<{ eventId: string; from: string } | null>(null);
+  const [addedPop, setAddedPop] = useState<string | null>(null);
+  const [queueTab, setQueueTab] = useState<QueueTab>('events');
+  const root = useRef<HTMLDivElement>(null);
   const gwrap = useRef<HTMLDivElement>(null);
+  const ghost = useRef<HTMLDivElement>(null);
+  const suppress = useRef(false);
+  const modalKey = useRef(0);
 
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 4500);
-    return () => clearTimeout(timer);
-  }, [toast]);
+  const showToast = useCallback(
+    (text: string, undo?: () => void) =>
+      setToast({ text, at: Date.now(), ...(undo ? { undo } : {}) }),
+    [],
+  );
+  const closeToast = useCallback(() => setToast(null), []);
+
   useEffect(() => {
     if (!flash) return;
     const timer = setTimeout(() => setFlash(null), 1400);
     return () => clearTimeout(timer);
   }, [flash]);
 
+  const openModal = (next: ModalState) => {
+    modalKey.current += 1;
+    setModal({ key: modalKey.current, state: next });
+    setPop(null);
+    if (next.mode !== 'due') setPreview(null);
+  };
+  const closeModal = useCallback(() => {
+    setModal(null);
+    setPreview(null);
+  }, []);
+
   const shownPop = pop && pop.view === view ? pop : null;
   const closePop = useCallback(
     (focusAnchor: boolean) => {
-      if (focusAnchor && pop?.anchor instanceof SVGElement) pop.anchor.focus();
+      if (focusAnchor && pop?.anchor instanceof SVGElement && pop.anchor.isConnected)
+        pop.anchor.focus();
       setPop(null);
     },
     [pop],
@@ -263,13 +366,15 @@ export function TrackerScreen({
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       if (document.querySelector('.tk details[open]')) return;
-      if (shownPop) closePop(true);
+      if (modal) closeModal();
+      else if (moving) setMoving(null);
+      else if (shownPop) closePop(true);
       else if (drawer) setDrawer(null);
     };
     // Capture runs before the view menu's own Escape handler closes it, so one Esc closes one layer.
     document.addEventListener('keydown', onKey, { capture: true });
     return () => document.removeEventListener('keydown', onKey, { capture: true });
-  }, [shownPop, drawer, closePop]);
+  }, [modal, moving, shownPop, drawer, closePop, closeModal]);
   useEffect(() => {
     if (!shownPop) return;
     const onClick = (event: MouseEvent) => {
@@ -295,6 +400,25 @@ export function TrackerScreen({
       ),
     [state, hidden, asOf, tz, project.windowStart, current.marks],
   );
+  // Pointer handlers outlive the render that started a drag, and a poll can land in between.
+  const live = useRef<{ payload: TrackerPayload; state: TrackerState; layout: TrackerLayout }>({
+    payload,
+    state,
+    layout,
+  });
+  useLayoutEffect(() => {
+    live.current = { payload, state, layout };
+  });
+
+  // An attached event gets its pop only after the payload with it has rendered.
+  useLayoutEffect(() => {
+    if (!addedPop) return;
+    const anchor = gwrap.current?.querySelector(`svg.pg [data-act="${addedPop}"]`);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAddedPop(null);
+    if (anchor) setPop({ kind: 'added', id: addedPop, anchor, view });
+  }, [addedPop, payload, view]);
+
   const hiddenCount =
     hidden.hiddenRows.filter((id) => state.workItems.some((w) => w.id === id)).length +
     hidden.hiddenTeams.filter((id) => state.teams.some((t) => t.id === id)).length;
@@ -307,6 +431,7 @@ export function TrackerScreen({
 
   const openView = (next: TrackerView) => {
     setPop(null);
+    setMoving(null);
     if (drawer?.mode === 'ms' || drawer?.mode === 'changes') setDrawer(null);
     setView(next);
   };
@@ -327,10 +452,248 @@ export function TrackerScreen({
       revealRows(hidden, ids, (id) => state.workItems.find((w) => w.id === id)?.teamId ?? null),
     );
 
+  // A 409 means someone wrote first: read once and retry once before the toast.
+  const write = async <T extends TrackerPayload>(
+    run: (p: TrackerPayload) => Promise<ApiResult<T>>,
+  ): Promise<T | null> => {
+    setBusy(true);
+    try {
+      let result = await run(live.current.payload);
+      if (!result.ok && result.error.status === 409) {
+        const fresh = await getTracker(projectId);
+        if (fresh.ok) {
+          setPayload(fresh.data);
+          live.current = { ...live.current, payload: fresh.data };
+          result = await run(fresh.data);
+        }
+      }
+      if (!result.ok) {
+        showToast(result.error.message);
+        return null;
+      }
+      const next = withoutNum(result.data);
+      setPayload(next);
+      live.current = { ...live.current, payload: next };
+      return result.data;
+    } finally {
+      setBusy(false);
+    }
+  };
+  const revisionOf = (p: TrackerPayload, num: number) => crByNum(p, num)?.revision ?? 0;
+  /** `seen` sends the revision the editor sees, so ready and edit again act on the changes on screen. */
+  const action = (num: number, body: EditorAction, seen = false) =>
+    write((p) =>
+      crAction(projectId, num, seen ? { ...body, expectedRevision: revisionOf(p, num) } : body),
+    );
+
+  const undoLast = (num: number) =>
+    void write((p) => removeOp(projectId, num, 'last', revisionOf(p, num)));
+
+  const appendAll = async (num: number, ops: readonly OpInput[]) => {
+    let last: TrackerPayload | null = null;
+    for (const op of ops) {
+      last = await write((p) => appendOp(projectId, num, op, revisionOf(p, num)));
+      if (!last) return null;
+    }
+    const d = last && crByNum(last, num)?.ops.at(-1)?.d;
+    if (d) showToast(`${d.item}: ${d.change}.`, () => undoLast(num));
+    return last;
+  };
+
+  /** Spec 2.11: a change on a view the person cannot edit waits in "read-only" until they pick a CR. */
+  const commitOps = (ops: OpInput[], after?: { added?: string }) => {
+    if (!ops.length) return;
+    setPop(null);
+    setMoving(null);
+    if (cr && edit) {
+      if (!fits(state, ops, tz)) {
+        showToast('That change does not fit this graph.');
+        return;
+      }
+      closeModal();
+      void appendAll(cr.num, ops).then((p) => {
+        if (p && after?.added) setAddedPop(after.added);
+      });
+      return;
+    }
+    const earlier = modal?.state.mode === 'readonly' ? modal.state.pending : [];
+    openModal({ mode: 'readonly', pending: [...earlier, ...ops] });
+  };
+
+  const onCreateCr = async (title: string, pending: OpInput[]) => {
+    closeModal();
+    const created = await write(() =>
+      createCr(projectId, { title, ...(pending.length ? { ops: pending } : {}) }),
+    );
+    if (!created) return;
+    setDrawer(null);
+    setView(created.num);
+    if (pending.length)
+      showToast(
+        `#${created.num} is open with your change. Main stays the same until ${ownerName} merges it.`,
+        () => undoLast(created.num),
+      );
+    else showToast(`#${created.num} is open. Main stays the same until ${ownerName} merges it.`);
+  };
+
+  const onAddToCr = (num: number, pending: OpInput[]) => {
+    closeModal();
+    setView(num);
+    void appendAll(num, pending);
+  };
+
+  const onEditAgain = async (pending: OpInput[]) => {
+    if (!cr) return;
+    const num = cr.num;
+    closeModal();
+    const done = await action(num, { action: 'unready' }, true);
+    if (!done) return;
+    if (pending.length) await appendAll(num, pending);
+    else showToast(`#${num} is a draft again. Mark it as ready when you finish.`);
+  };
+
+  const onAsk = async () => {
+    if (!cr) return;
+    closeModal();
+    if (await action(cr.num, { action: 'ask' }))
+      showToast(
+        `Asked ${dir.name(cr.editor)}. You can edit after ${dir.first(cr.editor)} hands over.`,
+      );
+  };
+
+  const onHandOver = async (to: string) => {
+    if (!cr) return;
+    closeModal();
+    if (await action(cr.num, { action: 'handover', to }))
+      showToast(`${dir.name(to)} edits #${cr.num} now. Ask to edit when you want it back.`);
+  };
+
+  const onShare = async (memberId: string, permission: CrPermission | 'remove') => {
+    if (!cr) return;
+    const added = !cr.shares.some((s) => s.memberId === memberId);
+    const done = await action(cr.num, { action: 'share', memberId, permission });
+    if (done && added && permission !== 'remove')
+      showToast(`${dir.name(memberId)} can ${permission} #${cr.num}. Send them the link.`);
+  };
+
+  const onMarkReady = async () => {
+    if (!cr || !edit) return;
+    const num = cr.num;
+    if (!(await action(num, { action: 'ready' }, true))) return;
+    setDrawer(null);
+    showToast(`#${num} is ready. ${ownerName} can merge it now.`, () => {
+      void action(num, { action: 'unready' }, true);
+    });
+  };
+
+  const onDismiss = async (queueId: string) => {
+    closeModal();
+    if (await write(() => dismissQueueEntry(projectId, queueId)))
+      showToast('Removed from the queue.');
+  };
+
+  const onAddToQueue = async (entry: QueueEntry) => {
+    closeModal();
+    if (!(await write(() => addToQueue(projectId, entry)))) return;
+    setQueueTab(entry.kind === 'event' ? 'events' : 'items');
+    showToast('Added to the queue. Everyone in the project sees it.');
+  };
+
+  const anchorOf = (selector: string) => gwrap.current?.querySelector(`svg.pg ${selector}`) ?? null;
+
+  const actions: TrackerActions = {
+    newCr: () => openModal({ mode: 'newcr', pending: [] }),
+    share: () => openModal({ mode: 'share' }),
+    markReady: () => void onMarkReady(),
+    editAgain: () => void onEditAgain([]),
+    askToEdit: () => void onAsk(),
+    cancelAsk: () => {
+      if (cr)
+        void action(cr.num, { action: 'cancel-ask' }).then((p) => p && showToast('Ask cancelled.'));
+    },
+    handOver: (to) => void onHandOver(to),
+    notNow: (who) => {
+      if (cr)
+        void action(cr.num, { action: 'decline', who }).then(
+          (p) => p && showToast(`${dir.name(who)} sees "Not now".`),
+        );
+    },
+    undo: () => {
+      setPop(null);
+      if (cr && edit && cr.ops.length) undoLast(cr.num);
+    },
+    removeChange: (index) => {
+      if (cr && edit) void write((p) => removeOp(projectId, cr.num, index, revisionOf(p, cr.num)));
+    },
+    addToQueue: (what) => openModal({ mode: 'add', what }),
+    openQueueEvent: (id) =>
+      state.workItems.length
+        ? openModal({ mode: 'attach', eventId: id })
+        : openModal({ mode: 'fromEvent', eventId: id, teamId: state.teams[0]?.id ?? '' }),
+    openQueueItem: (id) => openModal({ mode: 'placeItem', itemId: id }),
+    addEvent: (workItemId) => openModal({ mode: 'event', workItemId }),
+    markDone: (workItemId) => openModal({ mode: 'event', workItemId, done: true }),
+    moveDate: ({ kind, id }) => {
+      const date =
+        kind === 'ms'
+          ? state.milestones.find((m) => m.id === id)?.planned
+          : state.workItems.find((w) => w.id === id)?.plannedFinish;
+      if (date) openModal({ mode: 'due', kind, id, date });
+    },
+    rename: (workItemId) => {
+      const anchor = anchorOf(`[data-loop="${workItemId}"]`) ?? pop?.anchor;
+      if (anchor) setPop({ kind: 'rename', id: workItemId, anchor, view });
+    },
+    saveRename: (workItemId, title) => {
+      const item = state.workItems.find((w) => w.id === workItemId);
+      if (!title || !item || title === item.title) return setPop(null);
+      commitOps([{ op: 'rename', a: { workItemId, title } }]);
+    },
+    changeKind: (eventId) => {
+      const anchor = anchorOf(`[data-act="${eventId}"]`) ?? pop?.anchor;
+      if (anchor) setPop({ kind: 'kind', id: eventId, anchor, view });
+    },
+    setKind: (eventId, kind) => {
+      if (state.events.find((e) => e.id === eventId)?.kind === kind) return setPop(null);
+      commitOps([{ op: 'kind', a: { eventId, kind } }]);
+    },
+    moveEvent: (eventId) => {
+      const ev = state.events.find((e) => e.id === eventId);
+      setPop(null);
+      if (ev) setMoving({ eventId, from: ev.workItemId });
+    },
+    hideEvent: (eventId) => commitOps([{ op: 'hide', a: { eventId } }]),
+    newMilestone: () =>
+      edit ? openModal({ mode: 'ms' }) : openModal({ mode: 'readonly', pending: [] }),
+    saveMilestone: (milestoneId, name, date) => {
+      const m = state.milestones.find((x) => x.id === milestoneId);
+      if (!m) return;
+      if (name && name !== m.name) commitOps([{ op: 'msName', a: { milestoneId, name } }]);
+      if (date !== m.planned) openModal({ mode: 'due', kind: 'ms', id: milestoneId, date });
+    },
+    removeFromMilestone: (workItemId) => commitOps([{ op: 'msRemove', a: { workItemId } }]),
+    addToMilestone: (workItemId, milestoneId) =>
+      commitOps([{ op: 'msAdd', a: { workItemId, milestoneId } }]),
+  };
+
+  const handlers: ModalHandlers = {
+    toast: (text) => showToast(text),
+    open: openModal,
+    addToQueue: (entry) => void onAddToQueue(entry),
+    dismiss: (id) => void onDismiss(id),
+    commit: (ops) => commitOps(ops),
+    createCr: (title, pending) => void onCreateCr(title, pending),
+    addToCr: onAddToCr,
+    askToEdit: () => void onAsk(),
+    editAgain: (pending) => void onEditAgain(pending),
+    share: (memberId, permission) => void onShare(memberId, permission),
+    handOver: (to) => void onHandOver(to),
+  };
+
   const onActAs = async (memberId: string) => {
     const result = await actAs(projectId, memberId);
     if (!result.ok) {
-      setToast({ text: result.error.message, at: Date.now() });
+      showToast(result.error.message);
       return;
     }
     const next = result.data;
@@ -344,6 +707,8 @@ export function TrackerScreen({
     const owner = nextMe === next.project.ownerMemberId;
     setPayload(next);
     setPop(null);
+    setMoving(null);
+    closeModal();
     setDrawer(
       owner && !drafts.length && next.crs.some((c) => c.status === 'ready')
         ? { mode: 'crs' }
@@ -352,9 +717,207 @@ export function TrackerScreen({
     setView(draft ? draft.num : 'main');
   };
 
+  const onMoveTo = (workItemId: string | null) => {
+    const mv = moving;
+    setMoving(null);
+    if (!mv) return;
+    if (workItemId && workItemId !== mv.from)
+      commitOps([{ op: 'move', a: { eventId: mv.eventId, to: workItemId } }]);
+    else showToast('Move cancelled.');
+  };
+
+  const endDrag = () => {
+    setDrag(null);
+    if (root.current) markTarget(root.current, null, null);
+    // The pointerup of a drag also ends in a click; that click must not open a pop or a modal.
+    suppress.current = true;
+    setTimeout(() => {
+      suppress.current = false;
+    }, 0);
+  };
+
+  const onDrop = (source: DragSource, target: DropTarget | null, dx: number) => {
+    const done = dropAction(source, target, live.current.state, dx);
+    if (done.kind === 'op')
+      commitOps([done.op], done.op.op === 'attach' ? { added: done.op.a.eventId } : undefined);
+    else if (done.kind === 'fromEvent')
+      openModal({ mode: 'fromEvent', eventId: done.eventId, teamId: done.teamId });
+    else if (done.kind === 'dismiss') void onDismiss(done.id);
+    else if (done.kind === 'hint') showToast(done.text);
+  };
+
+  const dragItem = (
+    event: ReactPointerEvent,
+    source: DragSource,
+    look: { cls: string; ghost: ReactNode; from: string | null },
+  ) => {
+    event.preventDefault();
+    let target: DropTarget | null = null;
+    const start = { clientX: event.clientX, clientY: event.clientY };
+    trackPointer(start, {
+      threshold: 6,
+      axis: 'any',
+      onStart: () => {
+        setPop(null);
+        setDrag({
+          cls: look.cls,
+          items: true,
+          ghost: look.ghost,
+          x: start.clientX,
+          y: start.clientY,
+          lifted: source.kind === 'event' ? source.id : null,
+        });
+      },
+      onMove: (ev) => {
+        if (ghost.current) {
+          ghost.current.style.left = `${ev.clientX}px`;
+          ghost.current.style.top = `${ev.clientY}px`;
+        }
+        if (!root.current) return;
+        const { layout: L, state: s } = live.current;
+        target = retarget(source, targetUnder(root.current, L, ev.clientX, ev.clientY), s);
+        markTarget(root.current, target, look.from);
+      },
+      onDrop: (_ev, dx) => {
+        endDrag();
+        onDrop(source, target, dx);
+      },
+      onCancel: endDrag,
+    });
+  };
+
+  const dragDate = (event: ReactPointerEvent, kind: 'item' | 'ms', id: string, el: Element) => {
+    const svg = el.closest('svg.pg');
+    const item = state.workItems.find((w) => w.id === id);
+    const ms = state.milestones.find((m) => m.id === id);
+    const cur = kind === 'item' ? item?.plannedFinish : ms?.planned;
+    if (!(svg instanceof SVGSVGElement) || !cur) return;
+    event.preventDefault();
+    let day = cur;
+    trackPointer(event, {
+      threshold: 4,
+      axis: 'x',
+      onStart: () => {
+        setPop(null);
+        setDrag({ cls: 'drag-due', items: false, ghost: null, x: 0, y: 0, lifted: null });
+      },
+      onMove: (ev) => {
+        const L = live.current.layout;
+        const next = dayAtX(L, svgPoint(svg, ev.clientX, ev.clientY).x, tz);
+        if (next === day) return;
+        day = next;
+        const label =
+          kind === 'ms' && ms
+            ? `${ms.name} · ${formatDay(next)}${next !== cur ? ` (was ${formatDay(cur)})` : ''}`
+            : undefined;
+        setPreview({ kind, id, x: noonX(L, next, tz), ...(label ? { label } : {}) });
+      },
+      onDrop: () => {
+        endDrag();
+        if (day !== cur) openModal({ mode: 'due', kind, id, date: day });
+        else setPreview(null);
+      },
+      onCancel: () => {
+        endDrag();
+        setPreview(null);
+      },
+    });
+  };
+
+  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || modal) return;
+    const t = event.target as Element;
+    const qe = t.closest<HTMLElement>('[data-qevent]');
+    const qi = t.closest<HTMLElement>('[data-qitem]');
+    const graph = t.closest('svg.pg');
+    const act = graph && t.closest<SVGElement>('[data-act]');
+    const label = graph && t.closest<SVGElement>('[data-rowlabel]');
+    const due = graph && t.closest<SVGElement>('[data-due]');
+    const ms = graph && t.closest<SVGElement>('[data-ms]');
+    if (qe?.dataset.qevent) {
+      const ev = state.queue.events.find((x) => x.id === qe.dataset.qevent);
+      if (!ev) return;
+      dragItem(
+        event,
+        { kind: 'queueEvent', id: ev.id },
+        {
+          cls: 'drag-email',
+          from: null,
+          ghost: (
+            <div className="qc" style={{ ['--kc' as string]: KIND_COLOR[ev.kind], width: 220 }}>
+              <span className="qk">
+                <KindIcon kind={ev.kind} size={12} /> {KIND_LABEL[ev.kind]}
+              </span>
+              <div className="qt">{trunc(ev.text, 70)}</div>
+            </div>
+          ),
+        },
+      );
+    } else if (qi?.dataset.qitem) {
+      const it = state.queue.items.find((x) => x.id === qi.dataset.qitem);
+      if (!it) return;
+      dragItem(
+        event,
+        { kind: 'queueItem', id: it.id },
+        {
+          cls: 'drag-qitem',
+          from: null,
+          ghost: (
+            <div className="grow">
+              <Icon name="loop" size={12} /> {trunc(it.title, 32)}
+            </div>
+          ),
+        },
+      );
+    } else if (act?.dataset.act && act.dataset.in) {
+      const ev = state.events.find((x) => x.id === act.dataset.act);
+      if (!ev) return;
+      dragItem(
+        event,
+        { kind: 'event', id: ev.id, from: act.dataset.in },
+        {
+          cls: 'drag-act',
+          from: act.dataset.in,
+          ghost: (
+            <div className="gact">
+              <KindIcon kind={ev.kind} size={15} />
+            </div>
+          ),
+        },
+      );
+    } else if (label?.dataset.rowlabel) {
+      const id = label.dataset.rowlabel;
+      const item = state.workItems.find((w) => w.id === id);
+      if (!item) return;
+      dragItem(
+        event,
+        { kind: 'row', id },
+        {
+          cls: 'drag-row',
+          from: id,
+          ghost: <div className="grow">{trunc(item.title, 30)}</div>,
+        },
+      );
+    } else if (due?.dataset.due) dragDate(event, 'item', due.dataset.due, due);
+    else if (ms?.dataset.ms) dragDate(event, 'ms', ms.dataset.ms, ms);
+  };
+
   const base = { session, state, asOf, onClose: () => setDrawer(null) };
+  const rootCls = ['tk', drag?.cls, drag?.items && 'dragging', moving && 'moving']
+    .filter(Boolean)
+    .join(' ');
   return (
-    <div className="tk">
+    <div
+      ref={root}
+      className={rootCls}
+      onPointerDown={onPointerDown}
+      onClickCapture={(event) => {
+        if (!suppress.current) return;
+        suppress.current = false;
+        event.stopPropagation();
+        event.preventDefault();
+      }}
+    >
       <TopBar
         session={session}
         view={view}
@@ -380,11 +943,18 @@ export function TrackerScreen({
           state={state}
           dir={dir}
           tz={tz}
+          tab={queueTab}
+          onTab={setQueueTab}
           onAdd={(tab) => actions.addToQueue(tab === 'items' ? 'item' : 'event')}
           onEvent={actions.openQueueEvent}
           onItem={actions.openQueueItem}
         />
         <div className="gwrap" ref={gwrap}>
+          <div className="move-hint-slot">
+            <div className="move-hint" role="status">
+              {moving && 'Click the work item where this event belongs. Press Esc to cancel.'}
+            </div>
+          </div>
           <div className="gscroll">
             <TrackerGraph
               layout={layout}
@@ -392,6 +962,10 @@ export function TrackerScreen({
               selectedMs={drawer?.mode === 'ms' ? drawer.id : null}
               flash={flash}
               dimmed={dimmed}
+              lifted={drag?.lifted ?? null}
+              preview={preview}
+              moving={!!moving}
+              onMoveTo={onMoveTo}
               onToggleRow={toggleRow}
               onToggleTeam={toggleTeam}
               onReveal={reveal}
@@ -404,6 +978,9 @@ export function TrackerScreen({
               onNewMilestone={actions.newMilestone}
               onBackground={() => setPop(null)}
             />
+          </div>
+          <div className="bin" aria-hidden="true">
+            <Icon name="trash" size={16} /> Drop here to hide or remove
           </div>
           {shownPop && (
             <Pop
@@ -431,7 +1008,7 @@ export function TrackerScreen({
           )}
           {drawer?.mode === 'ms' && (
             <MilestoneDrawer
-              key={`${view}-${drawer.id}-${edit}`}
+              key={`${view}-${drawer.id}`}
               {...base}
               milestoneId={drawer.id}
               edit={edit}
@@ -477,9 +1054,25 @@ export function TrackerScreen({
         </div>
       </div>
       <Legend />
-      <div className="tk-toast" role="status" aria-live="polite">
-        {toast?.text}
-      </div>
+      {modal && (
+        <Modal
+          key={modal.key}
+          modal={modal.state}
+          session={session}
+          state={state}
+          cr={cr}
+          asOf={asOf}
+          busy={busy}
+          on={handlers}
+          onClose={closeModal}
+        />
+      )}
+      {drag?.ghost && (
+        <div ref={ghost} className="ghost" style={{ left: drag.x, top: drag.y }} aria-hidden="true">
+          {drag.ghost}
+        </div>
+      )}
+      <Toast toast={toast} onClose={closeToast} />
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { SvgIcon } from './icons';
 const { VW, X0, X1, AXIS_Y, TRUNK_Y } = GEOMETRY;
 
 export type PopKind = 'act' | 'loop' | 'due';
+export type DatePreview = { kind: 'item' | 'ms'; id: string; x: number; label?: string };
 
 type Props = {
   layout: TrackerLayout;
@@ -22,6 +23,11 @@ type Props = {
   focusRow?: string | null;
   focusMs?: string | null;
   dimmed: (workItemId: string) => boolean;
+  lifted?: string | null;
+  preview?: DatePreview | null;
+  /** While an event waits for its new work item, a click on a row picks that row. */
+  moving?: boolean;
+  onMoveTo?: (workItemId: string | null) => void;
   onToggleRow: (workItemId: string) => void;
   onToggleTeam: (teamId: string) => void;
   onReveal: (workItemIds: string[]) => void;
@@ -44,10 +50,11 @@ function groupBy<T extends { workItemId: string }>(list: readonly T[]): Map<stri
 }
 
 const TARGETS =
-  '[data-eyerow],[data-eyeteam],[data-show],[data-due],[data-act],[data-ms],[data-plus],[data-newms],[data-loop]';
+  '[data-eyerow],[data-eyeteam],[data-show],[data-due],[data-act],[data-ms],[data-plus],[data-newms],[data-rowlabel],[data-loop]';
+const ROWS = '[data-loop],[data-act],[data-rowlabel],[data-plus]';
 
 export function TrackerGraph(props: Props) {
-  const { layout: L, edit, selectedMs, flash, focusRow, focusMs, dimmed } = props;
+  const { layout: L, edit, selectedMs, flash, focusRow, focusMs, dimmed, lifted, preview } = props;
   const events = groupBy(L.eventGroups);
   const flags = groupBy(L.flags);
   const slips = groupBy(L.slips);
@@ -61,11 +68,21 @@ export function TrackerGraph(props: Props) {
     if (d.eyerow) return props.onToggleRow(d.eyerow);
     if (d.eyeteam) return props.onToggleTeam(d.eyeteam);
     if (d.show) return props.onReveal(d.show.split(','));
+    if (props.moving) {
+      const row = target.closest<SVGElement>(ROWS)?.dataset;
+      return props.onMoveTo?.(
+        row ? (row.loop ?? row.in ?? row.rowlabel ?? row.plus ?? null) : null,
+      );
+    }
     if (d.due) return props.onPop('due', d.due, el);
     if (d.act) return props.onPop('act', d.act, el);
     if (d.ms) return props.onMilestone(d.ms);
     if (d.plus) return props.onAddEvent(d.plus);
     if (d.newms) return props.onNewMilestone();
+    if (d.rowlabel) {
+      const row = el.ownerSVGElement?.querySelector(`[data-loop="${d.rowlabel}"]`);
+      return props.onPop('loop', d.rowlabel, row ?? el);
+    }
     if (d.loop) return props.onPop('loop', d.loop, el);
   };
   const onClick = (event: MouseEvent<SVGSVGElement>) => run(event.target as Element);
@@ -287,13 +304,23 @@ export function TrackerGraph(props: Props) {
                 {r.label}
                 <title>{r.title}</title>
               </text>
+              <rect
+                className="label-hit"
+                data-rowlabel={r.id}
+                x={26}
+                y={r.y - 10}
+                width={X0 - 64}
+                height={20}
+              >
+                <title>Drag onto a milestone diamond to add it</title>
+              </rect>
               {(events.get(r.id) ?? []).map((g) => {
                 const n = g.eventIds.length;
                 const stroke = color(g.tone);
                 return (
                   <g
                     key={g.topId}
-                    className={cls('act', dim)}
+                    className={cls('act', dim, lifted === g.topId && 'lift')}
                     data-act={g.topId}
                     data-in={g.workItemId}
                     transform={`translate(${g.x} ${g.y})`}
@@ -333,7 +360,7 @@ export function TrackerGraph(props: Props) {
                   key={`due-${f.workItemId}`}
                   className={cls('due', dim, f.draft && 'draft')}
                   data-due={f.workItemId}
-                  transform={`translate(${f.x} ${f.y})`}
+                  transform={`translate(${preview?.kind === 'item' && preview.id === f.workItemId ? preview.x : f.x} ${f.y})`}
                   {...button(f.ariaLabel)}
                 >
                   <rect className="due-hit" x={-7} y={-19} width={20} height={26} />
@@ -391,35 +418,39 @@ export function TrackerGraph(props: Props) {
           </text>
         </Fragment>
       ))}
-      {L.milestones.map((m) => (
-        <g
-          key={m.id}
-          className={cls('ms', selectedMs === m.id && 'sel', focusMs === m.id && 'glow')}
-          data-ms={m.id}
-          transform={`translate(${m.x} ${m.y})`}
-          {...button(m.ariaLabel)}
-        >
-          <rect className="ms-hit" x={-15} y={-15} width={30} height={30} />
-          <rect
-            className="ms-d"
-            x={-7}
-            y={-7}
-            width={14}
-            height={14}
-            transform="rotate(45)"
-            style={{ stroke: color(m.stroke), fill: m.filled ? color(m.tone) : 'var(--panel)' }}
-          />
-          <text
-            className="ms-label"
-            x={m.labelX - m.x}
-            y={m.labelY - m.y}
-            textAnchor={m.anchor}
-            style={{ fill: color(m.labelTone) }}
+      {L.milestones.map((m) => {
+        const moved = preview?.kind === 'ms' && preview.id === m.id ? preview : null;
+        const mx = moved ? moved.x : m.x;
+        return (
+          <g
+            key={m.id}
+            className={cls('ms', selectedMs === m.id && 'sel', focusMs === m.id && 'glow')}
+            data-ms={m.id}
+            transform={`translate(${mx} ${m.y})`}
+            {...button(m.ariaLabel)}
           >
-            {m.label}
-          </text>
-        </g>
-      ))}
+            <rect className="ms-hit" x={-15} y={-15} width={30} height={30} />
+            <rect
+              className="ms-d"
+              x={-7}
+              y={-7}
+              width={14}
+              height={14}
+              transform="rotate(45)"
+              style={{ stroke: color(m.stroke), fill: m.filled ? color(m.tone) : 'var(--panel)' }}
+            />
+            <text
+              className="ms-label"
+              x={m.labelX - m.x}
+              y={m.labelY - m.y}
+              textAnchor={m.anchor}
+              style={{ fill: color(m.labelTone) }}
+            >
+              {moved?.label ?? m.label}
+            </text>
+          </g>
+        );
+      })}
     </svg>
   );
 }
