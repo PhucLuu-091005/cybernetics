@@ -48,7 +48,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('DbIdentityStore', () => {
   ): StoredToken => ({
     id: randomUUID(),
     prefix: 'inv_abcd',
-    scopes: ['project:read', 'graph:propose'],
+    scopes: ['project:read', 'queue:add'],
     createdAt: '2026-10-13T10:00:00.000Z',
     expiresAt: '2026-11-12T10:00:00.000Z',
     revokedAt: null,
@@ -145,7 +145,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('DbIdentityStore', () => {
     expect(found).toEqual(stored);
     expect(found).toMatchObject({
       workspaceId: owner.workspaceId,
-      scopes: ['project:read', 'graph:propose'],
+      scopes: ['project:read', 'queue:add'],
     });
     const contract = Object.fromEntries(
       Object.entries(found!).filter(([key]) => key in AgentTokenSchema.shape),

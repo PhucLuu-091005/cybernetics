@@ -9,6 +9,7 @@ import {
   type TrackerBase,
 } from '../../tracker';
 import {
+  projects,
   trackerCommits,
   trackerCrShares,
   trackerCrs,
@@ -21,6 +22,7 @@ import {
   LARKSPUR_AS_OF,
   LARKSPUR_MEMBERS,
   LARKSPUR_OWNER,
+  LARKSPUR_PROJECT,
   LARKSPUR_WINDOW_START,
   larkspurBase,
   larkspurCrs,
@@ -94,8 +96,12 @@ export async function createTrackerProject(
 /** The owner member keeps the story name Minh Trần (spec 2.19), so it needs no user name. */
 export async function seedTrackerDemo(
   tx: Tx,
-  input: { workspaceId: string; projectId: string; userId: string },
-): Promise<{ ids: Record<string, string> }> {
+  input: { workspaceId: string; userId: string },
+): Promise<{ projectId: string; ids: Record<string, string> }> {
+  const [project] = await tx
+    .insert(projects)
+    .values({ id: randomUUID(), workspaceId: input.workspaceId, ...LARKSPUR_PROJECT })
+    .returning({ id: projects.id });
   const queueRows = larkspurQueueRows();
   const ids: Record<string, string> = Object.fromEntries(
     [...LARKSPUR_MEMBERS.map((member) => member.key), ...queueRows.map((row) => row.id)].map(
@@ -103,7 +109,7 @@ export async function seedTrackerDemo(
     ),
   );
   const id = (key: string) => ids[key] ?? key;
-  const tenant = { workspaceId: input.workspaceId, projectId: input.projectId };
+  const tenant = { workspaceId: input.workspaceId, projectId: project.id };
   const owner = LARKSPUR_MEMBERS.find((member) => member.key === LARKSPUR_OWNER)!;
   const base = larkspurBase(id);
   await createTrackerProject(tx, {
@@ -191,5 +197,5 @@ export async function seedTrackerDemo(
         createdAt: comment.at,
       });
   }
-  return { ids };
+  return { projectId: project.id, ids };
 }

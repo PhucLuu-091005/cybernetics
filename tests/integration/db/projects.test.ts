@@ -1,18 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { agentActor, createTestDatabase, testActor, type TestDb } from '../../support/db';
-import { createProject, listProjects } from '../../../src/server/domain/projects';
-import { requireProject } from '../../../src/server/domain/access';
-import { lockProject, toIso, withTransaction } from '../../../src/server/db/tx';
-import { graphCommits, workspaceMembers } from '../../../src/server/db/schema';
-import { canonicalHash } from '../../../src/lib/canonical-json';
+import { createProject, getProject, listProjects } from '../../../src/server/domain/projects';
 import {
-  CommitBaseSchema,
-  CommitSchema,
-  GraphSnapshotSchema,
-  ProjectSchema,
-} from '../../../src/contracts';
+  findProjectForActor,
+  lockProject,
+  withTransaction,
+  type Db,
+} from '../../../src/server/db/tx';
+import { projects, workspaceMembers } from '../../../src/server/db/schema';
+import { ProjectSchema, type ActorContext } from '../../../src/contracts';
 import { eq } from 'drizzle-orm';
+
+const requireProject = (db: Db, ctx: ActorContext, projectId: string) =>
+  findProjectForActor(db, ctx, projectId, false);
 
 describe.skipIf(!process.env.TEST_DATABASE_URL)('projects', () => {
   let t: TestDb;
@@ -23,21 +24,18 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('projects', () => {
     await t?.close();
   });
 
-  it('creates a project with an initial commit as main head', async () => {
+  it('creates only the project row, with no commit or evidence columns', async () => {
     const ctx = await testActor(t.db);
     const project = await createProject(t.db, ctx, { title: 'Fund III', clientName: 'Larkspur' });
-    const commits = await t.db
-      .select()
-      .from(graphCommits)
-      .where(eq(graphCommits.projectId, project.id));
-    expect(commits).toHaveLength(1);
-    expect(commits[0]).toMatchObject({
-      kind: 'initial',
-      sequence: 0,
-      parentId: null,
-      id: project.mainCommitId,
-    });
-    expect(project.evidenceRevision).toBe(0);
+    const [row] = await t.db.select().from(projects).where(eq(projects.id, project.id));
+    expect(Object.keys(row).sort()).toEqual([
+      'clientName',
+      'createdAt',
+      'id',
+      'title',
+      'workspaceId',
+    ]);
+    expect(row.createdAt).toMatch(/\+00$/);
   });
   it('hides another workspace project as NOT_FOUND', async () => {
     const owner = await testActor(t.db),
@@ -48,53 +46,17 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('projects', () => {
     });
     expect((await listProjects(t.db, stranger)).map((item) => item.id)).not.toContain(project.id);
   });
-  it('stores a valid empty snapshot with its canonical hash and returns contract-valid projects', async () => {
+  it('returns contract-valid projects, and reads the default time zone for a project without a tracker', async () => {
     const ctx = await testActor(t.db);
     const project = await createProject(t.db, ctx, { title: 'Hash', clientName: 'H' });
     expect(ProjectSchema.parse(project)).toEqual(project);
-    expect(project).toMatchObject({
-      workspaceId: ctx.workspaceId,
-      title: 'Hash',
-      clientName: 'H',
-      sourceRouting: [],
-    });
-    const [commit] = await t.db
-      .select()
-      .from(graphCommits)
-      .where(eq(graphCommits.id, project.mainCommitId));
-    expect(GraphSnapshotSchema.safeParse(commit.snapshot).success).toBe(true);
-    expect(commit.snapshot.context.timeZone).toBe('Asia/Ho_Chi_Minh');
-    expect(commit.snapshotHash).toBe(canonicalHash(commit.snapshot));
-    expect(commit.createdAt).toMatch(/\+00$/);
-    const contract = Object.fromEntries(
-      Object.entries({ ...commit, createdAt: toIso(commit.createdAt) }).filter(
-        ([key]) => key in CommitBaseSchema.shape,
-      ),
-    );
-    expect(CommitSchema.parse(contract)).toMatchObject({
-      actor: { kind: 'user', userId: ctx.userId },
-      reviewedEvidenceRevision: 0,
-    });
+    expect(project).toMatchObject({ workspaceId: ctx.workspaceId, title: 'Hash', clientName: 'H' });
     expect(await listProjects(t.db, ctx)).toEqual([project]);
-  });
-  it('creates the initial commit from a supplied snapshot', async () => {
-    const ctx = await testActor(t.db);
-    const base = await createProject(t.db, ctx, { title: 'Base', clientName: 'B' });
-    const [baseCommit] = await t.db
-      .select()
-      .from(graphCommits)
-      .where(eq(graphCommits.id, base.mainCommitId));
-    const snapshot = {
-      ...baseCommit.snapshot,
-      context: { ...baseCommit.snapshot.context, timeZone: 'UTC', replyWindowDays: 3 },
-    };
-    const project = await createProject(t.db, ctx, { title: 'Seeded', clientName: 'S', snapshot });
-    const [commit] = await t.db
-      .select()
-      .from(graphCommits)
-      .where(eq(graphCommits.id, project.mainCommitId));
-    expect(commit.snapshot).toEqual(snapshot);
-    expect(commit.snapshotHash).toBe(canonicalHash(snapshot));
+    expect(await getProject(t.db, ctx, { projectId: project.id })).toEqual({
+      project,
+      timeZone: 'Asia/Ho_Chi_Minh',
+      requestId: ctx.requestId,
+    });
   });
   it('rejects invalid input and agent callers without writing', async () => {
     const ctx = await testActor(t.db);

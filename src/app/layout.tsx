@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: 'Promise Graph',
-  description: 'Evidence, proposals and promise history.',
+  description: 'An event tracker where Main changes only through merged change requests.',
 };
 // Applied before first paint so a stored theme never flashes the system one.
 const THEME_SCRIPT = `try{var t=localStorage.getItem('pg-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}`;
