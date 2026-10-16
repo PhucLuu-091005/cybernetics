@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { configureApp, resetApp } from '../../../src/server/app';
 import { SESSION_COOKIE, signSession } from '../../../src/server/http/session';
 import { createTestDatabase, type TestDb } from '../../support/db';
-import { seedDemo, type Demo } from '../../support/tracker-db';
+import { seedDemo, workspaceGuest, type Demo } from '../../support/tracker-db';
 
 const origin = 'http://localhost:3000';
 const secret = 'tracker-routes-test-secret-of-32-bytes';
@@ -233,6 +233,18 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
     expect(refused.headers.get('set-cookie')).toBeNull();
     expect((await call('POST', `${tracker}/act-as`, p(), {})).status).toBe(400);
     expect((await call('GET', tracker, p())).body.me.id).toBe(demo.ids.minh);
+  });
+
+  it('refuses act-as for a person without a member and sets no cookie', async () => {
+    const guest = await workspaceGuest(t.db, demo.owner);
+    jar.set(
+      SESSION_COOKIE,
+      signSession({ userId: guest.userId, expiresAt: Date.now() + 600_000 }, secret),
+    );
+    const refused = await call('POST', `${tracker}/act-as`, p(), { memberId: demo.ids.lan });
+    expect(refused).toMatchObject({ status: 403, body: { code: 'FORBIDDEN' } });
+    expect(refused.headers.get('set-cookie')).toBeNull();
+    expect((await call('GET', tracker, p())).body.me).toBeNull();
   });
 
   it('takes the acting member only from the cookie, never from the body', async () => {
