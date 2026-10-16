@@ -167,7 +167,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP tracker tools', () => {
     expect(tracker.openChangeRequests[0]).toMatchObject({
       title: 'Place PG-204 in Engineering',
       author: { id: demo.ids.lan, name: 'Lan Phạm' },
-      changes: expect.any(Number),
+      changeCount: expect.any(Number),
     });
   });
 
@@ -188,6 +188,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP tracker tools', () => {
       mergedRev: 1,
       mergedBy: { id: demo.ids.minh, name: 'Minh Trần' },
     });
+    expect(one.structuredContent.changeRequest).toMatchObject({ changeCount: 2 });
     expect(one.structuredContent.changeRequest.changes).toHaveLength(2);
     expect(one.structuredContent.changeRequest.changes[1]).toMatchObject({
       index: 1,

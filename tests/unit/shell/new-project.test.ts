@@ -65,5 +65,15 @@ describe('new project body', () => {
     expect(newProjectProblem(form({ milestoneDate: '2026-12-01' }))).toBe(
       'Give the first milestone a name and a date, or leave both empty.',
     );
+    expect(newProjectProblem(form({ teams: 'a'.repeat(201) }))).toBe(
+      'Keep each team name to 200 characters',
+    );
+    expect(
+      newProjectProblem(form({ teams: Array.from({ length: 51 }, (_, i) => `T${i}`).join('\n') })),
+    ).toBe('Add at most 50 teams');
+    expect(
+      newProjectProblem(form({ milestoneName: 'm'.repeat(201), milestoneDate: '2026-12-01' })),
+    ).toBe('Keep the milestone name to 200 characters');
+    expect(newProjectProblem(form({ teams: 'Q\u0000A' }))).toBe('Remove the NUL character');
   });
 });
