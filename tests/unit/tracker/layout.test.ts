@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   GEOMETRY,
   STATUS_TONE,
+  dueDateAnchor,
   layoutTracker,
   type LayoutSegment,
   type TrackerLayout,
@@ -221,7 +222,7 @@ describe('layoutTracker: lanes and rows', () => {
     }
     expect(L.segments.some((s) => engineering.includes(s.workItemId))).toBe(false);
     expect(L.eventGroups.some((g) => engineering.includes(g.workItemId))).toBe(false);
-    expect(L.flags.some((f) => engineering.includes(f.workItemId))).toBe(false);
+    expect(L.dueMarks.some((d) => engineering.includes(d.workItemId))).toBe(false);
     expect(L.laneDrops.map((d) => d.teamId)).not.toContain('engineering');
     expect(L.height).toBe(619);
   });
@@ -402,7 +403,7 @@ describe('layoutTracker: segments, waits and stems', () => {
   });
 });
 
-describe('layoutTracker: events, flags and slips', () => {
+describe('layoutTracker: events and date marks', () => {
   const state = larkspurState();
   const L = layoutTracker(state, view());
 
@@ -446,65 +447,111 @@ describe('layoutTracker: events, flags and slips', () => {
     expect(pg202.map((g) => g.tone)).toEqual(['proceed', 'caution']);
   });
 
-  it('colours each date flag by the item status', () => {
-    expect(L.flags).toHaveLength(13);
-    for (const flag of L.flags) {
-      const item = state.workItems.find((w) => w.id === flag.workItemId)!;
-      const status = itemStatus(item, state.events, AS_OF, TIME_ZONE);
-      expect(flag.status).toBe(status);
-      expect(flag.tone).toBe(STATUS_TONE[status]);
-    }
-    const tone = (id: string) => L.flags.find((f) => f.workItemId === id)?.tone;
-    expect([tone('pg203'), tone('pg202'), tone('pg201'), tone('rehearsal'), tone('crs')]).toEqual([
-      'danger',
-      'caution',
-      'proceed',
-      'teal',
-      'ink-3',
+  it('marks the planned finish of planned and late work only', () => {
+    expect(L.dueMarks.map((d) => [d.workItemId, d.status])).toEqual([
+      ['golive', 'planned'],
+      ['crs', 'planned'],
+      ['pg202', 'flate'],
+      ['dynamics', 'late'],
+      ['pg203', 'late'],
+      ['test', 'planned'],
+      ['incident', 'late'],
+      ['secret', 'late'],
     ]);
+    for (const mark of L.dueMarks) {
+      const item = state.workItems.find((w) => w.id === mark.workItemId)!;
+      const status = itemStatus(item, state.events, AS_OF, TIME_ZONE);
+      expect(mark.status).toBe(status);
+      expect(mark.tone).toBe(STATUS_TONE[status]);
+    }
+    const tone = (id: string) => L.dueMarks.find((d) => d.workItemId === id)?.tone;
+    expect([tone('pg203'), tone('pg202'), tone('crs')]).toEqual(['danger', 'caution', 'ink-3']);
   });
 
-  it('puts the flag at noon of the planned day with its labels', () => {
-    expect(L.flags.find((f) => f.workItemId === 'golive')).toEqual({
+  it('draws no mark and no ghost for work that finished early or on time', () => {
+    const status = (id: string) => L.rows.find((r) => r.id === id)?.status;
+    expect(['rehearsal', 'analyse', 'pg201', 'syncmon', 'crmlive'].map(status)).toEqual([
+      'early',
+      'ontime',
+      'ontime',
+      'ontime',
+      'ontime',
+    ]);
+    const marked = new Set(L.dueMarks.map((d) => d.workItemId));
+    for (const id of ['rehearsal', 'analyse', 'pg201', 'syncmon', 'crmlive'])
+      expect(marked.has(id)).toBe(false);
+    expect(state.workItems.find((w) => w.id === 'pg201')?.firstPlannedFinish).toBe('2026-09-26');
+  });
+
+  it('puts the mark at noon of the planned day with a ghost at the first planned day', () => {
+    expect(L.dueMarks.find((d) => d.workItemId === 'golive')).toEqual({
       workItemId: 'golive',
       date: '2026-10-15',
+      dateLabel: '15 Oct',
+      dateAnchor: 'start',
       x: L.x(noon('2026-10-15')),
       y: 102,
+      ghostX: L.x(noon('2026-09-30')),
       status: 'planned',
       tone: 'ink-3',
       draft: false,
       moves: 1,
-      ariaLabel: 'Planned finish 15 Oct, Planned',
-      tooltip: 'Planned finish 15 Oct · Planned · moved 1×',
+      ariaLabel: 'Planned finish 15 Oct, Planned, first planned 30 Sept',
+      tooltip: 'Planned finish 15 Oct · Planned · first planned 30 Sept · moved 1×',
     });
   });
 
-  it('keeps a flag inside the right edge', () => {
-    const s = larkspurState();
-    s.workItems.find((w) => w.id === 'test')!.plannedFinish = '2026-12-01';
-    const flag = layoutTracker(s, view()).flags.find((f) => f.workItemId === 'test');
-    expect(flag?.x).toBe(X1 - 4);
+  it('gives a mark of a date that never moved no ghost', () => {
+    expect(L.dueMarks.find((d) => d.workItemId === 'pg203')).toMatchObject({
+      dateLabel: '6 Oct',
+      ghostX: null,
+      ariaLabel: 'Planned finish 6 Oct, Late',
+      tooltip: 'Planned finish 6 Oct · Late',
+    });
   });
 
-  it('draws a slip line from the first planned date to the current one', () => {
-    expect(L.slips).toEqual([
-      {
-        workItemId: 'golive',
-        from: '2026-09-30',
-        to: '2026-10-15',
-        x1: L.x(noon('2026-09-30')),
-        x2: L.x(noon('2026-10-15')),
-        y: 102 - 12,
-      },
-      {
-        workItemId: 'pg201',
-        from: '2026-09-26',
-        to: '2026-09-30',
-        x1: L.x(noon('2026-09-26')),
-        x2: L.x(noon('2026-09-30')),
-        y: 286 - 12,
-      },
-    ]);
+  it('marks late and finished-late work in its status colour', () => {
+    expect(L.dueMarks.find((d) => d.workItemId === 'pg202')).toMatchObject({
+      x: L.x(noon('2026-10-01')),
+      y: 318,
+      status: 'flate',
+      tone: 'caution',
+      ariaLabel: 'Planned finish 1 Oct, Finished late',
+    });
+    expect(L.dueMarks.find((d) => d.workItemId === 'dynamics')).toMatchObject({
+      x: L.x(noon('2026-09-18')),
+      status: 'late',
+      tone: 'danger',
+    });
+  });
+
+  it('puts the date left of its bar when the text would pass the right edge', () => {
+    const crs = L.dueMarks.find((d) => d.workItemId === 'crs')!;
+    expect(crs).toMatchObject({ dateLabel: '16 Oct', dateAnchor: 'end' });
+    expect(dueDateAnchor(GEOMETRY.VW - 40, '16 Oct')).toBe('start');
+    expect(dueDateAnchor(GEOMETRY.VW - 30, '16 Oct')).toBe('end');
+  });
+
+  it('keeps a mark inside the right edge', () => {
+    const s = larkspurState();
+    s.workItems.find((w) => w.id === 'test')!.plannedFinish = '2026-12-01';
+    const mark = layoutTracker(s, view()).dueMarks.find((d) => d.workItemId === 'test');
+    expect(mark?.x).toBe(X1 - 4);
+  });
+
+  it('drops the ghost when the first planned day lies before the window', () => {
+    const s = larkspurState();
+    s.workItems.find((w) => w.id === 'test')!.firstPlannedFinish = '2026-09-01';
+    const mark = layoutTracker(s, view()).dueMarks.find((d) => d.workItemId === 'test');
+    expect(mark).toMatchObject({
+      ghostX: null,
+      ariaLabel: 'Planned finish 14 Oct, Planned, first planned 1 Sept',
+    });
+  });
+
+  it('draws no line between the first and the current planned date', () => {
+    expect(L).not.toHaveProperty('slips');
+    expect(L).not.toHaveProperty('flags');
   });
 });
 
@@ -744,7 +791,7 @@ describe('layoutTracker: milestones and trunk', () => {
 });
 
 describe('layoutTracker: draft marks', () => {
-  it('flags changed rows, events, milestones and dates as draft', () => {
+  it('marks changed rows, events, milestones and dates as draft', () => {
     const marks: Marks = {
       workItems: new Set(['pg203']),
       events: new Set(['p32']),
@@ -754,7 +801,7 @@ describe('layoutTracker: draft marks', () => {
     const L = layoutTracker(larkspurState(), view(), marks);
     expect(L.rows.filter((r) => r.draft).map((r) => r.id)).toEqual(['pg203']);
     expect(L.eventGroups.filter((g) => g.draft).map((g) => g.eventIds)).toEqual([['p32']]);
-    expect(L.flags.filter((f) => f.draft).map((f) => f.workItemId)).toEqual(['golive']);
+    expect(L.dueMarks.filter((d) => d.draft).map((d) => d.workItemId)).toEqual(['golive']);
     const crm = L.milestones.find((m) => m.id === 'crm')!;
     expect(crm).toMatchObject({ draft: true, stroke: 'draft', labelTone: 'draft', tone: 'danger' });
     expect(L.milestones.find((m) => m.id === 'golive')?.draft).toBe(false);

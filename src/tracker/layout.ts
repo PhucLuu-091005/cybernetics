@@ -102,25 +102,20 @@ export type LayoutEventGroup = {
   ariaLabel: string;
   tooltip: string;
 };
-export type LayoutFlag = {
+export type LayoutDueMark = {
   workItemId: string;
   date: string;
+  dateLabel: string;
+  dateAnchor: 'start' | 'end';
   x: number;
   y: number;
+  ghostX: number | null;
   status: Status;
   tone: Tone;
   draft: boolean;
   moves: number;
   ariaLabel: string;
   tooltip: string;
-};
-export type LayoutSlip = {
-  workItemId: string;
-  from: string;
-  to: string;
-  x1: number;
-  x2: number;
-  y: number;
 };
 export type LayoutStem = {
   workItemId: string;
@@ -212,8 +207,7 @@ export type TrackerLayout = {
   rows: LayoutRow[];
   segments: LayoutSegment[];
   eventGroups: LayoutEventGroup[];
-  flags: LayoutFlag[];
-  slips: LayoutSlip[];
+  dueMarks: LayoutDueMark[];
   stems: LayoutStem[];
   links: LayoutLink[];
   msLinks: LayoutMsLink[];
@@ -500,21 +494,43 @@ function trunkSegmentsOf(c: Ctx, statusOf: Map<string, MsStatus>): LayoutTrunkSe
   });
 }
 
-function flagOf(c: Ctx, w: WorkItem, r: LayoutRow): LayoutFlag {
+// A row that finished early or on time is already green, so a date mark there only adds noise.
+const MARKED: ReadonlySet<Status> = new Set(['planned', 'late', 'flate']);
+const DATE_GAP = 6;
+const DATE_CHAR = 5.4;
+
+/** A date near the right edge goes to the left of its bar, so the graph never cuts the text. */
+export const dueDateAnchor = (x: number, label: string): 'start' | 'end' =>
+  x + DATE_GAP + label.length * DATE_CHAR > VW ? 'end' : 'start';
+
+function dueMarkOf(c: Ctx, w: WorkItem, r: LayoutRow): LayoutDueMark[] {
+  if (!MARKED.has(r.status)) return [];
   const label = STATUS_LABEL[r.status];
-  const moved = w.moves.length ? ` · moved ${w.moves.length}×` : '';
-  return {
-    workItemId: w.id,
-    date: w.plannedFinish,
-    x: c.noonX(w.plannedFinish),
-    y: r.y,
-    status: r.status,
-    tone: STATUS_TONE[r.status],
-    draft: !!c.marks?.dates.has(w.id),
-    moves: w.moves.length,
-    ariaLabel: `Planned finish ${formatDay(w.plannedFinish)}, ${label}`,
-    tooltip: `Planned finish ${formatDay(w.plannedFinish)} · ${label}${moved}`,
-  };
+  const day = formatDay(w.plannedFinish);
+  const first = formatDay(w.firstPlannedFinish);
+  const moved = w.firstPlannedFinish !== w.plannedFinish;
+  const x = c.noonX(w.plannedFinish);
+  const gx = c.noonX(w.firstPlannedFinish);
+  const history = moved ? ` · first planned ${first}` : '';
+  const count = w.moves.length ? ` · moved ${w.moves.length}×` : '';
+  return [
+    {
+      workItemId: w.id,
+      date: w.plannedFinish,
+      dateLabel: day,
+      dateAnchor: dueDateAnchor(x, day),
+      x,
+      y: r.y,
+      // A first date before the window would land in the row label column.
+      ghostX: moved && gx >= X0 ? gx : null,
+      status: r.status,
+      tone: STATUS_TONE[r.status],
+      draft: !!c.marks?.dates.has(w.id),
+      moves: w.moves.length,
+      ariaLabel: `Planned finish ${day}, ${label}${moved ? `, first planned ${first}` : ''}`,
+      tooltip: `Planned finish ${day} · ${label}${history}${count}`,
+    },
+  ];
 }
 
 function chipOf(c: Ctx, w: WorkItem, r: LayoutRow, sources: string[]): LayoutChip {
@@ -738,14 +754,7 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     rows: [...c.rows.values()],
     segments,
     eventGroups: shown.flatMap((r) => groupsOf(c, item(r), r, infos.get(r.id)!)),
-    flags: shown.map((r) => flagOf(c, item(r), r)),
-    slips: shown.flatMap((r) => {
-      const w = item(r);
-      if (w.firstPlannedFinish === w.plannedFinish) return [];
-      const from = w.firstPlannedFinish;
-      const to = w.plannedFinish;
-      return [{ workItemId: w.id, from, to, x1: c.noonX(from), x2: c.noonX(to), y: r.y - 12 }];
-    }),
+    dueMarks: shown.flatMap((r) => dueMarkOf(c, item(r), r)),
     stems,
     links,
     msLinks: milestoneLinks(c, shown),

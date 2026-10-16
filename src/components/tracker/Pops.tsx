@@ -298,7 +298,7 @@ function DuePop({
           onClick={() => c.actions.moveDate({ kind: 'item', id: item.id })}
         />
       </div>
-      <p className="tip">Tip: drag the flag left or right. The app asks why.</p>
+      <p className="tip">Tip: drag the date mark left or right. The app asks why.</p>
     </PopFrame>
   );
 }

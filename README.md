@@ -42,9 +42,9 @@ Your first sign-in creates a private sandbox: the fictional Larkspur Capital onb
 
 Use the **Demo** select at the top right to change who you work as. Minh Trần owns Main. Lan Phạm, Quang Nguyễn, Hà Đỗ and Khoa Lê are members. The select shows only in the demo project. In your own projects, you work as yourself.
 
-1. Anyone: click the flag at the end of the Go-live date row. See the first date (30 Sept), the new date (15 Oct) and the reason.
+1. Anyone: click the planned finish mark (the short bar with 15 Oct) on the Go-live date row. See the first date (30 Sept), the new date (15 Oct) and the reason.
 2. Lan: drag the Queue event "Where is the root cause report…" onto Sync incident report. Main is read-only, so the app asks. Press **New change request**, then **Create**.
-3. Lan: drag the PG-203 flag to the right. Pick the date, write the reason, then press **Move the date**.
+3. Lan: drag the PG-203 planned finish mark to the right. Pick the date, write the reason, then press **Move the date**.
 4. Lan: press **Share**, pick Khoa Lê with **Can edit**, then press **Add**.
 5. Khoa: Lan's change request opens, and Lan is editing. Press **Ask to edit**.
 6. Lan: the yellow row says that Khoa asks to edit. Press **Hand over**.

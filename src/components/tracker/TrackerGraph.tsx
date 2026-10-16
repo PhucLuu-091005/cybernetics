@@ -1,6 +1,7 @@
 'use client';
 import { Fragment, type KeyboardEvent, type MouseEvent } from 'react';
 import {
+  dueDateAnchor,
   GEOMETRY,
   STATUS_LABEL,
   STATUS_TONE,
@@ -59,8 +60,7 @@ const ROWS = '[data-loop],[data-act],[data-rowlabel],[data-plus]';
 export function TrackerGraph(props: Props) {
   const { layout: L, edit, selectedMs, flash, focusRow, focusMs, dimmed, lifted, preview } = props;
   const events = groupBy(L.eventGroups);
-  const flags = groupBy(L.flags);
-  const slips = groupBy(L.slips);
+  const dueMarks = groupBy(L.dueMarks);
   const chips = groupBy(L.chips);
   const xt = L.tLine.x;
 
@@ -367,30 +367,43 @@ export function TrackerGraph(props: Props) {
                   </g>
                 );
               })}
-              {(slips.get(r.id) ?? []).map((s) => (
-                <Fragment key={`slip-${s.workItemId}`}>
-                  <line className={cls('slip', dim)} x1={s.x1} x2={s.x2} y1={s.y} y2={s.y} />
-                  <path className={cls('slip-o', dim)} d={`M${s.x1} ${s.y - 4} V${s.y + 4}`} />
-                </Fragment>
-              ))}
-              {(flags.get(r.id) ?? []).map((f) => (
-                <g
-                  key={`due-${f.workItemId}`}
-                  className={cls('due', dim, f.draft && 'draft')}
-                  data-due={f.workItemId}
-                  transform={`translate(${preview?.kind === 'item' && preview.id === f.workItemId ? preview.x : f.x} ${f.y})`}
-                  {...button(f.ariaLabel)}
-                >
-                  <rect className="due-hit" x={-7} y={-19} width={20} height={26} />
-                  <path className="due-pole" d="M0 -17 V5" />
-                  <path
-                    className="due-flag"
-                    d="M0 -17 L12 -12.5 L0 -8 Z"
-                    style={{ fill: color(f.tone) }}
-                  />
-                  <title>{f.tooltip}</title>
-                </g>
-              ))}
+              {(dueMarks.get(r.id) ?? []).map((d) => {
+                const stroke = color(d.draft ? 'draft' : d.tone);
+                const moved =
+                  preview?.kind === 'item' && preview.id === d.workItemId ? preview : null;
+                const x = moved ? moved.x : d.x;
+                const text = moved?.label ?? d.dateLabel;
+                const anchor = moved ? dueDateAnchor(x, text) : d.dateAnchor;
+                return (
+                  <Fragment key={`due-${d.workItemId}`}>
+                    {d.ghostX !== null && (
+                      <path
+                        className={cls('due-ghost', dim)}
+                        d={`M${d.ghostX} ${d.y - 8} V${d.y + 8}`}
+                      />
+                    )}
+                    <g
+                      className={cls('due', dim, d.draft && 'draft')}
+                      data-due={d.workItemId}
+                      transform={`translate(${x} ${d.y})`}
+                      {...button(d.ariaLabel)}
+                    >
+                      <rect className="due-hit" x={-8} y={-15} width={16} height={30} />
+                      <path className="due-bar" d="M0 -9 V9" style={{ stroke }} />
+                      <text
+                        className="due-date"
+                        x={anchor === 'end' ? -6 : 6}
+                        y={-6}
+                        textAnchor={anchor}
+                        style={{ fill: color(d.tone) }}
+                      >
+                        {text}
+                      </text>
+                      <title>{d.tooltip}</title>
+                    </g>
+                  </Fragment>
+                );
+              })}
               {edit && !r.done && (
                 <g
                   className="plus"
@@ -487,13 +500,23 @@ export function Legend() {
       {line('var(--danger)', 'Open after its planned finish')}
       {line('var(--caution)', 'Done after its planned finish')}
       <span>
-        <svg width="12" height="14" viewBox="0 0 12 14" aria-hidden="true">
-          <path d="M2 1V13" stroke="var(--ink-2)" strokeWidth="1.5" />
-          <path d="M2 1L10 4L2 7Z" fill="var(--ink-3)" />
+        <svg width="6" height="14" viewBox="0 0 6 14" aria-hidden="true">
+          <path d="M3 2V12" stroke="var(--ink-3)" strokeWidth="3" strokeLinecap="round" />
         </svg>
         Planned finish (drag to move)
       </span>
-      {line('var(--ink-3)', 'Moved from the first date', { height: 1 })}
+      <span>
+        <svg width="6" height="14" viewBox="0 0 6 14" aria-hidden="true">
+          <path
+            d="M3 2V12"
+            stroke="var(--ink-3)"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            opacity="0.35"
+          />
+        </svg>
+        First planned date
+      </span>
       {line('var(--ink-3)', 'Link to its milestone', { height: 1, opacity: 0.6 })}
       {(Object.keys(STATUS_LABEL) as Array<keyof typeof STATUS_LABEL>).map((status) => (
         <span key={status} style={{ color: color(STATUS_TONE[status]) }}>

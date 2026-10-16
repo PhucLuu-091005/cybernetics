@@ -195,12 +195,12 @@ describe('dropAction: what a drop does', () => {
   });
 });
 
-describe('dayAtX and noonX: the day under a dragged date flag', () => {
-  it('reads the day at the noon of a flag', () => {
+describe('dayAtX and noonX: the day under a dragged date mark', () => {
+  it('reads the day at the noon of a date mark', () => {
     const L = layout();
-    const flag = L.flags.find((f) => f.workItemId === 'c')!;
-    expect(noonX(L, '2026-10-12', TIME_ZONE)).toBeCloseTo(flag.x, 6);
-    expect(dayAtX(L, flag.x, TIME_ZONE)).toBe('2026-10-12');
+    const mark = L.dueMarks.find((d) => d.workItemId === 'c')!;
+    expect(noonX(L, '2026-10-12', TIME_ZONE)).toBeCloseTo(mark.x, 6);
+    expect(dayAtX(L, mark.x, TIME_ZONE)).toBe('2026-10-12');
     expect(dayAtX(L, noonX(L, '2026-09-20', TIME_ZONE) + 8, TIME_ZONE)).toBe('2026-09-20');
   });
 
