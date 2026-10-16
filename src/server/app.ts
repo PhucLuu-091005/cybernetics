@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import type { ActorContext, Scope } from '../contracts';
 import { createDatabase } from './db/client';
 import { DbIdentityStore, type UserCreatedHook } from './db/identity-store';
+import { users } from './db/schema';
 import type { Db } from './db/tx';
 import { browserScopes, type HttpIdentityStore } from './http/identity-store';
 import type { BrowserSession } from './http/actors';
@@ -20,8 +22,11 @@ export type App = { db: Db; identity: HttpIdentityStore; pool: Pool };
 const state = globalThis as typeof globalThis & { promiseApp?: App };
 /** Loaded on first sign-in only, so routes do not carry the fixture JSON. */
 export const seedOnUserCreated: UserCreatedHook = async (tx, { userId, workspaceId }) => {
-  const { seedSandbox } = await import('./domain/seed');
-  await seedSandbox(tx, {
+  const [{ seedSandbox }, { seedTrackerDemo }] = await Promise.all([
+    import('./domain/seed'),
+    import('./tracker'),
+  ]);
+  const sandbox = await seedSandbox(tx, {
     kind: 'user',
     userId,
     workspaceId,
@@ -29,6 +34,8 @@ export const seedOnUserCreated: UserCreatedHook = async (tx, { userId, workspace
     scopes: [...browserScopes],
     requestId: randomUUID(),
   });
+  const [user] = await tx.select({ name: users.name }).from(users).where(eq(users.id, userId));
+  await seedTrackerDemo(tx, { workspaceId, projectId: sandbox.id, userId, userName: user.name });
 };
 const identityStore = (db: Db) => new DbIdentityStore(db, { onUserCreated: seedOnUserCreated });
 export function getApp(): App {
