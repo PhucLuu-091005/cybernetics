@@ -265,3 +265,23 @@ export function reviewModel(
     dropped: cr.status === 'merged' ? cr.resolutions.filter((r) => r.chose === 'main') : [],
   };
 }
+
+/**
+ * The owner merges what they reviewed, so the review keeps the opened revision of the change request
+ * until they review again. Comments, asks and shares do not change the revision and stay live.
+ */
+export function openedReview(
+  live: TrackerPayload,
+  opened: Cr | null,
+): { payload: TrackerPayload; changed: boolean } {
+  const now = opened && live.crs.find((c) => c.num === opened.num);
+  if (!opened || !now || now.revision === opened.revision) return { payload: live, changed: false };
+  const kept: Cr = {
+    ...opened,
+    comments: now.comments,
+    asks: now.asks,
+    shares: now.shares,
+    updatedAt: now.updatedAt,
+  };
+  return { payload: { ...live, crs: live.crs.map((c) => (c === now ? kept : c)) }, changed: true };
+}

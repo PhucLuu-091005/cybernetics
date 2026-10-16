@@ -71,6 +71,16 @@
   margin: 12px 0;
   max-width: 900px;
 }
+.tk .rv .callout.warn {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--caution-bg);
+  border-color: var(--caution);
+  font-weight: 600;
+}
 
 .tk .res-box {
   border: 1px solid var(--caution);

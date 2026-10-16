@@ -25,6 +25,7 @@ import {
   type TrackerPayload,
 } from '../../tracker';
 import {
+  openedReview,
   reviewModel,
   SKIP_REASON,
   type ReviewChange,
@@ -398,7 +399,11 @@ export function ReviewScreen({
   serverNow: number;
 }) {
   const router = useRouter();
-  const { payload, setPayload } = useTracker(initial, projectId);
+  const { payload: live, setPayload } = useTracker(initial, projectId);
+  const [opened, setOpened] = useState<Cr | null>(
+    () => initial.crs.find((c) => c.num === num) ?? null,
+  );
+  const { payload, changed } = useMemo(() => openedReview(live, opened), [live, opened]);
   const { project } = payload;
   const tz = project.timeZone;
   const now = useNow(serverNow);
@@ -521,14 +526,17 @@ export function ReviewScreen({
     setBusy(false);
     if (result.ok) {
       setPayload(result.data);
+      // Only the owner's own decision moves the review to the revision it made.
+      if (body.expectedRevision !== undefined)
+        setOpened(result.data.crs.find((c) => c.num === num) ?? null);
       return result.data;
     }
-    say(result.error.message);
     // A stale review must show what changed before the owner tries again.
-    if (result.error.status === 409) {
-      const fresh = await getTracker(projectId);
-      if (fresh.ok) setPayload(fresh.data);
-    }
+    const fresh = result.error.status === 409 ? await getTracker(projectId) : null;
+    if (fresh?.ok) setPayload(fresh.data);
+    const moved =
+      fresh?.ok && fresh.data.crs.find((c) => c.num === num)?.revision !== opened?.revision;
+    say(moved ? `#${num} changed since you opened it. Press Review again.` : result.error.message);
     return null;
   };
   const merge = async () => {
@@ -555,6 +563,10 @@ export function ReviewScreen({
   };
   const comment = async (body: string, opIndex: number | null) =>
     !!(await act({ action: 'comment', body, opIndex }));
+  const reviewAgain = () => {
+    setOpened(live.crs.find((c) => c.num === num) ?? null);
+    setViewed([]);
+  };
 
   let buttons: ReactNode = (
     <Link className="btn big" href={graphHref}>
@@ -656,6 +668,14 @@ export function ReviewScreen({
           </div>
           <div className="cs-btns">{buttons}</div>
         </div>
+        {changed && (
+          <div className="callout warn" role="status">
+            <span>This change request changed since you opened it.</span>
+            <button className="btn btn-ink" type="button" onClick={reviewAgain}>
+              Review again
+            </button>
+          </div>
+        )}
         {cr.status === 'draft' && (
           <div className="callout small">
             This is a draft. Its editors can still change it. Main changes only after {ownerName}{' '}
