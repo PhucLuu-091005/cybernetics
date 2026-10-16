@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   dayAtX,
   dropAction,
+  eventGesture,
   noonX,
   retarget,
   targetAt,
@@ -182,13 +183,9 @@ describe('dropAction: what a drop does', () => {
     expect(dropAction(ev, { type: 'loop', id: 'a' }, s)).toEqual({ kind: 'none' });
   });
 
-  it('explains that an event keeps its time when it moves sideways', () => {
-    expect(dropAction(ev, { type: 'loop', id: 'a' }, s, 60)).toEqual({
-      kind: 'hint',
-      text: 'An event stays at the time it happened. Drag it up or down to another work item.',
-    });
-    expect(dropAction(ev, null, s, -41).kind).toBe('hint');
-    expect(dropAction(ev, null, s, 40)).toEqual({ kind: 'none' });
+  it('leaves an event where it is when it ends on its own row or outside the graph', () => {
+    expect(dropAction(ev, { type: 'loop', id: 'a' }, s)).toEqual({ kind: 'none' });
+    expect(dropAction(ev, null, s)).toEqual({ kind: 'none' });
   });
 
   it('adds a work item to the milestone under its name', () => {
@@ -204,6 +201,24 @@ describe('dropAction: what a drop does', () => {
       text: 'Drop a work item name on a milestone diamond to add it to that milestone.',
     });
     expect(dropAction(row, null, s)).toEqual({ kind: 'none' });
+  });
+});
+
+describe('eventGesture: the first move of an event drag picks what it does', () => {
+  it('moves the icon inside its day for a sideways start, in every view', () => {
+    expect(eventGesture(10, 3, false)).toBe('day');
+    expect(eventGesture(-10, 9, true)).toBe('day');
+    expect(eventGesture(10, -3, true)).toBe('day');
+  });
+
+  it('moves the event to another work item for an up or down start in an editable change request', () => {
+    expect(eventGesture(3, 10, true)).toBe('move');
+    expect(eventGesture(6, -6, true)).toBe('move');
+  });
+
+  it('does nothing for an up or down start in a read-only view', () => {
+    expect(eventGesture(3, 10, false)).toBeNull();
+    expect(eventGesture(6, 6, false)).toBeNull();
   });
 });
 
@@ -258,6 +273,7 @@ describe('trackPointer: one pointer from pointerdown to release', () => {
     expect(t.onStart).not.toHaveBeenCalled();
     target.dispatchEvent(pointer('pointermove', { clientX: 30, clientY: 40 }));
     expect(t.onStart).toHaveBeenCalledTimes(1);
+    expect(t.onStart).toHaveBeenCalledWith(expect.objectContaining({ clientX: 30, clientY: 40 }));
     expect(t.onMove).toHaveBeenCalledTimes(1);
     target.dispatchEvent(pointer('pointerup', { clientX: 30, clientY: 40, pointerId: 2 }));
     expect(t.onDrop).not.toHaveBeenCalled();

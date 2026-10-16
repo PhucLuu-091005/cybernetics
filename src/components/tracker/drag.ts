@@ -36,7 +36,6 @@ const LABEL_DOWN = 3;
 const ROW_X0 = 22;
 const ROW_PAST_END = 8;
 const ROW_HALF = 15;
-const SIDEWAYS = 40;
 const HOUR = 3_600_000;
 
 const inBox = (p: Point, b: { x: number; y: number; width: number; height: number }) =>
@@ -82,7 +81,6 @@ export function dropAction(
   source: DragSource,
   target: DropTarget | null,
   state: TrackerState,
-  dx = 0,
 ): DropAction {
   switch (source.kind) {
     case 'queueEvent':
@@ -107,11 +105,6 @@ export function dropAction(
         return { kind: 'op', op: { op: 'move', a: { eventId: source.id, to: target.id } } };
       if (target?.type === 'bin')
         return { kind: 'op', op: { op: 'hide', a: { eventId: source.id } } };
-      if (Math.abs(dx) > SIDEWAYS)
-        return {
-          kind: 'hint',
-          text: 'An event stays at the time it happened. Drag it up or down to another work item.',
-        };
       return NONE;
     case 'row': {
       if (!target) return NONE;
@@ -128,6 +121,15 @@ export function dropAction(
       };
     }
   }
+}
+
+/**
+ * A sideways start moves the icon inside its day, a display choice open in every view; an up or down
+ * start moves the event to another work item, which changes the graph and needs an editable draft.
+ */
+export function eventGesture(dx: number, dy: number, edit: boolean): 'day' | 'move' | null {
+  if (Math.abs(dx) > Math.abs(dy)) return 'day';
+  return edit ? 'move' : null;
 }
 
 export function noonX(layout: TrackerLayout, date: string, tz: string): number {
@@ -188,7 +190,7 @@ export type PointerTrack = {
   /** Pixels the pointer moves before the drag starts; `x` counts only the horizontal move. */
   threshold: number;
   axis: 'any' | 'x';
-  onStart: () => void;
+  onStart: (event: PointerEvent) => void;
   onMove: (event: PointerEvent) => void;
   onDrop: (event: PointerEvent, dx: number, dy: number) => void;
   onCancel: () => void;
@@ -231,7 +233,7 @@ export function trackPointer(start: Start, t: PointerTrack, target: EventTarget 
           : Math.hypot(event.clientX - sx, event.clientY - sy) >= t.threshold;
       if (!far) return;
       active = true;
-      t.onStart();
+      t.onStart(event);
     }
     t.onMove(event);
   };

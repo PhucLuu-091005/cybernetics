@@ -45,7 +45,7 @@ const CODE_BY_STATUS: Record<number, string> = {
 
 async function send<T>(
   path: string,
-  method: 'GET' | 'POST' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   body?: unknown,
 ): Promise<ApiResult<T>> {
   let response: Response;
@@ -107,6 +107,11 @@ export const addToQueue = (projectId: string, entry: QueueEntry) =>
 
 export const dismissQueueEntry = (projectId: string, queueId: string) =>
   send<TrackerPayload>(`${tracker(projectId)}/queue/${encodeURIComponent(queueId)}`, 'DELETE');
+
+export const putOffset = (projectId: string, eventId: string, minutes: number) =>
+  send<TrackerPayload>(`${tracker(projectId)}/offsets/${encodeURIComponent(eventId)}`, 'PUT', {
+    minutes,
+  });
 
 export const createCr = (projectId: string, input: { title: string; ops?: OpInput[] }) =>
   send<TrackerPayload & { num: number }>(`${tracker(projectId)}/crs`, 'POST', input);

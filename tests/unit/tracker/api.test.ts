@@ -7,6 +7,7 @@ import {
   crAction,
   dismissQueueEntry,
   getTracker,
+  putOffset,
   removeOp,
   type CrAction,
 } from '../../../src/components/tracker/api';
@@ -52,6 +53,14 @@ describe('tracker api request shapes', () => {
     expect(last().init.method).toBe('POST');
     expect(new Headers(last().init.headers).get('content-type')).toBe('application/json');
     expect(bodyOf(last())).toEqual({ memberId: 'm-lan' });
+  });
+
+  it('saves a day offset with one PUT per event', async () => {
+    await putOffset(PROJECT, 'p31', -45);
+    expect(last().url).toBe(`${BASE}/offsets/p31`);
+    expect(last().init.method).toBe('PUT');
+    expect(new Headers(last().init.headers).get('content-type')).toBe('application/json');
+    expect(bodyOf(last())).toEqual({ minutes: -45 });
   });
 
   it('adds an event and a work item to the queue', async () => {

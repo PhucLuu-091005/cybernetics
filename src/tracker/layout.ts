@@ -7,6 +7,7 @@ import {
   type TrackerState,
   type WorkItem,
 } from './model';
+import { drawnAt, type Offsets } from './offsets';
 import type { Marks } from './ops';
 import { itemInfo, itemStatus, milestoneStatus, type ItemInfo } from './status';
 import { addDays, compareDay, dayOf, formatDay, formatStamp, startOfDayInstant } from './time';
@@ -57,6 +58,7 @@ export type View = {
   windowEnd?: string;
   /** 1 fits the window to the width; more widens the time line. */
   zoom?: number;
+  offsets?: Offsets;
 };
 
 export type Point = { x: number; y: number };
@@ -599,9 +601,12 @@ function ticksOf(c: Ctx, start: string, endMs: number): LayoutTick[] {
 }
 
 function groupsOf(c: Ctx, w: WorkItem, r: LayoutRow, info: ItemInfo): LayoutEventGroup[] {
+  const offsets = c.view.offsets ?? {};
+  const drawn = info.events
+    .map((e) => ({ e, at: drawnAt(e, offsets, c.tz) }))
+    .sort((a, b) => a.at - b.at);
   const groups: Array<{ x: number; events: TrackerEvent[] }> = [];
-  for (const e of info.events) {
-    const at = Date.parse(e.at);
+  for (const { e, at } of drawn) {
     if (at < c.startMs) continue;
     const ex = c.x(at);
     const last = groups.at(-1);

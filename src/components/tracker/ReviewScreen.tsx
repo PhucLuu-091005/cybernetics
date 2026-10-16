@@ -467,12 +467,13 @@ export function ReviewScreen({
               asOf,
               timeZone: tz,
               zoom,
+              offsets: live.offsets,
               ...(project.windowStart ? { windowStart: project.windowStart } : {}),
             },
             view === 'after' ? model.marks : undefined,
           )
         : null,
-    [graphState, model, view, hidden, asOf, tz, zoom, project.windowStart],
+    [graphState, model, view, hidden, asOf, tz, zoom, live.offsets, project.windowStart],
   );
 
   const graphHref = `/projects/${projectId}/graph?cr=${num}`;

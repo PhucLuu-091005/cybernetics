@@ -556,6 +556,19 @@
   flex: 1 1 220px;
   color: var(--ink);
 }
+.tk .pop .moved {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+.tk .pop .moved svg {
+  flex: none;
+  color: var(--ink-3);
+}
 .tk .ro-acts {
   display: inline-flex;
   align-items: center;
@@ -1823,6 +1836,11 @@ svg.tg .goal-date {
 .tk .qc {
   cursor: grab;
 }
+/* Every view moves an event inside its day, so a sideways touch drags it and an up or down touch scrolls. */
+.tgraph svg.tg .act {
+  cursor: grab;
+  touch-action: pan-y;
+}
 .tgraph.editable svg.tg .act,
 .tgraph.editable svg.tg .label-hit {
   cursor: grab;
@@ -1836,7 +1854,9 @@ svg.tg .act.lift {
   opacity: 0.3;
 }
 .tk.drag-due,
-.tk.drag-due svg.tg .ms {
+.tk.drag-due svg.tg .ms,
+.tk.drag-day,
+.tk.drag-day svg.tg .act {
   cursor: ew-resize;
 }
 .tk.moving svg.tg .hit {
