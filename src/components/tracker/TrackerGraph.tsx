@@ -403,7 +403,7 @@ export function TrackerGraph(props: Props) {
       {L.stems.map((s) => (
         <path
           key={`stem-${s.workItemId}`}
-          className={cls('stem', s.ghost && 'ghost', dimmed(s.workItemId) && 'dim')}
+          className={cls('stem', dimmed(s.workItemId) && 'dim')}
           d={`M${s.x} ${s.y1} L${s.x} ${s.y2}`}
           style={{ stroke: color(s.tone) }}
         />

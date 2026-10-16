@@ -149,7 +149,6 @@ export type LayoutStem = {
   y1: number;
   y2: number;
   tone: Tone;
-  ghost: boolean;
 };
 export type LayoutLink = Curve & {
   fromId: string;
@@ -405,7 +404,8 @@ function linesOf(c: Ctx, shown: LayoutRow[], addChip: AddChip) {
     const info = c.infos.get(r.id)!;
     const begin = startOf(c, w);
     const sx = Math.max(X0, c.x(begin));
-    if (begin >= c.startMs) stems.push(stemOf(c, w, r, sx, addChip));
+    const stem = begin >= c.startMs ? stemOf(c, w, r, sx, addChip) : null;
+    if (stem) stems.push(stem);
     if (info.start === null) {
       const waits = w.after
         .map((id) => c.items.get(id))
@@ -439,15 +439,23 @@ function linesOf(c: Ctx, shown: LayoutRow[], addChip: AddChip) {
   return { segments, stems };
 }
 
-function stemOf(c: Ctx, w: WorkItem, r: LayoutRow, sx: number, addChip: AddChip): LayoutStem {
+/** A parent that is not on the graph gets the arrow chip and no stem, as the owner wants no ghost lines. */
+function stemOf(
+  c: Ctx,
+  w: WorkItem,
+  r: LayoutRow,
+  sx: number,
+  addChip: AddChip,
+): LayoutStem | null {
   const info = c.infos.get(w.id)!;
   const parentId = w.parentId && c.items.has(w.parentId) ? w.parentId : null;
   const parentRow = parentId ? c.rows.get(parentId) : undefined;
-  // A parent that is not on the graph gives no row to start from, so the stem starts at the trunk.
-  const ghost = !!parentId && !parentRow;
-  if (ghost) addChip(w.id, parentId);
-  const tone: Tone = ghost || info.start === null ? 'ink-3' : baseTone(info);
-  return { workItemId: w.id, parentId, x: sx, y1: parentRow?.y ?? TRUNK_Y, y2: r.y, tone, ghost };
+  if (parentId && !parentRow) {
+    addChip(w.id, parentId);
+    return null;
+  }
+  const tone: Tone = info.start === null ? 'ink-3' : baseTone(info);
+  return { workItemId: w.id, parentId, x: sx, y1: parentRow?.y ?? TRUNK_Y, y2: r.y, tone };
 }
 
 function leadLinks(c: Ctx, shown: LayoutRow[], addChip: AddChip): LayoutLink[] {
