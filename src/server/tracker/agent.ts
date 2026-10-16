@@ -58,7 +58,7 @@ function crSummary(cr: Cr, who: (id: string) => Who) {
     status: cr.status,
     author: who(cr.author),
     editor: who(cr.editor),
-    changes: cr.ops.length,
+    changeCount: cr.ops.length,
     updatedAt: cr.updatedAt,
   };
 }
