@@ -10,15 +10,12 @@ if (!admin)
 // Workers re-read this config; the env var pins one database name and secret for the whole run.
 process.env.E2E_DATABASE_NAME ??= `pg_e2e_${randomUUID().replaceAll('-', '')}`;
 process.env.E2E_SESSION_SECRET ??= process.env.SESSION_SECRET ?? randomBytes(32).toString('hex');
-const port = Number(process.env.E2E_PORT ?? 3100);
+const port = Number(process.env.E2E_PORT ?? 3300);
 const baseURL = `http://localhost:${port}`;
 
 export default defineConfig({
   testDir: 'tests/e2e',
-  // The release walkthrough targets a running deployment through playwright.release.config.ts.
-  testIgnore: 'release.spec.ts',
   fullyParallel: false,
-  // Every test signs in as the same local user, and the first sign-in seeds the sandbox.
   workers: 1,
   retries: 0,
   // CI runs one worker on a cold next dev server, so the first test of a run also pays every page's first compile.
