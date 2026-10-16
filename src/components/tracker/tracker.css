@@ -1563,7 +1563,7 @@ svg.pg .lane-drop.glow {
   position: fixed;
   left: 0;
   top: 0;
-  z-index: 60;
+  z-index: 90;
   pointer-events: none;
   transform: translate(10px, 10px) rotate(-2deg);
 }
@@ -1596,12 +1596,13 @@ svg.pg .lane-drop.glow {
   box-shadow: var(--shadow);
 }
 
+/* Above the folded rail (z-index 60 in shell.css); the toast stays above the modal. */
 .tk-modal {
   position: fixed;
   inset: 0;
   background: color-mix(in srgb, var(--page) 65%, transparent);
   backdrop-filter: blur(2px);
-  z-index: 40;
+  z-index: 70;
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -1802,6 +1803,9 @@ svg.pg .lane-drop.glow {
 .tk .pop .m-foot {
   margin-top: 10px;
 }
+.tk-toast {
+  z-index: 80;
+}
 .tk-toast button {
   display: inline-flex;
   align-items: center;
@@ -1821,6 +1825,10 @@ svg.pg .lane-drop.glow {
   }
   .tk .grid2 {
     grid-template-columns: minmax(0, 1fr);
+  }
+  /* The rail becomes a sticky top bar at this width. */
+  .tk .move-hint-slot {
+    top: 66px;
   }
   .tk .move-hint {
     white-space: normal;
