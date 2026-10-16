@@ -247,6 +247,93 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
     expect((await call('GET', tracker, p())).body.me).toBeNull();
   });
 
+  it('ignores an act-as cookie that names no member and works as the own member', async () => {
+    const cookie = `pg_act_${demo.projectId}`;
+    for (const stale of [randomUUID(), 'junk']) {
+      jar.set(cookie, stale);
+      const read = await call('GET', tracker, p());
+      expect(read.status).toBe(200);
+      expect(read.body.me.id).toBe(demo.ids.minh);
+      const created = await call('POST', `${tracker}/crs`, p(), { title: `As Minh ${stale}` });
+      expect(crOf(created, created.body.num).author).toBe(demo.ids.minh);
+    }
+    const real = await call(
+      'POST',
+      'projects',
+      {},
+      {
+        title: 'Real',
+        clientName: 'R',
+        teams: ['QA'],
+      },
+    );
+    jar.set(`pg_act_${real.body.id}`, demo.ids.lan);
+    const own = await call('GET', tracker, { projectId: real.body.id });
+    expect(own.status).toBe(200);
+    expect(own.body.me.userId).toBe(demo.owner.userId);
+  });
+
+  it('needs a session', async () => {
+    jar.delete(SESSION_COOKIE);
+    expect(await call('GET', tracker, p())).toMatchObject({
+      status: 401,
+      body: { code: 'UNAUTHENTICATED' },
+    });
+  });
+
+  it('refuses request changes and close through the route without the revision the owner saw', async () => {
+    const target = { ...p(), num: '2' };
+    for (const body of [{ action: 'request-changes', note: 'Split it.' }, { action: 'close' }])
+      expect(await call('POST', `${tracker}/crs/[num]/actions`, target, body)).toMatchObject({
+        status: 400,
+        body: { code: 'VALIDATION' },
+      });
+    expect(crOf(await call('GET', tracker, p()), 2).status).toBe('ready');
+  });
+
+  it('refuses a NUL character in any text with 400', async () => {
+    const nul = 'a\u0000b';
+    const queued = await call('POST', `${tracker}/queue`, p(), {
+      kind: 'event',
+      fields: { ...event('sarah').fields, text: nul },
+    });
+    const item = await call('POST', `${tracker}/queue`, p(), {
+      kind: 'item',
+      fields: {
+        title: 'Item',
+        note: nul,
+        doneBy: 'sarah',
+        requestedBy: 'sarah',
+        plannedFinish: '2026-10-20',
+      },
+    });
+    const titled = await call('POST', `${tracker}/crs`, p(), { title: nul });
+    const renamed = await call('POST', `${tracker}/crs`, p(), {
+      title: 'Rename',
+      ops: [rename(nul)],
+    });
+    const commented = await call(
+      'POST',
+      `${tracker}/crs/[num]/actions`,
+      { ...p(), num: '4' },
+      { action: 'comment', body: nul },
+    );
+    const project = (fields: Record<string, unknown>) =>
+      call('POST', 'projects', {}, { title: 'P', clientName: 'C', teams: ['QA'], ...fields });
+    const replies = [
+      queued,
+      item,
+      titled,
+      renamed,
+      commented,
+      await project({ teams: [nul] }),
+      await project({ title: nul }),
+      await project({ milestone: { name: nul, date: '2026-12-01' } }),
+    ];
+    for (const reply of replies)
+      expect(reply).toMatchObject({ status: 400, body: { code: 'VALIDATION' } });
+  });
+
   it('takes the acting member only from the cookie, never from the body', async () => {
     const smuggled = await call('POST', `${tracker}/crs`, p(), {
       title: 'Smuggled',
