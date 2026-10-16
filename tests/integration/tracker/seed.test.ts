@@ -5,6 +5,7 @@ import { listProjects } from '../../../src/server/domain/projects';
 import { crAction, getTrackerPayload } from '../../../src/server/tracker';
 import {
   LARKSPUR_AS_OF,
+  LARKSPUR_PROJECT,
   larkspurBase,
   larkspurQueueRows,
 } from '../../../src/server/tracker/seed/larkspur';
@@ -174,7 +175,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker demo seed', () => {
     ]);
   });
 
-  it('seeds the tracker demo into the sandbox project on first sign-in', async () => {
+  it('seeds one sandbox project, the tracker demo, on first sign-in', async () => {
     const store = new DbIdentityStore(t.db, { onUserCreated: seedOnUserCreated });
     const { userId } = await store.provisionUser({
       subject: `google:seed-${Date.now()}`,
@@ -190,7 +191,13 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker demo seed', () => {
       scopes: [...browserScopes],
       requestId: 'seed-test',
     };
-    const [sandbox] = await listProjects(t.db, ctx);
+    const [sandbox, ...others] = await listProjects(t.db, ctx);
+    expect(others).toEqual([]);
+    expect(sandbox).toEqual({
+      id: expect.any(String),
+      workspaceId: ctx.workspaceId,
+      ...LARKSPUR_PROJECT,
+    });
     const seeded = await getTrackerPayload(t.db, ctx, { projectId: sandbox.id });
     expect(seeded.project).toMatchObject({ demo: true, title: sandbox.title });
     expect(seeded.me).toMatchObject({ name: 'Minh Trần', userId });

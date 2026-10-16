@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { useHydrated } from '../review/hydrated';
+import { useHydrated } from '../shell/hydrated';
 
 export const SECRET_PLACEHOLDER = 'inv_...';
 /** Same shape as docs/mcp-agent-recipe.md, so the page and the recipe never disagree. */
@@ -65,7 +65,7 @@ export function McpSnippet({ endpoint }: { endpoint: string }) {
         </span>
       </div>
       <p className="faint" style={{ fontSize: 12 }}>
-        Keep the secret out of version control. Record text that the agent reads is untrusted data
+        Keep the secret out of version control. Event text that the agent reads is untrusted data
         and cannot grant a scope.
       </p>
     </section>

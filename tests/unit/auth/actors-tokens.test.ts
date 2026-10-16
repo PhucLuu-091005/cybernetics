@@ -29,7 +29,7 @@ async function setup() {
     userId,
     workspaceId,
     projectId,
-    scopes: ['project:read' as const, 'graph:merge' as const],
+    scopes: ['project:read' as const, 'queue:add' as const],
     requestId: 'test',
   };
   const tokens = createTokenService(store, () => now);
@@ -167,9 +167,6 @@ describe('hashed project agent tokens', () => {
     await expect(
       s.services.getTokenActor(s.request(created.secret), 'project:read'),
     ).resolves.toMatchObject({ kind: 'agent', projectId: s.projectId });
-    await expect(
-      s.services.getTokenActor(s.request(created.secret), 'graph:merge'),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
   it('conflicts on repeated creation keys without persisting or replaying a secret', async () => {
     const s = await setup();
@@ -202,15 +199,15 @@ describe('hashed project agent tokens', () => {
     });
     expect(retried).toEqual(result);
   });
-  it('allows explicit human merge grants but agents cannot create or revoke tokens', async () => {
+  it('agents cannot create, revoke or list tokens', async () => {
     const s = await setup();
     const created = await s.tokens.createToken(s.ctx, {
       projectId: s.projectId,
       label: 'Granted',
       idempotencyKey: 'grant',
-      scopes: ['graph:merge'],
+      scopes: ['queue:add'],
     });
-    const actor = await s.services.getTokenActor(s.request(created.secret), 'graph:merge');
+    const actor = await s.services.getTokenActor(s.request(created.secret), 'queue:add');
     await expect(
       s.tokens.createToken(actor, {
         projectId: s.projectId,
@@ -361,8 +358,8 @@ describe('hashed project agent tokens', () => {
     const s = await setup();
     const created = await s.tokens.createToken(s.ctx, {
       projectId: s.projectId,
-      label: 'Importer',
-      scopes: ['records:import'],
+      label: 'Writer',
+      scopes: ['queue:add'],
       idempotencyKey: 'create-1',
     });
     const request = new Request(`${env.appOrigin}/mcp`, {
@@ -372,7 +369,7 @@ describe('hashed project agent tokens', () => {
     await expect(s.services.getTokenActor(request, null)).resolves.toMatchObject({
       kind: 'agent',
       projectId: s.projectId,
-      scopes: ['records:import'],
+      scopes: ['queue:add'],
     });
     await s.tokens.revokeToken(s.ctx, {
       projectId: s.projectId,
@@ -388,14 +385,15 @@ describe('hashed project agent tokens', () => {
     const created = await s.tokens.createToken(s.ctx, {
       projectId: s.projectId,
       label: 'Agent',
+      scopes: ['queue:add'],
       idempotencyKey: 'create-1',
     });
     for (let i = 0; i < 60; i++)
       await expect(
-        s.services.getTokenActor(s.request(created.secret), 'graph:merge'),
+        s.services.getTokenActor(s.request(created.secret), 'project:read'),
       ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(
-      s.services.getTokenActor(s.request(created.secret), 'project:read'),
+      s.services.getTokenActor(s.request(created.secret), 'queue:add'),
     ).rejects.toMatchObject({ code: 'RATE_LIMITED' });
   });
   it('limits token calls at sixty per minute', async () => {
@@ -457,7 +455,7 @@ describe('last call of a token', () => {
   });
   it('records a call that fails on scope, because the agent still reached the app', async () => {
     const s = await lastCallSetup(['project:read']);
-    await expect(s.call('graph:merge')).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(s.call('queue:add')).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(s.stored().lastUsedAt).toBe('2026-10-13T00:00:00.000Z');
   });
   it('records a call that passes no scope', async () => {

@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useState } from 'react';
-import { useHydrated } from '../review/hydrated';
+import { useHydrated } from './hydrated';
 import { RailIcon } from './icons';
 import { NewProjectDialog } from './NewProjectDialog';
 import { useDismissibleDetails } from './Popover';
