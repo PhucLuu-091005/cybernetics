@@ -78,6 +78,43 @@ describe('clashesOf', () => {
     const ops = [makeOp('hide', { eventId: 'x2' }, 0), rename('CR name', 0)];
     expect(clashesOf(ops, commits).map((c) => c.index)).toEqual([1]);
   });
+  it.each<[string, Op, Op, string]>([
+    [
+      'attach and fromEvent of one queue event',
+      makeOp('attach', { eventId: 'qe3', workItemId: 'golive' }, 0, 'lan'),
+      makeOp(
+        'fromEvent',
+        {
+          id: 'w1',
+          eventId: 'qe3',
+          teamId: 'implementation',
+          title: 'Explain the slip',
+          doneBy: 'minh',
+          requestedBy: 'sarah',
+          after: null,
+          plannedFinish: '2026-10-12',
+        },
+        0,
+        'quang',
+      ),
+      'event:qe3',
+    ],
+    [
+      'place of one queue item onto two teams',
+      makeOp('place', { itemId: 'q1', teamId: 'engineering' }, 0, 'lan'),
+      makeOp('place', { itemId: 'q1', teamId: 'digitization' }, 0, 'quang'),
+      'item:q1',
+    ],
+    [
+      'move and kind of one event',
+      makeOp('move', { eventId: 'p32', to: 'test' }, 0, 'lan'),
+      makeOp('kind', { eventId: 'p32', kind: 'issue' }, 0, 'quang'),
+      'act:p32',
+    ],
+  ])('reports two different ops on one key: %s', (_, x, y, key) => {
+    const commits = [commit(1, [y])];
+    expect(clashesOf([x], commits)).toEqual([{ key, index: 0, x, y, commit: commits[0] }]);
+  });
 });
 
 describe('liveOps', () => {
@@ -95,6 +132,12 @@ describe('liveOps', () => {
 
   it('keeps the CR op when the owner picks the CR', () => {
     expect(liveOps([x], commits, { [key]: 'cr' })).toEqual([x]);
+  });
+
+  it('keeps the CR ops that do not clash when the owner picks Main', () => {
+    const hide = makeOp('hide', { eventId: 'x2' }, 0);
+    const place = makeOp('place', { itemId: 'q1', teamId: 'engineering' }, 0);
+    expect(liveOps([hide, x, place], commits, { [key]: 'main' })).toEqual([hide, place]);
   });
 });
 

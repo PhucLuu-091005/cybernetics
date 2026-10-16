@@ -30,7 +30,16 @@ export function describeOp(
   return applyOp(stateBefore, op, timeZone).entry;
 }
 
-const clean = (value: string) => value.replace(/^planned /, '').replace(/^on /, '');
+const PREFIX: Partial<Record<OpName, string>> = {
+  msDate: 'planned ',
+  newMs: 'planned ',
+  hide: 'on ',
+};
+
+function clean(name: OpName, value: string): string {
+  const prefix = PREFIX[name];
+  return prefix && value.startsWith(prefix) ? value.slice(prefix.length) : value;
+}
 
 export function diffLines(op: Pick<Op, 'op' | 'd'>): Array<['del' | 'add', string]> {
   const d = op.d;
@@ -38,13 +47,13 @@ export function diffLines(op: Pick<Op, 'op' | 'd'>): Array<['del' | 'add', strin
   if (d.before === 'Queue') {
     return [
       ['del', 'In the queue'],
-      ['add', `${op.op === 'place' ? 'Team' : 'On'}: ${clean(d.after)}`],
+      ['add', `${op.op === 'place' ? 'Team' : 'On'}: ${clean(op.op, d.after)}`],
     ];
   }
   const field = FIELD[op.op] ?? 'Change';
   const lines: Array<['del' | 'add', string]> = [];
-  if (d.before) lines.push(['del', `${field}: ${clean(d.before)}`]);
-  lines.push(['add', `${field}: ${clean(d.after || d.change)}`]);
+  if (d.before) lines.push(['del', `${field}: ${clean(op.op, d.before)}`]);
+  lines.push(['add', `${field}: ${clean(op.op, d.after || d.change)}`]);
   return lines;
 }
 
