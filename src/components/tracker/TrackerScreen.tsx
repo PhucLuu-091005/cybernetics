@@ -1,7 +1,15 @@
 'use client';
 import './tracker.css';
 import { useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import {
   crState,
   layoutTracker,
@@ -45,7 +53,6 @@ export type DrawerMode = 'list' | 'ms' | 'changes' | 'crs' | 'history';
 type Drawer = { mode: Exclude<DrawerMode, 'ms'> } | { mode: 'ms'; id: string };
 export type DateTarget = { kind: 'item' | 'ms'; id: string };
 
-/** Edit handlers; Task 6 wires them to modals and the CR routes. */
 export type TrackerActions = {
   newCr: () => void;
   share: () => void;
@@ -100,6 +107,8 @@ export const NO_ACTIONS: TrackerActions = {
 };
 
 export const POLL_MS = 5000;
+// The prototype keeps a pop open for clicks in these areas; the graph closes it on its own background.
+const OUTSIDE_EXEMPT = '.p-head, .bbar, .pop, .drawer, .p-side, .empty, svg.pg';
 const MINUTE = 60_000;
 
 export function parseView(raw: string | null, crs: readonly Cr[]): TrackerView {
@@ -167,34 +176,36 @@ const everyHalfMinute = (onChange: () => void) => {
   const timer = setInterval(onChange, MINUTE / 2);
   return () => clearInterval(timer);
 };
-// Whole minutes keep the server render and the hydrating client on the same clock.
 const minuteNow = () => Math.floor(Date.now() / MINUTE) * MINUTE;
-const useNow = () => useSyncExternalStore(everyHalfMinute, minuteNow, minuteNow);
+// Hydration renders with the server's minute, so the T line matches the server HTML; the client clock takes over after.
+const useNow = (serverNow: number) =>
+  useSyncExternalStore(everyHalfMinute, minuteNow, () => serverNow);
 
 type Current = { state: TrackerState; marks?: Marks };
 
 function currentState(payload: TrackerPayload, cr: Cr | null): Current {
   const main = () => ({ state: mainState(payload.base, payload.queue, payload.commits) });
   if (!cr) return main();
-  try {
-    return crState(payload.base, payload.queue, payload.commits, cr, payload.project.timeZone);
-  } catch {
-    return main();
-  }
+  // crState throws for a merged CR whose commit is not in this payload; show Main instead of a crash.
+  if (cr.status === 'merged' && !payload.commits.some((c) => c.rev === cr.mergedRev)) return main();
+  return crState(payload.base, payload.queue, payload.commits, cr, payload.project.timeZone);
 }
 
 export function TrackerScreen({
   payload: initial,
   projectId,
+  serverNow,
 }: {
   payload: TrackerPayload;
   projectId: string;
+  /** The server's time rounded down to the minute, for a project without a demo clock. */
+  serverNow: number;
 }) {
   const { payload, view, setPayload, setView } = useTracker(initial, projectId);
   const actions = NO_ACTIONS;
   const { project } = payload;
   const tz = project.timeZone;
-  const now = useNow();
+  const now = useNow(serverNow);
   const asOf = project.asOf ?? toInstant(now, tz);
   const cr = view === 'main' ? null : (payload.crs.find((c) => c.num === view) ?? null);
   const current = useMemo(() => currentState(payload, cr), [payload, cr]);
@@ -212,8 +223,8 @@ export function TrackerScreen({
   const edit = !!cr && canEditCr(cr, me);
 
   const [hidden, setHidden] = useState<ViewState>(EMPTY_VIEW);
-  useEffect(() => {
-    // Storage exists only in the browser, so the first render shows every row on both sides.
+  useLayoutEffect(() => {
+    // Storage exists only in the browser, so hydration shows every row; this runs before the first paint.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setHidden(readViewState(browserStore(), projectId));
   }, [projectId]);
@@ -255,9 +266,19 @@ export function TrackerScreen({
       if (shownPop) closePop(true);
       else if (drawer) setDrawer(null);
     };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    // Capture runs before the view menu's own Escape handler closes it, so one Esc closes one layer.
+    document.addEventListener('keydown', onKey, { capture: true });
+    return () => document.removeEventListener('keydown', onKey, { capture: true });
   }, [shownPop, drawer, closePop]);
+  useEffect(() => {
+    if (!shownPop) return;
+    const onClick = (event: MouseEvent) => {
+      const target = event.target as Element | null;
+      if (!target?.closest(OUTSIDE_EXEMPT)) setPop(null);
+    };
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
+  }, [shownPop]);
 
   const layout = useMemo(
     () =>
@@ -410,7 +431,7 @@ export function TrackerScreen({
           )}
           {drawer?.mode === 'ms' && (
             <MilestoneDrawer
-              key={`${view}-${drawer.id}`}
+              key={`${view}-${drawer.id}-${edit}`}
               {...base}
               milestoneId={drawer.id}
               edit={edit}
