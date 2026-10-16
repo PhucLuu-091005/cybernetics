@@ -400,7 +400,7 @@ export function replayOps(
       entries.push({
         i,
         item: op.d?.item ?? op.op,
-        change: 'skipped (depends on a removed change)',
+        change: 'no longer applies',
         before: '',
         after: '',
         skipped: true,

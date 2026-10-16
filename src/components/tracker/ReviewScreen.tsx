@@ -24,7 +24,12 @@ import {
   type Picks,
   type TrackerPayload,
 } from '../../tracker';
-import { reviewModel, type ReviewChange, type ReviewModel } from '../../tracker/review';
+import {
+  reviewModel,
+  SKIP_REASON,
+  type ReviewChange,
+  type ReviewModel,
+} from '../../tracker/review';
 import { crAction, getTracker, type CrAction } from './api';
 import { Avatar, Avatars, makeDirectory, type Directory } from './avatar';
 import { editorsOf, isOpen, plural, StatusChip, trunc } from './ContextBar';
@@ -159,7 +164,7 @@ function ChangeList({
           <span>
             <b>{trunc(change.d.item, 34)}</b>
             <small>
-              {change.d.change}
+              {change.skipped ? 'no longer applies' : change.d.change}
               {change.title && change.title !== change.d.item && ` · ${trunc(change.title, 26)}`}
               {change.clash && ' · clash'}
             </small>
@@ -200,7 +205,7 @@ function DiffCard({
   onComment: (body: string, opIndex: number) => Promise<boolean>;
 }) {
   const { dir, tz, cr } = ctx;
-  const { op, d, event, clash, title, opIndex } = change;
+  const { op, d, event, clash, title, opIndex, skipReason } = change;
   const whyBy = 'by' in op.a && typeof op.a.by === 'string' ? op.a.by : op.by;
   const comments =
     opIndex === null
@@ -208,11 +213,15 @@ function DiffCard({
       : cr.comments.filter((m) => m.kind === 'comment' && m.opIndex === opIndex);
   const commentHere = canComment && opIndex !== null;
   return (
-    <article className={`dcard${on ? ' on' : ''}`} id={`dc${index}`} aria-label={d.item}>
+    <article
+      className={`dcard${on ? ' on' : ''}${skipReason ? ' skipped' : ''}`}
+      id={`dc${index}`}
+      aria-label={skipReason ? `${d.item}, no longer applies` : d.item}
+    >
       <header>
         <ChangeIcon change={change} size={15} />
         <b>{d.item}</b>
-        <span className="chipx">{d.change}</span>
+        <span className="chipx">{skipReason ? 'No longer applies' : d.change}</span>
         {clash && <span className="chipx warn">Clash with #{clash.commit.crNum}</span>}
         {title && title !== d.item && <span className="muted">· {title}</span>}
         {op.by && (
@@ -231,12 +240,24 @@ function DiffCard({
           </label>
         )}
       </header>
-      {diffLines({ op: op.op, d }).map(([kind, text], j) => (
-        <div key={j} className={`dline ${kind}`}>
-          <span className="sr">{kind === 'del' ? 'Before: ' : 'After: '}</span>
-          {text}
-        </div>
-      ))}
+      {skipReason ? (
+        <>
+          {diffLines(op).map(([kind, text], j) => (
+            <div key={j} className="dline gone">
+              <span className="sr">{kind === 'del' ? 'Before: ' : 'Planned: '}</span>
+              {text}
+            </div>
+          ))}
+          <p className="skip-why">{SKIP_REASON[skipReason]}</p>
+        </>
+      ) : (
+        diffLines({ op: op.op, d }).map(([kind, text], j) => (
+          <div key={j} className={`dline ${kind}`}>
+            <span className="sr">{kind === 'del' ? 'Before: ' : 'After: '}</span>
+            {text}
+          </div>
+        ))
+      )}
       {event && (
         <blockquote className="dquote">
           <b>{KIND_LABEL[event.kind]}</b> · {dir.name(event.by)} · {formatStamp(event.at, tz)}

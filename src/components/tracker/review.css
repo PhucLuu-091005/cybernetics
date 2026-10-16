@@ -362,6 +362,21 @@
 .tk .dcard.dropped {
   opacity: 0.7;
 }
+.tk .dcard.skipped {
+  background: var(--gray-bg);
+}
+.tk .dline.gone {
+  color: var(--ink-3);
+}
+.tk .dline.gone::before {
+  content: '·';
+}
+.tk .skip-why {
+  margin: 0;
+  padding: 6px 12px 10px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
 .tk .dcard.dropped .dline {
   text-decoration: line-through;
 }

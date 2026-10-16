@@ -18,6 +18,7 @@ export type ReviewChange = {
   /** Described against Before, so a clashing change shows Main's current value as its old value. */
   d: OpDescription;
   skipped: boolean;
+  skipReason: SkipReason | null;
   /** The position in `cr.ops`, which per-change comments name. */
   opIndex: number | null;
   workItemId: string | null;
@@ -25,6 +26,15 @@ export type ReviewChange = {
   milestoneId: string | null;
   event: TrackerEvent | null;
   clash: ReviewClash | null;
+};
+
+export type SkipReason = 'queue' | 'main' | 'removed' | 'skipped';
+
+export const SKIP_REASON: Record<SkipReason, string> = {
+  queue: 'The queue card was removed.',
+  main: 'Main changed this spot after the change was made.',
+  removed: 'It needs an earlier change that was removed.',
+  skipped: 'It needs an earlier change that no longer applies.',
 };
 
 export type ReviewModel = {
@@ -78,6 +88,51 @@ function workItemIdOf(op: Op, after: TrackerState): string | null {
     default:
       return null;
   }
+}
+
+function cardOf(op: Op): { kind: 'events' | 'items'; id: string } | null {
+  if (op.op === 'attach' || op.op === 'fromEvent') return { kind: 'events', id: op.a.eventId };
+  if (op.op === 'place' || op.op === 'qms') return { kind: 'items', id: op.a.itemId };
+  return null;
+}
+
+function createdIds(op: Op): string[] {
+  switch (op.op) {
+    case 'attach':
+      return [op.a.eventId];
+    case 'place':
+      return [op.a.itemId];
+    case 'fromEvent':
+      return [op.a.id, op.a.eventId];
+    case 'addEvent':
+      return [op.a.ev.id];
+    case 'newMs':
+    case 'addTeam':
+      return [op.a.id];
+    default:
+      return [];
+  }
+}
+
+const stringsIn = (value: unknown): string[] =>
+  typeof value === 'string'
+    ? [value]
+    : value && typeof value === 'object'
+      ? Object.values(value).flatMap(stringsIn)
+      : [];
+
+/** An op was admitted only while all it names existed, so a skip has one of these causes. */
+function skipReasonOf(
+  op: Op,
+  clash: boolean,
+  before: TrackerState,
+  earlierSkipped: readonly Op[],
+): SkipReason {
+  if (clash) return 'main';
+  const card = cardOf(op);
+  if (card && !before.queue[card.kind].some((q) => q.id === card.id)) return 'queue';
+  const gone = new Set(earlierSkipped.flatMap(createdIds));
+  return stringsIn(op.a).some((id) => gone.has(id)) ? 'skipped' : 'removed';
 }
 
 function milestoneIdOf(op: Op): string | null {
@@ -167,21 +222,26 @@ export function reviewModel(
     crApplies: crVersionApplies(shape.before, cr.ops, payload.commits, current, clash, tz),
   }));
   const after = shape.after.state;
+  const skippedOps: Op[] = [];
   const changes = shape.described.entries.map(({ i, skipped, ...d }): ReviewChange => {
     const op = shape.ops[i];
     const opIndex = shape.opIndexes[i];
     const workItemId = workItemIdOf(op, after);
     const eventId = eventIdOf(op);
+    const clash = clashes.find((k) => k.index === opIndex) ?? null;
+    const skipReason = skipped ? skipReasonOf(op, !!clash, shape.before, skippedOps) : null;
+    if (skipped) skippedOps.push(op);
     return {
       op,
       d,
       skipped: !!skipped,
+      skipReason,
       opIndex,
       workItemId,
       title: after.workItems.find((w) => w.id === workItemId)?.title ?? null,
       milestoneId: milestoneIdOf(op),
       event: (eventId && after.events.find((e) => e.id === eventId)) || null,
-      clash: clashes.find((k) => k.index === opIndex) ?? null,
+      clash,
     };
   });
   const owner = !!payload.me && payload.me.id === payload.project.ownerMemberId;
@@ -197,7 +257,7 @@ export function reviewModel(
     canMerge:
       cr.status === 'ready' &&
       owner &&
-      changes.length > 0 &&
+      shape.after.entries.some((entry) => !entry.skipped) &&
       clashes.every(
         (clash) =>
           current[clash.key] === 'main' || (current[clash.key] === 'cr' && clash.crApplies),

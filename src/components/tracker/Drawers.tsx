@@ -12,6 +12,8 @@ import {
   mainState,
   milestoneStatus,
   replayOps,
+  reviewModel,
+  SKIP_REASON,
   STATUS_LABEL,
   STATUS_TONE,
   type Commit,
@@ -348,6 +350,7 @@ export function ChangesDrawer({
   const { payload, dir, me, projectId } = session;
   const edit = canEditCr(cr, me);
   const clashes = isOpen(cr) ? clashesOf(cr.ops, payload.commits) : [];
+  const model = useMemo(() => reviewModel(payload, cr.num), [payload, cr.num]);
   const dropped = (keys: string[]) =>
     cr.status === 'merged' &&
     cr.resolutions.some((x) => x.chose === 'main' && keys.includes(x.key));
@@ -371,27 +374,33 @@ export function ChangesDrawer({
         const d = op.d ?? { item: op.op, change: 'changed', before: '', after: '' };
         const clash = clashes.find((k) => k.index === i);
         const gone = dropped(keysOf(op));
+        const skip = model?.changes.find((c) => c.opIndex === i)?.skipReason ?? null;
         return (
-          <div className={`chg-row${gone ? ' dropped' : ''}`} key={i}>
+          <div className={`chg-row${gone ? ' dropped' : ''}${skip ? ' skipped' : ''}`} key={i}>
             <span className="pi" style={{ color: 'var(--draft)', width: 26, height: 26 }}>
               {d.icon ? <KindIcon kind={d.icon} size={13} /> : <Icon name="pencil" size={13} />}
             </span>
             <div>
               <b>{d.item}</b>: {d.change}
-              <small>
-                {d.before && (
-                  <>
-                    <span className="before">{d.before}</span> →{' '}
-                  </>
-                )}
-                <span className="after">{d.after}</span>
-              </small>
+              {skip ? (
+                <small>{SKIP_REASON[skip]}</small>
+              ) : (
+                <small>
+                  {d.before && (
+                    <>
+                      <span className="before">{d.before}</span> →{' '}
+                    </>
+                  )}
+                  <span className="after">{d.after}</span>
+                </small>
+              )}
               {d.why && <small>Why: {d.why}</small>}
               <span className="chg-by">
                 <Avatar id={op.by} dir={dir} sm /> {dir.name(op.by)}
               </span>
               {clash && <span className="chipx warn"> Clash with #{clash.commit.crNum}</span>}
               {gone && <span className="chipx"> Not merged</span>}
+              {skip && <span className="chipx"> No longer applies</span>}
             </div>
             {edit && (
               <button

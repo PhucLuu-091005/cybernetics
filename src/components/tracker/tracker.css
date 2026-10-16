@@ -1253,6 +1253,10 @@ svg.pg .slip-o {
 .tk .chg-row.dropped {
   opacity: 0.55;
 }
+.tk .chg-row.skipped {
+  background: var(--gray-bg);
+  color: var(--ink-2);
+}
 .tk .chg-by {
   display: inline-flex;
   gap: 5px;
