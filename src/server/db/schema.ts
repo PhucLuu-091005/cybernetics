@@ -1,4 +1,5 @@
 import {
+  boolean,
   date,
   foreignKey,
   index,
@@ -26,6 +27,16 @@ import type {
   Scope,
   SourceKind,
 } from '../../contracts';
+import type {
+  CrCommentKind,
+  CrPermission,
+  CrStatus,
+  Op,
+  QueueEventInput,
+  QueueItemInput,
+  Resolution,
+  TrackerBase,
+} from '../../tracker';
 
 const createdAt = () =>
   timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow();
@@ -296,5 +307,181 @@ export const agentTokens = pgTable(
     ),
     index('agent_tokens_project_idx').on(table.projectId),
     inProject('agent_tokens', table),
+  ],
+);
+
+export const trackerMembers = pgTable(
+  'tracker_members',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // Rows written in one transaction share created_at, so seq keeps the order they were added in.
+    seq: integer('seq').generatedAlwaysAsIdentity(),
+    workspaceId: tenantWorkspaceId(),
+    projectId: tenantProjectId(),
+    name: text('name').notNull(),
+    roleLabel: text('role_label').notNull(),
+    color: text('color').notNull(),
+    userId: uuid('user_id').references(() => users.id),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index('tracker_members_project_idx').on(table.projectId),
+    unique('tracker_members_project_id_unique').on(table.projectId, table.id),
+    unique('tracker_members_project_user_unique').on(table.projectId, table.userId),
+    inProject('tracker_members', table),
+  ],
+);
+const memberIn = (name: string, projectId: PgColumn, memberId: PgColumn) =>
+  sameProject(name, [projectId, memberId], (): Pair => [
+    trackerMembers.projectId,
+    trackerMembers.id,
+  ]);
+export const trackerProjects = pgTable(
+  'tracker_projects',
+  {
+    projectId: uuid('project_id').primaryKey(),
+    workspaceId: tenantWorkspaceId(),
+    base: jsonb('base').$type<TrackerBase>().notNull(),
+    timeZone: text('time_zone').notNull().default('Asia/Ho_Chi_Minh'),
+    windowStart: date('window_start', { mode: 'string' }),
+    asOf: tz('as_of'),
+    demo: boolean('demo').notNull().default(false),
+    ownerMemberId: uuid('owner_member_id').notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    inProject('tracker_projects', table),
+    memberIn('tracker_projects_owner_fk', table.projectId, table.ownerMemberId),
+  ],
+);
+export const trackerQueue = pgTable(
+  'tracker_queue',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: tenantWorkspaceId(),
+    projectId: tenantProjectId(),
+    kind: text('kind').$type<'event' | 'item'>().notNull(),
+    payload: jsonb('payload').$type<QueueEventInput | QueueItemInput>().notNull(),
+    addedByMember: uuid('added_by_member'),
+    addedByAgent: boolean('added_by_agent').notNull().default(false),
+    createdAt: createdAt(),
+    dismissedAt: tz('dismissed_at'),
+  },
+  (table) => [
+    index('tracker_queue_project_idx').on(table.projectId),
+    inProject('tracker_queue', table),
+    memberIn('tracker_queue_added_by_fk', table.projectId, table.addedByMember),
+  ],
+);
+export const trackerCrs = pgTable(
+  'tracker_crs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: tenantWorkspaceId(),
+    projectId: tenantProjectId(),
+    num: integer('num').notNull(),
+    title: text('title').notNull(),
+    author: uuid('author').notNull(),
+    editor: uuid('editor').notNull(),
+    status: text('status').$type<CrStatus>().notNull(),
+    ops: jsonb('ops').$type<Op[]>().notNull().default([]),
+    revision: integer('revision').notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: tz('updated_at').notNull().defaultNow(),
+    mergedRev: integer('merged_rev'),
+    mergedBy: uuid('merged_by'),
+    mergedAt: tz('merged_at'),
+    closedBy: uuid('closed_by'),
+    closedAt: tz('closed_at'),
+    closedRev: integer('closed_rev'),
+    resolutions: jsonb('resolutions').$type<Resolution[]>().notNull().default([]),
+  },
+  (table) => [
+    unique('tracker_crs_project_num_unique').on(table.projectId, table.num),
+    unique('tracker_crs_project_id_unique').on(table.projectId, table.id),
+    index('tracker_crs_project_idx').on(table.projectId),
+    inProject('tracker_crs', table),
+    memberIn('tracker_crs_author_fk', table.projectId, table.author),
+    memberIn('tracker_crs_editor_fk', table.projectId, table.editor),
+    memberIn('tracker_crs_merged_by_fk', table.projectId, table.mergedBy),
+    memberIn('tracker_crs_closed_by_fk', table.projectId, table.closedBy),
+  ],
+);
+const crIn = (name: string, projectId: PgColumn, crId: PgColumn) =>
+  sameProject(name, [projectId, crId], (): Pair => [trackerCrs.projectId, trackerCrs.id]);
+export const trackerCommits = pgTable(
+  'tracker_commits',
+  {
+    workspaceId: tenantWorkspaceId(),
+    projectId: tenantProjectId(),
+    rev: integer('rev').notNull(),
+    crId: uuid('cr_id').notNull(),
+    mergedBy: uuid('merged_by').notNull(),
+    mergedAt: tz('merged_at').notNull(),
+    ops: jsonb('ops').$type<Op[]>().notNull(),
+    resolutions: jsonb('resolutions').$type<Resolution[]>().notNull().default([]),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.rev] }),
+    index('tracker_commits_cr_idx').on(table.crId),
+    inProject('tracker_commits', table),
+    crIn('tracker_commits_cr_fk', table.projectId, table.crId),
+    memberIn('tracker_commits_merged_by_fk', table.projectId, table.mergedBy),
+  ],
+);
+export const trackerCrShares = pgTable(
+  'tracker_cr_shares',
+  {
+    workspaceId: tenantWorkspaceId(),
+    projectId: tenantProjectId(),
+    crId: uuid('cr_id').notNull(),
+    memberId: uuid('member_id').notNull(),
+    permission: text('permission').$type<CrPermission>().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.crId, table.memberId] }),
+    index('tracker_cr_shares_project_idx').on(table.projectId),
+    inProject('tracker_cr_shares', table),
+    crIn('tracker_cr_shares_cr_fk', table.projectId, table.crId),
+    memberIn('tracker_cr_shares_member_fk', table.projectId, table.memberId),
+  ],
+);
+export const trackerCrAsks = pgTable(
+  'tracker_cr_asks',
+  {
+    workspaceId: tenantWorkspaceId(),
+    projectId: tenantProjectId(),
+    crId: uuid('cr_id').notNull(),
+    memberId: uuid('member_id').notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.crId, table.memberId] }),
+    index('tracker_cr_asks_project_idx').on(table.projectId),
+    inProject('tracker_cr_asks', table),
+    crIn('tracker_cr_asks_cr_fk', table.projectId, table.crId),
+    memberIn('tracker_cr_asks_member_fk', table.projectId, table.memberId),
+  ],
+);
+export const trackerCrComments = pgTable(
+  'tracker_cr_comments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    seq: integer('seq').generatedAlwaysAsIdentity(),
+    workspaceId: tenantWorkspaceId(),
+    projectId: tenantProjectId(),
+    crId: uuid('cr_id').notNull(),
+    memberId: uuid('member_id').notNull(),
+    kind: text('kind').$type<CrCommentKind>().notNull(),
+    body: text('body'),
+    opIndex: integer('op_index'),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index('tracker_cr_comments_cr_idx').on(table.crId),
+    index('tracker_cr_comments_project_idx').on(table.projectId),
+    inProject('tracker_cr_comments', table),
+    crIn('tracker_cr_comments_cr_fk', table.projectId, table.crId),
+    memberIn('tracker_cr_comments_member_fk', table.projectId, table.memberId),
   ],
 );
