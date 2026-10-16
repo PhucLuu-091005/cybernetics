@@ -2,24 +2,9 @@ import { readdirSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestDatabase, testActor, type TestDb } from '../../support/db';
-import { record } from '../../support/evidence';
-import {
-  T,
-  ingestText,
-  proposalIds,
-  putAct,
-  putLoop,
-  quote,
-  seedProject,
-} from '../../support/proposals';
+import { seedDemo } from '../../support/tracker-db';
 import { configureApp, resetApp } from '../../../src/server/app';
 import { SESSION_COOKIE, signSession } from '../../../src/server/http/session';
-import { createProject, emptySnapshot } from '../../../src/server/domain/projects';
-import {
-  createProposal,
-  reviewProposal,
-  updateProposal,
-} from '../../../src/server/domain/proposals';
 import type { ActorContext } from '../../../src/contracts';
 
 const origin = 'http://localhost:3000';
@@ -36,27 +21,6 @@ type Reply = { status: number; headers: Headers; body: any }; // eslint-disable-
 const expectedRoutes = [
   '/projects',
   '/projects/:projectId',
-  '/projects/:projectId/records',
-  '/projects/:projectId/records/:recordId',
-  '/projects/:projectId/record-versions/:versionId',
-  '/projects/:projectId/inbox',
-  '/projects/:projectId/inbox/:versionId/hints',
-  '/projects/:projectId/graph',
-  '/projects/:projectId/loops/:loopId',
-  '/projects/:projectId/commits',
-  '/projects/:projectId/commits/:commitId',
-  '/projects/:projectId/proposals',
-  '/projects/:projectId/proposals/:proposalId',
-  '/projects/:projectId/proposals/:proposalId/diff',
-  '/projects/:projectId/proposals/:proposalId/merge',
-  '/projects/:projectId/proposals/:proposalId/close',
-  '/projects/:projectId/proposals/:proposalId/rebase-preview',
-  '/projects/:projectId/proposals/:proposalId/rebase',
-  '/projects/:projectId/proposals/from-inverse',
-  '/projects/:projectId/revert-preview',
-  '/projects/:projectId/revert',
-  '/projects/:projectId/restore-preview',
-  '/projects/:projectId/restore',
   '/projects/:projectId/agent-tokens',
   '/projects/:projectId/agent-tokens/:tokenId',
   '/projects/:projectId/tracker',
@@ -84,7 +48,7 @@ const patternOf = (file: string) =>
     .replace(/\/$/, '');
 
 describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
-  let t: TestDb, ctx: ActorContext, projectId: string, mainId: string, versionId: string;
+  let t: TestDb, ctx: ActorContext, projectId: string;
   const routes: { pattern: string; module: RouteModule }[] = [];
   const cookieFor = (userId: string) =>
     `${SESSION_COOKIE}=${signSession({ userId, expiresAt: Date.now() + 600_000 }, secret)}`;
@@ -131,32 +95,6 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
     });
     return { status: response.status, headers: response.headers, body: await response.json() };
   }
-  const reviewedProposal = async (title: string) => {
-    const proposal = await createProposal(t.db, ctx, {
-      projectId,
-      baseCommitId: mainId,
-      title,
-      expectedEvidenceRevision: 1,
-      idempotencyKey: `c-${title}`,
-    });
-    await updateProposal(t.db, ctx, {
-      projectId,
-      proposalId: proposal.id,
-      expectedProposalRevision: 0,
-      expectedEvidenceRevision: 1,
-      operations: [putLoop(title), putAct(versionId, quote)],
-      idempotencyKey: `u-${title}`,
-    });
-    return reviewProposal(t.db, ctx, {
-      projectId,
-      proposalId: proposal.id,
-      expectedMainCommitId: mainId,
-      expectedProposalRevision: 1,
-      expectedEvidenceRevision: 1,
-      T,
-    });
-  };
-
   beforeAll(async () => {
     t = await createTestDatabase();
     vi.stubEnv('AUTH_MODE', 'local');
@@ -178,63 +116,26 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
   beforeEach(async () => {
     // Each test starts with a fresh per-user rate-limit window; limits are covered by the actor tests.
     delete (globalThis as typeof globalThis & { promiseRateLimiter?: unknown }).promiseRateLimiter;
-    ({ projectId, mainId, versionId } = await seedProject(t.db, ctx));
+    ({ projectId } = await seedDemo(t.db, ctx));
   });
 
-  it('exposes every SRD 11 route on the Node runtime', () => {
+  it('exposes every API route on the Node runtime', () => {
     expect(routes.map((route) => route.pattern).sort()).toEqual([...expectedRoutes].sort());
     for (const route of routes) expect(route.module.runtime, route.pattern).toBe('nodejs');
   });
-  it('paste import returns 201-equivalent receipt and leaves main unchanged', async () => {
-    const before = await call('GET', `/projects/${projectId}/graph`);
-    const receipt = await call('POST', `/projects/${projectId}/records`, {
-      source: 'paste',
-      sourceLabel: 'paste',
-      records: [record('x', 'Any update on the secret renewal?')],
-      idempotencyKey: 'p1',
-    });
-    expect(receipt.status).toBe(200);
-    expect((await call('GET', `/projects/${projectId}/graph`)).body.commitId).toBe(
-      before.body.commitId,
-    );
-  });
   it('rejects a mutation without the app Origin', async () => {
-    const body = {
-      source: 'paste',
-      sourceLabel: 'paste',
-      records: [record('y', 'Please confirm the cutover window.')],
-      idempotencyKey: 'p2',
-    };
-    const response = await call('POST', `/projects/${projectId}/records`, body, {
-      origin: 'https://evil.example',
-    });
+    const response = await call(
+      'POST',
+      `/projects/${projectId}/agent-tokens`,
+      { label: 'Claude', idempotencyKey: 'o1' },
+      { origin: 'https://evil.example' },
+    );
     expect(response.status).toBe(403);
   });
-  it('returns 404 for a foreign project and 409 with actual revisions for a stale merge', async () => {
-    const stranger = await testActor(t.db);
-    const foreignProjectId = (
-      await createProject(t.db, stranger, { title: 'Foreign', clientName: 'Other' })
-    ).id;
-    const review = await reviewedProposal('Stale');
-    const proposalId = review.proposalId;
-    await ingestText(t.db, ctx, projectId, 'Unrelated evidence that moves the evidence revision');
-    const staleMergeBody = {
-      expectedMainCommitId: review.mainCommitId,
-      expectedProposalRevision: review.proposalRevision,
-      expectedEvidenceRevision: review.evidenceRevision,
-      reviewDigest: review.digest,
-      T: review.T,
-      message: 'Merge stale',
-      idempotencyKey: 'm-stale',
-    };
-    expect((await call('GET', `/projects/${foreignProjectId}/graph`)).status).toBe(404);
-    const stale = await call(
-      'POST',
-      `/projects/${projectId}/proposals/${proposalId}/merge`,
-      staleMergeBody,
-    );
-    expect(stale.status).toBe(409);
-    expect(stale.body.details).toHaveProperty('actualMainCommitId');
+  it('returns 404 for a project in another workspace', async () => {
+    const foreign = await seedDemo(t.db, await testActor(t.db));
+    expect((await call('GET', `/projects/${foreign.projectId}`)).status).toBe(404);
+    expect((await call('GET', `/projects/${foreign.projectId}/tracker`)).status).toBe(404);
   });
   it('creates a token with default scopes and shows the secret once', async () => {
     const created = await call('POST', `/projects/${projectId}/agent-tokens`, {
@@ -255,7 +156,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
     ).toBe(409);
   });
   it('every protected response is private, no-store', async () => {
-    expect((await call('GET', `/projects/${projectId}/inbox`)).headers.get('cache-control')).toBe(
+    expect((await call('GET', `/projects/${projectId}`)).headers.get('cache-control')).toBe(
       'private, no-store',
     );
   });
@@ -313,128 +214,49 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
     ).toBe(revoked.body.revokedAt);
   });
   it('takes the project scope from the route and rejects a different body projectId', async () => {
-    const other = (await seedProject(t.db, ctx)).projectId;
-    const response = await call('POST', `/projects/${projectId}/records`, {
+    const other = (await seedDemo(t.db, ctx)).projectId;
+    const response = await call('POST', `/projects/${projectId}/agent-tokens`, {
       projectId: other,
-      source: 'paste',
-      sourceLabel: 'paste',
-      records: [record('z', 'Hello')],
+      label: 'Claude',
       idempotencyKey: 'p3',
     });
     expect(response.status).toBe(400);
     expect(response.body).toMatchObject({ code: 'VALIDATION', requestId: expect.any(String) });
   });
-  it('maps oversized, malformed and non-paste bodies and missing sessions to error codes', async () => {
-    const records = `/projects/${projectId}/records`;
-    const huge = await call('POST', records, undefined, {
+  it('maps oversized and malformed bodies and missing sessions to error codes', async () => {
+    const tokens = `/projects/${projectId}/agent-tokens`;
+    const huge = await call('POST', tokens, undefined, {
       raw: JSON.stringify({
-        source: 'paste',
-        sourceLabel: 'paste',
-        records: [],
+        label: 'Big',
         idempotencyKey: 'big',
         pad: 'x'.repeat(2 * 1024 * 1024),
       }),
     });
     expect(huge).toMatchObject({ status: 413, body: { code: 'LIMIT_EXCEEDED' } });
-    expect(await call('POST', records, undefined, { raw: '{"source":' })).toMatchObject({
+    expect(await call('POST', tokens, undefined, { raw: '{"label":' })).toMatchObject({
       status: 400,
       body: { code: 'VALIDATION' },
     });
-    expect(await call('POST', records, undefined, { raw: '[]' })).toMatchObject({
+    expect(await call('POST', tokens, undefined, { raw: '[]' })).toMatchObject({
       status: 400,
       body: { code: 'VALIDATION' },
     });
-    expect(
-      await call('POST', records, {
-        source: 'slack',
-        sourceLabel: 'paste',
-        records: [record('s', 'Hello')],
-        idempotencyKey: 'p4',
-      }),
-    ).toMatchObject({ status: 400, body: { code: 'VALIDATION' } });
-    const anonymous = await call('GET', `/projects/${projectId}/inbox`, undefined, {
-      cookie: null,
+    expect(await call('GET', `${tokens}?limit=1&limit=2`)).toMatchObject({
+      status: 400,
+      body: { code: 'VALIDATION' },
     });
+    const anonymous = await call('GET', `/projects/${projectId}`, undefined, { cookie: null });
     expect(anonymous).toMatchObject({ status: 401, body: { code: 'UNAUTHENTICATED' } });
     expect(anonymous.headers.get('cache-control')).toBe('private, no-store');
   });
-  it('runs the proposal lifecycle through REST with query-string reads', async () => {
-    const created = await call('POST', `/projects/${projectId}/proposals`, {
-      baseCommitId: mainId,
-      title: 'Via REST',
-      expectedEvidenceRevision: 1,
-      idempotencyKey: 'rc',
-    });
-    expect(created.status).toBe(201);
-    const proposalId = created.body.id;
-    const updated = await call('PATCH', `/projects/${projectId}/proposals/${proposalId}`, {
-      expectedProposalRevision: 0,
-      expectedEvidenceRevision: 1,
-      operations: [putLoop('Via REST'), putAct(versionId, quote)],
-      idempotencyKey: 'ru',
-    });
-    expect(updated.body.revision).toBe(1);
-    const view = await call(
-      'GET',
-      `/projects/${projectId}/graph?proposalId=${proposalId}&proposalRevision=1&T=${encodeURIComponent(T)}`,
-    );
-    expect(view.body).toMatchObject({ proposalId, proposalRevision: 1, T });
-    const loop = await call(
-      'GET',
-      `/projects/${projectId}/loops/${proposalIds.loop}?proposalId=${proposalId}&proposalRevision=1`,
-    );
-    expect(loop.body.loop.loop.id).toBe(proposalIds.loop);
-    const diff = await call(
-      'GET',
-      `/projects/${projectId}/proposals/${proposalId}/diff?expectedMainCommitId=${mainId}&expectedProposalRevision=1&expectedEvidenceRevision=1&T=${encodeURIComponent(T)}`,
-    );
-    expect(diff.status).toBe(200);
-    const merged = await call('POST', `/projects/${projectId}/proposals/${proposalId}/merge`, {
-      expectedMainCommitId: mainId,
-      expectedProposalRevision: 1,
-      expectedEvidenceRevision: 1,
-      reviewDigest: diff.body.digest,
-      T,
-      message: 'Merge via REST',
-      idempotencyKey: 'rm',
-    });
-    expect(merged).toMatchObject({ status: 200, body: { kind: 'merge', proposalId } });
-    const history = await call('GET', `/projects/${projectId}/commits?limit=1`);
-    expect(history.body.items[0].id).toBe(merged.body.commitId);
-    expect(
-      (await call('GET', `/projects/${projectId}/proposals?status=merged`)).body.items.map(
-        (item: { id: string }) => item.id,
-      ),
-    ).toEqual([proposalId]);
-    expect(
-      (await call('GET', `/projects/${projectId}/graph?proposalId=${proposalId}`)).status,
-    ).toBe(400);
-  });
-  it('reviews a proposal at its current revisions when the diff omits expected revisions', async () => {
-    const review = await reviewedProposal('Current');
-    const diff = await call(
-      'GET',
-      `/projects/${projectId}/proposals/${review.proposalId}/diff?T=${encodeURIComponent(T)}`,
-    );
-    expect(diff).toMatchObject({
+  it('reads the project title, client name and time zone', async () => {
+    expect(await call('GET', `/projects/${projectId}`)).toMatchObject({
       status: 200,
       body: {
-        proposalId: review.proposalId,
-        mainCommitId: mainId,
-        proposalRevision: 1,
-        evidenceRevision: 1,
-        T,
-        digest: review.digest,
+        project: { id: projectId, title: 'Larkspur Capital, Fund III onboarding' },
+        timeZone: 'Asia/Ho_Chi_Minh',
       },
     });
-    expect(
-      (
-        await call(
-          'GET',
-          `/projects/${projectId}/proposals/${review.proposalId}/diff?expectedProposalRevision=1`,
-        )
-      ).status,
-    ).toBe(400);
   });
   it('lists and creates projects in the session workspace', async () => {
     const created = await call('POST', '/projects', {
@@ -452,18 +274,13 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
       created.body.id,
     );
   });
-  it('rejects a snapshot in a REST project creation, so main always starts empty', async () => {
+  it('rejects an unknown field in a REST project creation and creates nothing', async () => {
     const before = (await call('GET', '/projects')).body.items.length;
-    const snapshot = {
-      ...emptySnapshot(),
-      acts: [],
-      loops: [{ ...(putLoop('Smuggled') as { value: object }).value }],
-    };
     const response = await call('POST', '/projects', {
       title: 'Smuggled graph',
       clientName: 'Client',
       teams: ['Engineering'],
-      snapshot,
+      snapshot: { loops: [] },
     });
     expect(response).toMatchObject({
       status: 400,

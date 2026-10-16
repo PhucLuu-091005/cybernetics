@@ -144,13 +144,12 @@ export default async function SignInPage({
         )}
         <p className="muted" style={{ fontSize: 13 }}>
           Your first visit creates a private sandbox: a copy of the Larkspur Capital demo project
-          with its imported records and reviewed loops. Building it can take about 10 seconds on the
-          free host.
+          with its teams, work items and change requests.
         </p>
         <hr style={{ border: 0, borderTop: '1px solid var(--rule-2)', width: '100%' }} />
         <p className="faint" style={{ fontSize: 12 }}>
-          The app never calls an AI model. Your own agent reads evidence and submits proposals
-          through MCP. Nothing changes the graph until a person approves it.
+          The app never calls an AI model. Your own agent reads the tracker and adds events and work
+          items to the Queue through MCP. Main changes only when its owner merges a change request.
         </p>
       </div>
     </main>

@@ -4,9 +4,9 @@ import { errorResponse, newRequestId } from '../../server/errors';
 import { MAX_BODY_BYTES } from '../../server/http/route';
 import { createMcpServer } from '../../server/mcp/server';
 export const runtime = 'nodejs';
-// A 2 MiB import envelope plus its JSON-RPC wrapper must still fit.
+// A tool call may carry a body as large as a REST call, plus its JSON-RPC wrapper.
 const MAX_REQUEST_BYTES = MAX_BODY_BYTES + 64 * 1024;
-// Tool results carry record text and graph data, so they get the same cache headers as REST (SRD 17).
+// Tool results carry event text and project data, so they get the same cache headers as REST (SRD 17).
 function privateResponse(response: Response): Response {
   const headers = new Headers(response.headers);
   headers.set('Cache-Control', 'private, no-store');
@@ -17,7 +17,7 @@ function privateResponse(response: Response): Response {
     headers,
   });
 }
-// Scope is checked per tool, so a token without project:read can still call import_records.
+// Scope is checked per tool, so a token without project:read can still call add_queue_event.
 export async function POST(request: Request): Promise<Response> {
   let requestId: string = newRequestId();
   try {

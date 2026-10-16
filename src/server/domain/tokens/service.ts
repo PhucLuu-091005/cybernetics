@@ -14,7 +14,7 @@ import {
 import { canonicalHash } from '../../../lib/canonical-json';
 import type { HttpIdentityStore } from '../../http/identity-store';
 import { AppError } from '../../errors';
-import { decodeCursor, encodeCursor, viewKey } from '../graph/paging';
+import { decodeCursor, encodeCursor, viewKey } from '../paging';
 type CreateInput = Omit<CreateAgentTokenInput, 'scopes'> & {
   scopes?: CreateAgentTokenInput['scopes'];
 };
