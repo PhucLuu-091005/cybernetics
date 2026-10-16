@@ -546,6 +546,9 @@ export function TrackerScreen({
     if (!cr) return;
     const num = cr.num;
     closeModal();
+    // Check first: unready on a change that cannot be added would leave a ready CR as a draft for nothing.
+    const misfit = pending.length ? pendingMisfit(live.current.payload, num, pending) : null;
+    if (misfit) return showToast(misfit);
     const done = await action(num, { action: 'unready' }, true);
     if (!done) return;
     if (pending.length) await appendAll(num, pending);

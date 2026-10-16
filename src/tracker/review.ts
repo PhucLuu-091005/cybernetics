@@ -1,6 +1,14 @@
-import { clashesOf, crVersionApplies, liveOps, mainState, type Clash, type Picks } from './clash';
+import {
+  clashesOf,
+  crVersionApplies,
+  liveOps,
+  mainState,
+  type Clash,
+  type Commit,
+  type Picks,
+} from './clash';
 import { clashLabel } from './describe';
-import type { TrackerEvent, TrackerState } from './model';
+import type { TrackerEvent, TrackerQueue, TrackerState } from './model';
 import { replayOps, sameOp, type Marks, type Op, type OpDescription, type Replay } from './ops';
 import type { Cr, Resolution, TrackerPayload } from './payload';
 
@@ -50,6 +58,9 @@ export type ReviewModel = {
   canMerge: boolean;
   dropped: Resolution[];
 };
+
+const isOwner = (payload: TrackerPayload) =>
+  !!payload.me && payload.me.id === payload.project.ownerMemberId;
 
 function eventIdOf(op: Op): string | null {
   switch (op.op) {
@@ -124,15 +135,30 @@ const stringsIn = (value: unknown): string[] =>
 /** An op was admitted only while all it names existed, so a skip has one of these causes. */
 function skipReasonOf(
   op: Op,
-  clash: boolean,
+  mainTookIt: boolean,
   before: TrackerState,
+  queue: TrackerQueue,
   earlierSkipped: readonly Op[],
 ): SkipReason {
-  if (clash) return 'main';
+  if (mainTookIt) return 'main';
   const card = cardOf(op);
-  if (card && !before.queue[card.kind].some((q) => q.id === card.id)) return 'queue';
+  // The queue keeps the cards Main used, so a card that only Before lacks was used by Main.
+  if (card && !before.queue[card.kind].some((q) => q.id === card.id))
+    return queue[card.kind].some((q) => q.id === card.id) ? 'main' : 'queue';
   const gone = new Set(earlierSkipped.flatMap(createdIds));
   return stringsIn(op.a).some((id) => gone.has(id)) ? 'skipped' : 'removed';
+}
+
+/** A closed change request stops at its close, so only the Main commits up to it can have taken a spot. */
+function closedClashIndexes(cr: Cr, commits: readonly Commit[]): Set<number> {
+  if (cr.status !== 'closed') return new Set();
+  const upto = cr.closedRev ?? Infinity;
+  return new Set(
+    clashesOf(
+      cr.ops,
+      commits.filter((c) => c.rev <= upto),
+    ).map((clash) => clash.index),
+  );
 }
 
 function milestoneIdOf(op: Op): string | null {
@@ -222,6 +248,7 @@ export function reviewModel(
     crApplies: crVersionApplies(shape.before, cr.ops, payload.commits, current, clash, tz),
   }));
   const after = shape.after.state;
+  const closedClashes = closedClashIndexes(cr, payload.commits);
   const skippedOps: Op[] = [];
   const changes = shape.described.entries.map(({ i, skipped, ...d }): ReviewChange => {
     const op = shape.ops[i];
@@ -229,7 +256,10 @@ export function reviewModel(
     const workItemId = workItemIdOf(op, after);
     const eventId = eventIdOf(op);
     const clash = clashes.find((k) => k.index === opIndex) ?? null;
-    const skipReason = skipped ? skipReasonOf(op, !!clash, shape.before, skippedOps) : null;
+    const mainTookIt = !!clash || (opIndex !== null && closedClashes.has(opIndex));
+    const skipReason = skipped
+      ? skipReasonOf(op, mainTookIt, shape.before, payload.queue, skippedOps)
+      : null;
     if (skipped) skippedOps.push(op);
     return {
       op,
@@ -244,7 +274,7 @@ export function reviewModel(
       clash,
     };
   });
-  const owner = !!payload.me && payload.me.id === payload.project.ownerMemberId;
+  const owner = isOwner(payload);
   return {
     cr,
     owner,
@@ -269,13 +299,15 @@ export function reviewModel(
 /**
  * The owner merges what they reviewed, so the review keeps the opened revision of the change request
  * until they review again. Comments, asks and shares do not change the revision and stay live.
+ * Other viewers decide nothing on that revision, so they always see the live change request.
  */
 export function openedReview(
   live: TrackerPayload,
   opened: Cr | null,
 ): { payload: TrackerPayload; changed: boolean } {
   const now = opened && live.crs.find((c) => c.num === opened.num);
-  if (!opened || !now || now.revision === opened.revision) return { payload: live, changed: false };
+  if (!isOwner(live) || !opened || !now || now.revision === opened.revision)
+    return { payload: live, changed: false };
   const kept: Cr = {
     ...opened,
     comments: now.comments,
