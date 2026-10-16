@@ -65,6 +65,7 @@ type Props = {
   session: Session;
   cr: Cr | null;
   actions: TrackerActions;
+  busy?: boolean;
   onView: (view: TrackerView) => void;
   onChanges: () => void;
   onRequests: () => void;
@@ -78,7 +79,12 @@ function NewCrButton({ actions, primary }: { actions: TrackerActions; primary?: 
   );
 }
 
-function MainBar({ session, actions, onView, onRequests }: Omit<Props, 'cr' | 'onChanges'>) {
+function MainBar({
+  session,
+  actions,
+  onView,
+  onRequests,
+}: Omit<Props, 'cr' | 'onChanges' | 'busy'>) {
   const { payload, me, isOwner, dir } = session;
   const draft = myDrafts(payload.crs, me)[0];
   const ready = payload.crs.filter((c) => c.status === 'ready').length;
@@ -121,7 +127,7 @@ function MainBar({ session, actions, onView, onRequests }: Omit<Props, 'cr' | 'o
 }
 
 export function ContextBar(props: Props) {
-  const { session, cr: c, actions, onChanges } = props;
+  const { session, cr: c, actions, onChanges, busy = false } = props;
   if (!c) return <MainBar {...props} />;
   const { payload, me, isOwner, dir, projectId, tz } = session;
   const owner = payload.project.ownerMemberId;
@@ -197,7 +203,12 @@ export function ContextBar(props: Props) {
         <button className={`btn${n ? ' btn-draft' : ''}`} type="button" onClick={onChanges}>
           Changes <span className="cnt">{n}</span>
         </button>
-        <button className="btn btn-ink" type="button" disabled={!n} onClick={actions.markReady}>
+        <button
+          className="btn btn-ink"
+          type="button"
+          disabled={!n || busy}
+          onClick={actions.markReady}
+        >
           <Icon name="check" /> Mark as ready
         </button>
       </>
@@ -210,14 +221,19 @@ export function ContextBar(props: Props) {
         {asked ? (
           <>
             <span className="chipx">Waiting for {dir.first(c.editor)}</span>
-            <button className="btn" type="button" onClick={actions.cancelAsk}>
+            <button className="btn" type="button" disabled={busy} onClick={actions.cancelAsk}>
               Cancel
             </button>
           </>
         ) : (
           <>
             <span className="muted">One person edits at a time.</span>
-            <button className="btn btn-ink" type="button" onClick={actions.askToEdit}>
+            <button
+              className="btn btn-ink"
+              type="button"
+              disabled={busy}
+              onClick={actions.askToEdit}
+            >
               <Icon name="pencil" /> Ask to edit
             </button>
           </>
@@ -231,7 +247,7 @@ export function ContextBar(props: Props) {
       <>
         <span className="muted">Locked. Waiting for {dir.first(owner)}.</span>
         {c.editor === me && (
-          <button className="btn" type="button" onClick={actions.editAgain}>
+          <button className="btn" type="button" disabled={busy} onClick={actions.editAgain}>
             <Icon name="pencil" /> Edit again
           </button>
         )}
@@ -268,11 +284,17 @@ export function ContextBar(props: Props) {
             <button
               className="btn sm btn-ink"
               type="button"
+              disabled={busy}
               onClick={() => actions.handOver(ask.memberId)}
             >
               Hand over
             </button>
-            <button className="btn sm" type="button" onClick={() => actions.notNow(ask.memberId)}>
+            <button
+              className="btn sm"
+              type="button"
+              disabled={busy}
+              onClick={() => actions.notNow(ask.memberId)}
+            >
               Not now
             </button>
           </div>

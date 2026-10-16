@@ -1464,3 +1464,376 @@ svg.pg .slip-o {
     width: min(320px, calc(100vw - 32px));
   }
 }
+
+.tk .qc {
+  cursor: grab;
+}
+svg.pg .act,
+svg.pg .label-hit {
+  cursor: grab;
+  touch-action: none;
+}
+svg.pg .due {
+  touch-action: none;
+}
+svg.pg .ms {
+  cursor: ew-resize;
+  touch-action: none;
+}
+svg.pg .act.lift {
+  opacity: 0.3;
+}
+.tk.drag-due,
+.tk.drag-due svg.pg .due {
+  cursor: ew-resize;
+}
+.tk.moving svg.pg .hit {
+  fill: color-mix(in srgb, var(--draft) 6%, transparent);
+}
+svg.pg .hit.glow,
+svg.pg .lane-drop.glow {
+  fill: color-mix(in srgb, var(--draft) 18%, transparent) !important;
+  stroke: var(--draft);
+  stroke-width: 2;
+}
+.tk.drag-email svg.pg .lane-drop,
+.tk.drag-qitem svg.pg .lane-drop {
+  fill: color-mix(in srgb, var(--draft) 6%, transparent);
+  stroke: var(--draft);
+  stroke-opacity: 0.5;
+}
+.tk.drag-email svg.pg .lane-drop-text,
+.tk.drag-qitem svg.pg .lane-drop-text {
+  display: block;
+}
+/* Sticky, so the bin and the hint stay on screen while a tall graph scrolls with the page. */
+.tk .bin {
+  position: sticky;
+  bottom: 12px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  margin: -50px 0 12px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 2px dashed var(--ink-3);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 3;
+  opacity: 0.75;
+  pointer-events: none;
+}
+.tk.dragging .bin {
+  border-color: var(--danger);
+  color: var(--danger);
+  opacity: 1;
+  pointer-events: auto;
+}
+.tk .bin.glow {
+  background: var(--danger-bg);
+  transform: scale(1.06);
+}
+.tk .move-hint-slot {
+  position: sticky;
+  top: 10px;
+  height: 0;
+  z-index: 4;
+}
+.tk .move-hint {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+  background: var(--draft);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+.tk .move-hint:empty {
+  display: none;
+}
+.tk .ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 90;
+  pointer-events: none;
+  transform: translate(10px, 10px) rotate(-2deg);
+}
+.tk .ghost .qc {
+  box-shadow: var(--shadow);
+  border-color: var(--draft);
+}
+.tk .ghost .gact {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--draft);
+  background: var(--panel);
+  display: grid;
+  place-items: center;
+  color: var(--draft);
+  box-shadow: var(--shadow);
+}
+.tk .ghost .grow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  background: var(--panel);
+  border: 2px solid var(--draft);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: var(--shadow);
+}
+
+/* Above the folded rail (z-index 60 in shell.css); the toast stays above the modal. */
+.tk-modal {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--page) 65%, transparent);
+  backdrop-filter: blur(2px);
+  z-index: 70;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 18px 12px;
+  overflow: auto;
+}
+.tk .m-card {
+  width: 620px;
+  max-width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 16px;
+  font-size: 14px;
+}
+.tk .m-card:focus {
+  outline: none;
+}
+.tk .m-card > p {
+  margin: 8px 0 0;
+}
+.tk .m-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.tk .m-top b {
+  font-size: 18px;
+  flex: 1;
+}
+.tk .m-foot {
+  flex-wrap: wrap;
+}
+.tk .srcs {
+  display: inline-flex;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.tk .srcs button {
+  border: 0;
+  background: var(--panel);
+  color: var(--ink);
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tk .srcs button.on {
+  background: var(--ink);
+  color: var(--panel);
+}
+.tk .kinds {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.tk .kind {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 4px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+.tk .kind:hover {
+  border-color: var(--ink-3);
+}
+.tk .kind.on {
+  border-color: var(--draft);
+  background: var(--draft-bg);
+  color: var(--draft);
+}
+.tk .grid2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+.tk .field select,
+.tk .field textarea,
+.tk .sel,
+.tk .share-add select,
+.tk .share-row select {
+  border: 1px solid var(--rule);
+  background: var(--panel);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 7px 9px;
+  font-size: 13px;
+  font-weight: 400;
+  font-family: inherit;
+  min-width: 0;
+}
+.tk .field select,
+.tk .field textarea,
+.tk .sel {
+  width: 100%;
+}
+.tk .field textarea {
+  min-height: 64px;
+  resize: vertical;
+  font-size: 14px;
+}
+.tk .pick {
+  display: grid;
+  gap: 6px;
+}
+.tk .pcard {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--rule);
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.tk .pcard.on {
+  border-color: var(--draft);
+  background: var(--draft-bg);
+}
+.tk .pend {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--draft-bg);
+  font-size: 13px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.tk .pend svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--draft);
+}
+.tk .share-link {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 4px 4px 4px 10px;
+  margin-top: 10px;
+  color: var(--ink-3);
+}
+.tk .share-link input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  font: 13px var(--f-id);
+  color: var(--ink-2);
+}
+.tk .share-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 0;
+}
+.tk .share-row > div {
+  flex: 1;
+  min-width: 0;
+}
+.tk .share-row b {
+  display: block;
+  font-size: 13.5px;
+}
+.tk .share-row small {
+  display: block;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.tk .share-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.tk .share-add select:first-child {
+  flex: 1;
+  min-width: 140px;
+}
+.tk .av.all {
+  background: var(--ink-3);
+  color: #fff;
+}
+.tk .pop .m-foot {
+  margin-top: 10px;
+}
+.tk-toast {
+  z-index: 80;
+}
+.tk-toast button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid color-mix(in srgb, var(--panel) 40%, transparent);
+  background: none;
+  color: var(--panel);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (max-width: 760px) {
+  .tk .kinds {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .tk .grid2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* The rail becomes a sticky top bar at this width. */
+  .tk .move-hint-slot {
+    top: 66px;
+  }
+  .tk .move-hint {
+    white-space: normal;
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    text-align: center;
+  }
+}

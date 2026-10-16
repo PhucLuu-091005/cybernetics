@@ -83,7 +83,13 @@ function Frame({
   );
 }
 
-type Base = { session: Session; state: TrackerState; asOf: string; onClose: () => void };
+type Base = {
+  session: Session;
+  state: TrackerState;
+  asOf: string;
+  onClose: () => void;
+  busy?: boolean;
+};
 
 export function WorkListDrawer({
   session,
@@ -203,17 +209,21 @@ export function MilestoneDrawer({
   milestoneId,
   edit,
   actions,
+  busy = false,
 }: Base & { milestoneId: string; edit: boolean; actions: TrackerActions }) {
   const { dir, tz } = session;
   const m = state.milestones.find((x) => x.id === milestoneId);
-  const [name, setName] = useState(m?.name ?? '');
-  const [date, setDate] = useState(m?.planned ?? '');
+  // Null until the editor types, so a hand-over or a poll shows the current milestone, not a stale copy.
+  const [draft, setDraft] = useState<{ name: string; date: string } | null>(null);
+  const [adding, setAdding] = useState('');
   if (!m) return null;
   const { status, members } = milestoneStatus(m, state.workItems, state.events, asOf, tz);
   const team = (id: string) => state.teams.find((t) => t.id === id)?.name ?? '';
+  const name = edit && draft ? draft.name : m.name;
+  const date = edit && draft ? draft.date : m.planned;
   const unchanged = name === m.name && date === m.planned;
-  const shownName = edit ? name : m.name;
-  const shownDate = edit ? date : m.planned;
+  const outside = state.workItems.filter((w) => w.milestoneId !== m.id);
+  const pick = adding && outside.some((w) => w.id === adding) ? adding : (outside[0]?.id ?? '');
   return (
     <Frame
       label={m.name}
@@ -240,18 +250,18 @@ export function MilestoneDrawer({
       <label className="field">
         Name
         <input
-          value={shownName}
+          value={name}
           disabled={!edit}
-          onChange={(event) => setName(event.target.value)}
+          onChange={(event) => setDraft({ name: event.target.value, date })}
         />
       </label>
       <label className="field">
         Planned date
         <input
           type="date"
-          value={shownDate}
+          value={date}
           disabled={!edit}
-          onChange={(event) => event.target.value && setDate(event.target.value)}
+          onChange={(event) => event.target.value && setDraft({ name, date: event.target.value })}
         />
       </label>
       {edit ? (
@@ -259,7 +269,7 @@ export function MilestoneDrawer({
           <button
             className="btn btn-ink"
             type="button"
-            disabled={unchanged || !name.trim()}
+            disabled={unchanged || !name.trim() || busy}
             onClick={() => actions.saveMilestone(m.id, name.trim(), date)}
           >
             <Icon name="check" /> Save milestone
@@ -292,6 +302,7 @@ export function MilestoneDrawer({
               <button
                 className="btn sm btn-danger"
                 type="button"
+                disabled={busy}
                 onClick={() => actions.removeFromMilestone(w.id)}
               >
                 <Icon name="x" size={13} /> Remove
@@ -300,6 +311,29 @@ export function MilestoneDrawer({
           </div>
         );
       })}
+      {edit && outside.length > 0 && (
+        <div className="share-add">
+          <select
+            aria-label="Work item to add"
+            value={pick}
+            onChange={(event) => setAdding(event.target.value)}
+          >
+            {outside.map((w) => (
+              <option key={w.id} value={w.id}>
+                {trunc(w.title, 44)}
+              </option>
+            ))}
+          </select>
+          <button
+            className="btn"
+            type="button"
+            disabled={!pick || busy}
+            onClick={() => actions.addToMilestone(pick, m.id)}
+          >
+            <Icon name="plus" /> Add
+          </button>
+        </div>
+      )}
     </Frame>
   );
 }
@@ -309,6 +343,7 @@ export function ChangesDrawer({
   cr,
   onClose,
   actions,
+  busy = false,
 }: Omit<Base, 'state' | 'asOf'> & { cr: Cr; actions: TrackerActions }) {
   const { payload, dir, me, projectId } = session;
   const edit = canEditCr(cr, me);
@@ -363,6 +398,7 @@ export function ChangesDrawer({
                 className="x"
                 type="button"
                 aria-label="Remove this change"
+                disabled={busy}
                 onClick={() => actions.removeChange(i)}
               >
                 ×
@@ -373,7 +409,12 @@ export function ChangesDrawer({
       })}
       <div className="drawer-foot">
         {edit && (
-          <button className="btn" type="button" disabled={!cr.ops.length} onClick={actions.undo}>
+          <button
+            className="btn"
+            type="button"
+            disabled={!cr.ops.length || busy}
+            onClick={actions.undo}
+          >
             <Icon name="undo" /> Undo
           </button>
         )}
@@ -384,7 +425,7 @@ export function ChangesDrawer({
           <button
             className="btn btn-ink"
             type="button"
-            disabled={!cr.ops.length}
+            disabled={!cr.ops.length || busy}
             onClick={actions.markReady}
           >
             <Icon name="check" /> Mark as ready

@@ -1,5 +1,5 @@
 'use client';
-import { useLayoutEffect, useRef, type ReactNode, type RefObject } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   formatDay,
   formatStamp,
@@ -13,10 +13,15 @@ import {
 } from '../../tracker';
 import type { Directory } from './avatar';
 import { Icon, KindIcon, type IconName } from './icons';
+import { KindGrid } from './Modals';
 import type { PopKind } from './TrackerGraph';
 import type { TrackerActions } from './TrackerScreen';
 
-export type PopTarget = { kind: PopKind; id: string; anchor: Element };
+export type PopTarget = {
+  kind: PopKind | 'kind' | 'rename' | 'added';
+  id: string;
+  anchor: Element;
+};
 
 type Common = {
   state: TrackerState;
@@ -68,6 +73,7 @@ function PopFrame({
   label,
   icon,
   head,
+  focusSelf = true,
   onClose,
   children,
 }: {
@@ -76,6 +82,7 @@ function PopFrame({
   label: string;
   icon: ReactNode;
   head: ReactNode;
+  focusSelf?: boolean;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -96,8 +103,8 @@ function PopFrame({
     pop.style.left = `${left}px`;
     pop.style.top = `${top}px`;
     pop.style.visibility = 'visible';
-    pop.focus({ preventScroll: true });
-  }, [target, container]);
+    if (focusSelf) pop.focus({ preventScroll: true });
+  }, [target, container, focusSelf]);
   return (
     <div
       ref={ref}
@@ -296,10 +303,121 @@ function DuePop({
   );
 }
 
+function KindPop({
+  target,
+  container,
+  ...c
+}: Common & { target: PopTarget; container: RefObject<HTMLDivElement | null> }) {
+  const ev = c.state.events.find((e) => e.id === target.id);
+  if (!ev) return null;
+  return (
+    <PopFrame
+      target={target}
+      container={container}
+      label="What kind of event is it?"
+      icon={null}
+      head={<b>What kind of event is it?</b>}
+      onClose={c.onClose}
+    >
+      <KindGrid value={ev.kind} onPick={(kind) => c.actions.setKind(ev.id, kind)} />
+    </PopFrame>
+  );
+}
+
+function RenamePop({
+  target,
+  container,
+  ...c
+}: Common & { target: PopTarget; container: RefObject<HTMLDivElement | null> }) {
+  const item = c.state.workItems.find((w) => w.id === target.id);
+  const [title, setTitle] = useState(item?.title ?? '');
+  const input = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => {
+    input.current?.focus();
+    input.current?.select();
+  }, []);
+  if (!item) return null;
+  const save = () => c.actions.saveRename(item.id, title.trim());
+  return (
+    <PopFrame
+      target={target}
+      container={container}
+      label="New name"
+      icon={null}
+      head={<b>New name</b>}
+      focusSelf={false}
+      onClose={c.onClose}
+    >
+      <input
+        ref={input}
+        className="sel"
+        aria-label="Work item name"
+        value={title}
+        onChange={(event) => setTitle(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter') return;
+          event.preventDefault();
+          save();
+        }}
+      />
+      <div className="m-foot">
+        <Btn icon="check" label="Save name" tone="ink" onClick={save} />
+      </div>
+    </PopFrame>
+  );
+}
+
+function AddedPop({
+  target,
+  container,
+  ...c
+}: Common & { target: PopTarget; container: RefObject<HTMLDivElement | null> }) {
+  const ev = c.state.events.find((e) => e.id === target.id);
+  if (!ev) return null;
+  const item = c.state.workItems.find((w) => w.id === ev.workItemId);
+  return (
+    <PopFrame
+      target={target}
+      container={container}
+      label={`Added a ${KIND_LABEL[ev.kind]}`}
+      icon={ring('var(--draft)', <KindIcon kind={ev.kind} size={15} />)}
+      head={
+        <>
+          <b>Added a {KIND_LABEL[ev.kind]}</b> by {c.dir.name(ev.by)}
+          <small>
+            {formatStamp(ev.at, c.tz)} · {item?.title}
+          </small>
+        </>
+      }
+      onClose={c.onClose}
+    >
+      <div className="pop-btns">
+        <Btn
+          icon="tag"
+          label="Another kind? Change it"
+          onClick={() => c.actions.changeKind(ev.id)}
+        />
+        <Btn icon="undo" label="Undo" onClick={c.actions.undo} />
+      </div>
+    </PopFrame>
+  );
+}
+
 export function Pop(
   props: Common & { target: PopTarget; container: RefObject<HTMLDivElement | null> },
 ) {
-  if (props.target.kind === 'act') return <ActPop {...props} />;
-  if (props.target.kind === 'due') return <DuePop {...props} />;
-  return <LoopPop {...props} />;
+  switch (props.target.kind) {
+    case 'act':
+      return <ActPop {...props} />;
+    case 'due':
+      return <DuePop {...props} />;
+    case 'kind':
+      return <KindPop {...props} />;
+    case 'rename':
+      return <RenamePop {...props} />;
+    case 'added':
+      return <AddedPop {...props} />;
+    default:
+      return <LoopPop {...props} />;
+  }
 }
