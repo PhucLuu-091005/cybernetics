@@ -7,7 +7,7 @@ import {
   newerOps,
   type Commit,
 } from '../../../src/tracker/clash';
-import type { Op } from '../../../src/tracker/ops';
+import { sameOp, type Op } from '../../../src/tracker/ops';
 import type { Cr } from '../../../src/tracker/payload';
 import { at, larkspurBase, larkspurQueueRows, makeOp } from '../../support/tracker-fixture';
 
@@ -49,6 +49,32 @@ describe('clashesOf', () => {
     const commits = [commit(1, [y])];
     expect(clashesOf([x], commits)).toEqual([]);
     expect(liveOps([x], commits)).toEqual([]);
+  });
+
+  it('drops a date move to the same date silently, whoever moved it, when and why', () => {
+    const due = (date: string, why: string, by: string, time: string, rev = 0) =>
+      makeOp('due', { workItemId: 'pg203', date, why, by, at: at(time) }, rev, by);
+    const msDate = (date: string, why: string, by: string, time: string) =>
+      makeOp('msDate', { milestoneId: 'golive', date, why, by, at: at(time) }, 0, by);
+    const y = due('2026-10-14', 'Lan sends the list on 10 October.', 'quang', '2026-10-09T10:00');
+    const x = due('2026-10-14', 'Quang needs the list first.', 'lan', '2026-10-09T11:30');
+    const ms = msDate('2026-10-20', 'The CRS section slips.', 'minh', '2026-10-09T12:00');
+    const msX = msDate('2026-10-20', 'Sarah agreed on a new date.', 'lan', '2026-10-09T13:00');
+    const commits = [commit(1, [y, ms])];
+    expect(sameOp(x, y)).toBe(true);
+    expect(sameOp(msX, ms)).toBe(true);
+    expect(clashesOf([x, msX], commits)).toEqual([]);
+    expect(liveOps([x, msX], commits)).toEqual([]);
+    const later = due('2026-10-15', 'Quang needs the list first.', 'lan', '2026-10-09T11:30');
+    expect(sameOp(later, y)).toBe(false);
+    expect(clashesOf([later], commits).map((c) => c.key)).toEqual(['loop:pg203:due']);
+    const other = makeOp(
+      'due',
+      { workItemId: 'pg201', date: '2026-10-14', why: 'x', by: 'lan', at: at('2026-10-09T11:30') },
+      0,
+      'lan',
+    );
+    expect(sameOp(other, y)).toBe(false);
   });
 
   it('does not clash with a Main change the editor already saw', () => {

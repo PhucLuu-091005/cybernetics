@@ -450,9 +450,17 @@ function canonical(value: unknown): unknown {
   return value;
 }
 
+// The server stamps every date move with its own by and at, so two moves to one date never match in full.
+function compared(x: Pick<Op, 'op' | 'a'>): unknown {
+  const op = x as Op;
+  if (op.op === 'due') return [op.op, op.a.workItemId, op.a.date];
+  if (op.op === 'msDate') return [op.op, op.a.milestoneId, op.a.date];
+  return [op.op, op.a];
+}
+
 // Postgres jsonb reorders object keys, so a stored op and a fresh one must compare by content.
 export function sameOp(x: Pick<Op, 'op' | 'a'>, y: Pick<Op, 'op' | 'a'>): boolean {
-  return JSON.stringify(canonical([x.op, x.a])) === JSON.stringify(canonical([y.op, y.a]));
+  return JSON.stringify(canonical(compared(x))) === JSON.stringify(canonical(compared(y)));
 }
 
 export function queueFromRows(rows: readonly QueueRow[]): TrackerQueue {
