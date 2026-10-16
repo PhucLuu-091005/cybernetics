@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   clashesOf,
   dayOf,
@@ -45,20 +45,23 @@ function Frame({
   label,
   head,
   icon,
+  takeFocus = true,
   onClose,
   children,
 }: {
   label: string;
   head: ReactNode;
   icon?: ReactNode;
+  takeFocus?: boolean;
   onClose: () => void;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLElement>(null);
+  const grab = useRef(takeFocus);
   useLayoutEffect(() => {
     const drawer = ref.current;
     const opener = document.activeElement;
-    drawer?.focus({ preventScroll: true });
+    if (grab.current) drawer?.focus({ preventScroll: true });
     return () => {
       const now = document.activeElement;
       // Hand focus back only when it would otherwise be lost; a click on another control keeps its focus.
@@ -449,15 +452,22 @@ export function FocusDrawer({
   onClose,
   focusId,
   isHidden,
+  grab,
+  onGrabbed,
   onFocus,
   onShow,
 }: Base & {
   focusId: string;
   isHidden: (workItemId: string) => boolean;
+  grab: boolean;
+  onGrabbed: () => void;
   onFocus: (workItemId: string) => void;
   onShow: (workItemId: string) => void;
 }) {
   const tree = useMemo(() => focusTree(state, focusId), [state, focusId]);
+  useEffect(() => {
+    if (grab) onGrabbed();
+  }, [grab, onGrabbed]);
   if (!tree) return null;
   const { tz } = session;
   const team = (id: string) => state.teams.find((t) => t.id === id)?.name ?? '';
@@ -489,6 +499,7 @@ export function FocusDrawer({
   return (
     <Frame
       label={`Focus on ${tree.root.title}`}
+      takeFocus={grab}
       icon={
         <span className="pi" style={{ color: 'var(--ink)' }}>
           <Icon name="focus" size={15} />

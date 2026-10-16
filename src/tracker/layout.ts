@@ -61,6 +61,8 @@ export type View = {
   zoom?: number;
   offsets?: Offsets;
   focus?: string | null;
+  /** Rows carry a focus button next to the eye, so their labels are cut shorter. */
+  focusButtons?: boolean;
 };
 
 export type Point = { x: number; y: number };
@@ -83,8 +85,6 @@ export type LayoutLane = {
   top: number;
   bottom: number;
   alt: boolean;
-  count: number;
-  hiddenCount: number;
   guide: { y1: number; y2: number } | null;
   eyeLabel: string;
 };
@@ -350,7 +350,7 @@ function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
         id: w.id,
         teamId: team.id,
         title: w.title,
-        label: trunc(w.title, 24),
+        label: trunc(w.title, view.focusButtons ? 24 : 26),
         y: y + ROW / 2,
         done: info.done,
         status: itemStatus(w, c.eventsOf(w.id), view.asOf, c.tz),
@@ -358,7 +358,7 @@ function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
         changed: !!c.marks?.workItems.has(w.id),
         eyeLabel: `Hide ${w.title}`,
         focused,
-        focusLabel: focused ? 'Leave focus' : `Focus on ${w.title}`,
+        focusLabel: `Focus on ${w.title}`,
       });
       y += ROW;
     }
@@ -374,8 +374,6 @@ function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
       top,
       bottom: y,
       alt: index % 2 === 1,
-      count: members.length,
-      hiddenCount: members.filter((w) => c.hidden.has(w.id)).length,
       guide: lastY ? { y1: top + 20, y2: lastY } : null,
       eyeLabel: `Hide ${team.name}`,
     });
@@ -461,7 +459,15 @@ function stemOf(
 }
 
 /** Same-team links curve; a link into another team draws only a handoff mark, so long lines do not cross the graph. */
-function leadLinks(c: Ctx, shown: LayoutRow[], addChip: AddChip): LayoutLink[] {
+function leadLinks(
+  c: Ctx,
+  shown: LayoutRow[],
+  addChip: AddChip,
+  handoffs: LayoutHandoff[],
+): LayoutLink[] {
+  const marksEnd = new Map<string, number>();
+  for (const h of handoffs)
+    marksEnd.set(h.fromId, Math.max(marksEnd.get(h.fromId) ?? 0, h.x + h.size));
   const links: LayoutLink[] = [];
   for (const r of shown) {
     const w = c.items.get(r.id)!;
@@ -477,7 +483,7 @@ function leadLinks(c: Ctx, shown: LayoutRow[], addChip: AddChip): LayoutLink[] {
       if (sr.teamId !== r.teamId) continue;
       const wait = !si.finishedAt;
       const path = si.finishedAt
-        ? curve(c.x(Date.parse(si.finishedAt)), sr.y, begin, r.y)
+        ? curve(Math.max(c.x(Date.parse(si.finishedAt)), marksEnd.get(src) ?? 0), sr.y, begin, r.y)
         : straight(c.xt, sr.y, c.xt, r.y);
       links.push({ fromId: src, toId: w.id, tone: wait ? 'danger' : 'proceed', wait, ...path });
     }
@@ -510,7 +516,11 @@ function handoffsOf(c: Ctx): LayoutHandoff[] {
     const sr = c.rows.get(src)!;
     const finishedAt = c.infos.get(src)!.finishedAt;
     const wait = !finishedAt;
-    const x0 = wait ? c.xt + MARK_AFTER_OPEN : c.x(Date.parse(finishedAt)) + MARK_AFTER_DONE;
+    const end = wait ? c.xt : c.x(Date.parse(finishedAt));
+    const span = list.length * (MARK + MARK_GAP) - MARK_GAP;
+    const after = end + (wait ? MARK_AFTER_OPEN : MARK_AFTER_DONE);
+    // Near the right edge the marks go left of the end, so the graph never cuts them.
+    const x0 = after + span <= c.width - 2 ? after : end - MARK_AFTER_DONE - span;
     return list.map((w, i): LayoutHandoff => {
       const team = teamName.get(w.teamId)!;
       const text = wait
@@ -835,7 +845,8 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     if (!outside.has(source)) chipSources.set(id, (chipSources.get(id) ?? new Set()).add(source));
   };
   const { segments, stems } = linesOf(c, shown, addChip);
-  const links = leadLinks(c, shown, addChip);
+  const handoffs = handoffsOf(c);
+  const links = leadLinks(c, shown, addChip, handoffs);
   const statusOf = new Map(
     state.milestones.map((m) => [
       m.id,
@@ -868,7 +879,7 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     msChips: msChipsOf(c, shown),
     stems,
     links,
-    handoffs: handoffsOf(c),
+    handoffs,
     trunk: { x1: X0, x2: x1, y: TRUNK_Y },
     trunkSegments: trunkSegmentsOf(c, statusOf),
     milestones: placeMilestones(c, statusOf),

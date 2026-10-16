@@ -265,13 +265,13 @@ describe('layoutTracker: lanes and rows', () => {
       label: 'IMPLEMENTATION',
       top: TRUNK_Y + 16,
       bottom: 188,
-      count: 3,
-      hiddenCount: 0,
       guide: { y1: TRUNK_Y + 36, y2: 166 },
       eyeLabel: 'Hide Implementation',
     });
     expect(L.lanes[0]).not.toHaveProperty('more');
     expect(L.lanes[0]).not.toHaveProperty('hidden');
+    expect(L.lanes[0]).not.toHaveProperty('count');
+    expect(L.lanes[0]).not.toHaveProperty('hiddenCount');
   });
 
   it('gives one row per visible work item and drops items finished before the window', () => {
@@ -294,7 +294,7 @@ describe('layoutTracker: lanes and rows', () => {
     expect(L.rows.every((r) => !r.changed)).toBe(true);
     expect(L.rows.find((r) => r.id === 'crs')).toMatchObject({
       title: 'CRS tax residency section with DealCloud sync',
-      label: 'CRS tax residency secti…',
+      label: 'CRS tax residency section…',
       teamId: 'implementation',
       done: false,
       status: 'planned',
@@ -303,6 +303,8 @@ describe('layoutTracker: lanes and rows', () => {
       focused: false,
       focusLabel: 'Focus on CRS tax residency section with DealCloud sync',
     });
+    const withButtons = layoutTracker(larkspurState(), view({ focusButtons: true }));
+    expect(withButtons.rows.find((r) => r.id === 'crs')!.label).toBe('CRS tax residency secti…');
     expect(L.height).toBe(732);
   });
 
@@ -334,7 +336,6 @@ describe('layoutTracker: lanes and rows', () => {
     const L = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['pg203']) }));
     expect(L.rows.some((r) => r.id === 'pg203')).toBe(false);
     expect(L.segments.some((s) => s.workItemId === 'pg203')).toBe(false);
-    expect(L.lanes.find((l) => l.teamId === 'engineering')).toMatchObject({ hiddenCount: 1 });
     expect(L.rows.find((r) => r.id === 'test')!.y).toBe(534 - 32);
     expect(L.height).toBe(732 - 32);
   });
@@ -366,7 +367,7 @@ describe('layoutTracker: lanes and rows', () => {
   it('gives an empty lane room for drops', () => {
     const s = buildState({ teams: [{ id: 't', name: 'Team', leadId: null }] });
     const L = layoutTracker(s, view());
-    expect(L.lanes[0]).toMatchObject({ top: 64, bottom: 64 + 22 + 18 + 6, count: 0, guide: null });
+    expect(L.lanes[0]).toMatchObject({ top: 64, bottom: 64 + 22 + 18 + 6, guide: null });
   });
 });
 
@@ -869,6 +870,69 @@ describe('layoutTracker: links', () => {
     expect(T.handoffs.some((h) => h.fromId === 'analyse' && h.toId === 'pg203')).toBe(true);
   });
 
+  it('puts the marks left of the finish when they would pass the right edge', () => {
+    const s = buildState({
+      teams: [
+        { id: 't1', name: 'One', leadId: null },
+        { id: 't2', name: 'Two', leadId: null },
+      ],
+      workItems: [
+        workItem({ id: 'src', teamId: 't1' }),
+        workItem({ id: 'x', teamId: 't2', after: ['src'] }),
+        workItem({ id: 'y', teamId: 't2', after: ['src'] }),
+      ],
+      events: [event({ id: 's1', workItemId: 'src', kind: 'done', at: at('2026-10-16T22:00') })],
+    });
+    const E = layoutTracker(s, view());
+    const fx = E.x(ms('2026-10-16T22:00'));
+    const marks = E.handoffs.filter((h) => h.fromId === 'src');
+    expect(marks.map((h) => h.x)).toEqual([fx - 12 - 31, fx - 12 - 14]);
+    expect(Math.max(...marks.map((h) => h.x + h.size))).toBeLessThanOrEqual(E.width);
+  });
+
+  it('starts a same-team curve after the marks of its source, so it never crosses them', () => {
+    const s = buildState({
+      teams: [
+        { id: 't1', name: 'One', leadId: null },
+        { id: 't2', name: 'Two', leadId: null },
+      ],
+      workItems: [
+        workItem({ id: 'src', teamId: 't1' }),
+        workItem({ id: 'mate', teamId: 't1', after: ['src'] }),
+        workItem({ id: 'far', teamId: 't2', after: ['src'] }),
+      ],
+      events: [
+        event({ id: 's1', workItemId: 'src', kind: 'done', at: at('2026-09-20T09:00') }),
+        event({ id: 'm1', workItemId: 'mate', at: at('2026-09-25T09:00') }),
+      ],
+    });
+    const C = layoutTracker(s, view());
+    const mark = C.handoffs.find((h) => h.fromId === 'src')!;
+    const link = C.links.find((l) => l.fromId === 'src' && l.toId === 'mate')!;
+    expect(link.from.x).toBe(mark.x + mark.size);
+    expect(link.c1.x).toBeGreaterThan(link.from.x);
+  });
+
+  it('draws no mark for a receiving work item outside the window', () => {
+    const s = buildState({
+      teams: [
+        { id: 't1', name: 'One', leadId: null },
+        { id: 't2', name: 'Two', leadId: null },
+      ],
+      workItems: [
+        workItem({ id: 'src', teamId: 't1' }),
+        workItem({ id: 'gone', teamId: 't2', after: ['src'] }),
+      ],
+      events: [
+        event({ id: 's1', workItemId: 'src', at: at('2026-09-20T09:00') }),
+        event({ id: 'g1', workItemId: 'gone', kind: 'done', at: at('2026-09-01T09:00') }),
+      ],
+    });
+    const W = layoutTracker(s, view());
+    expect(W.rows.map((r) => r.id)).toEqual(['src']);
+    expect(W.handoffs).toEqual([]);
+  });
+
   it('draws no mark from a hidden source', () => {
     const H = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['analyse']) }));
     expect(H.handoffs.some((h) => h.fromId === 'analyse')).toBe(false);
@@ -1193,7 +1257,10 @@ describe('layoutTracker: focus on a work item', () => {
       'digitization-qa',
     ]);
     expect(L.lanes[0].top).toBe(TRUNK_Y + 16);
-    expect(L.rows[0]).toMatchObject({ focused: true, focusLabel: 'Leave focus' });
+    expect(L.rows[0]).toMatchObject({
+      focused: true,
+      focusLabel: 'Focus on Analyse the CRS and FATCA rules',
+    });
     expect(L.rows[1]).toMatchObject({
       focused: false,
       focusLabel: 'Focus on PG-201 CRS form logic',
@@ -1209,7 +1276,8 @@ describe('layoutTracker: focus on a work item', () => {
       workItems: [workItem({ id: 'a', teamId: 't' })],
       events: [event({ id: 'a1', workItemId: 'a', at: at('2026-09-20T09:00') })],
     });
-    expect(layoutTracker(s, view()).lanes.map((l) => l.teamId)).toEqual(['t', 'empty']);
+    const all = layoutTracker(s, view());
+    expect(all.lanes.map((l) => l.teamId)).toEqual(['t', 'empty']);
     expect(layoutTracker(s, view({ focus: 'a' })).lanes.map((l) => l.teamId)).toEqual(['t']);
   });
 

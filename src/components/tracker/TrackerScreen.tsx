@@ -88,6 +88,7 @@ import {
   browserStore,
   EMPTY_VIEW,
   hiddenList,
+  keepFocus,
   readNoticeOff,
   readViewState,
   revealRows,
@@ -292,9 +293,13 @@ export function TrackerScreen({
   const cr = view === 'main' ? null : (payload.crs.find((c) => c.num === view) ?? null);
   const current = useMemo(() => currentState(payload, cr), [payload, cr]);
   // A view choice like hiding: never saved, and it leaves the hidden lists alone.
-  const [focus, setFocus] = useState<string | null>(null);
+  // `grab` is true only in the action that opened the focus, so a panel that comes back after
+  // another drawer closes does not take the keyboard focus from the row.
+  const [focus, setFocus] = useState<{ id: string; grab: boolean } | null>(null);
   const { state } = current;
-  const focused = focus && state.workItems.some((w) => w.id === focus) ? focus : null;
+  const focused = focus && state.workItems.some((w) => w.id === focus.id) ? focus.id : null;
+  // A focus whose work item is gone from this view ends, so it does not come back by itself.
+  if (focus && !focused) setFocus(null);
   const inFocus = useMemo(() => (focused ? descendantsOf(state, focused) : null), [state, focused]);
   const me = payload.me?.id ?? null;
   const isOwner = !!me && me === project.ownerMemberId;
@@ -432,6 +437,7 @@ export function TrackerScreen({
           zoom,
           offsets,
           focus: focused,
+          focusButtons: true,
           ...(project.windowStart ? { windowStart: project.windowStart } : {}),
         },
         current.marks,
@@ -477,20 +483,17 @@ export function TrackerScreen({
     setPop(null);
     setDrawer((d) => (d?.mode === mode ? null : { mode }));
   };
-  const toggleRow = (id: string) => {
+  const teamOf = (id: string) => state.workItems.find((w) => w.id === id)?.teamId ?? null;
+  const hide = (next: ViewState) => {
     setPop(null);
-    if (id === focused && !hidden.hiddenRows.includes(id)) setFocus(null);
-    changeHidden({ ...hidden, hiddenRows: toggleId(hidden.hiddenRows, id) });
+    changeHidden(next);
+    if (focused && !keepFocus(focused, next, teamOf)) setFocus(null);
   };
-  const toggleTeam = (id: string) => {
-    setPop(null);
-    changeHidden({ ...hidden, hiddenTeams: toggleId(hidden.hiddenTeams, id) });
-  };
-  const reveal = (ids: string[]) =>
-    changeHidden(
-      revealRows(hidden, ids, (id) => state.workItems.find((w) => w.id === id)?.teamId ?? null),
-    );
-  /** A row that the person asks to see comes back from a hide, and a focus that leaves it out ends. */
+  const toggleRow = (id: string) =>
+    hide({ ...hidden, hiddenRows: toggleId(hidden.hiddenRows, id) });
+  const toggleTeam = (id: string) =>
+    hide({ ...hidden, hiddenTeams: toggleId(hidden.hiddenTeams, id) });
+  const reveal = (ids: string[]) => changeHidden(revealRows(hidden, ids, teamOf));
   const bringIn = (workItemId: string) => {
     if (isHidden(workItemId)) reveal([workItemId]);
     if (inFocus && !inFocus.has(workItemId)) setFocus(null);
@@ -516,7 +519,8 @@ export function TrackerScreen({
     setPop(null);
     setMoving(null);
     if (focused === workItemId) return setFocus(null);
-    setFocus(workItemId);
+    if (isHidden(workItemId)) reveal([workItemId]);
+    setFocus({ id: workItemId, grab: true });
     // The focus panel takes the drawer's place.
     setDrawer(null);
   };
@@ -1280,6 +1284,8 @@ export function TrackerScreen({
               {...base}
               focusId={focused}
               isHidden={isHidden}
+              grab={focus?.grab ?? false}
+              onGrabbed={() => setFocus((f) => f && { ...f, grab: false })}
               onClose={() => setFocus(null)}
               onFocus={toggleFocus}
               onShow={showRow}
