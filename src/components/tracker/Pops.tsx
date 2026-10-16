@@ -12,7 +12,7 @@ import {
   type TrackerState,
 } from '../../tracker';
 import type { Directory } from './avatar';
-import { Icon, KindIcon, type IconName } from './icons';
+import { Icon, KIND_COLOR, KindIcon, type IconName } from './icons';
 import { KindGrid } from './Modals';
 import type { PopKind } from './TrackerGraph';
 import type { TrackerActions } from './TrackerScreen';
@@ -28,6 +28,8 @@ type Common = {
   dir: Directory;
   tz: string;
   asOf: string;
+  /** The view takes changes, so a stack lists the actions of each event. */
+  edit?: boolean;
   actions: TrackerActions;
   onClose: () => void;
   onHideRow: (workItemId: string) => void;
@@ -93,9 +95,12 @@ function PopFrame({
     if (!pop || !box) return;
     const r = target.anchor.getBoundingClientRect();
     const w = box.getBoundingClientRect();
+    // A zoomed row reaches past the visible graph, so the pop centres on the part in view.
+    const l = Math.max(r.left, w.left);
+    const rr = Math.min(r.right, w.right);
     const left = Math.max(
       8,
-      Math.min(r.left - w.left + r.width / 2 - pop.offsetWidth / 2, w.width - pop.offsetWidth - 8),
+      Math.min(l - w.left + (rr - l) / 2 - pop.offsetWidth / 2, w.width - pop.offsetWidth - 8),
     );
     let top = r.bottom - w.top + 8;
     if (top + pop.offsetHeight > w.height - 8)
@@ -209,7 +214,9 @@ function LoopPop({
   ...c
 }: Common & { target: PopTarget; container: RefObject<HTMLDivElement | null> }) {
   const item = c.state.workItems.find((w) => w.id === target.id);
+  const [moves, setMoves] = useState(false);
   if (!item) return null;
+  if (moves) return <DuePop target={target} container={container} {...c} />;
   const info = itemInfo(item, c.state.events);
   const status = itemStatus(item, c.state.events, c.asOf, c.tz);
   const team = c.state.teams.find((t) => t.id === item.teamId)?.name ?? '';
@@ -231,7 +238,19 @@ function LoopPop({
           </small>
           <small>
             Planned finish {formatDay(item.plannedFinish)} · {STATUS_LABEL[status]}
-            {item.moves.length > 0 && ` · moved ${item.moves.length}×`}
+            {item.moves.length > 0 && (
+              <>
+                {' · '}
+                <button
+                  className="lnk"
+                  type="button"
+                  aria-label={`See the ${item.moves.length} date moves`}
+                  onClick={() => setMoves(true)}
+                >
+                  moved {item.moves.length}×
+                </button>
+              </>
+            )}
           </small>
           <small>
             {milestone ? `Milestone: ${milestone.name}` : 'No milestone'}
@@ -298,7 +317,86 @@ function DuePop({
           onClick={() => c.actions.moveDate({ kind: 'item', id: item.id })}
         />
       </div>
-      <p className="tip">Tip: drag the date mark left or right. The app asks why.</p>
+    </PopFrame>
+  );
+}
+
+function StackPop({
+  target,
+  container,
+  ...c
+}: Common & { target: PopTarget; container: RefObject<HTMLDivElement | null> }) {
+  const [picked, setPicked] = useState<string | null>(null);
+  const ids = target.id.split(',');
+  const list = ids.flatMap((id) => c.state.events.filter((e) => e.id === id));
+  if (picked)
+    return <ActPop target={{ ...target, kind: 'act', id: picked }} container={container} {...c} />;
+  if (!list.length) return null;
+  const item = c.state.workItems.find((w) => w.id === list[0].workItemId);
+  return (
+    <PopFrame
+      target={target}
+      container={container}
+      label={`${list.length} events on ${item?.title ?? 'this work item'}`}
+      icon={ring('var(--route)', <KindIcon kind={list[list.length - 1].kind} size={15} />)}
+      head={
+        <>
+          <b>{list.length} events here</b>
+          <small>{item?.title}</small>
+        </>
+      }
+      onClose={c.onClose}
+    >
+      <ul className="stack-list">
+        {list.map((ev) => {
+          const what = `${KIND_LABEL[ev.kind]} by ${c.dir.name(ev.by)}`;
+          return (
+            <li key={ev.id}>
+              <button className="stack-ev" type="button" onClick={() => setPicked(ev.id)}>
+                <span className="sk" style={{ color: KIND_COLOR[ev.kind] }}>
+                  <KindIcon kind={ev.kind} size={13} />
+                </span>
+                <span className="st">
+                  <b>{what}</b>
+                  <small>{formatStamp(ev.at, c.tz)}</small>
+                  <span>{ev.text}</span>
+                </span>
+              </button>
+              {c.edit && (
+                <span className="stack-acts">
+                  <button
+                    className="ib"
+                    type="button"
+                    aria-label={`Change kind: ${what}`}
+                    title="Change kind"
+                    onClick={() => c.actions.changeKind(ev.id)}
+                  >
+                    <Icon name="tag" size={14} />
+                  </button>
+                  <button
+                    className="ib"
+                    type="button"
+                    aria-label={`Move to another work item: ${what}`}
+                    title="Move to another work item"
+                    onClick={() => c.actions.moveEvent(ev.id)}
+                  >
+                    <Icon name="move" size={14} />
+                  </button>
+                  <button
+                    className="ib danger"
+                    type="button"
+                    aria-label={`Hide this event: ${what}`}
+                    title="Hide this event"
+                    onClick={() => c.actions.hideEvent(ev.id)}
+                  >
+                    <Icon name="eyeoff" size={14} />
+                  </button>
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </PopFrame>
   );
 }
@@ -409,8 +507,8 @@ export function Pop(
   switch (props.target.kind) {
     case 'act':
       return <ActPop {...props} />;
-    case 'due':
-      return <DuePop {...props} />;
+    case 'stack':
+      return <StackPop {...props} />;
     case 'kind':
       return <KindPop {...props} />;
     case 'rename':
