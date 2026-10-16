@@ -499,13 +499,13 @@ describe('layoutTracker: segments, waits and stems', () => {
     expect(L.stems.find((s) => s.workItemId === 'test')).toMatchObject({ tone: 'ink-3' });
   });
 
-  it('draws no stem for a row with a hidden parent, only an arrow chip', () => {
+  it('draws no stem for a row with a hidden parent, only a chip', () => {
     const H = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['crs']) }));
-    const y = H.rows.find((r) => r.id === 'pg201')!.y;
-    const sx = H.x(ms('2026-09-23T09:20'));
-    expect(H.stems.some((s) => s.workItemId === 'pg201')).toBe(false);
-    expect(H.chips.find((c) => c.workItemId === 'pg201')).toEqual({
-      workItemId: 'pg201',
+    const y = H.rows.find((r) => r.id === 'analyse')!.y;
+    const sx = H.x(ms('2026-09-15T13:00'));
+    expect(H.stems.some((s) => s.workItemId === 'analyse' || s.workItemId === 'pg201')).toBe(false);
+    expect(H.chips.find((c) => c.workItemId === 'analyse')).toEqual({
+      workItemId: 'analyse',
       sources: ['crs'],
       ariaLabel: 'Show CRS tax residency section with DealCloud sync',
       tooltip: 'From CRS tax residency section with DealCloud sync (hidden)',
@@ -515,10 +515,16 @@ describe('layoutTracker: segments, waits and stems', () => {
     });
   });
 
+  it('gives the chip to the direct children only, not to rows that lead from a shown child', () => {
+    const H = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['crs']) }));
+    expect(H.chips.map((c) => c.workItemId)).toEqual(['analyse']);
+  });
+
   it('draws no stem for a row with a parent in a hidden team', () => {
     const H = layoutTracker(larkspurState(), view({ hiddenTeams: new Set(['implementation']) }));
     expect(H.stems.some((s) => s.workItemId === 'pg203')).toBe(false);
-    expect(H.chips.find((c) => c.workItemId === 'pg203')?.sources).toEqual(['crs']);
+    expect(H.chips.find((c) => c.workItemId === 'analyse')?.sources).toEqual(['crs']);
+    expect(H.chips.some((c) => c.workItemId === 'pg203')).toBe(false);
   });
 });
 
@@ -815,14 +821,22 @@ describe('layoutTracker: links', () => {
   it('lists every hidden source of a row in one chip', () => {
     const H = layoutTracker(
       larkspurState(),
-      view({ hiddenRows: new Set(['pg201', 'pg202', 'crs']) }),
+      view({ hiddenRows: new Set(['pg201', 'pg202', 'pg203', 'crs']) }),
     );
     expect(H.chips.find((c) => c.workItemId === 'test')).toMatchObject({
-      sources: ['crs', 'pg201', 'pg202'],
+      sources: ['crs', 'pg201', 'pg202', 'pg203'],
       ariaLabel:
-        'Show CRS tax residency section with DealCloud sync, PG-201 CRS form logic, PG-202 DealCloud mapping for CRS fields',
+        'Show CRS tax residency section with DealCloud sync, PG-201 CRS form logic, PG-202 DealCloud mapping for CRS fields, PG-203 Country list field type',
     });
-    expect(H.chips.find((c) => c.workItemId === 'test')?.tooltip.split('\n')).toHaveLength(3);
+    expect(H.chips.find((c) => c.workItemId === 'test')?.tooltip.split('\n')).toHaveLength(4);
+  });
+
+  it('leaves out a hidden source that a shown source of the row comes from', () => {
+    const H = layoutTracker(
+      larkspurState(),
+      view({ hiddenRows: new Set(['pg201', 'pg202', 'crs']) }),
+    );
+    expect(H.chips.find((c) => c.workItemId === 'test')?.sources).toEqual(['pg201', 'pg202']);
   });
 
   it('draws no link into a hidden row', () => {

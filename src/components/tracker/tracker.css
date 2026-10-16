@@ -1170,10 +1170,8 @@ svg.tg .chip rect {
   fill: var(--panel);
   stroke: var(--ink-3);
 }
-svg.tg .chip text {
-  font-size: 10px;
-  fill: var(--ink-2);
-  font-weight: 700;
+svg.tg .chip > g {
+  color: var(--ink-2);
   pointer-events: none;
 }
 svg.tg .chip:hover rect {

@@ -186,7 +186,7 @@ export type LayoutMilestone = {
   level: 0 | 1;
   labelBox: { x0: number; x1: number };
 };
-/** An arrow on a row whose parent or "leads from" source is not on the graph. */
+/** A chip on a row whose own parent or "leads from" source is not on the graph. */
 export type LayoutChip = {
   workItemId: string;
   sources: string[];
@@ -571,6 +571,26 @@ function trunkSegmentsOf(c: Ctx, statusOf: Map<string, MsStatus>): LayoutTrunkSe
   });
 }
 
+function comesFrom(c: Ctx, from: string, source: string): boolean {
+  const seen = new Set<string>();
+  const todo = [from];
+  while (todo.length) {
+    const w = c.items.get(todo.pop()!);
+    if (!w || seen.has(w.id)) continue;
+    seen.add(w.id);
+    const up = w.parentId ? [w.parentId, ...w.after] : w.after;
+    if (up.includes(source)) return true;
+    todo.push(...up);
+  }
+  return false;
+}
+
+/** The owner wants the chip on direct children only: a row that comes from the source through a shown row is a grandchild. */
+const throughShownRow = (c: Ctx, w: WorkItem, source: string) =>
+  [w.parentId, ...w.after].some(
+    (id) => !!id && id !== source && c.rows.has(id) && comesFrom(c, id, source),
+  );
+
 function chipOf(c: Ctx, w: WorkItem, r: LayoutRow, sources: string[]): LayoutChip {
   const titles = sources.map((id) => c.items.get(id)!.title);
   const before = `finished before ${formatDay(c.windowStart)}`;
@@ -793,8 +813,9 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     trunkSegments: trunkSegmentsOf(c, statusOf),
     milestones: placeMilestones(c, statusOf),
     chips: shown.flatMap((r) => {
-      const sources = chipSources.get(r.id);
-      return sources ? [chipOf(c, item(r), r, [...sources])] : [];
+      const w = item(r);
+      const sources = [...(chipSources.get(r.id) ?? [])].filter((id) => !throughShownRow(c, w, id));
+      return sources.length ? [chipOf(c, w, r, sources)] : [];
     }),
     laneDrops: lanes
       .filter((l) => !l.hidden)
