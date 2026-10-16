@@ -60,6 +60,14 @@ test.describe('the tracker walkthrough', () => {
     const dialog = page.locator('.m-card');
     const queueEvent = (text: string) => page.locator('[data-qevent]', { hasText: text });
     const row = (id: string) => page.locator(`svg.pg [data-loop="${id}"]`);
+    const search = page.getByRole('combobox', { name: 'Search work items' });
+    const drawer = page.locator('.drawer');
+    const find = async (text: string, title: string) => {
+      await search.fill(text);
+      await expect(page.getByRole('option').first()).toContainText(title);
+      await page.keyboard.press('Enter');
+      await expect(drawer.locator('h4')).toHaveText(title);
+    };
     const openReview = async (num: number) => {
       await visit(page, `${graph}?cr=${num}`);
       await bar.getByRole('link', { name: 'Review and merge' }).click();
@@ -68,34 +76,63 @@ test.describe('the tracker walkthrough', () => {
       await hydrated(page);
     };
 
-    await test.step('1. the Go-live work item pop shows the first date, the move and its reason', async () => {
-      await row('golive').focus();
+    await test.step("0. Main says it is read-only, and Don't show again keeps the notice away", async () => {
+      const note = page.getByRole('note', { name: 'Main is read-only' });
+      await expect(note).toContainText('Main is read-only. To change it, create a change request.');
+      await expect(note.getByRole('button', { name: 'New change request' })).toBeVisible();
+      await note.getByRole('button', { name: "Don't show again" }).click();
+      await expect(note).toHaveCount(0);
+      await visit(page, graph);
+      await expect(page.locator('svg.pg')).toBeVisible();
+      await expect(note).toHaveCount(0);
+    });
+
+    await test.step('0. Main has no Queue, no drag and no edit buttons', async () => {
+      await expect(page.locator('.p-side')).toHaveCount(0);
+      await expect(page.locator('.bin')).toHaveCount(0);
+      await expect(page.locator('svg.tg .plus, svg.tg .pill')).toHaveCount(0);
+      const ev = page.locator('svg.pg [data-act][data-in="pg203"]').last();
+      await drag(page, ev, row('dynamics'));
+      await expect(dialog).toHaveCount(0);
+      await expect(page.locator('.ghost')).toHaveCount(0);
+      await expect(page.locator('svg.pg [data-act][data-in="pg203"]')).toHaveCount(2);
+      await row('pg203').focus();
       await page.keyboard.press('Enter');
       const pop = page.locator('.pop');
-      await pop.getByRole('button', { name: 'See the 1 date moves' }).click();
-      await expect(pop).toContainText(/First planned 30 Sept/i);
-      await expect(pop).toContainText('30 Sept → 15 Oct');
-      await expect(pop).toContainText('The CRS section is not ready.');
+      await expect(pop.getByRole('button', { name: 'See details' })).toBeVisible();
+      for (const name of ['Add an event', 'Move the date', 'Rename', 'Mark done'])
+        await expect(pop.getByRole('button', { name })).toHaveCount(0);
       await page.keyboard.press('Escape');
       await expect(pop).toHaveCount(0);
     });
 
-    await test.step('2. Lan drags a Queue event onto a work item and starts change request #5', async () => {
+    await test.step('1. Search finds the Go-live date; its details show the first date, the move and its reason', async () => {
+      await find('go-live', 'Go-live date');
+      await expect(drawer).toContainText(/First planned 30 Sept/i);
+      await expect(drawer).toContainText('30 Sept → 15 Oct');
+      await expect(drawer).toContainText('The CRS section is not ready.');
+      await expect(drawer.getByRole('button', { name: 'Move the date' })).toHaveCount(0);
+      await page.keyboard.press('Escape');
+      await expect(drawer).toHaveCount(0);
+    });
+
+    await test.step('2. Lan presses New change request, then drags a Queue event onto a work item', async () => {
       await actAs(page, 'Lan Phạm');
-      await drag(page, queueEvent('Where is the root cause report'), row('incident'));
-      await expect(dialog).toContainText('Main is read-only');
-      await dialog.getByRole('button', { name: 'New change request' }).click();
+      await bar.getByRole('button', { name: 'New change request' }).click();
       await dialog.getByRole('button', { name: 'Create', exact: true }).click();
       await page.waitForURL(/cr=5$/);
       await expect(bar).toContainText('#5');
       await expect(bar).toContainText('You are editing');
+      await drag(page, queueEvent('Where is the root cause report'), row('incident'));
+      await expect(toast).toContainText('Message by Sarah Kim: added');
       await expect(bar).toContainText('1 change');
     });
 
-    await test.step('3. Lan moves the PG-203 date from its pop and must write a reason', async () => {
-      await row('pg203').focus();
-      await page.keyboard.press('Enter');
-      await page.locator('.pop').getByRole('button', { name: 'Move the date' }).click();
+    await test.step('3. Lan finds PG-203 with the search and moves its date, with a reason', async () => {
+      await find('PG-203', 'PG-203 Country list field type');
+      await expect(drawer).toContainText('Quang Nguyễn');
+      await expect(drawer).toContainText(/Events \(\d+\)/);
+      await drawer.getByRole('button', { name: 'Move the date' }).click();
       await expect(dialog).toContainText('Move the planned finish');
       await dialog.locator('input[type=date]').fill('2026-10-10');
       const save = dialog.getByRole('button', { name: 'Move the date' });
@@ -108,6 +145,8 @@ test.describe('the tracker walkthrough', () => {
       await save.click();
       await expect(toast).toContainText('PG-203 Country list field type: planned finish moved.');
       await expect(bar).toContainText('2 changes');
+      await page.keyboard.press('Escape');
+      await expect(drawer).toHaveCount(0);
     });
 
     await test.step('4. Lan shares #5 with Khoa, Can edit', async () => {
@@ -238,17 +277,18 @@ test.describe('the tracker walkthrough', () => {
       await expect(page.locator('.pr-tabs')).toBeVisible();
     });
 
-    await test.step('13. A drag on merged #1 asks for a new change request', async () => {
+    await test.step('13. Merged #1 is read-only history: no Queue, no drag, and New change request in the bar', async () => {
       await visit(page, graph);
       await page.locator('.p-head').getByRole('button', { name: 'History' }).click();
       await page.locator('.drawer').getByRole('button', { name: 'Open graph' }).last().click();
       await page.waitForURL(/cr=1$/);
-      await drag(page, queueEvent('The test environment has no country list'), row('test'));
-      await expect(dialog).toContainText('#1 is merged');
-      await expect(dialog).toContainText('Your change goes into it');
-      await expect(dialog.getByRole('button', { name: 'New change request' })).toBeVisible();
-      await page.keyboard.press('Escape');
+      await expect(bar).toContainText('Read-only history.');
+      await expect(bar.getByRole('button', { name: 'New change request' })).toBeVisible();
+      await expect(page.locator('.p-side')).toHaveCount(0);
+      const ev = page.locator('svg.pg [data-act][data-in="golive"]').first();
+      await drag(page, ev, row('test'));
       await expect(dialog).toHaveCount(0);
+      await expect(page.locator('svg.pg [data-act][data-in="test"]')).toHaveCount(0);
     });
 
     expect(problems).toEqual([]);
@@ -296,6 +336,15 @@ test.describe('milestone ticks, chips, hiding and the time zoom', () => {
     await expect(drawer).toContainText('CRM integration live');
     await page.keyboard.press('Escape');
 
+    await page.locator('svg.pg [data-loop="pg201"]').focus();
+    await page.keyboard.press('Enter');
+    await expect(pop).toContainText(/Finished (early|on time)/);
+    await expect(pop.getByRole('button', { name: 'Move the date' })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+
+    await page.locator('.bbar').getByRole('button', { name: 'New change request' }).click();
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/cr=\d+$/);
     for (const [id, title] of [
       ['pg201', 'PG-201'],
       ['rehearsal', 'rehearsal'],
@@ -369,12 +418,23 @@ test.describe('the tracker at phone width', () => {
     await expect(page.locator('svg.pg')).toBeVisible();
     await noHorizontalScroll(page);
 
-    await page.goto(`${graph}?cr=4`);
+    await page.getByRole('combobox', { name: 'Search work items' }).fill('pg');
+    await expect(page.getByRole('option').first()).toBeVisible();
+    await noHorizontalScroll(page);
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.drawer h4')).toHaveText(/^PG-/);
+    await noHorizontalScroll(page);
+    await page.keyboard.press('Escape');
+
+    // The phone rail hides the fold button, so the first picks may land before hydration.
+    await expect(async () => {
+      await page.getByLabel('Demo: act as').selectOption({ label: 'Hà Đỗ' }, { timeout: 2_000 });
+      await expect(page).toHaveURL(/cr=4$/, { timeout: 2_000 });
+    }).toPass();
     await expect(page.locator('.bbar').first()).toContainText('#4');
     await noHorizontalScroll(page);
 
     const add = page.getByRole('dialog', { name: 'Add to the queue' });
-    // The phone rail hides the fold button, so the first clicks may land before hydration.
     await expect(async () => {
       await page.locator('.p-side').getByRole('button', { name: 'Add' }).click({ timeout: 2_000 });
       await expect(add).toBeVisible({ timeout: 1_000 });

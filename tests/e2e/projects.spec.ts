@@ -43,16 +43,12 @@ test('a new project starts with its teams and an empty graph, and its first chan
   await expect(page.getByLabel('Demo: act as')).toHaveCount(0);
   await expect(page.locator('.me')).toContainText('Project owner, owns Main');
 
-  await page.getByRole('button', { name: 'Add a work item' }).click();
-  const add = page.getByRole('dialog', { name: 'Add to the queue' });
-  await add.getByLabel('Name').fill('Tax ID field on the KYC form');
-  await add.getByLabel('Note').fill('Country formats for the tax ID');
-  await add.getByRole('button', { name: 'Add work item' }).click();
-  await expect(page.locator('.tk-toast')).toContainText('Added to the queue.');
-  const card = page.locator('[data-qitem]', { hasText: 'Tax ID field on the KYC form' });
-  await expect(card).toBeVisible();
+  await expect(page.locator('.p-side')).toHaveCount(0);
+  await expect(page.locator('.empty').getByRole('button', { name: 'Add a work item' })).toHaveCount(
+    0,
+  );
 
-  await bar.getByRole('button', { name: 'New change request' }).click();
+  await page.locator('.empty').getByRole('button', { name: 'New change request' }).click();
   const named = page.getByRole('dialog', { name: 'New change request' });
   await named.getByLabel('Name').fill('Place the tax ID work');
   await named.getByRole('button', { name: 'Create', exact: true }).click();
@@ -60,6 +56,15 @@ test('a new project starts with its teams and an empty graph, and its first chan
   await expect(bar).toContainText('#1 Place the tax ID work');
   await expect(bar).toContainText('You are editing');
   await expect(bar.getByRole('button', { name: 'Mark as ready' })).toBeDisabled();
+
+  await page.locator('.empty').getByRole('button', { name: 'Add a work item' }).click();
+  const add = page.getByRole('dialog', { name: 'Add to the queue' });
+  await add.getByLabel('Name').fill('Tax ID field on the KYC form');
+  await add.getByLabel('Note').fill('Country formats for the tax ID');
+  await add.getByRole('button', { name: 'Add work item' }).click();
+  await expect(page.locator('.tk-toast')).toContainText('Added to the queue.');
+  const card = page.locator('[data-qitem]', { hasText: 'Tax ID field on the KYC form' });
+  await expect(card).toBeVisible();
 
   await drag(page, card, svg.locator('rect.lane-drop').nth(1));
   await expect(bar).toContainText('1 change');
