@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { larkspurState } from '../../support/tracker-fixture';
 import {
   EMPTY_VIEW,
+  hiddenList,
   readNoticeOff,
   readViewState,
   revealRows,
@@ -126,5 +128,21 @@ describe('tracker view state', () => {
     expect(() => writeNoticeOff(throwing, 'u1')).not.toThrow();
     expect(readNoticeOff(throwing, 'u1')).toBe(false);
     expect(readNoticeOff(null, 'u1')).toBe(false);
+  });
+
+  it('lists hidden teams and hidden work items that still exist, and counts both', () => {
+    const list = hiddenList(larkspurState(), {
+      hiddenRows: ['pg203', 'gone', 'analyse'],
+      hiddenTeams: ['it', 'nope'],
+    });
+    expect(list).toEqual({
+      teams: [{ id: 'it', name: 'IT', items: 1 }],
+      items: [
+        { id: 'analyse', title: 'Analyse the CRS and FATCA rules', team: 'Digitization' },
+        { id: 'pg203', title: 'PG-203 Country list field type', team: 'Engineering' },
+      ],
+      count: 3,
+    });
+    expect(hiddenList(larkspurState(), EMPTY_VIEW).count).toBe(0);
   });
 });

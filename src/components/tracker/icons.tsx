@@ -196,6 +196,27 @@ const SHAPES = {
       <path d="M18 9a9 9 0 0 1-9 9" />
     </g>
   ),
+  focus: (
+    <g {...S}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+      <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+      <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+      <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+    </g>
+  ),
+  cornerDown: (
+    <g {...S24}>
+      <path d="m15 10 5 5-5 5" />
+      <path d="M4 4v7a4 4 0 0 0 4 4h12" />
+    </g>
+  ),
+  cornerUp: (
+    <g {...S24}>
+      <path d="m15 14 5-5-5-5" />
+      <path d="M4 20v-7a4 4 0 0 1 4-4h12" />
+    </g>
+  ),
   loop: (
     <g {...S}>
       <path d="M3 12h18" />

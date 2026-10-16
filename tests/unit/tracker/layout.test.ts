@@ -19,7 +19,7 @@ import {
   workItem,
 } from '../../support/tracker-fixture';
 
-const { VW, X0, X1, SIDE, RAIL, TRUNK_Y, MS_Y, AXIS_Y, HEAD } = GEOMETRY;
+const { VW, X0, X1, SIDE, RAIL, TRUNK_Y, MS_Y, AXIS_Y } = GEOMETRY;
 
 const view = (over: Partial<View> = {}): View => ({
   hiddenRows: new Set(),
@@ -265,13 +265,13 @@ describe('layoutTracker: lanes and rows', () => {
       label: 'IMPLEMENTATION',
       top: TRUNK_Y + 16,
       bottom: 188,
-      hidden: false,
       count: 3,
       hiddenCount: 0,
-      more: null,
       guide: { y1: TRUNK_Y + 36, y2: 166 },
       eyeLabel: 'Hide Implementation',
     });
+    expect(L.lanes[0]).not.toHaveProperty('more');
+    expect(L.lanes[0]).not.toHaveProperty('hidden');
   });
 
   it('gives one row per visible work item and drops items finished before the window', () => {
@@ -294,77 +294,58 @@ describe('layoutTracker: lanes and rows', () => {
     expect(L.rows.every((r) => !r.changed)).toBe(true);
     expect(L.rows.find((r) => r.id === 'crs')).toMatchObject({
       title: 'CRS tax residency section with DealCloud sync',
-      label: 'CRS tax residency section…',
+      label: 'CRS tax residency secti…',
       teamId: 'implementation',
       done: false,
       status: 'planned',
       milestoneId: 'golive',
       eyeLabel: 'Hide CRS tax residency section with DealCloud sync',
+      focused: false,
+      focusLabel: 'Focus on CRS tax residency section with DealCloud sync',
     });
     expect(L.height).toBe(732);
   });
 
-  it('keeps only the head line of a hidden team, with a button that shows its rows', () => {
+  it('drops a hidden team completely: no head line, no rows, no drop target', () => {
+    const all = layoutTracker(larkspurState(), view());
     const L = layoutTracker(larkspurState(), view({ hiddenTeams: new Set(['engineering']) }));
-    const lane = L.lanes.find((l) => l.teamId === 'engineering')!;
-    const width = '4 hidden'.length * 5.4 + 12;
-    expect(lane).toMatchObject({
-      hidden: true,
-      count: 4,
-      hiddenCount: 4,
-      guide: null,
-      eyeLabel: 'Show Engineering',
-      label: 'ENGINEERING',
-      bottom: lane.top + HEAD + 2,
-      more: {
-        ids: ['dynamics', 'syncmon', 'crmlive', 'pg203'],
-        text: '4 hidden',
-        ariaLabel: 'Show 4 hidden work items in Engineering',
-        x: X0 - 38 - width,
-        width,
-      },
-    });
     const engineering = ['dynamics', 'syncmon', 'crmlive', 'pg203'];
+    const lane = all.lanes.find((l) => l.teamId === 'engineering')!;
+    expect(L.lanes.map((l) => l.teamId)).not.toContain('engineering');
     expect(L.rows.some((r) => engineering.includes(r.id))).toBe(false);
     expect(L.segments.some((s) => engineering.includes(s.workItemId))).toBe(false);
     expect(L.eventGroups.some((g) => engineering.includes(g.workItemId))).toBe(false);
     expect(L.goalTicks.some((d) => engineering.includes(d.workItemId))).toBe(false);
     expect(L.msChips.some((d) => engineering.includes(d.workItemId))).toBe(false);
     expect(L.laneDrops.map((d) => d.teamId)).not.toContain('engineering');
-    expect(L.rows.find((r) => r.id === 'test')!.y).toBe(lane.bottom + HEAD + 16);
+    const height = lane.bottom - lane.top;
+    expect(L.lanes.find((l) => l.teamId === 'digitization-qa')!.top).toBe(lane.top);
+    expect(L.rows.find((r) => r.id === 'test')!.y).toBe(534 - height);
+    expect(L.height).toBe(all.height - height);
     expect(L).not.toHaveProperty('folds');
   });
 
-  it('writes 1 hidden in the singular aria label', () => {
-    const L = layoutTracker(larkspurState(), view({ hiddenTeams: new Set(['it']) }));
-    expect(L.lanes.find((l) => l.teamId === 'it')?.more).toMatchObject({
-      ids: ['secret'],
-      text: '1 hidden',
-      ariaLabel: 'Show 1 hidden work item in IT',
-    });
+  it('keeps lanes alternating after a lane drops out', () => {
+    const L = layoutTracker(larkspurState(), view({ hiddenTeams: new Set(['digitization']) }));
+    expect(L.lanes.map((l) => l.alt)).toEqual([false, true, false, true, false, true]);
   });
 
   it('drops a hidden row completely and counts it on its lane', () => {
     const L = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['pg203']) }));
     expect(L.rows.some((r) => r.id === 'pg203')).toBe(false);
     expect(L.segments.some((s) => s.workItemId === 'pg203')).toBe(false);
-    expect(L.lanes.find((l) => l.teamId === 'engineering')).toMatchObject({
-      hidden: false,
-      hiddenCount: 1,
-      more: { ids: ['pg203'], text: '1 hidden' },
-    });
+    expect(L.lanes.find((l) => l.teamId === 'engineering')).toMatchObject({ hiddenCount: 1 });
     expect(L.rows.find((r) => r.id === 'test')!.y).toBe(534 - 32);
     expect(L.height).toBe(732 - 32);
   });
 
-  it('shortens a long lane name to make room for the hidden button', () => {
+  it('drops a team whose rows are all hidden, and keeps its full name on other lanes', () => {
+    const all = layoutTracker(larkspurState(), view());
     const L = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['pg201', 'pg202']) }));
-    const lane = L.lanes.find((l) => l.teamId === 'solutions-engineering')!;
-    expect(lane.more?.text).toBe('2 hidden');
-    expect(lane.label).toBe('SOLUTIONS ENGIN…');
-    expect(L.lanes.find((l) => l.teamId === 'solutions-engineering' && l.name)?.name).toBe(
-      'Solutions Engineering',
-    );
+    const lane = all.lanes.find((l) => l.teamId === 'solutions-engineering')!;
+    expect(L.lanes.map((l) => l.teamId)).not.toContain('solutions-engineering');
+    expect(L.height).toBe(all.height - (lane.bottom - lane.top));
+    expect(lane.label).toBe('SOLUTIONS ENGINEERING');
   });
 
   it('offers a drop target on each visible lane', () => {
@@ -779,33 +760,118 @@ describe('layoutTracker: milestone chips', () => {
 
 describe('layoutTracker: links', () => {
   const L = layoutTracker(larkspurState(), view());
+  const oneTeam = buildState({
+    teams: [{ id: 't', name: 'Team', leadId: null }],
+    workItems: [
+      workItem({ id: 'a', teamId: 't' }),
+      workItem({ id: 'b', teamId: 't', after: ['a'] }),
+      workItem({ id: 'c', teamId: 't' }),
+      workItem({ id: 'd', teamId: 't', after: ['c'] }),
+    ],
+    events: [
+      event({ id: 'a1', workItemId: 'a', at: at('2026-09-20T09:00') }),
+      event({ id: 'a2', workItemId: 'a', kind: 'done', at: at('2026-09-22T16:40') }),
+      event({ id: 'b1', workItemId: 'b', at: at('2026-09-23T09:20') }),
+      event({ id: 'c1', workItemId: 'c', at: at('2026-09-25T09:00') }),
+    ],
+  });
+  const S = layoutTracker(oneTeam, view());
+  const y = (id: string) => S.rows.find((r) => r.id === id)!.y;
 
-  it('curves a leads-from link from the finish of the source to the start of the target', () => {
-    const link = L.links.find((l) => l.fromId === 'analyse' && l.toId === 'pg201')!;
-    const x1 = L.x(ms('2026-09-22T16:40'));
-    const x2 = L.x(ms('2026-09-23T09:20'));
+  it('curves a leads-from link inside a team from the finish of the source to the start of the target', () => {
+    const link = S.links.find((l) => l.fromId === 'a' && l.toId === 'b')!;
+    const x1 = S.x(ms('2026-09-22T16:40'));
+    const x2 = S.x(ms('2026-09-23T09:20'));
     const dx = Math.max(24, Math.abs(x2 - x1) / 2);
     expect(link).toEqual({
-      fromId: 'analyse',
-      toId: 'pg201',
+      fromId: 'a',
+      toId: 'b',
       tone: 'proceed',
       wait: false,
-      from: { x: x1, y: 226 },
-      c1: { x: x1 + dx, y: 226 },
-      c2: { x: x2 - dx, y: 286 },
-      to: { x: x2, y: 286 },
+      from: { x: x1, y: y('a') },
+      c1: { x: x1 + dx, y: y('a') },
+      c2: { x: x2 - dx, y: y('b') },
+      to: { x: x2, y: y('b') },
     });
+    expect(S.handoffs).toEqual([]);
   });
 
-  it('draws a red waiting link at the T line from an open source', () => {
-    const link = L.links.find((l) => l.fromId === 'pg203' && l.toId === 'test')!;
-    const xt = L.x(Date.parse(AS_OF));
+  it('draws a red waiting link at the T line from an open source in the same team', () => {
+    const link = S.links.find((l) => l.fromId === 'c' && l.toId === 'd')!;
+    const xt = S.x(Date.parse(AS_OF));
     expect(link).toMatchObject({ wait: true, tone: 'danger' });
     expect(link).not.toHaveProperty('ghost');
     expect([link.from, link.to]).toEqual([
-      { x: xt, y: 474 },
-      { x: xt, y: 534 },
+      { x: xt, y: y('c') },
+      { x: xt, y: y('d') },
     ]);
+  });
+
+  it('draws no long link between two teams', () => {
+    expect(L.links).toEqual([]);
+  });
+
+  it('puts a handoff mark at the finish of the source for each work item it leads to in another team', () => {
+    const fx = L.x(ms('2026-09-22T16:40'));
+    const marks = L.handoffs.filter((h) => h.fromId === 'analyse');
+    expect(marks.map((h) => h.toId)).toEqual(['pg201', 'pg202', 'pg203']);
+    expect(marks[0]).toEqual({
+      fromId: 'analyse',
+      toId: 'pg201',
+      toTeamId: 'solutions-engineering',
+      x: fx + 12,
+      y: 226 - 7,
+      size: 14,
+      dir: 'down',
+      tone: 'proceed',
+      wait: false,
+      ariaLabel: 'Handed over to Solutions Engineering · received in PG-201 CRS form logic',
+      tooltip: 'Handed over to Solutions Engineering · received in PG-201 CRS form logic',
+    });
+    expect(marks.map((h) => h.x)).toEqual([fx + 12, fx + 12 + 17, fx + 12 + 34]);
+    expect(marks[2].tooltip).toBe(
+      'Handed over to Engineering · received in PG-203 Country list field type',
+    );
+  });
+
+  it('puts the mark of an open source after the T line, in red', () => {
+    const xt = L.x(Date.parse(AS_OF));
+    expect(L.handoffs.find((h) => h.fromId === 'pg203')).toMatchObject({
+      toId: 'test',
+      x: xt + 32,
+      y: 474 - 7,
+      tone: 'danger',
+      wait: true,
+      tooltip:
+        'Hands over to Digitization QA when done · received in Test the CRS section end to end',
+    });
+  });
+
+  it('points the mark up when the receiving team is above', () => {
+    const s = buildState({
+      teams: [
+        { id: 't1', name: 'One', leadId: null },
+        { id: 't2', name: 'Two', leadId: null },
+      ],
+      workItems: [
+        workItem({ id: 'up', teamId: 't1', after: ['src'] }),
+        workItem({ id: 'src', teamId: 't2' }),
+      ],
+      events: [event({ id: 's1', workItemId: 'src', kind: 'done', at: at('2026-09-20T09:00') })],
+    });
+    expect(layoutTracker(s, view()).handoffs[0]).toMatchObject({ toId: 'up', dir: 'up' });
+  });
+
+  it('keeps the mark when the receiving work item is hidden, so a click can show it again', () => {
+    const H = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['pg201']) }));
+    expect(H.handoffs.some((h) => h.fromId === 'analyse' && h.toId === 'pg201')).toBe(true);
+    const T = layoutTracker(larkspurState(), view({ hiddenTeams: new Set(['engineering']) }));
+    expect(T.handoffs.some((h) => h.fromId === 'analyse' && h.toId === 'pg203')).toBe(true);
+  });
+
+  it('draws no mark from a hidden source', () => {
+    const H = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['analyse']) }));
+    expect(H.handoffs.some((h) => h.fromId === 'analyse')).toBe(false);
   });
 
   it('draws no link from a hidden source and shows an arrow chip instead', () => {
@@ -1113,5 +1179,57 @@ describe('layoutTracker: purity', () => {
     const a = layoutTracker(state, view({ hiddenRows: new Set(['pg203']), zoom: 2 }));
     const b = layoutTracker(state, view({ hiddenRows: new Set(['pg203']), zoom: 2 }));
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+});
+
+describe('layoutTracker: focus on a work item', () => {
+  it('shows only the work item and its descendants, and drops lanes without rows', () => {
+    const L = layoutTracker(larkspurState(), view({ focus: 'analyse' }));
+    expect(L.rows.map((r) => r.id)).toEqual(['analyse', 'pg201', 'pg202', 'pg203', 'test']);
+    expect(L.lanes.map((l) => l.teamId)).toEqual([
+      'digitization',
+      'solutions-engineering',
+      'engineering',
+      'digitization-qa',
+    ]);
+    expect(L.lanes[0].top).toBe(TRUNK_Y + 16);
+    expect(L.rows[0]).toMatchObject({ focused: true, focusLabel: 'Leave focus' });
+    expect(L.rows[1]).toMatchObject({
+      focused: false,
+      focusLabel: 'Focus on PG-201 CRS form logic',
+    });
+  });
+
+  it('drops an empty team while focused', () => {
+    const s = buildState({
+      teams: [
+        { id: 't', name: 'Team', leadId: null },
+        { id: 'empty', name: 'Empty', leadId: null },
+      ],
+      workItems: [workItem({ id: 'a', teamId: 't' })],
+      events: [event({ id: 'a1', workItemId: 'a', at: at('2026-09-20T09:00') })],
+    });
+    expect(layoutTracker(s, view()).lanes.map((l) => l.teamId)).toEqual(['t', 'empty']);
+    expect(layoutTracker(s, view({ focus: 'a' })).lanes.map((l) => l.teamId)).toEqual(['t']);
+  });
+
+  it('gives no chip for a parent or a source outside the focus', () => {
+    const L = layoutTracker(larkspurState(), view({ focus: 'analyse' }));
+    expect(L.chips).toEqual([]);
+    expect(L.stems.some((s) => s.workItemId === 'analyse')).toBe(false);
+  });
+
+  it('keeps hidden rows hidden inside the focus', () => {
+    const L = layoutTracker(
+      larkspurState(),
+      view({ focus: 'analyse', hiddenRows: new Set(['pg202']) }),
+    );
+    expect(L.rows.map((r) => r.id)).toEqual(['analyse', 'pg201', 'pg203', 'test']);
+    expect(L.chips.find((c) => c.workItemId === 'test')?.sources).toEqual(['pg202']);
+  });
+
+  it('ignores a focus on an unknown work item', () => {
+    const L = layoutTracker(larkspurState(), view({ focus: 'nope' }));
+    expect(L.rows).toHaveLength(13);
   });
 });

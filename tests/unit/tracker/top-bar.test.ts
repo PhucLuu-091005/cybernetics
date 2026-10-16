@@ -5,6 +5,7 @@ import { makeDirectory } from '../../../src/components/tracker/avatar';
 import type { Session } from '../../../src/components/tracker/ContextBar';
 import { TopBar } from '../../../src/components/tracker/TopBar';
 import { NO_ACTIONS } from '../../../src/components/tracker/TrackerScreen';
+import type { HiddenList } from '../../../src/components/tracker/view-state';
 import type { Member, TrackerPayload } from '../../../src/tracker/payload';
 import { buildState } from '../../support/tracker-fixture';
 
@@ -13,7 +14,9 @@ const members: Member[] = [
   { id: 'lan', name: 'Lan Phạm', roleLabel: 'Lead', color: '#222', userId: null },
 ];
 
-function render(me: Member | null) {
+const NONE: HiddenList = { teams: [], items: [], count: 0 };
+
+function render(me: Member | null, hidden: HiddenList = NONE) {
   const { queue, ...base } = buildState();
   const payload: TrackerPayload = {
     project: {
@@ -49,12 +52,14 @@ function render(me: Member | null) {
       cr: null,
       state: { ...base, queue },
       asOf: '2026-10-09T18:00:00+07:00',
-      hiddenCount: 0,
+      hidden,
       drawer: null,
       actions: NO_ACTIONS,
       onView: () => {},
       onDrawer: () => {},
-      onShowAll: () => {},
+      onUnhideTeam: () => {},
+      onUnhideItem: () => {},
+      onUnhideAll: () => {},
       onActAs: () => {},
       onPick: () => {},
     }),
@@ -77,5 +82,23 @@ describe('TopBar', () => {
     expect(html).toContain('role="combobox"');
     expect(html).toContain('placeholder="Search work items"');
     expect(html).not.toContain('Work list');
+  });
+
+  it('shows no hidden badge when nothing is hidden', () => {
+    expect(render(members[1])).not.toContain('Unhide');
+  });
+
+  it('opens a list of hidden teams and work items from the hidden badge, each with Unhide', () => {
+    const html = render(members[1], {
+      teams: [{ id: 'it', name: 'IT', items: 1 }],
+      items: [{ id: 'pg203', title: 'PG-203 Country list field type', team: 'Engineering' }],
+      count: 2,
+    });
+    expect(html).toMatch(/<summary[^>]*>.*2 hidden.*<\/summary>/);
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-label="Unhide IT"');
+    expect(html).toContain('aria-label="Unhide PG-203 Country list field type"');
+    expect(html).toContain('Unhide all');
+    expect(html).not.toContain('Show all');
   });
 });

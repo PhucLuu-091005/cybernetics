@@ -266,6 +266,15 @@
   border-top: 1px solid var(--rule);
   margin: 4px 0;
 }
+.tk .hid-menu {
+  position: relative;
+}
+.tk .hid-menu > summary {
+  list-style: none;
+}
+.tk .hid-menu > summary::-webkit-details-marker {
+  display: none;
+}
 .tk .hid-pill {
   display: inline-flex;
   align-items: center;
@@ -275,7 +284,78 @@
   background: var(--gray-bg);
   color: var(--ink-2);
   border-radius: 99px;
-  padding: 3px 4px 3px 10px;
+  padding: 5px 8px 5px 10px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tk .hid-pill:hover,
+.tk .hid-menu[open] > .hid-pill {
+  background: var(--rule);
+  color: var(--ink);
+}
+.tk .hid-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 11;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 12px;
+  font-size: 14px;
+}
+.tk .hid-pop:focus {
+  outline: none;
+}
+.tk .hid-pop .q-label {
+  margin-top: 10px;
+}
+.tk .hid-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tk .hid-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid var(--rule);
+}
+.tk .hid-list li:first-child {
+  border-top: 0;
+}
+.tk .hid-list .tt,
+.tk .ft-node .tt {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tk .hid-list .tt b,
+.tk .ft-node .tt b {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tk .hid-list .tt small,
+.tk .ft-node .tt small {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.tk .hid-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
 }
 .tk .demo {
   display: flex;
@@ -616,8 +696,10 @@
   position: relative;
   display: flex;
   align-items: center;
-  width: 260px;
-  max-width: 100%;
+  /* A wrapping bar breaks lines by the base size, so the search starts small and grows to 260 px. */
+  flex: 1 1 150px;
+  min-width: 120px;
+  max-width: 260px;
 }
 .tk .tsearch > svg {
   position: absolute;
@@ -1160,23 +1242,88 @@ svg.tg .eye:hover {
 svg.tg .eye rect {
   fill: transparent;
 }
-svg.tg .eye.off {
-  color: var(--ink);
+svg.tg .focus-btn.on {
+  color: var(--panel);
 }
-svg.tg .more {
+svg.tg .focus-btn.on rect {
+  fill: var(--ink);
+}
+svg.tg .handoff {
   cursor: pointer;
 }
-svg.tg .more rect {
-  fill: var(--gray-bg);
+svg.tg .handoff rect {
+  fill: var(--panel);
+  stroke: var(--ink-3);
 }
-svg.tg .more text {
-  font-size: 9.5px;
-  font-weight: 600;
-  fill: var(--ink-2);
+svg.tg .handoff:hover rect,
+svg.tg .handoff:focus rect {
+  fill: var(--gray-bg);
+  stroke: var(--ink);
+}
+svg.tg .handoff > g {
   pointer-events: none;
 }
-svg.tg .more:hover rect {
-  fill: var(--rule);
+.tk .hand-tip {
+  position: absolute;
+  z-index: 7;
+  pointer-events: none;
+  background: var(--ink);
+  color: var(--panel);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  padding: 5px 9px;
+  border-radius: 7px;
+  white-space: nowrap;
+  box-shadow: var(--shadow);
+  transform: translate(-50%, calc(-100% - 6px));
+}
+.tk .hand-tip.start {
+  transform: translate(-12px, calc(-100% - 6px));
+}
+.tk .hand-tip.end {
+  transform: translate(calc(-100% + 12px), calc(-100% - 6px));
+}
+.tk .ft,
+.tk .ft ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tk .ft ul {
+  margin-left: 12px;
+  padding-left: 8px;
+  border-left: 1.5px solid var(--rule);
+}
+.tk .ft-node {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 6px 8px;
+  border-radius: 8px;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+}
+.tk .ft-node:hover {
+  background: var(--sunk);
+}
+.tk .ft-node.on {
+  background: var(--sunk);
+}
+.tk .ft-node.on .tt b {
+  font-weight: 700;
+}
+.tk .ft-node.up {
+  justify-content: flex-start;
+  border: 1px solid var(--rule);
+}
+.tk .ft-node .badge {
+  flex: none;
 }
 svg.tg .chip {
   cursor: pointer;
@@ -1835,6 +1982,22 @@ svg.tg .goal-date {
     order: 10;
     flex: 1 1 100%;
     width: auto;
+    max-width: none;
+  }
+  /* The badge can sit anywhere on a wrapped bar, so its popup spans the bar instead. */
+  .tk .p-head,
+  .tk .pr-gtools {
+    position: relative;
+  }
+  .tk .hid-menu {
+    position: static;
+  }
+  .tk .hid-pop {
+    top: calc(100% - 4px);
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
   }
   .tk .tsearch-pop {
     left: 0;

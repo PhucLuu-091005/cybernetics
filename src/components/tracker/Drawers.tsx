@@ -4,6 +4,7 @@ import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'reac
 import {
   clashesOf,
   dayOf,
+  focusTree,
   formatDay,
   formatStamp,
   itemInfo,
@@ -20,6 +21,7 @@ import {
   timeSpent,
   type Commit,
   type Cr,
+  type FocusNode,
   type TrackerState,
 } from '../../tracker';
 import { Avatar, Avatars } from './avatar';
@@ -436,6 +438,95 @@ export function WorkItemDrawer({
           );
         })}
       </ul>
+    </Frame>
+  );
+}
+
+export function FocusDrawer({
+  session,
+  state,
+  asOf,
+  onClose,
+  focusId,
+  isHidden,
+  onFocus,
+  onShow,
+}: Base & {
+  focusId: string;
+  isHidden: (workItemId: string) => boolean;
+  onFocus: (workItemId: string) => void;
+  onShow: (workItemId: string) => void;
+}) {
+  const tree = useMemo(() => focusTree(state, focusId), [state, focusId]);
+  if (!tree) return null;
+  const { tz } = session;
+  const team = (id: string) => state.teams.find((t) => t.id === id)?.name ?? '';
+  const size = (n: FocusNode): number => n.children.reduce((sum, c) => sum + size(c), 1);
+  const node = (n: FocusNode, root = false): ReactNode => {
+    const w = state.workItems.find((x) => x.id === n.id)!;
+    const status = itemStatus(w, state.events, asOf, tz);
+    return (
+      <li key={n.id}>
+        <button
+          className={`ft-node${root ? ' on' : ''}`}
+          type="button"
+          aria-current={root ? 'true' : undefined}
+          onClick={() => onShow(n.id)}
+        >
+          <span className="tt">
+            <b>{n.title}</b>
+            <small>
+              {team(n.teamId)}
+              {isHidden(n.id) && <span className="chipx"> hidden</span>}
+            </small>
+          </span>
+          <span className={`badge st-${status}`}>{STATUS_LABEL[status]}</span>
+        </button>
+        {n.children.length > 0 && <ul>{n.children.map((c) => node(c))}</ul>}
+      </li>
+    );
+  };
+  return (
+    <Frame
+      label={`Focus on ${tree.root.title}`}
+      icon={
+        <span className="pi" style={{ color: 'var(--ink)' }}>
+          <Icon name="focus" size={15} />
+        </span>
+      }
+      head={
+        <>
+          <h4>Focus</h4>
+          <small>{plural(size(tree.root), 'work item')} · only on your screen</small>
+        </>
+      }
+      onClose={onClose}
+    >
+      <div className="wi-top">
+        <button className="btn sm btn-ink" type="button" onClick={onClose}>
+          <Icon name="x" size={13} /> Leave focus
+        </button>
+        <span className="tip">Esc also leaves focus.</span>
+      </div>
+      {tree.parent && (
+        <>
+          <p className="q-label">Parent</p>
+          <button
+            className="ft-node up"
+            type="button"
+            title="Focus on the parent instead"
+            onClick={() => onFocus(tree.parent!.id)}
+          >
+            <Icon name="cornerUp" size={13} />
+            <span className="tt">
+              <b>{tree.parent.title}</b>
+              <small>{team(tree.parent.teamId)} · focus on it instead</small>
+            </span>
+          </button>
+        </>
+      )}
+      <p className="q-label">Focused work</p>
+      <ul className="ft">{node(tree.root, true)}</ul>
     </Frame>
   );
 }
