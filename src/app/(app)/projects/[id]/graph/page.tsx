@@ -1,36 +1,27 @@
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import {
-  IdSchema,
-  TimestampSchema,
-  type ActorContext,
-  type ActorReference,
-} from '../../../../../contracts';
-import { GraphHeader, type HeadCommit } from '../../../../../components/graph/GraphHeader';
+import { IdSchema, TimestampSchema, type ActorContext } from '../../../../../contracts';
 import { GraphScreen } from '../../../../../components/graph/GraphScreen';
 import { parseFilters } from '../../../../../components/graph/filters';
 import { shortStamp } from '../../../../../components/graph/labels';
 import { proposalHighlights } from '../../../../../components/review/describe';
 import { ProposalFrame } from '../../../../../components/review/ProposalFrame';
+import { TrackerScreen } from '../../../../../components/tracker/TrackerScreen';
 import { getApp } from '../../../../../server/app';
-import { listHistory } from '../../../../../server/domain/commits';
 import { getGraphView, resolveView } from '../../../../../server/domain/graph';
 import { listProjects } from '../../../../../server/domain/projects';
 import { getProposal } from '../../../../../server/domain/proposals';
 import { diffSnapshots } from '../../../../../server/graph/diff';
+import { AppError } from '../../../../../server/errors';
 import { notFoundOn, requireActor } from '../../../../../server/http/rsc';
-import { reviewQueue } from '../review-count';
+import { getTrackerPayload } from '../../../../../server/tracker';
+import type { TrackerPayload } from '../../../../../tracker';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Graph · Promise Graph' };
 type Search = Record<string, string | string[] | undefined>;
-const VERB = {
-  initial: 'created',
-  merge: 'merged',
-  revert: 'reverted',
-  restore: 'restored',
-} as const;
 
 function toSearch(raw: Search): URLSearchParams {
   const search = new URLSearchParams();
@@ -39,12 +30,6 @@ function toSearch(raw: Search): URLSearchParams {
       search.append(key, item);
   return search;
 }
-const author = (actor: ActorReference, viewer: ActorContext) =>
-  actor.kind === 'agent'
-    ? 'an agent'
-    : actor.userId === viewer.userId
-      ? 'you'
-      : 'a workspace member';
 
 export default async function GraphPage({
   params,
@@ -62,66 +47,38 @@ export default async function GraphPage({
     return <ProposalGraph projectId={id} proposalId={proposalId} search={search} />;
   }
   const actor = await requireActor(`/projects/${id}/graph`);
-  const db = getApp().db,
-    filters = parseFilters(search);
-  const t = search.get('t'),
-    T = t && TimestampSchema.safeParse(t).success ? t : undefined;
-  const [view, projects, history, queue] = await Promise.all([
-    notFoundOn(
-      getGraphView(db, actor, { projectId: id, view: { kind: 'main' }, ...(T ? { T } : {}) }),
-    ),
-    listProjects(db, actor),
-    notFoundOn(listHistory(db, actor, { projectId: id, limit: 1 })),
-    notFoundOn(reviewQueue(db, actor, id)),
-  ]);
-  const project = projects.find((item) => item.id === id);
-  if (!project) notFound();
-  const timeZone = view.snapshot.context.timeZone;
-  const latest = history.items[0];
-  const head: HeadCommit =
-    latest && latest.id === view.mainCommitId
-      ? {
-          id: latest.id,
-          verb: VERB[latest.kind],
-          at: shortStamp(latest.createdAt, timeZone),
-          by: author(latest.actor, actor),
-        }
-      : { id: view.mainCommitId, verb: 'current', at: '', by: null };
+  const payload = await trackerPayload(actor, id, (await cookies()).get(`pg_act_${id}`)?.value);
+  if (!payload)
+    return (
+      <div className="screen">
+        <div className="card pad" role="status">
+          <h1>This project has no tracker yet.</h1>
+          <p className="muted" style={{ marginTop: 6 }}>
+            Make a new project from the project menu to start an event tracker.
+          </p>
+        </div>
+      </div>
+    );
+  return <TrackerScreen payload={payload} projectId={id} />;
+}
 
-  return (
-    <>
-      <GraphHeader
-        key={`header-${view.T}`}
-        projectId={id}
-        title={project.title}
-        clientName={project.clientName}
-        timeZone={timeZone}
-        windowStart={view.snapshot.context.windowStart}
-        T={view.T}
-        explicitT={T !== undefined}
-        head={head}
-        evidenceRevision={view.evidenceRevision}
-        pendingEvidenceCount={queue.pendingRecords}
-      />
-      <GraphScreen
-        key={`screen-main-${view.T}`}
-        projectId={id}
-        title={project.title}
-        context={view.snapshot.context}
-        engine={view.engine}
-        pendingEvidenceCount={queue.pendingRecords}
-        sources={view.sources}
-        initialFilters={filters}
-        view={{ kind: 'main' }}
-        heading="Approved graph"
-        snapshot={view.snapshot}
-        edit={{
-          kind: 'main',
-          basis: { mainCommitId: view.mainCommitId, evidenceRevision: view.evidenceRevision },
-        }}
-      />
-    </>
-  );
+/** The layout already proved the project exists, so NOT_FOUND here means it has no tracker row. */
+async function trackerPayload(
+  actor: ActorContext,
+  projectId: string,
+  actAs: string | undefined,
+): Promise<TrackerPayload | null> {
+  const db = getApp().db;
+  try {
+    return await getTrackerPayload(db, actor, { projectId, ...(actAs ? { actAs } : {}) });
+  } catch (error) {
+    if (!(error instanceof AppError)) throw error;
+    if (error.code === 'NOT_FOUND') return null;
+    // A stale act-as cookie (a removed member, a project that left demo mode) must not lock the page.
+    if (actAs && (error.code === 'FORBIDDEN' || error.code === 'VALIDATION'))
+      return trackerPayload(actor, projectId, undefined);
+    throw error;
+  }
 }
 
 /** SRD 7.6: proposal mode shows the candidate graph with base, author and revision, framed apart from main. */
