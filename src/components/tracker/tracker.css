@@ -1,0 +1,1466 @@
+/* Ported from docs/design/2026-10-16-event-tracker-v8.html. HTML rules sit under .tk because a global
+   stylesheet stays loaded after client navigation; svg.pg is unique to the tracker graph. */
+:root {
+  --teal: #0d9488;
+  --teal-bg: #ccfbf1;
+  --gray-bg: #f1f1f1;
+  --k-message: #2563eb;
+  --k-task: #7c3aed;
+  --k-handoff: #0d9488;
+  --k-decision: #d97706;
+  --k-meeting: #db2777;
+  --k-delivery: #16a34a;
+  --k-issue: #dc2626;
+  --k-done: #15803d;
+}
+:root[data-theme='dark'] {
+  --teal: #2dd4bf;
+  --teal-bg: #042f2e;
+  --gray-bg: #1f1f1f;
+  --k-message: #60a5fa;
+  --k-task: #a78bfa;
+  --k-handoff: #2dd4bf;
+  --k-decision: #fbbf24;
+  --k-meeting: #f472b6;
+  --k-delivery: #4ade80;
+  --k-issue: #f87171;
+  --k-done: #86efac;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --teal: #2dd4bf;
+    --teal-bg: #042f2e;
+    --gray-bg: #1f1f1f;
+    --k-message: #60a5fa;
+    --k-task: #a78bfa;
+    --k-handoff: #2dd4bf;
+    --k-decision: #fbbf24;
+    --k-meeting: #f472b6;
+    --k-delivery: #4ade80;
+    --k-issue: #f87171;
+    --k-done: #86efac;
+  }
+}
+
+.tk {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 100vh;
+  background: var(--panel);
+  color: var(--ink);
+  font: 15px/1.6 var(--f-ui);
+}
+.tk,
+.tk *,
+.tk *::before,
+.tk *::after {
+  box-sizing: border-box;
+}
+.tk h1,
+.tk h4 {
+  margin: 0;
+  letter-spacing: 0;
+}
+.tk .muted {
+  color: var(--ink-2);
+}
+.tk .small {
+  font-size: 13px;
+}
+
+.tk .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--rule);
+  background: var(--panel);
+  color: var(--ink);
+  border-radius: 9px;
+  padding: 7px 12px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  min-height: 36px;
+  white-space: nowrap;
+  line-height: 1.2;
+  box-shadow: none;
+  text-decoration: none;
+}
+.tk .btn:hover:not(:disabled) {
+  border-color: var(--ink-3);
+  background: var(--panel);
+}
+.tk .btn svg {
+  flex: none;
+}
+.tk .btn.big {
+  min-height: 44px;
+  font-size: 15px;
+  padding: 9px 16px;
+  border-radius: 11px;
+}
+.tk .btn.sm {
+  min-height: 30px;
+  font-size: 12px;
+  padding: 4px 9px;
+  border-radius: 8px;
+}
+.tk .btn-ink,
+.tk .btn-ink:hover:not(:disabled) {
+  background: var(--ink);
+  color: var(--panel);
+  border-color: var(--ink);
+}
+.tk .btn-ink:hover:not(:disabled) {
+  opacity: 0.9;
+}
+.tk .btn-draft,
+.tk .btn-draft:hover:not(:disabled) {
+  background: var(--draft);
+  color: #fff;
+  border-color: var(--draft);
+}
+.tk .btn-danger {
+  color: var(--danger);
+}
+.tk .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.tk .cnt {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 99px;
+  background: var(--gray-bg);
+  color: var(--ink-2);
+  font-size: 12px;
+}
+.tk .btn-draft .cnt,
+.tk .btn-ink .cnt {
+  background: rgba(255, 255, 255, 0.25);
+  color: inherit;
+}
+.tk .lnk {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--route);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 400;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.tk .x {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--ink-3);
+  font-size: 20px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.tk .p-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--rule);
+  flex-wrap: wrap;
+}
+.tk .p-head .sp {
+  flex: 1;
+}
+.tk .gpick {
+  position: relative;
+}
+.tk .gpick > summary {
+  list-style: none;
+}
+.tk .gpick > summary::-webkit-details-marker {
+  display: none;
+}
+.tk .graph-btn {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--rule);
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  max-width: 100%;
+}
+.tk .graph-btn:hover {
+  border-color: var(--ink-3);
+}
+.tk .gdot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+.tk .gmenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 11;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 6px;
+}
+.tk .gmenu button {
+  display: flex;
+  width: 100%;
+  gap: 9px;
+  align-items: center;
+  border: 0;
+  background: none;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.tk .gmenu button:hover {
+  background: var(--sunk);
+}
+.tk .gmenu button.on {
+  font-weight: 700;
+  background: var(--sunk);
+}
+.tk .gmenu small {
+  display: block;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 400;
+}
+.tk .gmenu hr {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: 4px 0;
+}
+.tk .hid-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--gray-bg);
+  color: var(--ink-2);
+  border-radius: 99px;
+  padding: 3px 4px 3px 10px;
+}
+.tk .demo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--gray-bg);
+  border-radius: 10px;
+  padding: 3px 4px 3px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.tk .demo select {
+  border: 0;
+  background: var(--panel);
+  border-radius: 7px;
+  padding: 5px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink);
+  max-width: 160px;
+}
+.tk .me {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-left: 10px;
+  border-left: 1px solid var(--rule);
+}
+.tk .me b {
+  font-size: 13px;
+  display: block;
+  line-height: 1.2;
+}
+.tk .me small {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  display: block;
+  line-height: 1.2;
+}
+.tk .av {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  flex: none;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+.tk .av.sm {
+  width: 20px;
+  height: 20px;
+  font-size: 9px;
+}
+.tk .avs {
+  display: inline-flex;
+  align-items: center;
+}
+.tk .avs .av {
+  margin-left: -6px;
+  box-shadow: 0 0 0 2px var(--panel);
+}
+.tk .avs .av:first-child {
+  margin-left: 0;
+}
+
+.tk .bbar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--rule);
+  flex-wrap: wrap;
+  font-size: 13px;
+  min-width: 0;
+}
+.tk .bbar.mine {
+  background: var(--draft-bg);
+}
+.tk .bbar.main {
+  background: var(--sunk);
+}
+.tk .bbar.other {
+  background: var(--route-bg);
+}
+.tk .bbar .bt {
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.tk .bbar .sp {
+  flex: 1;
+}
+.tk .bbar .muted {
+  font-size: 12.5px;
+}
+.tk .chipx {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--panel);
+  color: var(--ink-2);
+  white-space: nowrap;
+  line-height: 1.5;
+}
+.tk .chipx.warn {
+  background: var(--caution-bg);
+  color: var(--caution);
+}
+.tk .chipx.ok {
+  background: var(--proceed-bg);
+  color: var(--proceed);
+}
+.tk .chipx.pen {
+  background: var(--draft-bg);
+  color: var(--draft);
+}
+.tk .chipx.route {
+  background: var(--route-bg);
+  color: var(--route);
+}
+.tk .ask-row {
+  flex-basis: 100%;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  background: var(--caution-bg);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.tk .p-body {
+  display: flex;
+  flex: 1;
+  min-height: 420px;
+  min-width: 0;
+}
+.tk .p-side {
+  width: 252px;
+  flex: none;
+  border-right: 1px solid var(--rule);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--sunk);
+  min-width: 0;
+}
+.tk .gwrap {
+  position: relative;
+  inset: auto;
+  flex: 1;
+  min-width: 0;
+}
+.tk .gscroll {
+  overflow-x: auto;
+}
+.tk .gscroll svg {
+  display: block;
+  width: 100%;
+  min-width: 900px;
+  height: auto;
+}
+.tk .empty {
+  position: absolute;
+  left: 50%;
+  top: 120px;
+  transform: translateX(-50%);
+  width: min(460px, calc(100% - 32px));
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 16px;
+  z-index: 4;
+  font-size: 14px;
+}
+.tk .empty h4 {
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+.tk .empty ol {
+  margin: 6px 0 12px;
+  padding-left: 20px;
+  color: var(--ink-2);
+}
+.tk .row-btns {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tk .legend2 {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  border-top: 1px solid var(--rule);
+  font-size: 12px;
+  color: var(--ink-2);
+  background: var(--sunk);
+  align-items: center;
+}
+.tk .legend2 span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tk .legend2 i.ln {
+  display: inline-block;
+  width: 22px;
+  height: 3px;
+  border-radius: 2px;
+}
+.tk .legend2 svg {
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+.tk .dia {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  transform: rotate(45deg);
+  border: 2px solid currentColor;
+  vertical-align: 0;
+  margin: 0 4px 0 2px;
+}
+.tk .dia.fill {
+  background: currentColor;
+}
+
+.tk .qtop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tk .qtop h4 {
+  margin: 0;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.tk .qtop p {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  line-height: 1.35;
+}
+.tk .qseg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  background: var(--gray-bg);
+  border-radius: 11px;
+  padding: 4px;
+}
+.tk .qseg button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  border-radius: 8px;
+  padding: 7px 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.tk .qseg button[aria-pressed='true'] {
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+.tk .qseg .n {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: var(--ink);
+  color: var(--panel);
+  font-size: 10.5px;
+}
+.tk .qsearch {
+  position: relative;
+  display: block;
+}
+.tk .qsearch input {
+  width: 100%;
+  border: 1px solid var(--rule);
+  background: var(--panel);
+  border-radius: 9px;
+  padding: 7px 9px 7px 28px;
+  font-size: 12.5px;
+}
+.tk .qsearch svg {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ink-3);
+}
+.tk .qlist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+  min-width: 0;
+}
+.tk .qc {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  padding: 9px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition:
+    box-shadow 0.15s,
+    transform 0.15s;
+  overflow: hidden;
+}
+.tk .qc:hover {
+  box-shadow: 0 6px 18px -8px rgba(0, 0, 0, 0.25);
+  transform: translateY(-1px);
+  border-color: var(--ink-3);
+}
+.tk .qc .qk {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--kc);
+  background: color-mix(in srgb, var(--kc) 12%, transparent);
+  padding: 1px 7px 1px 5px;
+  border-radius: 99px;
+}
+.tk .qc .grip {
+  position: absolute;
+  right: 8px;
+  top: 9px;
+  color: var(--ink-3);
+  opacity: 0.6;
+}
+.tk .qc .qt {
+  margin: 6px 0 7px;
+  color: var(--ink);
+  font-size: 12.5px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tk .qc .qt b {
+  display: block;
+  font-size: 13.5px;
+  margin-bottom: 2px;
+}
+.tk .qc .qf {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-3);
+  font-size: 11.5px;
+  flex-wrap: wrap;
+}
+.tk .qc .qf .who {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+.tk .qc .bot {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 0 6px;
+  border-radius: 99px;
+  background: var(--route-bg);
+  color: var(--route);
+}
+.tk .qempty {
+  text-align: center;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  padding: 18px 8px;
+}
+.tk .qempty svg {
+  display: block;
+  margin: 0 auto 6px;
+  opacity: 0.6;
+}
+
+svg.pg {
+  font-family: var(--f-ui);
+  user-select: none;
+}
+svg.pg .lane-band {
+  fill: transparent;
+}
+svg.pg .lane-band.alt {
+  fill: var(--sunk);
+}
+svg.pg .lane-name {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  fill: var(--ink-2);
+  pointer-events: none;
+}
+svg.pg .row-label {
+  font-size: 12px;
+  fill: var(--ink);
+  pointer-events: none;
+}
+svg.pg .row-label.draft {
+  fill: var(--draft);
+  font-weight: 600;
+}
+svg.pg .row-label.sel {
+  font-weight: 700;
+}
+svg.pg .label-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+svg.pg .tick {
+  font-size: 11px;
+  fill: var(--ink-3);
+  text-anchor: middle;
+}
+svg.pg .grid {
+  stroke: var(--rule-2);
+}
+svg.pg .divider {
+  stroke: var(--rule);
+}
+svg.pg .guide {
+  stroke: var(--rule);
+  stroke-width: 1.5;
+}
+svg.pg .tline {
+  stroke: var(--ink-3);
+  stroke-dasharray: 3 3;
+}
+svg.pg .tpill rect {
+  fill: var(--ink);
+}
+svg.pg .tpill text {
+  fill: var(--panel);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-anchor: middle;
+}
+svg.pg .trunk {
+  stroke: var(--trunk);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+svg.pg .trunk-seg {
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+svg.pg .seg {
+  stroke-width: 3;
+  stroke-linecap: round;
+  fill: none;
+}
+svg.pg .stem {
+  stroke-width: 1.6;
+  fill: none;
+  opacity: 1;
+}
+svg.pg .link {
+  fill: none;
+  stroke-width: 1.6;
+}
+svg.pg .link.wait {
+  stroke-width: 1.4;
+  opacity: 0.7;
+}
+svg.pg .stem.ghost,
+svg.pg .link.ghost {
+  stroke: var(--ink-3) !important;
+  opacity: 0.75;
+}
+svg.pg .mslink {
+  fill: none;
+  stroke-width: 1;
+  opacity: 0.28;
+  stroke-linecap: round;
+}
+svg.pg .mslink.sel {
+  opacity: 0.95;
+  stroke-width: 2;
+}
+svg.pg .wait-line {
+  stroke: var(--ink-3);
+  stroke-width: 2.5;
+  opacity: 0.45;
+  stroke-linecap: round;
+}
+svg.pg .wait-text {
+  font-size: 10.5px;
+  fill: var(--ink-3);
+  font-style: italic;
+}
+svg.pg .hit {
+  fill: transparent;
+  cursor: pointer;
+}
+svg.pg .hit:hover {
+  fill: color-mix(in srgb, var(--draft) 5%, transparent);
+}
+svg.pg .hit.flash {
+  fill: color-mix(in srgb, var(--mark) 70%, transparent);
+}
+svg.pg .hit.focus {
+  fill: color-mix(in srgb, var(--mark) 65%, transparent) !important;
+}
+svg.pg .lane-drop {
+  fill: transparent;
+  pointer-events: none;
+}
+svg.pg .lane-drop-text {
+  display: none;
+  font-size: 11px;
+  fill: var(--draft);
+  font-weight: 600;
+  pointer-events: none;
+}
+svg.pg .dim {
+  opacity: 0.16;
+}
+svg.pg .act {
+  cursor: pointer;
+}
+svg.pg .act .bg {
+  fill: var(--panel);
+  stroke-width: 2;
+}
+svg.pg .act .layer {
+  stroke-width: 1.5;
+}
+svg.pg .act .halo {
+  fill: color-mix(in srgb, var(--draft) 16%, transparent);
+  stroke: var(--draft);
+  stroke-width: 2;
+  stroke-opacity: 1;
+  stroke-linecap: butt;
+  stroke-dasharray: 3 2.5;
+}
+svg.pg .ms {
+  cursor: pointer;
+}
+svg.pg .ms:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+svg.pg .ms-hit {
+  fill: transparent;
+}
+svg.pg .ms-d {
+  stroke-width: 2.5;
+}
+svg.pg .ms.sel .ms-d {
+  stroke-width: 3.5;
+}
+svg.pg .ms-label {
+  font-size: 11px;
+  font-weight: 600;
+}
+svg.pg .ms.glow .ms-d {
+  filter: drop-shadow(0 0 4px var(--draft));
+}
+svg.pg .eye {
+  cursor: pointer;
+  color: var(--ink-3);
+}
+svg.pg .eye:hover {
+  color: var(--ink);
+}
+svg.pg .eye rect {
+  fill: transparent;
+}
+svg.pg .eye.off {
+  color: var(--draft);
+}
+svg.pg .fold {
+  cursor: pointer;
+}
+svg.pg .fold rect.strip {
+  fill: var(--gray-bg);
+}
+svg.pg .fold text {
+  font-size: 10px;
+  fill: var(--ink-3);
+  font-style: italic;
+  pointer-events: none;
+}
+svg.pg .chip {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+svg.pg .chip rect {
+  fill: var(--gray-bg);
+  stroke: var(--ink-3);
+}
+svg.pg .chip text {
+  font-size: 10px;
+  fill: var(--ink-2);
+  font-weight: 600;
+}
+svg.pg .plus {
+  cursor: pointer;
+}
+svg.pg .plus circle {
+  fill: var(--panel);
+  stroke: var(--draft);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+}
+svg.pg .plus path {
+  stroke: var(--draft);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+svg.pg .plus:hover circle {
+  fill: var(--draft-bg);
+  stroke-dasharray: none;
+}
+svg.pg .pill {
+  display: inline;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+}
+svg.pg .pill rect {
+  fill: var(--draft-bg);
+}
+svg.pg .pill text {
+  font-size: 10.5px;
+  font-weight: 600;
+  fill: var(--draft);
+}
+svg.pg .due {
+  cursor: pointer;
+}
+svg.pg .due-hit {
+  fill: transparent;
+}
+svg.pg .due-pole {
+  stroke: var(--ink-2);
+  stroke-width: 1.5;
+}
+svg.pg .due.draft .due-pole {
+  stroke: var(--draft);
+  stroke-width: 2.5;
+}
+svg.pg .due:hover .due-flag,
+svg.pg .due:focus .due-flag {
+  stroke: var(--ink);
+  stroke-width: 1;
+}
+svg.pg .slip {
+  stroke: var(--ink-3);
+  stroke-width: 1.6;
+}
+svg.pg .slip-o {
+  stroke: var(--ink-3);
+  stroke-width: 1.5;
+}
+
+.tk .pop {
+  animation: none;
+  opacity: 1;
+  position: absolute;
+  z-index: 6;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 12px;
+  width: 312px;
+  max-width: calc(100% - 16px);
+  font-size: 14px;
+}
+.tk .pop:focus {
+  outline: none;
+}
+.tk .pop-h {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+.tk .pop-h > div {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.35;
+}
+.tk .pop-h small {
+  display: block;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.tk .pi {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.tk blockquote {
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  border-left: 3px solid var(--mark);
+  background: var(--sunk);
+  font-size: 13px;
+  color: var(--ink-2);
+  border-radius: 0 6px 6px 0;
+}
+.tk .pop-btns {
+  display: grid;
+  gap: 6px;
+}
+.tk .pop-btns .btn {
+  justify-content: flex-start;
+}
+.tk .tip {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin: 8px 0 0;
+}
+.tk .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border: 0;
+  border-radius: 99px;
+}
+.tk .st-planned {
+  background: var(--gray-bg);
+  color: var(--ink-2);
+}
+.tk .st-early {
+  background: var(--teal-bg);
+  color: var(--teal);
+}
+.tk .st-ontime {
+  background: var(--proceed-bg);
+  color: var(--proceed);
+}
+.tk .st-late {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.tk .st-flate {
+  background: var(--caution-bg);
+  color: var(--caution);
+}
+.tk .moves {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.tk .moves li {
+  border-left: 2px solid var(--rule);
+  padding: 2px 0 2px 10px;
+  font-size: 12.5px;
+  display: grid;
+  gap: 1px;
+}
+.tk .moves li small {
+  color: var(--ink-3);
+  font-size: 11.5px;
+}
+.tk .drawer {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 380px;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  background: var(--panel);
+  border: 0;
+  border-left: 1px solid var(--rule);
+  border-radius: 0;
+  box-shadow: var(--shadow);
+  z-index: 7;
+  padding: 14px;
+  overflow: auto;
+  font-size: 14px;
+}
+.tk .drawer:focus {
+  outline: none;
+}
+.tk .drawer h4 {
+  margin: 0;
+  font-size: 16px;
+}
+.tk .q-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-3);
+  margin: 14px 0 6px;
+}
+.tk .filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  margin: 0;
+}
+.tk .filters select,
+.tk .field input {
+  border: 1px solid var(--rule);
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 7px 9px;
+  font-size: 13px;
+  width: 100%;
+  font-weight: 400;
+  min-width: 0;
+}
+.tk .field {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.tk .field input:disabled {
+  color: var(--ink-3);
+  background: var(--sunk);
+}
+.tk .m-foot {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+.tk .m-foot .btn-ink {
+  flex: 1;
+}
+.tk .wl-lane {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 12px 0 4px;
+}
+.tk .wl-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 7px 6px 7px 14px;
+  border-radius: 8px;
+}
+.tk .wl-item:hover {
+  background: var(--sunk);
+}
+.tk .wl-item > button.wl-open {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  align-items: flex-start;
+  min-width: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.tk .wl-item b {
+  font-size: 13px;
+  display: block;
+  line-height: 1.3;
+}
+.tk .wl-item small {
+  font-size: 12px;
+  color: var(--ink-3);
+  display: block;
+}
+.tk .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  margin-top: 5px;
+}
+.tk .eyebtn {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--ink-3);
+  padding: 2px;
+  display: grid;
+  place-items: center;
+}
+.tk .eyebtn:hover {
+  color: var(--ink);
+}
+.tk .eyebtn.off {
+  color: var(--draft);
+}
+.tk .mem {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+.tk .mem b {
+  font-size: 13px;
+  display: block;
+  line-height: 1.3;
+}
+.tk .mem small {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.tk .chg-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.tk .chg-row > div {
+  flex: 1;
+  min-width: 0;
+}
+.tk .chg-row small {
+  display: block;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.tk .chg-row.dropped {
+  opacity: 0.55;
+}
+.tk .chg-by {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  margin-top: 3px;
+}
+.tk .before {
+  color: var(--danger);
+  text-decoration: line-through;
+}
+.tk .after {
+  color: var(--proceed);
+}
+.tk .drawer-foot {
+  position: sticky;
+  bottom: -14px;
+  background: var(--panel);
+  padding: 10px 0 0;
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid var(--rule);
+  margin-top: 12px;
+}
+.tk .drawer-foot .btn-ink {
+  flex: 1;
+}
+.tk .req {
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.tk .req header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 13px;
+}
+.tk .req.done {
+  opacity: 0.6;
+}
+.tk .cr-meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 4px 0 8px;
+  flex-wrap: wrap;
+}
+.tk .cr-meta small {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.tk .hist {
+  display: block;
+  list-style: none;
+  padding: 0 0 0 20px;
+  margin: 10px 0;
+  position: relative;
+}
+.tk .hist::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: var(--trunk);
+  border-radius: 2px;
+}
+.tk .hist > li {
+  position: relative;
+  margin-bottom: 10px;
+}
+.tk .hist .hdot {
+  position: absolute;
+  left: -19px;
+  top: 12px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 2.5px solid var(--trunk);
+}
+.tk .hist .hcard {
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  padding: 9px 11px;
+  font-size: 13px;
+  background: var(--panel);
+}
+.tk .hist .hcard header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+.tk .hist .hcard .hm {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--ink-3);
+  font-size: 12px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+.tk .hist .hcard ul {
+  margin: 6px 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.tk .resolved {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  background: var(--caution-bg);
+  color: var(--caution);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  margin: 6px 0;
+}
+.tk .resolved svg {
+  flex: none;
+  margin-top: 1px;
+}
+.tk .grow-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+.tk .grow-item > div {
+  flex: 1;
+  min-width: 0;
+}
+.tk .grow-item b {
+  font-size: 13px;
+  display: block;
+}
+.tk .grow-item small {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.tk-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translate(-50%, 0);
+  background: var(--ink);
+  color: var(--panel);
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  z-index: 50;
+  box-shadow: var(--shadow);
+  max-width: calc(100% - 32px);
+}
+.tk-toast:empty {
+  display: none;
+}
+
+:root .tk :focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .tk .p-body {
+    flex-direction: column;
+  }
+  .tk .p-side {
+    width: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .tk .qtop p {
+    display: none;
+  }
+  .tk .qlist {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  .tk .qlist .qc {
+    flex: 0 0 210px;
+  }
+  .tk .qempty {
+    flex: 1;
+  }
+  .tk .filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tk .me small,
+  .tk .js-req .lbl {
+    display: none;
+  }
+  .tk .gmenu {
+    width: min(320px, calc(100vw - 32px));
+  }
+}
