@@ -68,7 +68,6 @@ export function revealRows(
 
 const noticeKey = (userId: string) => `promise-graph:main-notice-off:v1:${userId}`;
 
-/** True when this person chose "Don't show again" for the Main notice on this browser. */
 export function readNoticeOff(store: KeyValueStore | null, userId: string): boolean {
   try {
     return store?.getItem(noticeKey(userId)) === '1';

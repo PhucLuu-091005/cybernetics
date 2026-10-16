@@ -245,7 +245,6 @@ export function WorkItemDrawer({
 }: Base & {
   itemId: string;
   edit: boolean;
-  /** The row is off the graph, so the eye shows it again. */
   hidden: boolean;
   actions: TrackerActions;
   onPick: (workItemId: string) => void;
