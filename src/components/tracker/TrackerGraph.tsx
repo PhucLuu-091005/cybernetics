@@ -41,7 +41,6 @@ type Props = {
   flash: string | null;
   focusRow?: string | null;
   focusMs?: string | null;
-  dimmed: (workItemId: string) => boolean;
   lifted?: string | null;
   preview?: DatePreview | null;
   /** While an event waits for its new work item, a click on a row picks that row. */
@@ -97,7 +96,7 @@ function MilestoneMark({ m }: { m: LayoutMilestone }) {
 }
 
 export function TrackerGraph(props: Props) {
-  const { layout: L, edit, selectedMs, focusRow, focusMs, dimmed, lifted, preview } = props;
+  const { layout: L, edit, selectedMs, focusRow, focusMs, lifted, preview } = props;
   const events = groupBy(L.eventGroups);
   const goals = groupBy(L.goalTicks);
   const chips = groupBy(L.chips);
@@ -174,7 +173,11 @@ export function TrackerGraph(props: Props) {
     const lo = Math.min(...xs, now.tLine.x) - REVEAL_PAD;
     const hi = Math.max(...xs, lo + 2 * REVEAL_PAD) + REVEAL_PAD;
     const scale = svg.getBoundingClientRect().width / (now.width - SIDE);
-    const view = el.clientWidth / scale;
+    // A drawer next to the graph covers the right part of the time line, so the row centres in the rest.
+    const cover = root.current?.closest('.gwrap')?.querySelector(':scope > .drawer-slot > .drawer');
+    const coverLeft = cover?.getBoundingClientRect().left ?? Infinity;
+    const shown = Math.min(el.clientWidth, coverLeft - el.getBoundingClientRect().left);
+    const view = (shown > 2 * REVEAL_PAD * scale ? shown : el.clientWidth) / scale;
     // A row longer than the view shows its latest part, where the news is.
     const left = hi - lo <= view ? (lo + hi - view) / 2 : hi - view;
     el.scrollLeft = (left - SIDE) * scale;
@@ -238,8 +241,7 @@ export function TrackerGraph(props: Props) {
   };
   const svgProps = { onClick, onKeyDown };
   const button = (label: string) => ({ role: 'button', tabIndex: 0, 'aria-label': label });
-  const rowCls = (id: string) =>
-    cls(dimmed(id) && 'dim', focusRow === id && 'focus', flash === id && 'flash');
+  const rowCls = (id: string) => cls(focusRow === id && 'focus', flash === id && 'flash');
   const bands = (x: number, width: number) =>
     L.lanes.map((lane) => (
       <rect
@@ -344,7 +346,6 @@ export function TrackerGraph(props: Props) {
               'row-label',
               r.changed && 'changed',
               selectedMs && r.milestoneId === selectedMs && 'sel',
-              dimmed(r.id) && 'dim',
             )}
             x={28}
             y={r.y + 4}
@@ -360,7 +361,7 @@ export function TrackerGraph(props: Props) {
             width={X0 - 64}
             height={20}
           >
-            <title>Drag onto a milestone to add it</title>
+            {edit && <title>Drag onto a milestone to add it</title>}
           </rect>
           <g className="eye" data-eyerow={r.id} {...button(r.eyeLabel)}>
             <rect x={X0 - 33} y={r.y - 9} width={18} height={18} />
@@ -403,7 +404,7 @@ export function TrackerGraph(props: Props) {
       {L.stems.map((s) => (
         <path
           key={`stem-${s.workItemId}`}
-          className={cls('stem', dimmed(s.workItemId) && 'dim')}
+          className="stem"
           d={`M${s.x} ${s.y1} L${s.x} ${s.y2}`}
           style={{ stroke: color(s.tone) }}
         />
@@ -411,25 +412,15 @@ export function TrackerGraph(props: Props) {
       {L.segments.map((s, i) =>
         s.kind === 'wait' ? (
           <Fragment key={`wait-${s.workItemId}`}>
-            <line
-              className={cls('wait-line', dimmed(s.workItemId) && 'dim')}
-              x1={s.x1}
-              x2={s.x2}
-              y1={s.y}
-              y2={s.y}
-            />
-            <text
-              className={cls('wait-text', dimmed(s.workItemId) && 'dim')}
-              x={s.textX}
-              y={s.textY}
-            >
+            <line className="wait-line" x1={s.x1} x2={s.x2} y1={s.y} y2={s.y} />
+            <text className="wait-text" x={s.textX} y={s.textY}>
               {s.text}
             </text>
           </Fragment>
         ) : (
           <line
             key={`seg-${s.workItemId}-${i}`}
-            className={cls('seg', dimmed(s.workItemId) && 'dim')}
+            className="seg"
             x1={s.x1}
             x2={s.x2}
             y1={s.y}
@@ -441,7 +432,7 @@ export function TrackerGraph(props: Props) {
       {L.links.map((link) => (
         <path
           key={`link-${link.fromId}-${link.toId}`}
-          className={cls('link', link.wait && 'wait', dimmed(link.toId) && 'dim')}
+          className={cls('link', link.wait && 'wait')}
           d={path(link)}
           style={{ stroke: color(link.tone) }}
         />
@@ -458,111 +449,108 @@ export function TrackerGraph(props: Props) {
           style={{ stroke: color(s.tone) }}
         />
       ))}
-      {L.rows.map((r) => {
-        const dim = dimmed(r.id) && 'dim';
-        return (
-          <Fragment key={`row-${r.id}`}>
-            <rect
-              className={cls('hit', rowCls(r.id))}
-              data-loop={r.id}
-              x={SIDE}
-              y={r.y - 15}
-              width={L.width - SIDE}
-              height={30}
-              {...button(`${r.title}, ${STATUS_LABEL[r.status]}`)}
-            />
-            {(goals.get(r.id) ?? []).map((g) => (
+      {L.rows.map((r) => (
+        <Fragment key={`row-${r.id}`}>
+          <rect
+            className={cls('hit', rowCls(r.id))}
+            data-loop={r.id}
+            x={SIDE}
+            y={r.y - 15}
+            width={L.width - SIDE}
+            height={30}
+            {...button(`${r.title}, ${STATUS_LABEL[r.status]}`)}
+          />
+          {(goals.get(r.id) ?? []).map((g) => (
+            <g
+              key={`goal-${g.workItemId}`}
+              className="goal"
+              data-goal={g.milestoneId}
+              transform={`translate(${g.x} ${g.y})`}
+              {...button(g.ariaLabel)}
+            >
+              <rect className="goal-hit" x={-8} y={-15} width={16} height={30} />
+              <path
+                className="goal-bar"
+                d="M0 -9 V9"
+                style={{ stroke: color(g.changed ? 'change' : g.tone) }}
+              />
+              <text
+                className="goal-date"
+                x={g.dateAnchor === 'end' ? -6 : 6}
+                y={-6}
+                textAnchor={g.dateAnchor}
+                style={{ fill: color(g.tone) }}
+              >
+                {g.dateLabel}
+              </text>
+              <title>{g.tooltip}</title>
+            </g>
+          ))}
+          {(events.get(r.id) ?? []).map((g) => {
+            const n = g.eventIds.length;
+            const stroke = color(g.tone);
+            return (
               <g
-                key={`goal-${g.workItemId}`}
-                className={cls('goal', dim)}
-                data-goal={g.milestoneId}
+                key={g.topId}
+                className={cls('act', lifted === g.topId && 'lift')}
+                data-act={g.topId}
+                data-stack={n > 1 ? g.eventIds.join(',') : undefined}
+                data-in={g.workItemId}
                 transform={`translate(${g.x} ${g.y})`}
                 {...button(g.ariaLabel)}
               >
-                <rect className="goal-hit" x={-8} y={-15} width={16} height={30} />
-                <path
-                  className="goal-bar"
-                  d="M0 -9 V9"
-                  style={{ stroke: color(g.changed ? 'change' : g.tone) }}
-                />
-                <text
-                  className="goal-date"
-                  x={g.dateAnchor === 'end' ? -6 : 6}
-                  y={-6}
-                  textAnchor={g.dateAnchor}
-                  style={{ fill: color(g.tone) }}
-                >
-                  {g.dateLabel}
-                </text>
-                <title>{g.tooltip}</title>
-              </g>
-            ))}
-            {(events.get(r.id) ?? []).map((g) => {
-              const n = g.eventIds.length;
-              const stroke = color(g.tone);
-              return (
-                <g
-                  key={g.topId}
-                  className={cls('act', dim, lifted === g.topId && 'lift')}
-                  data-act={g.topId}
-                  data-stack={n > 1 ? g.eventIds.join(',') : undefined}
-                  data-in={g.workItemId}
-                  transform={`translate(${g.x} ${g.y})`}
-                  {...button(g.ariaLabel)}
-                >
-                  <g>
-                    {g.changed && <circle className="halo" r={15} />}
-                    {[2, 1]
-                      .filter((k) => k <= n - 1)
-                      .map((k) => (
-                        <circle
-                          key={k}
-                          className="layer"
-                          cx={-3.5 * k}
-                          r={10}
-                          style={{
-                            stroke,
-                            fill: `color-mix(in srgb, ${stroke} 18%, var(--panel))`,
-                          }}
-                        />
-                      ))}
-                    <circle className="bg" r={10} style={{ stroke }} />
-                    <SvgIcon kind={g.kind} x={0} y={0} size={13} color={stroke} />
-                    <title>{g.tooltip}</title>
-                  </g>
+                <g>
+                  {g.changed && <circle className="halo" r={15} />}
+                  {[2, 1]
+                    .filter((k) => k <= n - 1)
+                    .map((k) => (
+                      <circle
+                        key={k}
+                        className="layer"
+                        cx={-3.5 * k}
+                        r={10}
+                        style={{
+                          stroke,
+                          fill: `color-mix(in srgb, ${stroke} 18%, var(--panel))`,
+                        }}
+                      />
+                    ))}
+                  <circle className="bg" r={10} style={{ stroke }} />
+                  <SvgIcon kind={g.kind} x={0} y={0} size={13} color={stroke} />
+                  <title>{g.tooltip}</title>
                 </g>
-              );
-            })}
-            {edit && !r.done && (
-              <g
-                className="plus"
-                data-plus={r.id}
-                transform={`translate(${xt + 20} ${r.y})`}
-                {...button(`Add an event to ${r.title}`)}
-              >
-                <circle r={9} />
-                <path d="M-4 0h8M0 -4v8" />
-                <title>{`Add an event to ${r.title}`}</title>
               </g>
-            )}
-            {(chips.get(r.id) ?? []).map((c) => (
-              <g
-                key={`chip-${c.workItemId}`}
-                className="chip"
-                data-show={c.sources.join(',')}
-                transform={`translate(${c.x} ${c.y})`}
-                {...button(c.ariaLabel)}
-              >
-                <rect width={c.size} height={c.size} rx={4} />
-                <text x={c.size / 2} y={c.size / 2 + 3.5} textAnchor="middle">
-                  ↖
-                </text>
-                <title>{c.tooltip}</title>
-              </g>
-            ))}
-          </Fragment>
-        );
-      })}
+            );
+          })}
+          {edit && !r.done && (
+            <g
+              className="plus"
+              data-plus={r.id}
+              transform={`translate(${xt + 20} ${r.y})`}
+              {...button(`Add an event to ${r.title}`)}
+            >
+              <circle r={9} />
+              <path d="M-4 0h8M0 -4v8" />
+              <title>{`Add an event to ${r.title}`}</title>
+            </g>
+          )}
+          {(chips.get(r.id) ?? []).map((c) => (
+            <g
+              key={`chip-${c.workItemId}`}
+              className="chip"
+              data-show={c.sources.join(',')}
+              transform={`translate(${c.x} ${c.y})`}
+              {...button(c.ariaLabel)}
+            >
+              <rect width={c.size} height={c.size} rx={4} />
+              <text x={c.size / 2} y={c.size / 2 + 3.5} textAnchor="middle">
+                ↖
+              </text>
+              <title>{c.tooltip}</title>
+            </g>
+          ))}
+        </Fragment>
+      ))}
       {L.laneDrops.map((d) => (
         <Fragment key={`drop-${d.teamId}`}>
           <rect
@@ -635,7 +623,6 @@ export function TrackerGraph(props: Props) {
             'ms-chip',
             c.tone === 'ink-2' && 'calm',
             selectedMs === c.milestoneId && 'sel',
-            dimmed(c.workItemId) && 'dim',
           )}
           data-goal={c.milestoneId}
           transform={`translate(${c.x} ${c.y})`}
@@ -653,7 +640,7 @@ export function TrackerGraph(props: Props) {
   );
 
   return (
-    <div className="tgraph" ref={root}>
+    <div className={cls('tgraph', edit && 'editable')} ref={root}>
       <div className="zoombar" role="group" aria-label="Time zoom">
         <button
           type="button"

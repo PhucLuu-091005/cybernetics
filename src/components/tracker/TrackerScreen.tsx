@@ -43,6 +43,7 @@ import {
   byNumDesc,
   canEditCr,
   ContextBar,
+  MainNotice,
   myDrafts,
   roleIn,
   trunc,
@@ -64,16 +65,13 @@ import {
 import {
   ChangesDrawer,
   HistoryDrawer,
-  matchesFilter,
   MilestoneDrawer,
-  NO_FILTER,
   RequestsDrawer,
-  WorkListDrawer,
-  type Filter,
+  WorkItemDrawer,
 } from './Drawers';
 import { Icon, KIND_COLOR, KindIcon } from './icons';
 import { Modal, type ModalHandlers, type ModalState } from './Modals';
-import { currentState, fits, pendingMisfit } from './pending';
+import { currentState, fits } from './pending';
 import { Pop, type PopTarget } from './Pops';
 import { QueuePanel, type QueueTab } from './QueuePanel';
 import { Toast, type ToastState } from './Toast';
@@ -82,16 +80,18 @@ import { Legend, TrackerGraph, type DatePreview, type Reveal } from './TrackerGr
 import {
   browserStore,
   EMPTY_VIEW,
+  readNoticeOff,
   readViewState,
   revealRows,
   toggleId,
+  writeNoticeOff,
   writeViewState,
   type ViewState,
 } from './view-state';
 
 export type TrackerView = 'main' | number;
-export type DrawerMode = 'list' | 'ms' | 'changes' | 'crs' | 'history';
-type Drawer = { mode: Exclude<DrawerMode, 'ms'> } | { mode: 'ms'; id: string };
+export type DrawerMode = 'ms' | 'item' | 'changes' | 'crs' | 'history';
+type Drawer = { mode: Exclude<DrawerMode, 'ms' | 'item'> } | { mode: 'ms' | 'item'; id: string };
 export type DateTarget = { kind: 'item' | 'ms'; id: string };
 
 export type TrackerActions = {
@@ -158,7 +158,7 @@ export const NO_ACTIONS: TrackerActions = {
 export const POLL_MS = 5000;
 // The prototype keeps a pop open for clicks in these areas; the graph closes it on its own background.
 const OUTSIDE_EXEMPT =
-  '.p-head, .bbar, .pop, .drawer, .p-side, .empty, svg.tg, .tk-modal, .tk-toast';
+  '.p-head, .bbar, .pop, .drawer, .p-side, .empty, .ro-note, svg.tg, .tk-modal, .tk-toast';
 const MINUTE = 60_000;
 
 export function parseView(raw: string | null, crs: readonly Cr[]): TrackerView {
@@ -248,13 +248,29 @@ type DragView = {
   lifted: string | null;
 };
 
+/** A stack draws one group for several events, so an event below the top one points at its group. */
+function eventAnchor(container: HTMLElement | null, eventId: string): Element | null {
+  const svg = container?.querySelector('svg.pg');
+  if (!svg) return null;
+  return (
+    svg.querySelector(`[data-act="${eventId}"]`) ??
+    Array.from(svg.querySelectorAll('[data-stack]')).find((g) =>
+      (g.getAttribute('data-stack') ?? '').split(',').includes(eventId),
+    ) ??
+    null
+  );
+}
+
 export function TrackerScreen({
   payload: initial,
   projectId,
+  userId,
   serverNow,
 }: {
   payload: TrackerPayload;
   projectId: string;
+  /** The signed-in user, so "Don't show again" on the Main notice holds for that person only. */
+  userId: string;
   /** The server's time rounded down to the minute, for a project without a demo clock. */
   serverNow: number;
 }) {
@@ -290,9 +306,23 @@ export function TrackerScreen({
     writeViewState(browserStore(), projectId, next);
   };
 
+  // Null until the browser storage is read, so the server HTML and the first render agree.
+  const [noticeOff, setNoticeOff] = useState<boolean | null>(null);
+  useLayoutEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNoticeOff(readNoticeOff(browserStore(), userId));
+  }, [userId]);
+  const [noticeClosed, setNoticeClosed] = useState(false);
+  const [noticeView, setNoticeView] = useState<TrackerView>(view);
+  if (noticeView !== view) {
+    setNoticeView(view);
+    setNoticeClosed(false);
+  }
+  const showNotice = view === 'main' && noticeOff === false && !noticeClosed;
+  const [queueOpen, setQueueOpen] = useState(true);
+
   const [drawer, setDrawer] = useState<Drawer | null>(null);
   const [pop, setPop] = useState<(PopTarget & { view: TrackerView }) | null>(null);
-  const [filter, setFilter] = useState<Filter>(NO_FILTER);
   const [inView, setInView] = useState<Reveal | null>(null);
   const [zoom, setZoom] = useState(1);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -303,10 +333,11 @@ export function TrackerScreen({
   const [drag, setDrag] = useState<DragView | null>(null);
   const [preview, setPreview] = useState<DatePreview | null>(null);
   const [moving, setMoving] = useState<{ eventId: string; from: string } | null>(null);
-  const [addedPop, setAddedPop] = useState<string | null>(null);
+  const [popFor, setPopFor] = useState<{ kind: 'act' | 'added'; id: string } | null>(null);
   const [queueTab, setQueueTab] = useState<QueueTab>('events');
   const root = useRef<HTMLDivElement>(null);
   const gwrap = useRef<HTMLDivElement>(null);
+  const canvas = useRef<HTMLDivElement>(null);
   const ghost = useRef<HTMLDivElement>(null);
   const suppress = useRef(false);
   const modalKey = useRef(0);
@@ -343,7 +374,7 @@ export function TrackerScreen({
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      if (document.querySelector('.tk details[open]')) return;
+      if (document.querySelector('.tk details[open], .tk .tsearch-pop:not([hidden])')) return;
       if (modal) closeModal();
       else if (moving) setMoving(null);
       else if (shownPop) closePop(true);
@@ -389,32 +420,33 @@ export function TrackerScreen({
     live.current = { payload, state, layout };
   });
 
-  // An attached event gets its pop only after the payload with it has rendered.
+  // An attached event, or an event picked in the detail drawer on a hidden row, gets its pop once it renders.
   useLayoutEffect(() => {
-    if (!addedPop) return;
-    const anchor = gwrap.current?.querySelector(`svg.pg [data-act="${addedPop}"]`);
+    if (!popFor) return;
+    const anchor = eventAnchor(gwrap.current, popFor.id);
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setAddedPop(null);
-    if (anchor) setPop({ kind: 'added', id: addedPop, anchor, view });
-  }, [addedPop, payload, view]);
+    setPopFor(null);
+    if (!anchor) return;
+    if (popFor.kind === 'act') anchor.scrollIntoView({ block: 'nearest', inline: 'center' });
+    setPop({ kind: popFor.kind, id: popFor.id, anchor, view });
+  }, [popFor, payload, view]);
 
   const hiddenCount =
     hidden.hiddenRows.filter((id) => state.workItems.some((w) => w.id === id)).length +
     hidden.hiddenTeams.filter((id) => state.teams.some((t) => t.id === id)).length;
-  const filtered = !!(filter.person || filter.ms || filter.team);
-  const dimmed = (workItemId: string) => {
-    if (!edit || !filtered) return false;
+  const isHidden = (workItemId: string) => {
     const w = state.workItems.find((x) => x.id === workItemId);
-    return !!w && !matchesFilter(filter, w);
+    return hidden.hiddenRows.includes(workItemId) || (!!w && hidden.hiddenTeams.includes(w.teamId));
   };
 
   const openView = (next: TrackerView) => {
     setPop(null);
     setMoving(null);
-    if (drawer?.mode === 'ms' || drawer?.mode === 'changes') setDrawer(null);
+    if (drawer && (drawer.mode === 'ms' || drawer.mode === 'item' || drawer.mode === 'changes'))
+      setDrawer(null);
     setView(next);
   };
-  const toggleDrawer = (mode: Exclude<DrawerMode, 'ms'>) => {
+  const toggleDrawer = (mode: Exclude<DrawerMode, 'ms' | 'item'>) => {
     setPop(null);
     setDrawer((d) => (d?.mode === mode ? null : { mode }));
   };
@@ -430,6 +462,22 @@ export function TrackerScreen({
     changeHidden(
       revealRows(hidden, ids, (id) => state.workItems.find((w) => w.id === id)?.teamId ?? null),
     );
+  /** Search and the detail links show a hidden row, bring it into view, and open its details. */
+  const openItem = (workItemId: string, { find = true }: { find?: boolean } = {}) => {
+    if (!state.workItems.some((w) => w.id === workItemId)) return;
+    setPop(null);
+    setMoving(null);
+    if (isHidden(workItemId)) reveal([workItemId]);
+    if (find) setInView((r) => ({ rowId: workItemId, key: (r?.key ?? 0) + 1 }));
+    setDrawer({ mode: 'item', id: workItemId });
+  };
+  const showEvent = (eventId: string) => {
+    const ev = state.events.find((e) => e.id === eventId);
+    if (!ev || ev.hidden) return;
+    if (isHidden(ev.workItemId)) reveal([ev.workItemId]);
+    setPop(null);
+    setPopFor({ kind: 'act', id: eventId });
+  };
 
   /**
    * A 409 means someone wrote first, so the screen reads again. Only an append retries: it adds to
@@ -477,11 +525,6 @@ export function TrackerScreen({
   const undoLast = (num: number) => removeAt(num, 'last');
 
   const appendAll = async (num: number, ops: readonly OpInput[]) => {
-    const misfit = pendingMisfit(live.current.payload, num, ops);
-    if (misfit) {
-      showToast(misfit);
-      return null;
-    }
     let last: TrackerPayload | null = null;
     for (const op of ops) {
       last = await write((p) => appendOp(projectId, num, op, revisionOf(p, num)), {
@@ -494,61 +537,36 @@ export function TrackerScreen({
     return last;
   };
 
-  /** Spec 2.11: a change on a view the person cannot edit waits in "read-only" until they pick a CR. */
+  /** Only the editor of a draft changes the graph; every other view has no way to start a change. */
   const commitOps = (ops: OpInput[], after?: { added?: string }) => {
-    if (!ops.length) return;
+    if (!ops.length || !cr || !edit) return;
     setPop(null);
     setMoving(null);
-    if (cr && edit) {
-      if (!fits(state, ops, tz)) {
-        showToast('That change does not fit this graph.');
-        return;
-      }
-      closeModal();
-      void appendAll(cr.num, ops).then((p) => {
-        if (p && after?.added) setAddedPop(after.added);
-      });
+    if (!fits(state, ops, tz)) {
+      showToast('That change does not fit this graph.');
       return;
     }
-    const earlier = modal?.state.mode === 'readonly' ? modal.state.pending : [];
-    openModal({ mode: 'readonly', pending: [...earlier, ...ops] });
+    closeModal();
+    void appendAll(cr.num, ops).then((p) => {
+      if (p && after?.added) setPopFor({ kind: 'added', id: after.added });
+    });
   };
 
-  const onCreateCr = async (title: string, pending: OpInput[]) => {
+  const onCreateCr = async (title: string) => {
     closeModal();
-    const misfit = pending.length ? pendingMisfit(live.current.payload, 'main', pending) : null;
-    if (misfit) return showToast(misfit);
-    const created = await write(() =>
-      createCr(projectId, { title, ...(pending.length ? { ops: pending } : {}) }),
-    );
+    const created = await write(() => createCr(projectId, { title }));
     if (!created) return;
     setDrawer(null);
     setView(created.num);
-    if (pending.length)
-      showToast(
-        `#${created.num} is open with your change. Main stays the same until ${ownerName} merges it.`,
-        () => undoLast(created.num),
-      );
-    else showToast(`#${created.num} is open. Main stays the same until ${ownerName} merges it.`);
+    showToast(`#${created.num} is open. Main stays the same until ${ownerName} merges it.`);
   };
 
-  const onAddToCr = (num: number, pending: OpInput[]) => {
-    closeModal();
-    setView(num);
-    void appendAll(num, pending);
-  };
-
-  const onEditAgain = async (pending: OpInput[]) => {
+  const onEditAgain = async () => {
     if (!cr) return;
     const num = cr.num;
     closeModal();
-    // Check first: unready on a change that cannot be added would leave a ready CR as a draft for nothing.
-    const misfit = pending.length ? pendingMisfit(live.current.payload, num, pending) : null;
-    if (misfit) return showToast(misfit);
-    const done = await action(num, { action: 'unready' }, true);
-    if (!done) return;
-    if (pending.length) await appendAll(num, pending);
-    else showToast(`#${num} is a draft again. Mark it as ready when you finish.`);
+    if (await action(num, { action: 'unready' }, true))
+      showToast(`#${num} is a draft again. Mark it as ready when you finish.`);
   };
 
   const onAsk = async () => {
@@ -601,10 +619,10 @@ export function TrackerScreen({
   const anchorOf = (selector: string) => gwrap.current?.querySelector(`svg.pg ${selector}`) ?? null;
 
   const actions: TrackerActions = {
-    newCr: () => openModal({ mode: 'newcr', pending: [] }),
+    newCr: () => openModal({ mode: 'newcr' }),
     share: () => openModal({ mode: 'share' }),
     markReady: () => void onMarkReady(),
-    editAgain: () => void onEditAgain([]),
+    editAgain: () => void onEditAgain(),
     askToEdit: () => void onAsk(),
     cancelAsk: () => {
       if (cr)
@@ -662,9 +680,8 @@ export function TrackerScreen({
       if (ev) setMoving({ eventId, from: ev.workItemId });
     },
     hideEvent: (eventId) => commitOps([{ op: 'hide', a: { eventId } }]),
-    newMilestone: () =>
-      edit ? openModal({ mode: 'ms' }) : openModal({ mode: 'readonly', pending: [] }),
-    newTeam: () => openModal({ mode: 'team' }),
+    newMilestone: () => edit && openModal({ mode: 'ms' }),
+    newTeam: () => edit && openModal({ mode: 'team' }),
     saveMilestone: (milestoneId, name, date) => {
       const m = state.milestones.find((x) => x.id === milestoneId);
       if (!m) return;
@@ -682,10 +699,7 @@ export function TrackerScreen({
     addToQueue: (entry) => void onAddToQueue(entry),
     dismiss: (id) => void onDismiss(id),
     commit: (ops) => commitOps(ops),
-    createCr: (title, pending) => void onCreateCr(title, pending),
-    addToCr: onAddToCr,
-    askToEdit: () => void onAsk(),
-    editAgain: (pending) => void onEditAgain(pending),
+    createCr: (title) => void onCreateCr(title),
     share: (memberId, permission) => void onShare(memberId, permission),
     handOver: (to) => void onHandOver(to),
   };
@@ -843,7 +857,7 @@ export function TrackerScreen({
   };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || modal) return;
+    if (event.button !== 0 || modal || !edit) return;
     const t = event.target as Element;
     const qe = t.closest<HTMLElement>('[data-qevent]');
     const qi = t.closest<HTMLElement>('[data-qitem]');
@@ -919,7 +933,7 @@ export function TrackerScreen({
   };
 
   const base = { session, state, asOf, busy, onClose: () => setDrawer(null) };
-  const rootCls = ['tk', drag?.cls, drag?.items && 'dragging', moving && 'moving']
+  const rootCls = ['tk board', drag?.cls, drag?.items && 'dragging', moving && 'moving']
     .filter(Boolean)
     .join(' ');
   return (
@@ -938,13 +952,16 @@ export function TrackerScreen({
         session={session}
         view={view}
         cr={cr}
+        state={state}
+        asOf={asOf}
         hiddenCount={hiddenCount}
         drawer={drawer?.mode ?? null}
         actions={actions}
         onView={openView}
-        onDrawer={(mode) => mode !== 'ms' && toggleDrawer(mode)}
+        onDrawer={(mode) => mode !== 'ms' && mode !== 'item' && toggleDrawer(mode)}
         onShowAll={() => changeHidden(EMPTY_VIEW)}
         onActAs={(id) => void onActAs(id)}
+        onPick={(id) => openItem(id)}
       />
       <ContextBar
         session={session}
@@ -955,74 +972,162 @@ export function TrackerScreen({
         onChanges={() => toggleDrawer('changes')}
         onRequests={() => toggleDrawer('crs')}
       />
-      <div className="p-body">
-        <QueuePanel
-          state={state}
-          dir={dir}
-          tz={tz}
-          tab={queueTab}
-          onTab={setQueueTab}
-          onAdd={(tab) => actions.addToQueue(tab === 'items' ? 'item' : 'event')}
-          onEvent={actions.openQueueEvent}
-          onItem={actions.openQueueItem}
+      {showNotice && (
+        <MainNotice
+          onNewCr={actions.newCr}
+          onClose={() => setNoticeClosed(true)}
+          onNeverAgain={() => {
+            setNoticeOff(true);
+            writeNoticeOff(browserStore(), userId);
+          }}
         />
-        <div className="gwrap" ref={gwrap}>
-          <div className="move-hint-slot">
-            <div className="move-hint" role="status">
-              {moving && 'Click the work item where this event belongs. Press Esc to cancel.'}
-            </div>
-          </div>
-          <TrackerGraph
-            layout={layout}
-            edit={edit}
-            selectedMs={drawer?.mode === 'ms' ? drawer.id : null}
-            flash={null}
-            dimmed={dimmed}
-            lifted={drag?.lifted ?? null}
-            preview={preview}
-            moving={!!moving}
-            reveal={inView}
-            onZoom={setZoom}
-            onMoveTo={onMoveTo}
-            onToggleRow={toggleRow}
-            onToggleTeam={toggleTeam}
-            onReveal={reveal}
-            onPop={(kind, id, anchor) => setPop({ kind, id, anchor, view })}
-            onMilestone={(id) => {
-              setPop(null);
-              setDrawer({ mode: 'ms', id });
-            }}
-            onAddEvent={actions.addEvent}
-            onNewMilestone={actions.newMilestone}
-            onNewTeam={actions.newTeam}
-            onBackground={() => setPop(null)}
+      )}
+      <div className="p-body">
+        {edit && queueOpen && (
+          <QueuePanel
+            state={state}
+            dir={dir}
+            tz={tz}
+            tab={queueTab}
+            onTab={setQueueTab}
+            onAdd={(tab) => actions.addToQueue(tab === 'items' ? 'item' : 'event')}
+            onEvent={actions.openQueueEvent}
+            onItem={actions.openQueueItem}
+            onHide={() => setQueueOpen(false)}
           />
-          <div className="bin" aria-hidden="true">
-            <Icon name="trash" size={16} /> Drop here to hide or remove
-          </div>
-          {shownPop && (
-            <Pop
-              key={`${shownPop.kind}-${shownPop.id}`}
-              target={shownPop}
-              container={gwrap}
-              state={state}
-              dir={dir}
-              tz={tz}
-              asOf={asOf}
-              edit={edit}
-              actions={actions}
-              onClose={() => closePop(true)}
-              onHideRow={toggleRow}
-            />
+        )}
+        <div className="gwrap" ref={gwrap}>
+          {edit && !queueOpen && (
+            <button
+              className="btn sm qshow"
+              type="button"
+              aria-expanded="false"
+              title="Show the Queue"
+              onClick={() => setQueueOpen(true)}
+            >
+              <Icon name="sidebar" size={14} /> Queue{' '}
+              <span className="cnt">{state.queue.events.length + state.queue.items.length}</span>
+            </button>
           )}
-          {drawer?.mode === 'list' && (
-            <WorkListDrawer
-              {...base}
-              filter={filter}
-              onFilter={setFilter}
-              hiddenRows={hidden.hiddenRows}
+          <div className="gcanvas" ref={canvas}>
+            <div className="move-hint-slot">
+              <div className="move-hint" role="status">
+                {moving && 'Click the work item where this event belongs. Press Esc to cancel.'}
+              </div>
+            </div>
+            <TrackerGraph
+              layout={layout}
+              edit={edit}
+              selectedMs={drawer?.mode === 'ms' ? drawer.id : null}
+              flash={null}
+              lifted={drag?.lifted ?? null}
+              preview={preview}
+              moving={!!moving}
+              reveal={inView}
+              onZoom={setZoom}
+              onMoveTo={onMoveTo}
               onToggleRow={toggleRow}
-              onFlash={(id) => setInView((r) => ({ rowId: id, key: (r?.key ?? 0) + 1 }))}
+              onToggleTeam={toggleTeam}
+              onReveal={reveal}
+              onPop={(kind, id, anchor) => setPop({ kind, id, anchor, view })}
+              onMilestone={(id) => {
+                setPop(null);
+                setDrawer({ mode: 'ms', id });
+              }}
+              onAddEvent={actions.addEvent}
+              onNewMilestone={actions.newMilestone}
+              onNewTeam={actions.newTeam}
+              onBackground={() => setPop(null)}
+            />
+            {edit && (
+              <div className="bin" aria-hidden="true">
+                <Icon name="trash" size={16} /> Drop here to hide or remove
+              </div>
+            )}
+            {shownPop && (
+              <Pop
+                key={`${shownPop.kind}-${shownPop.id}`}
+                target={shownPop}
+                container={canvas}
+                state={state}
+                dir={dir}
+                tz={tz}
+                asOf={asOf}
+                edit={edit}
+                actions={actions}
+                onClose={() => closePop(true)}
+                onHideRow={toggleRow}
+                // The pop sits on the row, so the row is in view already.
+                onDetails={(id) => openItem(id, { find: false })}
+              />
+            )}
+            {state.workItems.length === 0 && (
+              <div className="empty">
+                <h4>This project has no work yet.</h4>
+                {edit ? (
+                  <>
+                    <ol>
+                      <li>Add work items and events. They wait in the Queue on the left.</li>
+                      <li>Drag a work item onto a team, then drag events onto the work item.</li>
+                      <li>Mark the change request as ready, and the owner merges it.</li>
+                    </ol>
+                    <div className="row-btns">
+                      <button
+                        className="btn btn-ink big"
+                        type="button"
+                        onClick={() => actions.addToQueue('item')}
+                      >
+                        <Icon name="plus" /> Add a work item
+                      </button>
+                      <button
+                        className="btn big"
+                        type="button"
+                        onClick={() => actions.addToQueue('event')}
+                      >
+                        <Icon name="plus" /> Add an event
+                      </button>
+                      <button className="btn big" type="button" onClick={actions.newTeam}>
+                        <Icon name="plus" /> New team
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <ol>
+                      <li>Press New change request. Main stays read-only.</li>
+                      <li>
+                        In the change request, add work items and events, then drag them onto the
+                        graph.
+                      </li>
+                      <li>Mark the change request as ready, and the owner merges it.</li>
+                    </ol>
+                    {!cr && (
+                      <div className="row-btns">
+                        <button className="btn btn-ink big" type="button" onClick={actions.newCr}>
+                          <Icon name="plus" /> New change request
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          {drawer?.mode === 'item' && (
+            <WorkItemDrawer
+              key={`${view}-${drawer.id}`}
+              {...base}
+              itemId={drawer.id}
+              edit={edit}
+              hidden={isHidden(drawer.id)}
+              actions={actions}
+              onPick={(id) => openItem(id)}
+              onEvent={showEvent}
+              onMilestone={(id) => {
+                setPop(null);
+                setDrawer({ mode: 'ms', id });
+              }}
+              onToggleRow={(id) => (isHidden(id) ? reveal([id]) : toggleRow(id))}
             />
           )}
           {drawer?.mode === 'ms' && (
@@ -1041,38 +1146,6 @@ export function TrackerScreen({
             <RequestsDrawer {...base} actions={actions} onView={openView} />
           )}
           {drawer?.mode === 'history' && <HistoryDrawer {...base} onView={openView} />}
-          {state.workItems.length === 0 && (
-            <div className="empty">
-              <h4>This project has no work yet.</h4>
-              <ol>
-                <li>Add work items and events. They wait in the Queue on the left.</li>
-                <li>Press New change request. Then drag a work item onto a team.</li>
-                <li>
-                  Drag events onto the work item. Mark the change request as ready, and the owner
-                  merges it.
-                </li>
-              </ol>
-              <div className="row-btns">
-                <button
-                  className="btn btn-ink big"
-                  type="button"
-                  onClick={() => actions.addToQueue('item')}
-                >
-                  <Icon name="plus" /> Add a work item
-                </button>
-                <button
-                  className="btn big"
-                  type="button"
-                  onClick={() => actions.addToQueue('event')}
-                >
-                  <Icon name="plus" /> Add an event
-                </button>
-                <button className="btn big" type="button" onClick={actions.newTeam}>
-                  <Icon name="plus" /> New team
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
       <Legend />

@@ -6,6 +6,7 @@ import { trunc } from './ContextBar';
 import { Icon, KIND_COLOR, KindIcon } from './icons';
 
 export type QueueTab = 'events' | 'items';
+export const QUEUE_ID = 'tk-queue';
 
 type Props = {
   state: TrackerState;
@@ -16,6 +17,7 @@ type Props = {
   onAdd: (tab: QueueTab) => void;
   onEvent: (id: string) => void;
   onItem: (id: string) => void;
+  onHide: () => void;
 };
 
 const activate = (run: () => void) => (event: KeyboardEvent) => {
@@ -41,7 +43,17 @@ function Empty({ text }: { text: string }) {
   );
 }
 
-export function QueuePanel({ state, dir, tz, tab, onTab: setTab, onAdd, onEvent, onItem }: Props) {
+export function QueuePanel({
+  state,
+  dir,
+  tz,
+  tab,
+  onTab: setTab,
+  onAdd,
+  onEvent,
+  onItem,
+  onHide,
+}: Props) {
   const [search, setSearch] = useState('');
   const term = search.trim().toLowerCase();
   const hit = (text: string) => !term || text.toLowerCase().includes(term);
@@ -58,7 +70,7 @@ export function QueuePanel({ state, dir, tz, tab, onTab: setTab, onAdd, onEvent,
     </button>
   );
   return (
-    <aside className="p-side" aria-label="Queue">
+    <aside className="p-side" id={QUEUE_ID} aria-label="Queue">
       <div className="qtop">
         <div>
           <h4>
@@ -68,6 +80,17 @@ export function QueuePanel({ state, dir, tz, tab, onTab: setTab, onAdd, onEvent,
         </div>
         <button className="btn sm btn-ink" type="button" onClick={() => onAdd(tab)}>
           <Icon name="plus" size={13} /> Add
+        </button>
+        <button
+          className="ib"
+          type="button"
+          aria-label="Hide the Queue"
+          title="Hide the Queue"
+          aria-expanded="true"
+          aria-controls={QUEUE_ID}
+          onClick={onHide}
+        >
+          <Icon name="sidebar" size={15} />
         </button>
       </div>
       <div className="qseg" role="group" aria-label="Show in the queue">

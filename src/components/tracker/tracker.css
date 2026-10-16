@@ -422,10 +422,17 @@
   font-size: 13px;
 }
 
+/* The board fills the viewport: the bars and the legend stay put, and the graph canvas scrolls
+   inside the space between them. A phone keeps the page scroll, as the Queue stacks above. */
+.tk.board {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+}
 .tk .p-body {
   display: flex;
   flex: 1;
-  min-height: 420px;
+  min-height: 0;
   min-width: 0;
 }
 .tk .p-side {
@@ -438,13 +445,29 @@
   gap: 10px;
   background: var(--sunk);
   min-width: 0;
+  min-height: 0;
+}
+.tk .p-side .qlist {
+  flex: 1;
+  min-height: 0;
 }
 .tk .gwrap {
   position: relative;
   inset: auto;
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
+.tk .gcanvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 /* Three columns share one scale: the label column and the milestone rail stay put while the time
    line scrolls. The frame keeps 900 px so a phone scrolls the whole graph instead of squeezing it. */
 .tk .tgraph {
@@ -507,6 +530,142 @@
 .tk .zoombar button:disabled {
   opacity: 0.35;
   cursor: default;
+}
+.tk .ro-note {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 12px 4px;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: var(--sunk);
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.tk .ro-note > svg {
+  flex: none;
+  color: var(--ink-3);
+}
+.tk .ro-note p {
+  margin: 0;
+  flex: 1 1 220px;
+  color: var(--ink);
+}
+.tk .ro-acts {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.tk .qshow {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  z-index: 3;
+}
+.tk .qtop .ib {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.tk .qtop .ib:hover {
+  border-color: var(--ink-3);
+  color: var(--ink);
+}
+.tk .tsearch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 260px;
+  max-width: 100%;
+}
+.tk .tsearch > svg {
+  position: absolute;
+  left: 10px;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+.tk .tsearch input {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--rule);
+  border-radius: 9px;
+  background: var(--panel);
+  color: var(--ink);
+  padding: 7px 10px 7px 31px;
+  font: 14px var(--f-ui);
+}
+.tk .tsearch input:hover {
+  border-color: var(--ink-3);
+}
+.tk .tsearch-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 12;
+  width: 380px;
+  max-width: calc(100vw - 24px);
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 6px;
+}
+.tk .tsearch-pop[hidden] {
+  display: none;
+}
+.tk .tsearch-pop ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tk .tsearch-pop li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.tk .tsearch-pop li.on {
+  background: var(--gray-bg);
+}
+.tk .tsearch-pop .tt {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  line-height: 1.3;
+}
+.tk .tsearch-pop .tt b {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tk .tsearch-pop .tt small {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.tk .tsearch-pop .badge {
+  flex: none;
+  font-size: 11px;
+}
+.tk .tsearch-pop .none {
+  margin: 0;
+  padding: 7px 8px;
+  font-size: 12.5px;
+  color: var(--ink-3);
 }
 .tk .empty {
   position: absolute;
@@ -888,9 +1047,6 @@ svg.tg .lane-drop-text {
   font-weight: 600;
   pointer-events: none;
 }
-svg.tg .dim {
-  opacity: 0.16;
-}
 svg.tg .act {
   cursor: pointer;
 }
@@ -1256,12 +1412,20 @@ svg.tg .goal-date {
 .tk .stack-acts .ib.danger {
   color: var(--danger);
 }
-.tk .drawer {
+.tk .drawer-slot {
   position: absolute;
   inset: 0 0 0 auto;
   width: 380px;
   max-width: 100%;
-  height: auto;
+  z-index: 7;
+  pointer-events: none;
+}
+.tk .drawer {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  height: min(100vh, 100%);
+  pointer-events: auto;
   display: block;
   background: var(--panel);
   border: 0;
@@ -1288,13 +1452,6 @@ svg.tg .goal-date {
   color: var(--ink-3);
   margin: 14px 0 6px;
 }
-.tk .filters {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 6px;
-  margin: 0;
-}
-.tk .filters select,
 .tk .field input {
   border: 1px solid var(--rule);
   background: var(--panel);
@@ -1325,70 +1482,62 @@ svg.tg .goal-date {
 .tk .m-foot .btn-ink {
   flex: 1;
 }
-.tk .wl-lane {
+.tk .facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 5px 14px;
+  margin: 12px 0 0;
+  font-size: 13px;
+}
+.tk .facts dt {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.tk .facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tk .facts dd.links {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+}
+.tk .facts .lnk {
+  text-align: left;
+}
+.tk .facts .badge {
+  font-size: 11px;
+  padding: 1px 7px;
+}
+.tk .wi-top {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-  margin: 12px 0 4px;
-}
-.tk .wl-item {
-  display: flex;
+  justify-content: space-between;
   gap: 8px;
-  align-items: flex-start;
-  padding: 7px 6px 7px 14px;
-  border-radius: 8px;
+  flex-wrap: wrap;
 }
-.tk .wl-item:hover {
-  background: var(--sunk);
+.tk .wi-acts {
+  margin-top: 10px;
 }
-.tk .wl-item > button.wl-open {
-  display: flex;
-  flex: 1;
-  gap: 8px;
-  align-items: flex-start;
-  min-width: 0;
-  border: 0;
-  background: none;
+.tk .ev-list {
+  list-style: none;
   padding: 0;
-  text-align: left;
-  cursor: pointer;
-}
-.tk .wl-item b {
-  font-size: 13px;
-  display: block;
-  line-height: 1.3;
-}
-.tk .wl-item small {
-  font-size: 12px;
-  color: var(--ink-3);
-  display: block;
-}
-.tk .dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  flex: none;
-  margin-top: 5px;
-}
-.tk .eyebtn {
-  border: 0;
-  background: none;
-  cursor: pointer;
-  color: var(--ink-3);
-  padding: 2px;
+  margin: 0;
   display: grid;
-  place-items: center;
+  gap: 4px;
 }
-.tk .eyebtn:hover {
-  color: var(--ink);
+.tk .ev-list .stack-ev {
+  width: 100%;
 }
-.tk .eyebtn.off {
-  color: var(--draft);
+.tk .stack-ev.off {
+  cursor: default;
+  background: var(--sunk);
+  color: var(--ink-3);
+}
+.tk .stack-ev.off .st > span {
+  color: var(--ink-3);
 }
 .tk .mem {
   display: flex;
@@ -1614,6 +1763,16 @@ svg.tg .goal-date {
 }
 
 @media (max-width: 760px) {
+  .tk.board {
+    height: auto;
+    min-height: 100vh;
+  }
+  .tk .gwrap {
+    display: block;
+  }
+  .tk .gcanvas {
+    overflow: visible;
+  }
   .tk .p-body {
     flex-direction: column;
   }
@@ -1635,12 +1794,19 @@ svg.tg .goal-date {
   .tk .qempty {
     flex: 1;
   }
-  .tk .filters {
-    grid-template-columns: minmax(0, 1fr);
-  }
   .tk .me small,
   .tk .js-req .lbl {
     display: none;
+  }
+  .tk .tsearch {
+    order: 10;
+    flex: 1 1 100%;
+    width: auto;
+  }
+  .tk .tsearch-pop {
+    left: 0;
+    right: auto;
+    width: 100%;
   }
   .tk .gmenu {
     width: min(320px, calc(100vw - 32px));
@@ -1650,12 +1816,12 @@ svg.tg .goal-date {
 .tk .qc {
   cursor: grab;
 }
-svg.tg .act,
-svg.tg .label-hit {
+.tgraph.editable svg.tg .act,
+.tgraph.editable svg.tg .label-hit {
   cursor: grab;
   touch-action: none;
 }
-svg.tg .ms {
+.tgraph.editable svg.tg .ms {
   cursor: ew-resize;
   touch-action: none;
 }
@@ -1703,13 +1869,14 @@ svg.tg .lane-drop.glow {
   font-size: 12px;
   font-weight: 600;
   z-index: 3;
-  opacity: 0.75;
+  visibility: hidden;
   pointer-events: none;
 }
+/* The bin shows only while something is dragged, so it never covers the row names below it. */
 .tk.dragging .bin {
+  visibility: visible;
   border-color: var(--danger);
   color: var(--danger);
-  opacity: 1;
   pointer-events: auto;
 }
 .tk .bin.glow {
@@ -1913,21 +2080,6 @@ svg.tg .lane-drop.glow {
   border-color: var(--draft);
   background: var(--draft-bg);
 }
-.tk .pend {
-  margin: 10px 0 0;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: var(--draft-bg);
-  font-size: 13px;
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-}
-.tk .pend svg {
-  flex: none;
-  margin-top: 2px;
-  color: var(--draft);
-}
 .tk .share-link {
   display: flex;
   gap: 6px;
@@ -2008,6 +2160,10 @@ svg.tg .lane-drop.glow {
   /* The rail becomes a sticky top bar at this width. */
   .tk .move-hint-slot {
     top: 66px;
+  }
+  .tk .drawer {
+    top: 66px;
+    height: min(calc(100vh - 66px), 100%);
   }
   .tk .move-hint {
     white-space: normal;

@@ -29,17 +29,3 @@ export function fits(state: TrackerState, ops: readonly OpInput[], tz: string) {
   );
   return replay.entries.every((e) => !e.skipped);
 }
-
-/** Changes made on one view can wait in a modal while a poll changes the view they go to. */
-export function pendingMisfit(
-  payload: TrackerPayload,
-  target: 'main' | number,
-  ops: readonly OpInput[],
-): string | null {
-  const cr = target === 'main' ? null : payload.crs.find((c) => c.num === target);
-  if (cr === undefined) return `#${target} is gone, so nothing was added.`;
-  if (fits(currentState(payload, cr).state, ops, payload.project.timeZone)) return null;
-  return cr
-    ? `That change no longer fits #${cr.num}, so nothing was added.`
-    : 'That change no longer fits the latest Main, so no change request was made.';
-}

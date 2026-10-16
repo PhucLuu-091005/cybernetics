@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   EMPTY_VIEW,
+  readNoticeOff,
   readViewState,
   revealRows,
   toggleId,
   viewKey,
+  writeNoticeOff,
   writeViewState,
   type KeyValueStore,
 } from '../../../src/components/tracker/view-state';
@@ -113,5 +115,16 @@ describe('tracker view state', () => {
       hiddenRows: ['c'],
       hiddenTeams: ['t2'],
     });
+  });
+
+  it('remembers "Don\'t show again" for the Main notice per user, and works without storage', () => {
+    const store = memoryStore();
+    expect(readNoticeOff(store, 'u1')).toBe(false);
+    writeNoticeOff(store, 'u1');
+    expect(readNoticeOff(store, 'u1')).toBe(true);
+    expect(readNoticeOff(store, 'u2')).toBe(false);
+    expect(() => writeNoticeOff(throwing, 'u1')).not.toThrow();
+    expect(readNoticeOff(throwing, 'u1')).toBe(false);
+    expect(readNoticeOff(null, 'u1')).toBe(false);
   });
 });
