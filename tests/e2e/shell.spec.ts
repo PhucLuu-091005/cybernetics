@@ -196,7 +196,7 @@ test('Settings shows plain permission names, and Last call changes from Never af
 
   const row = page.getByRole('row').filter({ hasText: 'Last call agent' });
   await expect(row.getByTestId('last-call')).toHaveText('Never');
-  await expect(row.getByText('Read the project, Add records, Suggest changes')).toBeVisible();
+  await expect(row.getByText('Read the project, Add to the Queue')).toBeVisible();
 
   const response = await page.request.post('/mcp', {
     headers: {

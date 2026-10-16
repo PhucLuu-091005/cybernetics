@@ -13,6 +13,7 @@ import {
 import { AppError, invalidInput } from '../errors';
 import { trackerQueue } from '../db/schema';
 import { isId, withTransaction, type Db } from '../db/tx';
+import { requireScope } from '../http/scopes';
 import { ProjectScopeSchema, requireMember, requireQueueWriter, writeScope } from './access';
 import { buildPayload } from './read';
 import { loadCommits, loadQueue } from './store';
@@ -50,11 +51,15 @@ function unknownReferences(entry: Entry, main: TrackerState): string[] {
   ];
 }
 
-export async function addQueueEntry(
+export type AddQueueEntryInput = z.input<typeof AddQueueEntryInputSchema>;
+
+/** MCP answers with the new card, so this variant also returns its id. */
+export async function addQueueCard(
   db: Db,
   ctx: ActorContext,
-  raw: z.input<typeof AddQueueEntryInputSchema>,
-): Promise<TrackerPayload> {
+  raw: AddQueueEntryInput,
+): Promise<{ id: string; payload: TrackerPayload }> {
+  requireScope(ctx, 'queue:add');
   const parsed = AddQueueEntryInputSchema.safeParse(raw);
   if (!parsed.success) throw invalidInput('Invalid queue card', parsed.error);
   const entry = parsed.data;
@@ -68,15 +73,26 @@ export async function addQueueEntry(
       throw new AppError('VALIDATION', 'The queue card names something Main does not have', {
         errors: problems.map((message) => ({ path: 'fields', message })),
       });
-    await tx.insert(trackerQueue).values({
-      ...scope.tenant,
-      kind: entry.kind,
-      payload: entry.fields,
-      addedByMember: me.id,
-      addedByAgent: ctx.kind === 'agent',
-    });
-    return buildPayload(tx, scope);
+    const [card] = await tx
+      .insert(trackerQueue)
+      .values({
+        ...scope.tenant,
+        kind: entry.kind,
+        payload: entry.fields,
+        addedByMember: me.id,
+        addedByAgent: ctx.kind === 'agent',
+      })
+      .returning({ id: trackerQueue.id });
+    return { id: card.id, payload: await buildPayload(tx, scope) };
   });
+}
+
+export async function addQueueEntry(
+  db: Db,
+  ctx: ActorContext,
+  raw: AddQueueEntryInput,
+): Promise<TrackerPayload> {
+  return (await addQueueCard(db, ctx, raw)).payload;
 }
 
 const consumes = (op: Op, queueId: string) =>

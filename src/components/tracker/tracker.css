@@ -553,7 +553,7 @@
   color: var(--ink-2);
   white-space: nowrap;
 }
-.tk .qseg button[aria-selected='true'] {
+.tk .qseg button[aria-pressed='true'] {
   background: var(--panel);
   color: var(--ink);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);

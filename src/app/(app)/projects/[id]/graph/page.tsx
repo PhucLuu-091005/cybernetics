@@ -59,8 +59,11 @@ export default async function GraphPage({
         </div>
       </div>
     );
-  return <TrackerScreen payload={payload} projectId={id} />;
+  return <TrackerScreen payload={payload} projectId={id} serverNow={serverMinute()} />;
 }
+
+// A function imported from the client module would be a client reference here, so the page rounds the minute.
+const serverMinute = () => Math.floor(Date.now() / 60_000) * 60_000;
 
 /** The layout already proved the project exists, so NOT_FOUND here means it has no tracker row. */
 async function trackerPayload(
