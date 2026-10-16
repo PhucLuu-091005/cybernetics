@@ -83,7 +83,13 @@ function Frame({
   );
 }
 
-type Base = { session: Session; state: TrackerState; asOf: string; onClose: () => void };
+type Base = {
+  session: Session;
+  state: TrackerState;
+  asOf: string;
+  onClose: () => void;
+  busy?: boolean;
+};
 
 export function WorkListDrawer({
   session,
@@ -203,6 +209,7 @@ export function MilestoneDrawer({
   milestoneId,
   edit,
   actions,
+  busy = false,
 }: Base & { milestoneId: string; edit: boolean; actions: TrackerActions }) {
   const { dir, tz } = session;
   const m = state.milestones.find((x) => x.id === milestoneId);
@@ -262,7 +269,7 @@ export function MilestoneDrawer({
           <button
             className="btn btn-ink"
             type="button"
-            disabled={unchanged || !name.trim()}
+            disabled={unchanged || !name.trim() || busy}
             onClick={() => actions.saveMilestone(m.id, name.trim(), date)}
           >
             <Icon name="check" /> Save milestone
@@ -295,6 +302,7 @@ export function MilestoneDrawer({
               <button
                 className="btn sm btn-danger"
                 type="button"
+                disabled={busy}
                 onClick={() => actions.removeFromMilestone(w.id)}
               >
                 <Icon name="x" size={13} /> Remove
@@ -319,7 +327,7 @@ export function MilestoneDrawer({
           <button
             className="btn"
             type="button"
-            disabled={!pick}
+            disabled={!pick || busy}
             onClick={() => actions.addToMilestone(pick, m.id)}
           >
             <Icon name="plus" /> Add
@@ -335,6 +343,7 @@ export function ChangesDrawer({
   cr,
   onClose,
   actions,
+  busy = false,
 }: Omit<Base, 'state' | 'asOf'> & { cr: Cr; actions: TrackerActions }) {
   const { payload, dir, me, projectId } = session;
   const edit = canEditCr(cr, me);
@@ -389,6 +398,7 @@ export function ChangesDrawer({
                 className="x"
                 type="button"
                 aria-label="Remove this change"
+                disabled={busy}
                 onClick={() => actions.removeChange(i)}
               >
                 ×
@@ -399,7 +409,12 @@ export function ChangesDrawer({
       })}
       <div className="drawer-foot">
         {edit && (
-          <button className="btn" type="button" disabled={!cr.ops.length} onClick={actions.undo}>
+          <button
+            className="btn"
+            type="button"
+            disabled={!cr.ops.length || busy}
+            onClick={actions.undo}
+          >
             <Icon name="undo" /> Undo
           </button>
         )}
@@ -410,7 +425,7 @@ export function ChangesDrawer({
           <button
             className="btn btn-ink"
             type="button"
-            disabled={!cr.ops.length}
+            disabled={!cr.ops.length || busy}
             onClick={actions.markReady}
           >
             <Icon name="check" /> Mark as ready

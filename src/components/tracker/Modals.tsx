@@ -17,8 +17,8 @@ import {
   itemInfo,
   KIND_LABEL,
   replayOps,
-  startOfDayInstant,
   toInstant,
+  wallTimeInstant,
   type Cr,
   type CrPermission,
   type EventKind,
@@ -78,10 +78,8 @@ const newId = () => crypto.randomUUID();
 export const localInput = (instant: string, tz: string) =>
   toInstant(Date.parse(instant), tz).slice(0, 16);
 export function fromLocalInput(value: string, tz: string): string | null {
-  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(value);
-  if (!match) return null;
-  const start = Date.parse(startOfDayInstant(match[1], tz));
-  return toInstant(start + Number(match[2]) * HOUR + Number(match[3]) * 60_000, tz);
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/.exec(value);
+  return match ? wallTimeInstant(match[1], match[2], tz) : null;
 }
 const hourBefore = (asOf: string, tz: string) => toInstant(Date.parse(asOf) - HOUR, tz);
 const weekAfter = (asOf: string, tz: string) => addDays(dayOf(asOf, tz), 7);

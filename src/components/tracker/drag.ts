@@ -192,19 +192,38 @@ export type PointerTrack = {
   onMove: (event: PointerEvent) => void;
   onDrop: (event: PointerEvent, dx: number, dy: number) => void;
   onCancel: () => void;
+  /** The button came up after a drag, so a click follows that must not reach the page. */
+  onRelease?: () => void;
 };
 
-// pointercancel ends without a drop: on touch it means the browser took the gesture to scroll.
-export function trackPointer(start: { clientX: number; clientY: number }, t: PointerTrack) {
-  const { clientX: sx, clientY: sy } = start;
+type Start = { clientX: number; clientY: number; pointerId: number };
+
+/**
+ * pointercancel, a lost button (released outside the window) and a window blur end without a drop:
+ * on touch, pointercancel means the browser took the gesture to scroll. After Esc the release still
+ * counts, because its click lands on whatever is under the pointer.
+ */
+export function trackPointer(start: Start, t: PointerTrack, target: EventTarget = window) {
+  const { clientX: sx, clientY: sy, pointerId } = start;
   let active = false;
-  const stop = () => {
-    window.removeEventListener('pointermove', move);
-    window.removeEventListener('pointerup', up);
-    window.removeEventListener('pointercancel', cancel);
-    window.removeEventListener('keydown', key, { capture: true });
+  const on = (type: string, fn: (event: Event) => void, capture = false) => {
+    target.addEventListener(type, fn, { capture });
+    return () => target.removeEventListener(type, fn, { capture });
   };
-  const move = (event: PointerEvent) => {
+  const mine = (event: Event) => (event as PointerEvent).pointerId === pointerId;
+  let offs: Array<() => void> = [];
+  const stop = () => {
+    offs.forEach((off) => off());
+    offs = [];
+  };
+  const cancel = () => {
+    stop();
+    if (active) t.onCancel();
+  };
+  const move = (raw: Event) => {
+    const event = raw as PointerEvent;
+    if (!mine(event)) return;
+    if (event.buttons === 0) return cancel();
     if (!active) {
       const far =
         t.axis === 'x'
@@ -216,24 +235,39 @@ export function trackPointer(start: { clientX: number; clientY: number }, t: Poi
     }
     t.onMove(event);
   };
-  const up = (event: PointerEvent) => {
+  const up = (raw: Event) => {
+    const event = raw as PointerEvent;
+    if (!mine(event)) return;
     stop();
-    if (active) t.onDrop(event, event.clientX - sx, event.clientY - sy);
+    if (!active) return;
+    t.onDrop(event, event.clientX - sx, event.clientY - sy);
+    t.onRelease?.();
   };
-  const cancel = () => {
-    stop();
-    if (active) t.onCancel();
-  };
-  // Capture on window runs before the screen's own Escape handler, so Esc ends only the drag.
-  const key = (event: KeyboardEvent) => {
+  // Capture runs before the screen's own Escape handler, so Esc ends only the drag.
+  const key = (raw: Event) => {
+    const event = raw as KeyboardEvent;
     if (event.key !== 'Escape' || !active) return;
     event.stopPropagation();
     event.preventDefault();
     cancel();
+    // A release outside the window never arrives here; the next press ends the wait instead.
+    offs = [
+      on('pointerup', (e) => {
+        if (!mine(e)) return;
+        stop();
+        t.onRelease?.();
+      }),
+      on('pointerdown', stop),
+      on('pointercancel', stop),
+      on('blur', stop),
+    ];
   };
-  window.addEventListener('pointermove', move);
-  window.addEventListener('pointerup', up);
-  window.addEventListener('pointercancel', cancel);
-  window.addEventListener('keydown', key, { capture: true });
+  offs = [
+    on('pointermove', move),
+    on('pointerup', up),
+    on('pointercancel', (e) => mine(e) && cancel()),
+    on('blur', cancel),
+    on('keydown', key, true),
+  ];
   return stop;
 }
