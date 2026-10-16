@@ -13,9 +13,14 @@ import {
   type WorkItem,
 } from './model';
 
-const Id = z.string().min(1).max(100);
+// Clash keys join ids with ':', so an id must never contain one.
+const Id = z.string().regex(/^[A-Za-z0-9_-]{1,100}$/);
 const DateString = z.iso.date();
-const Instant = z.iso.datetime({ offset: true });
+const MINUTE_INSTANT = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})(Z|[+-]\d{2}:\d{2})$/;
+const Instant = z.preprocess(
+  (value) => (typeof value === 'string' ? value.replace(MINUTE_INSTANT, '$1:00$2') : value),
+  z.iso.datetime({ offset: true }),
+);
 const filled = (max: number) =>
   z
     .string()

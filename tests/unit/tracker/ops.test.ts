@@ -9,7 +9,7 @@ import {
   type Op,
   type OpDescription,
 } from '../../../src/tracker/ops';
-import { OpSchema, TrackerStateSchema } from '../../../src/tracker/schemas';
+import { OpSchema, QueueEventInputSchema, TrackerStateSchema } from '../../../src/tracker/schemas';
 import {
   at,
   larkspurBase,
@@ -651,5 +651,51 @@ describe('OpSchema', () => {
     expect(
       OpSchema.safeParse({ ...CASES[13][1], a: { ...CASES[13][1].a, extra: 1 } }).success,
     ).toBe(false);
+  });
+});
+
+describe('schemas', () => {
+  const event = {
+    kind: 'message',
+    at: '2026-10-09T18:00:00+07:00',
+    by: 'sarah',
+    text: 'Where is the report?',
+  };
+
+  it('accept instants with and without seconds and store them with seconds', () => {
+    expect(QueueEventInputSchema.parse(event).at).toBe('2026-10-09T18:00:00+07:00');
+    expect(QueueEventInputSchema.parse({ ...event, at: '2026-10-09T18:00+07:00' }).at).toBe(
+      '2026-10-09T18:00:00+07:00',
+    );
+    expect(QueueEventInputSchema.parse({ ...event, at: '2026-10-09T11:00Z' }).at).toBe(
+      '2026-10-09T11:00:00Z',
+    );
+    const due = OpSchema.parse({
+      ...CASES[14][1],
+      a: { ...CASES[14][1].a, at: '2026-10-09T17:00+07:00' },
+    });
+    expect(due.op === 'due' && due.a.at).toBe('2026-10-09T17:00:00+07:00');
+    expect(QueueEventInputSchema.safeParse({ ...event, at: '2026-10-09T18+07:00' }).success).toBe(
+      false,
+    );
+    expect(QueueEventInputSchema.safeParse({ ...event, at: '2026-10-09T18:00' }).success).toBe(
+      false,
+    );
+  });
+
+  it('accept the fixture ids and UUIDs and reject an id with a colon', () => {
+    expect(TrackerStateSchema.safeParse(larkspurState()).success).toBe(true);
+    const rename = (workItemId: string) =>
+      OpSchema.safeParse(makeOp('rename', { workItemId, title: 'X' })).success;
+    expect(rename('3f2b8c1e-9d4a-4b7e-8f60-2a1c5d9e7b34')).toBe(true);
+    expect(rename('solutions-engineering')).toBe(true);
+    expect(rename('pg_203')).toBe(true);
+    expect(rename('pg:203')).toBe(false);
+    expect(rename('pg 203')).toBe(false);
+    expect(rename('')).toBe(false);
+    expect(rename('a'.repeat(101))).toBe(false);
+    const state = larkspurState();
+    state.workItems[0].id = 'loop:golive';
+    expect(TrackerStateSchema.safeParse(state).success).toBe(false);
   });
 });

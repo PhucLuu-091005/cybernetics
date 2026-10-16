@@ -93,6 +93,26 @@ describe('diffLines', () => {
     expect(diffLines(op)).toEqual([['add', 'New milestone: 20 Oct, 1 work item']]);
   });
 
+  it('keeps a leading "on " or "planned " in values of other ops', () => {
+    const toOnHold = described(
+      makeOp('rename', { workItemId: 'pg203', title: 'on hold invoices' }),
+    );
+    expect(diffLines(toOnHold)).toEqual([
+      ['del', 'Name: PG-203 Country list field type'],
+      ['add', 'Name: on hold invoices'],
+    ]);
+    const planned = larkspurState();
+    planned.workItems.find((w) => w.id === 'pg203')!.title = 'planned review';
+    const op = makeOp('rename', { workItemId: 'pg203', title: 'on call' });
+    expect(diffLines({ ...op, d: describeOp(op, planned) })).toEqual([
+      ['del', 'Name: planned review'],
+      ['add', 'Name: on call'],
+    ]);
+    const placed = described(makeOp('attach', { eventId: 'qe3', workItemId: 'golive' }));
+    const renamedItem = { ...placed, d: { ...placed.d!, after: 'on hold invoices, 7 Oct 08:30' } };
+    expect(diffLines(renamedItem)[1]).toEqual(['add', 'On: on hold invoices, 7 Oct 08:30']);
+  });
+
   it('an op without a description has no lines', () => {
     expect(diffLines(makeOp('hide', { eventId: 'x2' }))).toEqual([]);
   });
