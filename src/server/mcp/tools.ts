@@ -14,6 +14,7 @@ import {
   listChangeRequests,
   ListChangeRequestsInputSchema,
   listQueue,
+  ListQueueInputSchema,
   TrackerInputSchema,
 } from '../tracker';
 import { requireScope } from '../http/scopes';
@@ -60,6 +61,8 @@ function tool(
 
 const PEOPLE =
   'Person ids (by, doneBy, requestedBy) must be ids from the people list of get_tracker; milestoneId and after must be ids from get_tracker.';
+const PAGE =
+  'Newest first, at most limit entries (default 50, at most 200) and 40,000 characters; pass nextBefore as before to read the next page, until nextBefore is null.';
 
 export const MCP_TOOLS: readonly McpTool[] = [
   tool(
@@ -79,8 +82,8 @@ export const MCP_TOOLS: readonly McpTool[] = [
   tool(
     'list_queue',
     'project:read',
-    TrackerInputSchema,
-    'List the events and work items that wait in the Queue for a person to place them on the graph. agent is true for cards that an agent added.',
+    ListQueueInputSchema,
+    `List the events and work items that wait in the Queue for a person to place them on the graph. agent is true for cards that an agent added. ${PAGE} before is a created time (ISO 8601).`,
     listQueue,
   ),
   tool(
@@ -101,7 +104,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     'list_change_requests',
     'project:read',
     ListChangeRequestsInputSchema,
-    'List the change requests of the project, optionally by status (draft, ready, merged or closed).',
+    `List the change requests of the project, optionally by status (draft, ready, merged or closed). ${PAGE} before is a change request number.`,
     listChangeRequests,
   ),
   tool(

@@ -9,6 +9,8 @@ import {
   QueueItemInputSchema,
   STATUS_LABEL,
   type Cr,
+  type QueueEvent,
+  type QueueItem,
   type TrackerPayload,
 } from '../../tracker';
 import { AppError, invalidInput } from '../errors';
@@ -28,9 +30,33 @@ export const AddQueueItemInputSchema = z.strictObject({
   projectId: IdSchema,
   ...QueueItemInputSchema.shape,
 });
+const LimitSchema = z.number().int().min(1).max(200).default(50);
+const QueueCursorSchema = z
+  .string()
+  .max(100)
+  .transform((raw, context) => {
+    const [time, id, ...rest] = raw.split('/');
+    const at = Date.parse(time);
+    if (
+      rest.length ||
+      !z.iso.datetime({ offset: true }).safeParse(time).success ||
+      (id !== undefined && !IdSchema.safeParse(id).success)
+    ) {
+      context.addIssue({ code: 'custom', message: 'Use a created time or a nextBefore value' });
+      return z.NEVER;
+    }
+    return { at, id: id ?? null };
+  });
+export const ListQueueInputSchema = z.strictObject({
+  projectId: IdSchema,
+  limit: LimitSchema,
+  before: QueueCursorSchema.optional(),
+});
 export const ListChangeRequestsInputSchema = z.strictObject({
   projectId: IdSchema,
   status: z.enum(CR_STATUSES).optional(),
+  limit: LimitSchema,
+  before: z.number().int().positive().optional(),
 });
 export const GetChangeRequestInputSchema = z.strictObject({
   projectId: IdSchema,
@@ -64,6 +90,20 @@ function crSummary(cr: Cr, who: (id: string) => Who) {
 }
 
 const main = (payload: TrackerPayload) => mainState(payload.base, payload.queue, payload.commits);
+
+// MCP refuses a result over 50,000 characters, so a page leaves room for the envelope and the cursor.
+const PAGE_CHARS = 40_000;
+
+/** The first entry always joins the page: one card or summary is far below the budget, so no page comes back empty. */
+function takePage<T>(entries: readonly T[], limit: number): { taken: T[]; more: boolean } {
+  let used = 0,
+    end = 0;
+  for (; end < entries.length && end < limit; end++) {
+    used += JSON.stringify(entries[end]).length + 1;
+    if (end > 0 && used > PAGE_CHARS) break;
+  }
+  return { taken: entries.slice(0, end), more: end < entries.length };
+}
 
 /** The demo clock decides statuses in a demo project, the same as in the browser. */
 export function trackerSummary(payload: TrackerPayload, now = new Date()) {
@@ -132,14 +172,39 @@ export async function getTrackerSummary(
   return trackerSummary(await getTrackerPayload(db, ctx, { projectId }));
 }
 
-/** Main hides the cards that a merge used, so this is the Queue that people see. */
+type QueueEntry = { kind: 'event'; card: QueueEvent } | { kind: 'item'; card: QueueItem };
+const newestFirst = (a: QueueEntry, b: QueueEntry) =>
+  Date.parse(b.card.createdAt) - Date.parse(a.card.createdAt) ||
+  (a.card.id < b.card.id ? 1 : a.card.id > b.card.id ? -1 : 0);
+
+/**
+ * Main hides the cards that a merge used, so this is the Queue that people see.
+ * nextBefore carries the id after the created time, so cards that share a created time are never skipped between pages.
+ */
 export async function listQueue(
   db: Db,
   ctx: ActorContext,
-  raw: z.input<typeof TrackerInputSchema>,
+  raw: z.input<typeof ListQueueInputSchema>,
 ) {
-  const { projectId } = parse(TrackerInputSchema, raw, 'Invalid queue read');
-  return main(await getTrackerPayload(db, ctx, { projectId })).queue;
+  const { projectId, limit, before } = parse(ListQueueInputSchema, raw, 'Invalid queue read');
+  const { events, items } = main(await getTrackerPayload(db, ctx, { projectId })).queue;
+  const entries = [
+    ...events.map((card): QueueEntry => ({ kind: 'event', card })),
+    ...items.map((card): QueueEntry => ({ kind: 'item', card })),
+  ]
+    .filter(({ card }) => {
+      if (!before) return true;
+      const at = Date.parse(card.createdAt);
+      return at < before.at || (at === before.at && before.id !== null && card.id < before.id);
+    })
+    .sort(newestFirst);
+  const { taken, more } = takePage(entries, limit);
+  const last = taken.at(-1)?.card;
+  return {
+    events: taken.flatMap((entry) => (entry.kind === 'event' ? [entry.card] : [])),
+    items: taken.flatMap((entry) => (entry.kind === 'item' ? [entry.card] : [])),
+    nextBefore: more && last ? `${new Date(last.createdAt).toISOString()}/${last.id}` : null,
+  };
 }
 
 /** Returns only the new card, so a token with queue:add alone reads nothing else. */
@@ -168,18 +233,20 @@ export async function listChangeRequests(
   ctx: ActorContext,
   raw: z.input<typeof ListChangeRequestsInputSchema>,
 ) {
-  const { projectId, status } = parse(
+  const { projectId, status, limit, before } = parse(
     ListChangeRequestsInputSchema,
     raw,
     'Invalid change request list',
   );
   const payload = await getTrackerPayload(db, ctx, { projectId });
   const who = whoIn(payload);
-  return {
-    items: payload.crs
-      .filter((cr) => status === undefined || cr.status === status)
-      .map((cr) => crSummary(cr, who)),
-  };
+  const summaries = payload.crs
+    .filter((cr) => status === undefined || cr.status === status)
+    .filter((cr) => before === undefined || cr.num < before)
+    .sort((a, b) => b.num - a.num)
+    .map((cr) => crSummary(cr, who));
+  const { taken, more } = takePage(summaries, limit);
+  return { items: taken, nextBefore: more ? taken.at(-1)!.num : null };
 }
 
 export async function getChangeRequest(
