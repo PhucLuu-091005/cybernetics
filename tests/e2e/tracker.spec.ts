@@ -79,7 +79,8 @@ test.describe('the tracker walkthrough', () => {
     await test.step("0. Main says it is read-only, and Don't show again keeps the notice away", async () => {
       const note = page.getByRole('note', { name: 'Main is read-only' });
       await expect(note).toContainText('Main is read-only. To change it, create a change request.');
-      await expect(note.getByRole('button', { name: 'New change request' })).toBeVisible();
+      await expect(note.getByRole('button', { name: 'New change request' })).toHaveCount(0);
+      await expect(note.getByRole('button', { name: 'Close the notice' })).toBeVisible();
       await note.getByRole('button', { name: "Don't show again" }).click();
       await expect(note).toHaveCount(0);
       await visit(page, graph);
@@ -360,7 +361,7 @@ test.describe('milestone ticks, chips, hiding and the time zoom', () => {
     }
   });
 
-  test('lists a stack, zooms it apart, and hides rows without a trace but an arrow', async ({
+  test('lists a stack, zooms it apart, and hides rows without a trace but a chip', async ({
     page,
   }) => {
     await signIn(page, 'tracker-zoom');
@@ -391,7 +392,8 @@ test.describe('milestone ticks, chips, hiding and the time zoom', () => {
     const arrows = page.locator(
       'svg.pg .chip[aria-label="Show CRS tax residency section with DealCloud sync"]',
     );
-    await expect(arrows).toHaveCount(5);
+    await expect(arrows).toHaveCount(1);
+    await expect(page.locator('svg.pg .chip')).toHaveCount(1);
     await expect(arrows.first().locator('title')).toHaveText(
       'From CRS tax residency section with DealCloud sync (hidden)',
     );
@@ -402,6 +404,64 @@ test.describe('milestone ticks, chips, hiding and the time zoom', () => {
     await expect(page.locator('svg.pg [data-loop="pg203"]')).toHaveCount(0);
     await page.getByRole('button', { name: 'Show 4 hidden work items in Engineering' }).click();
     await expect(page.locator('svg.pg [data-loop="pg203"]')).toHaveCount(1);
+  });
+});
+
+test.describe('an event moved inside its day', () => {
+  test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
+
+  test('moves sideways on Main, stays after a reload, and resets from its pop', async ({
+    page,
+  }) => {
+    const { projectId } = await signIn(page, 'tracker-day');
+    const r3 = page.locator('svg.pg [data-act="r3"]');
+    const zoomIn = page.getByRole('button', { name: 'Zoom in' });
+    const zoom3 = async () => {
+      for (let i = 0; i < 3; i += 1) await zoomIn.click();
+      await r3.scrollIntoViewIfNeeded();
+    };
+    const offsets = async () => {
+      const response = await page.request.get(`/api/v1/projects/${projectId}/tracker`);
+      return ((await response.json()) as { offsets: Record<string, number> }).offsets;
+    };
+    await zoom3();
+    await expect(r3).toHaveAttribute('data-stack', 'r1,r2,r3');
+    const before = (await r3.boundingBox())!;
+    const from = { x: before.x + before.width / 2, y: before.y + before.height / 2 };
+
+    const saved = page.waitForResponse(
+      (r) => r.url().endsWith('/offsets/r3') && r.request().method() === 'PUT',
+    );
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(from.x + 12, from.y + 1, { steps: 3 });
+    await page.mouse.move(from.x + 40, from.y + 2, { steps: 8 });
+    await page.mouse.up();
+    expect((await saved).status()).toBe(200);
+    await expect(r3).not.toHaveAttribute('data-stack', /./);
+    await expect(page.locator('.pop')).toHaveCount(0);
+    const moved = (await offsets()).r3;
+    expect(moved).toBeGreaterThan(0);
+
+    await page.reload();
+    await hydrated(page);
+    await zoom3();
+    await expect(r3).not.toHaveAttribute('data-stack', /./);
+    const after = (await r3.boundingBox())!;
+    expect(after.x + after.width / 2).toBeGreaterThan(from.x + 10);
+    await expect(r3.locator('title')).toContainText('24 Sept 16:40');
+
+    await r3.click();
+    const pop = page.locator('.pop');
+    await expect(pop).toContainText('24 Sept 16:40');
+    await expect(pop).toContainText('Moved inside its day in your view.');
+    const reset = page.waitForResponse(
+      (r) => r.url().endsWith('/offsets/r3') && r.request().method() === 'PUT',
+    );
+    await pop.getByRole('button', { name: 'Reset position' }).click();
+    expect((await reset).status()).toBe(200);
+    await expect(r3).toHaveAttribute('data-stack', 'r1,r2,r3');
+    expect(await offsets()).toEqual({});
   });
 });
 
