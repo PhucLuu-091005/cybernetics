@@ -462,7 +462,6 @@ export function TrackerScreen({
     changeHidden(
       revealRows(hidden, ids, (id) => state.workItems.find((w) => w.id === id)?.teamId ?? null),
     );
-  /** Search and the detail links show a hidden row, bring it into view, and open its details. */
   const openItem = (workItemId: string, { find = true }: { find?: boolean } = {}) => {
     if (!state.workItems.some((w) => w.id === workItemId)) return;
     setPop(null);

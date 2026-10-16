@@ -12,11 +12,6 @@ function atWordStart(text: string, part: string): boolean {
   return false;
 }
 
-/**
- * Every word of the query must appear in the title, the team name or a person of the work item.
- * A title with a word that starts with the query comes first, then a title that holds it, then
- * the rest; equal matches keep the order of the graph.
- */
 export function searchWorkItems(state: TrackerState, query: string): WorkItem[] {
   const terms = foldText(query).split(/\s+/).filter(Boolean);
   if (!terms.length) return [];

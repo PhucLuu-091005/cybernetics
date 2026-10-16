@@ -12,7 +12,6 @@ type Props = {
   onPick: (workItemId: string) => void;
 };
 
-/** A combobox: arrow keys move through the results, Enter picks, Esc closes the list. */
 export function WorkSearch({ state, asOf, tz, onPick }: Props) {
   const id = useId();
   const [query, setQuery] = useState('');
