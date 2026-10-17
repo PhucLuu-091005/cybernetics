@@ -416,10 +416,13 @@
 
 .tk.pg {
   min-height: 100vh;
+  --pg-max: 1200px;
+  /* The head and the body share one centred column, so a wide screen keeps both in balance. */
+  --pg-gutter: max(24px, calc((100% - var(--pg-max)) / 2 + 24px));
 }
-.tk .pg-head {
+.tk .p-head.pg-head {
   gap: 12px;
-  padding: 10px 16px;
+  padding: 10px var(--pg-gutter);
 }
 .tk .pg-head h1 {
   font-size: 15px;
@@ -436,8 +439,34 @@
 .tk .pg-body {
   box-sizing: border-box;
   width: 100%;
-  max-width: 880px;
-  padding: 20px 24px 56px;
+  padding: 24px var(--pg-gutter) 56px;
+}
+.tk .pg-aside > .pg-sec:first-of-type {
+  padding-top: 22px;
+  border-top: 1px solid var(--rule);
+}
+/* Settings: the tokens on the left, how to connect an agent on the right, once there is room. */
+@media (min-width: 1180px) {
+  .tk .pg-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
+    gap: 0 48px;
+    align-items: start;
+  }
+  .tk .pg-split > .pg-lede {
+    grid-column: 1 / -1;
+  }
+  .tk .pg-aside {
+    position: sticky;
+    top: 24px;
+    padding-left: 48px;
+    margin-left: -48px;
+    border-left: 1px solid var(--rule-2);
+  }
+  .tk .pg-aside > .pg-sec:first-of-type {
+    padding-top: 0;
+    border-top: 0;
+  }
 }
 .tk .pg-lede {
   max-width: 640px;
@@ -685,15 +714,18 @@
   overflow: auto;
 }
 @media (max-width: 760px) {
-  .tk .pg-head {
-    padding: 8px 12px;
+  .tk.pg {
+    --pg-gutter: 16px;
+  }
+  .tk .p-head.pg-head {
+    padding: 8px var(--pg-gutter);
   }
   .tk .pg-proj {
     flex-basis: 100%;
     order: 3;
   }
   .tk .pg-body {
-    padding: 16px 12px 40px;
+    padding: 16px var(--pg-gutter) 40px;
   }
   .tk .pg-row {
     flex-wrap: wrap;

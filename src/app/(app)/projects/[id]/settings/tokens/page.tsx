@@ -63,23 +63,27 @@ export default async function AgentTokensPage({
   return (
     <div className="tk pg">
       <PageHead title="Settings" project={project} account={account} />
-      <div className="pg-body">
+      <div className="pg-body pg-split">
         <p className="pg-lede">
           A token lets your own AI agent use this project through MCP. A token belongs to one
           project and expires after 30 days by default. The app stores only a hash of the secret.
           Project time zone: {timeZone}.
         </p>
-        <TokenList
-          projectId={id}
-          tokens={page.items}
-          now={now}
-          timeZone={timeZone}
-          basePath={`/projects/${id}/settings/tokens`}
-          nextCursor={page.nextCursor}
-          paged={cursor !== null}
-        />
-        <TokenCreate projectId={id} endpoint={endpoint} expiryOptions={expiryOptions} />
-        <McpSnippet endpoint={endpoint} />
+        <div>
+          <TokenList
+            projectId={id}
+            tokens={page.items}
+            now={now}
+            timeZone={timeZone}
+            basePath={`/projects/${id}/settings/tokens`}
+            nextCursor={page.nextCursor}
+            paged={cursor !== null}
+          />
+          <TokenCreate projectId={id} endpoint={endpoint} expiryOptions={expiryOptions} />
+        </div>
+        <div className="pg-aside">
+          <McpSnippet endpoint={endpoint} />
+        </div>
       </div>
     </div>
   );

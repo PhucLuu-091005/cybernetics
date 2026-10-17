@@ -120,7 +120,7 @@ test('the owner invites by email, changes a role, removes a member and hands Mai
   await test.step('in the demo, working as the new owner manages the members again', async () => {
     await page.goto(`/projects/${projectId}/graph`);
     await hydrated(page);
-    await expect(page.locator('.gpick > summary')).toContainText('Owner: Quang Nguyễn');
+    await expect(page.locator('.bbar .gowner')).toContainText('Owner: Quang Nguyễn');
     await page.getByLabel('Demo: act as').selectOption({ label: 'Quang Nguyễn' });
     await expect(page.locator('.p-head details.acct summary b')).toHaveText('Quang Nguyễn');
     await page.goto(`/projects/${projectId}/members`);

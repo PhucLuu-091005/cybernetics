@@ -1,26 +1,22 @@
 'use client';
-import type { Cr, RowFilter, TrackerState } from '../../tracker';
+import type { RowFilter, TrackerState } from '../../tracker';
 import { AccountMenu, type Account } from '../shell/AccountMenu';
-import { useDismissibleDetails } from '../shell/Popover';
-import { Avatar } from './avatar';
-import { byNumDesc, CR_STATUS, isOpen, trunc, type Session } from './ContextBar';
+import { can } from './can';
+import type { Session } from './ContextBar';
 import { HiddenMenu, type HiddenMenuProps } from './HiddenMenu';
 import { Icon } from './icons';
 import { WorkSearch } from './Search';
-import type { DrawerMode, TrackerActions, TrackerView } from './TrackerScreen';
+import type { DrawerMode, TrackerActions } from './TrackerScreen';
 
 type Props = HiddenMenuProps & {
   session: Session;
   /** The signed-in person, for the menu when they act as no member. */
   account: Account;
   userId: string;
-  view: TrackerView;
-  cr: Cr | null;
   state: TrackerState;
   asOf: string;
   drawer: DrawerMode | null;
   actions: TrackerActions;
-  onView: (view: TrackerView) => void;
   onDrawer: (mode: DrawerMode) => void;
   onActAs: (memberId: string) => void;
   onPick: (workItemId: string) => void;
@@ -28,90 +24,8 @@ type Props = HiddenMenuProps & {
   onFilter: (filter: RowFilter) => void;
 };
 
-function ViewMenu({ session, view, cr, actions, onView, onDrawer }: Props) {
-  const ref = useDismissibleDetails();
-  const { payload, me, dir } = session;
-  const close = () => ref.current?.removeAttribute('open');
-  const pick = (next: TrackerView) => {
-    close();
-    onView(next);
-  };
-  const open = payload.crs.filter(isOpen).sort(byNumDesc);
-  const owner = payload.project.ownerMemberId;
-  return (
-    <details ref={ref} className="gpick">
-      <summary
-        className="graph-btn"
-        aria-label={`View: ${cr ? `#${cr.num} ${cr.title}` : `Main, read-only, owner ${dir.name(owner)}`}. Switch view`}
-      >
-        <span className="gdot" style={{ background: cr ? dir.color(cr.author) : 'var(--ink)' }} />
-        <span>{cr ? `#${cr.num} ${trunc(cr.title, 22)}` : 'Main'}</span>
-        {!cr && (
-          <>
-            <span className="chipx">read-only</span>
-            <span className="gowner">
-              <Avatar id={owner} dir={dir} sm />
-              <span>Owner: {dir.name(owner)}</span>
-            </span>
-          </>
-        )}
-        <Icon name="chev" size={14} />
-      </summary>
-      <div className="gmenu">
-        <button type="button" className={view === 'main' ? 'on' : ''} onClick={() => pick('main')}>
-          <span className="gdot" style={{ background: 'var(--ink)' }} />
-          <span>
-            Main<small>Read-only · owner {dir.name(owner)}</small>
-          </span>
-        </button>
-        {open.length > 0 && <hr />}
-        {open.map((c) => (
-          <button
-            key={c.num}
-            type="button"
-            className={view === c.num ? 'on' : ''}
-            onClick={() => pick(c.num)}
-          >
-            <Avatar id={c.author} dir={dir} sm />
-            <span>
-              #{c.num} {trunc(c.title, 30)}
-              <small>
-                {CR_STATUS[c.status].label} · {dir.name(c.author)}
-                {c.status === 'draft' &&
-                  (c.editor === me ? ' · you are editing' : ` · ${dir.first(c.editor)} is editing`)}
-                {c.asks.length > 0 &&
-                  c.editor === me &&
-                  ` · ${dir.first(c.asks[0].memberId)} asks to edit`}
-              </small>
-            </span>
-          </button>
-        ))}
-        <hr />
-        <button
-          type="button"
-          onClick={() => {
-            close();
-            actions.newCr();
-          }}
-        >
-          <Icon name="plus" /> New change request
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            close();
-            onDrawer('crs');
-          }}
-        >
-          <Icon name="list" /> All change requests
-        </button>
-      </div>
-    </details>
-  );
-}
-
 export function TopBar(props: Props) {
-  const { session, cr, state, asOf, drawer, actions, onDrawer, onActAs, onPick } = props;
+  const { session, state, asOf, drawer, actions, onDrawer, onActAs, onPick } = props;
   const { payload, me, dir, tz } = session;
   const ready = payload.crs.filter((c) => c.status === 'ready').length;
   const account: Account = me
@@ -122,13 +36,6 @@ export function TopBar(props: Props) {
       <h1 className="sr">
         {payload.project.clientName}, {payload.project.title}
       </h1>
-      <ViewMenu {...props} />
-      <HiddenMenu
-        hidden={props.hidden}
-        onUnhideTeam={props.onUnhideTeam}
-        onUnhideItem={props.onUnhideItem}
-        onUnhideAll={props.onUnhideAll}
-      />
       <WorkSearch
         state={state}
         asOf={asOf}
@@ -136,6 +43,12 @@ export function TopBar(props: Props) {
         filter={props.filter}
         onFilter={props.onFilter}
         onPick={onPick}
+      />
+      <HiddenMenu
+        hidden={props.hidden}
+        onUnhideTeam={props.onUnhideTeam}
+        onUnhideItem={props.onUnhideItem}
+        onUnhideAll={props.onUnhideAll}
       />
       <button
         className="btn"
@@ -149,12 +62,17 @@ export function TopBar(props: Props) {
         className="btn crs-btn"
         type="button"
         aria-expanded={drawer === 'crs'}
-        title="All change requests"
+        aria-label={ready > 0 ? `Change requests, ${ready} ready to merge` : undefined}
         onClick={() => onDrawer('crs')}
       >
-        <Icon name="pr" /> {ready > 0 ? `${ready} ready to merge` : 'Change requests'}
+        <Icon name="pr" /> Change requests
+        {ready > 0 && (
+          <span className="nbadge" aria-hidden="true">
+            {ready}
+          </span>
+        )}
       </button>
-      {!cr && (
+      {can(payload, 'create') && (
         <button className="btn btn-ink" type="button" onClick={actions.newCr}>
           <Icon name="plus" /> New change request
         </button>

@@ -6,7 +6,6 @@ import { trunc } from './ContextBar';
 import { Icon, KIND_COLOR, KindIcon } from './icons';
 
 export type QueueTab = 'events' | 'items';
-export const QUEUE_ID = 'tk-queue';
 
 type Props = {
   state: TrackerState;
@@ -17,7 +16,6 @@ type Props = {
   onAdd: (tab: QueueTab) => void;
   onEvent: (id: string) => void;
   onItem: (id: string) => void;
-  onHide: () => void;
 };
 
 const activate = (run: () => void) => (event: KeyboardEvent) => {
@@ -43,17 +41,7 @@ function Empty({ text }: { text: string }) {
   );
 }
 
-export function QueuePanel({
-  state,
-  dir,
-  tz,
-  tab,
-  onTab: setTab,
-  onAdd,
-  onEvent,
-  onItem,
-  onHide,
-}: Props) {
+export function QueuePanel({ state, dir, tz, tab, onTab: setTab, onAdd, onEvent, onItem }: Props) {
   const [search, setSearch] = useState('');
   const term = search.trim().toLowerCase();
   const hit = (text: string) => !term || text.toLowerCase().includes(term);
@@ -70,27 +58,11 @@ export function QueuePanel({
     </button>
   );
   return (
-    <aside className="p-side" id={QUEUE_ID} aria-label="Queue">
+    <section className="qpanel" aria-label="Queue">
       <div className="qtop">
-        <div>
-          <h4>
-            <Icon name="inbox" /> Queue
-          </h4>
-          <p>New work waits here until someone drags it onto the graph.</p>
-        </div>
+        <p>New work waits here until someone drags it onto the graph.</p>
         <button className="btn sm btn-ink" type="button" onClick={() => onAdd(tab)}>
           <Icon name="plus" size={13} /> Add
-        </button>
-        <button
-          className="ib"
-          type="button"
-          aria-label="Hide the Queue"
-          title="Hide the Queue"
-          aria-expanded="true"
-          aria-controls={QUEUE_ID}
-          onClick={onHide}
-        >
-          <Icon name="sidebar" size={15} />
         </button>
       </div>
       <div className="qseg" role="group" aria-label="Show in the queue">
@@ -181,6 +153,6 @@ export function QueuePanel({
             <Empty text={term ? 'No work item matches.' : 'No work items wait. Press Add.'} />
           ))}
       </div>
-    </aside>
+    </section>
   );
 }
