@@ -85,26 +85,33 @@ export function toInstant(ms: number, timeZone: string): string {
   return `${isoDate(p)}T${pad(p.hour)}:${pad(p.minute)}:${pad(p.second)}${zone}`;
 }
 
+/** A zone that skips its midnight (America/Santiago) starts the day at the end of the gap. */
 export function startOfDayInstant(date: string, timeZone: string): string {
   const [year, month, day] = parseDay(date);
   const midnightUtc = Date.UTC(year, month - 1, day);
-  let start = midnightUtc - offsetMs(midnightUtc, timeZone);
-  // The offset at midnight UTC can differ from the offset at local midnight across a DST change.
-  const local = offsetMs(start, timeZone);
-  if (midnightUtc - local !== start) start = midnightUtc - local;
-  return toInstant(start, timeZone);
+  const first = offsetMs(midnightUtc, timeZone);
+  const second = offsetMs(midnightUtc - first, timeZone);
+  const inDay = [midnightUtc - first, midnightUtc - second].filter(
+    (ms) => isoDate(zoned(ms, timeZone)) === date,
+  );
+  return toInstant(Math.min(...inDay), timeZone);
 }
 
-/** `time` is `HH:mm` on the clock of `timeZone`; a time that the clock skips resolves to a valid instant next to the gap. */
+/** `time` is `HH:mm` on the clock of `timeZone`; a time that the clock skips resolves to after the gap. */
 export function wallTimeInstant(date: string, time: string, timeZone: string): string {
   const [year, month, day] = parseDay(date);
   const [hour, minute] = time.split(':').map(Number);
   const wall = Date.UTC(year, month - 1, day, hour, minute);
-  const first = offsetMs(wall, timeZone);
-  let ms = wall - first;
   // The offset at the wall time read as UTC can be the offset from the other side of a change.
-  const second = offsetMs(ms, timeZone);
-  if (second !== first && offsetMs(wall - second, timeZone) === second) ms = wall - second;
+  const first = offsetMs(wall, timeZone);
+  const second = offsetMs(wall - first, timeZone);
+  const fits = (offset: number) => offsetMs(wall - offset, timeZone) === offset;
+  // In a gap neither offset fits; the smaller one lands after the gap, east or west of UTC.
+  const ms = fits(first)
+    ? wall - first
+    : fits(second)
+      ? wall - second
+      : wall - Math.min(first, second);
   return toInstant(ms, timeZone);
 }
 
