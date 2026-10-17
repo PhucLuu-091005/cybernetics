@@ -8,6 +8,7 @@ import {
 } from '../../../src/tracker/layout';
 import type { TrackerState } from '../../../src/tracker/model';
 import { replayOps, type Marks } from '../../../src/tracker/ops';
+import { addDays } from '../../../src/tracker/time';
 import {
   AS_OF,
   TIME_ZONE,
@@ -33,7 +34,8 @@ const view = (over: Partial<View> = {}): View => ({
 
 const ms = (local: string) => Date.parse(at(local));
 const midnight = (date: string) => Date.parse(`${date}T00:00:00+07:00`);
-const noon = (date: string) => Date.parse(`${date}T12:00:00+07:00`);
+// A deadline without a time is the last moment of its day.
+const dayEnd = (date: string) => midnight(addDays(date, 1)) - 1;
 
 const lines = (L: TrackerLayout, id: string) =>
   L.segments.filter(
@@ -624,7 +626,7 @@ describe('layoutTracker: milestone deadlines on member rows', () => {
   it('takes the milestone status colour and names the milestone in its tooltip', () => {
     expect(mark('rehearsal')).toMatchObject({
       date: '2026-09-30',
-      x: L.x(noon('2026-09-30')),
+      x: L.x(dayEnd('2026-09-30')),
       y: 166,
       tone: 'danger',
       stroke: 'danger',
@@ -735,8 +737,8 @@ describe('layoutTracker: milestone deadlines on member rows', () => {
   it('gives no name when the first member row has no free room, and no other row takes it', () => {
     const s = labelled();
     s.events.push(
-      event({ id: 'b1', workItemId: 'first', at: at('2026-10-12T04:00') }),
-      event({ id: 'b2', workItemId: 'first', at: at('2026-10-12T21:00') }),
+      event({ id: 'b1', workItemId: 'first', at: at('2026-10-12T15:00') }),
+      event({ id: 'b2', workItemId: 'first', at: at('2026-10-13T08:00') }),
     );
     const M = layoutTracker(s, view({ zoom: 4 }));
     expect(M.deadlines.find((x) => x.workItemId === 'first')!.label).toBeNull();
@@ -767,6 +769,81 @@ describe('layoutTracker: milestone deadlines on member rows', () => {
     });
     const M = layoutTracker(s, view());
     expect(M.deadlines[0].x).toBe(M.x1 - 4);
+  });
+});
+
+describe('layoutTracker: a milestone deadline with a time', () => {
+  const busyDay = (plannedTime?: string) =>
+    buildState({
+      teams: [{ id: 't', name: 'Team', leadId: null }],
+      milestones: [
+        {
+          id: 'm',
+          name: 'Client call',
+          planned: '2026-10-08',
+          ...(plannedTime ? { plannedTime } : {}),
+          firstPlanned: '2026-10-08',
+          moves: [],
+        },
+      ],
+      workItems: [
+        workItem({ id: 'a', teamId: 't', milestoneId: 'm', plannedFinish: '2026-10-09' }),
+      ],
+      events: [
+        event({ id: 'e1', workItemId: 'a', at: at('2026-10-08T09:00') }),
+        event({ id: 'e2', workItemId: 'a', at: at('2026-10-08T16:00') }),
+        event({ id: 'e3', workItemId: 'a', kind: 'done', at: at('2026-10-08T18:00') }),
+      ],
+    });
+  const xs = (L: TrackerLayout) =>
+    Object.fromEntries(
+      L.eventGroups.flatMap((g) => g.eventIds.map((id) => [id, g.x] as const)),
+    ) as Record<string, number>;
+
+  it('puts the diamond and the milestone circle at the time on the project clock', () => {
+    const L = layoutTracker(busyDay('17:00'), view({ zoom: 12 }));
+    const x = L.x(ms('2026-10-08T17:00'));
+    expect(L.deadlines[0]).toMatchObject({ date: '2026-10-08', time: '17:00', x });
+    expect(L.milestones[0].x).toBe(x);
+    expect(L.milestones[0].label).toBe('Client call · 8 Oct 17:00 · Finished late');
+    expect(L.deadlines[0].tooltip).toBe(
+      'Client call · deadline 8 Oct 17:00 · Finished late\nThis work item finished after it.',
+    );
+    const at = xs(L);
+    expect(at.e2).toBeLessThan(x);
+    expect(at.e3).toBeGreaterThan(x);
+  });
+
+  it('puts a deadline without a time after every event of its day', () => {
+    const L = layoutTracker(busyDay(), view({ zoom: 12 }));
+    const x = L.x(dayEnd('2026-10-08'));
+    expect(L.deadlines[0]).toMatchObject({ time: null, x });
+    expect(L.milestones[0].x).toBe(x);
+    expect(L.deadlines[0].tooltip).toBe('Client call · deadline 8 Oct · Finished on time');
+    expect(Math.max(...Object.values(xs(L)))).toBeLessThan(x);
+  });
+
+  it('keeps moved events on their own side of the deadline', () => {
+    const L = layoutTracker(busyDay('17:00'), view({ zoom: 12, offsets: { e2: 180, e3: -300 } }));
+    const x = L.x(ms('2026-10-08T17:00'));
+    const at = xs(L);
+    expect(at.e2).toBeLessThanOrEqual(x);
+    expect(at.e3).toBeGreaterThanOrEqual(x);
+  });
+
+  it('names the old time in the moved label of a changed milestone', () => {
+    const base = busyDay('17:00');
+    const { state, marks } = replayOps(base, [
+      makeOp('msDate', {
+        milestoneId: 'm',
+        date: '2026-10-09',
+        why: 'The client moved the call.',
+        by: 'minh',
+        at: at('2026-10-08T12:00'),
+      }),
+    ]);
+    const L = layoutTracker(state, view(), marks);
+    expect(L.milestones[0].label).toBe('Client call · 9 Oct · Finished early (was 8 Oct 17:00)');
   });
 });
 
@@ -1014,7 +1091,7 @@ describe('layoutTracker: milestones and trunk', () => {
     const crm = L.milestones.find((m) => m.name === 'CRM integration live')!;
     expect(crm).toMatchObject({
       id: 'crm',
-      x: L.x(noon('2026-09-18')),
+      x: L.x(dayEnd('2026-09-18')),
       y: TRUNK_Y,
       status: 'late',
       tone: 'danger',
@@ -1036,8 +1113,8 @@ describe('layoutTracker: milestones and trunk', () => {
     const xt = L.x(Date.parse(AS_OF));
     expect(L.trunk).toEqual({ x1: X0, x2: X1, y: TRUNK_Y });
     expect(L.trunkSegments).toEqual([
-      { milestoneId: 'crm', x1: L.x(noon('2026-09-18')), x2: xt, y: TRUNK_Y, tone: 'danger' },
-      { milestoneId: 'golive', x1: L.x(noon('2026-09-30')), x2: xt, y: TRUNK_Y, tone: 'danger' },
+      { milestoneId: 'crm', x1: L.x(dayEnd('2026-09-18')), x2: xt, y: TRUNK_Y, tone: 'danger' },
+      { milestoneId: 'golive', x1: L.x(dayEnd('2026-09-30')), x2: xt, y: TRUNK_Y, tone: 'danger' },
     ]);
   });
 
@@ -1054,7 +1131,7 @@ describe('layoutTracker: milestones and trunk', () => {
     expect(M.trunkSegments).toEqual([
       {
         milestoneId: 'm',
-        x1: M.x(noon('2026-09-20')),
+        x1: M.x(dayEnd('2026-09-20')),
         x2: M.x(ms('2026-09-25T10:00')),
         y: TRUNK_Y,
         tone: 'caution',
@@ -1080,7 +1157,7 @@ describe('layoutTracker: milestones and trunk', () => {
     });
     expect(M.trunkSegments[0]).toMatchObject({
       x1: M.x(ms('2026-09-25T10:00')),
-      x2: M.x(noon('2026-09-30')),
+      x2: M.x(dayEnd('2026-09-30')),
       tone: 'teal',
     });
   });

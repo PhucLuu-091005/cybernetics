@@ -12,10 +12,12 @@ import {
   type TrackerState,
   type WorkItem,
 } from './model';
+import { TIME_OF_DAY } from './deadline';
 
 // Clash keys join ids with ':', so an id must never contain one.
 const Id = z.string().regex(/^[A-Za-z0-9_-]{1,100}$/);
 const DateString = z.iso.date();
+const TimeOfDay = z.string().regex(TIME_OF_DAY, 'Use a time like 17:00');
 const MINUTE_INSTANT = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})(Z|[+-]\d{2}:\d{2})$/;
 const Instant = z.preprocess(
   (value) => (typeof value === 'string' ? value.replace(MINUTE_INSTANT, '$1:00$2') : value),
@@ -48,7 +50,9 @@ export const TeamSchema = z.strictObject({
 
 export const DateMoveSchema = z.strictObject({
   from: DateString,
+  fromTime: TimeOfDay.optional(),
   to: DateString,
+  toTime: TimeOfDay.optional(),
   why: Why,
   by: Id,
   at: Instant,
@@ -58,7 +62,9 @@ export const MilestoneSchema = z.strictObject({
   id: Id,
   name: Title,
   planned: DateString,
+  plannedTime: TimeOfDay.optional(),
   firstPlanned: DateString,
+  firstPlannedTime: TimeOfDay.optional(),
   moves: z.array(DateMoveSchema),
 }) satisfies z.ZodType<Milestone>;
 
@@ -160,7 +166,11 @@ export const MoveArgsSchema = z.strictObject({ eventId: Id, to: Id });
 export const KindArgsSchema = z.strictObject({ eventId: Id, kind: EventKindSchema });
 export const HideArgsSchema = z.strictObject({ eventId: Id });
 const dateMoveArgs = { date: DateString, why: Why, by: Id, at: Instant };
-export const MsDateArgsSchema = z.strictObject({ milestoneId: Id, ...dateMoveArgs });
+export const MsDateArgsSchema = z.strictObject({
+  milestoneId: Id,
+  ...dateMoveArgs,
+  time: TimeOfDay.optional(),
+});
 export const MsNameArgsSchema = z.strictObject({ milestoneId: Id, name: Title });
 export const MsRemoveArgsSchema = z.strictObject({ workItemId: Id });
 export const MsAddArgsSchema = z.strictObject({ workItemId: Id, milestoneId: Id });
@@ -168,6 +178,7 @@ export const NewMsArgsSchema = z.strictObject({
   id: Id,
   name: Title,
   planned: DateString,
+  time: TimeOfDay.optional(),
   members: z.array(Id).max(500),
 });
 export const RenameArgsSchema = z.strictObject({ workItemId: Id, title: Title });
@@ -227,5 +238,6 @@ export const FirstMilestoneSchema = z
   .strictObject({
     name: noNul(z.string().trim().min(1).max(200, 'Keep the milestone name to 200 characters')),
     date: DateString,
+    time: TimeOfDay.optional(),
   })
   .nullish();

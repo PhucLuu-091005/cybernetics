@@ -1,7 +1,7 @@
 'use client';
 import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
-  formatDay,
+  formatDeadline,
   formatStamp,
   KIND_LABEL,
   type DateMove,
@@ -48,13 +48,13 @@ export function Moves({
   return (
     <>
       <p className="q-label">
-        First planned {formatDay(first)} · moved {moves.length}×
+        First planned {first} · moved {moves.length}×
       </p>
       <ol className="moves">
         {[...moves].reverse().map((mv, i) => (
           <li key={`${mv.at}-${i}`}>
             <b>
-              {formatDay(mv.from)} → {formatDay(mv.to)}
+              {formatDeadline(mv.from, mv.fromTime)} → {formatDeadline(mv.to, mv.toTime)}
             </b>
             <span>{mv.why}</span>
             <small>

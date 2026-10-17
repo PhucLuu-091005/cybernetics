@@ -13,6 +13,7 @@ import {
   dayOf,
   EVENT_KINDS,
   formatDay,
+  formatDeadline,
   formatStamp,
   itemInfo,
   KIND_LABEL,
@@ -37,7 +38,8 @@ export type ModalState =
   | { mode: 'fromEvent'; eventId: string; teamId: string }
   | { mode: 'ms' }
   | { mode: 'team' }
-  | { mode: 'due'; kind: 'item' | 'ms'; id: string; date: string }
+  /** `time` only for a milestone; absent keeps its current time. */
+  | { mode: 'due'; kind: 'item' | 'ms'; id: string; date: string; time?: string | null }
   | { mode: 'newcr' }
   | { mode: 'share' };
 
@@ -252,6 +254,25 @@ function DateInput({ value, onChange }: { value: string; onChange: (v: string) =
       value={value}
       onChange={(event) => event.target.value && onChange(event.target.value)}
     />
+  );
+}
+
+/** Empty means no time: the deadline is then the end of the day. */
+export function TimeInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <span className="time-in">
+      <input
+        type="time"
+        value={value}
+        aria-label="Time (optional)"
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {value && (
+        <button type="button" className="btn sm" onClick={() => onChange('')}>
+          No time
+        </button>
+      )}
+    </span>
   );
 }
 
@@ -665,12 +686,18 @@ function FromEventModal({ modal, session, state, asOf, busy, on, onClose }: Prop
 function MilestoneModal({ session, state, asOf, busy, on, onClose }: PropsOf<'ms'>) {
   const [name, setName] = useState('');
   const [planned, setPlanned] = useState(weekAfter(asOf, session.tz));
+  const [time, setTime] = useState('');
   const [members, setMembers] = useState<string[]>([]);
   const toggle = (id: string, checked: boolean) =>
     setMembers((list) => (checked ? [...list, id] : list.filter((x) => x !== id)));
   const create = () => {
     if (!name.trim()) return on.toast('Give the milestone a name.');
-    on.commit([{ op: 'newMs', a: { id: newId(), name: name.trim(), planned, members } }]);
+    on.commit([
+      {
+        op: 'newMs',
+        a: { id: newId(), name: name.trim(), planned, ...(time ? { time } : {}), members },
+      },
+    ]);
   };
   return (
     <ModalFrame title="New milestone" onClose={onClose}>
@@ -687,6 +714,13 @@ function MilestoneModal({ session, state, asOf, busy, on, onClose }: PropsOf<'ms
           Planned date
           <DateInput value={planned} onChange={setPlanned} />
         </label>
+      </div>
+      <div className="grid2">
+        <label className="field">
+          Time (optional)
+          <TimeInput value={time} onChange={setTime} />
+        </label>
+        <p className="tip">Without a time, the deadline is the end of the day.</p>
       </div>
       <p className="q-label">Work items in it</p>
       <div className="pick">
@@ -752,20 +786,33 @@ function TeamModal({ state, busy, on, onClose }: PropsOf<'team'>) {
 }
 
 function DueModal({ modal, session, state, busy, on, onClose }: PropsOf<'due'>) {
-  const [date, setDate] = useState(modal.date);
-  const [why, setWhy] = useState('');
   const isMs = modal.kind === 'ms';
   const ms = isMs ? state.milestones.find((m) => m.id === modal.id) : undefined;
   const item = isMs ? undefined : state.workItems.find((w) => w.id === modal.id);
+  const [date, setDate] = useState(modal.date);
+  const [time, setTime] = useState(
+    modal.time === undefined ? (ms?.plannedTime ?? '') : (modal.time ?? ''),
+  );
+  const [why, setWhy] = useState('');
   const target = ms
-    ? { name: ms.name, cur: ms.planned, first: ms.firstPlanned }
+    ? {
+        name: ms.name,
+        cur: formatDeadline(ms.planned, ms.plannedTime),
+        first: formatDeadline(ms.firstPlanned, ms.firstPlannedTime),
+        same: date === ms.planned && time === (ms.plannedTime ?? ''),
+      }
     : item
-      ? { name: item.title, cur: item.plannedFinish, first: item.firstPlannedFinish }
+      ? {
+          name: item.title,
+          cur: formatDay(item.plannedFinish),
+          first: formatDay(item.firstPlannedFinish),
+          same: date === item.plannedFinish,
+        }
       : null;
   if (!target) return <Gone onClose={onClose} />;
   const create = () => {
     if (!why.trim()) return on.toast('Write why the date moves.');
-    if (date === target.cur) return on.toast('Pick a new date.');
+    if (target.same) return on.toast(isMs ? 'Pick a new date or time.' : 'Pick a new date.');
     const move = {
       date,
       why: why.trim(),
@@ -774,7 +821,7 @@ function DueModal({ modal, session, state, busy, on, onClose }: PropsOf<'due'>) 
     };
     on.commit([
       isMs
-        ? { op: 'msDate', a: { milestoneId: modal.id, ...move } }
+        ? { op: 'msDate', a: { milestoneId: modal.id, ...move, ...(time ? { time } : {}) } }
         : { op: 'due', a: { workItemId: modal.id, ...move } },
     ]);
   };
@@ -786,15 +833,22 @@ function DueModal({ modal, session, state, busy, on, onClose }: PropsOf<'due'>) 
       <blockquote>
         <b>{target.name}</b>
         <br />
-        Planned {formatDay(target.cur)}
-        {target.first !== target.cur && ` · first planned ${formatDay(target.first)}`}
+        Planned {target.cur}
+        {target.first !== target.cur && ` · first planned ${target.first}`}
       </blockquote>
       <div className="grid2">
         <label className="field">
           New date
           <DateInput value={date} onChange={setDate} />
         </label>
-        <span />
+        {isMs ? (
+          <label className="field">
+            Time (optional)
+            <TimeInput value={time} onChange={setTime} />
+          </label>
+        ) : (
+          <span />
+        )}
       </div>
       <label className="field">
         Why does the date move? (required)

@@ -35,13 +35,24 @@ export type Person = { id: string; name: string };
 
 export type Team = { id: string; name: string; leadId: string | null };
 
-export type DateMove = { from: string; to: string; why: string; by: string; at: string };
+/** Only milestone moves carry times: a milestone deadline can have a time of day (HH:mm). */
+export type DateMove = {
+  from: string;
+  fromTime?: string;
+  to: string;
+  toTime?: string;
+  why: string;
+  by: string;
+  at: string;
+};
 
 export type Milestone = {
   id: string;
   name: string;
   planned: string;
+  plannedTime?: string;
   firstPlanned: string;
+  firstPlannedTime?: string;
   moves: DateMove[];
 };
 

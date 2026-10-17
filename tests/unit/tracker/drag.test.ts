@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   dayAtX,
+  deadlineX,
   dropAction,
   eventGesture,
   noonX,
@@ -237,9 +238,22 @@ describe('dayAtX and noonX: the day under a dragged milestone', () => {
   it('matches the milestone circle position, also when zoomed', () => {
     for (const zoom of [1, 5]) {
       const L = layout({ zoom });
-      expect(noonX(L, '2026-10-15', TIME_ZONE)).toBeCloseTo(L.milestones[0].x, 6);
-      expect(noonX(L, '2026-12-01', TIME_ZONE)).toBe(L.x1 - 4);
+      expect(deadlineX(L, '2026-10-15', undefined, TIME_ZONE)).toBeCloseTo(L.milestones[0].x, 6);
+      expect(deadlineX(L, '2026-12-01', '09:00', TIME_ZONE)).toBe(L.x1 - 4);
     }
+  });
+
+  it('reads the day of a dragged deadline from the circle, at the end of the day or at its time', () => {
+    const L = layout({ zoom: 5 });
+    const end = deadlineX(L, '2026-10-12', undefined, TIME_ZONE);
+    expect(end).toBeCloseTo(L.x(Date.parse('2026-10-13T00:00:00+07:00') - 1), 6);
+    expect(dayAtX(L, end, TIME_ZONE, 'end')).toBe('2026-10-12');
+    expect(dayAtX(L, end + 4, TIME_ZONE, 'end')).toBe('2026-10-12');
+    expect(dayAtX(L, end - 4, TIME_ZONE, 'end')).toBe('2026-10-12');
+    const five = deadlineX(L, '2026-10-12', '17:00', TIME_ZONE);
+    expect(five).toBeCloseTo(L.x(Date.parse('2026-10-12T17:00:00+07:00')), 6);
+    expect(dayAtX(L, five + 30, TIME_ZONE, '17:00')).toBe('2026-10-12');
+    expect(dayAtX(L, five - 30, TIME_ZONE, '17:00')).toBe('2026-10-12');
   });
 });
 

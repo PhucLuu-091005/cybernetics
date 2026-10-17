@@ -38,7 +38,7 @@ export type CreateTrackerProjectInput = {
   userId: string;
   userName: string;
   teams: readonly string[];
-  milestone?: { name: string; date: string } | null;
+  milestone?: { name: string; date: string; time?: string } | null;
   demo: boolean;
   asOf?: string | null;
   windowStart?: string | null;
@@ -57,7 +57,9 @@ function startingBase(input: CreateTrackerProjectInput, ownerMemberId: string): 
             id: randomUUID(),
             name: input.milestone.name,
             planned: input.milestone.date,
+            ...(input.milestone.time ? { plannedTime: input.milestone.time } : {}),
             firstPlanned: input.milestone.date,
+            ...(input.milestone.time ? { firstPlannedTime: input.milestone.time } : {}),
             moves: [],
           },
         ]

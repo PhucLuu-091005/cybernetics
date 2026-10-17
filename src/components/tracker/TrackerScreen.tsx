@@ -14,9 +14,11 @@ import {
 } from 'react';
 import {
   clampDrag,
+  deadlinesByItem,
   descendantsOf,
   drawnTimes,
   formatDay,
+  formatDeadline,
   KIND_LABEL,
   layoutTracker,
   matchRows,
@@ -62,6 +64,7 @@ import {
 } from './ContextBar';
 import {
   dayAtX,
+  deadlineX,
   dropAction,
   eventGesture,
   markTarget,
@@ -134,7 +137,7 @@ export type TrackerActions = {
   resetPosition: (eventId: string) => void;
   newMilestone: () => void;
   newTeam: () => void;
-  saveMilestone: (milestoneId: string, name: string, date: string) => void;
+  saveMilestone: (milestoneId: string, name: string, date: string, time: string | null) => void;
   removeFromMilestone: (workItemId: string) => void;
   addToMilestone: (workItemId: string, milestoneId: string) => void;
 };
@@ -798,11 +801,12 @@ export function TrackerScreen({
     },
     newMilestone: () => edit && openModal({ mode: 'ms' }),
     newTeam: () => edit && openModal({ mode: 'team' }),
-    saveMilestone: (milestoneId, name, date) => {
+    saveMilestone: (milestoneId, name, date, time) => {
       const m = state.milestones.find((x) => x.id === milestoneId);
       if (!m) return;
       if (name && name !== m.name) commitOps([{ op: 'msName', a: { milestoneId, name } }]);
-      if (date !== m.planned) openModal({ mode: 'due', kind: 'ms', id: milestoneId, date });
+      if (date !== m.planned || time !== (m.plannedTime ?? null))
+        openModal({ mode: 'due', kind: 'ms', id: milestoneId, date, time });
     },
     removeFromMilestone: (workItemId) => commitOps([{ op: 'msRemove', a: { workItemId } }]),
     addToMilestone: (workItemId, milestoneId) =>
@@ -944,7 +948,8 @@ export function TrackerScreen({
     const x0 = svgPoint(svg, start.clientX, start.clientY).x;
     const row = live.current.state.events.filter((e) => e.workItemId === from && !e.hidden);
     const saved0 = live.current.saved;
-    const drawn0 = drawnTimes(row, saved0, tz).get(eventId) ?? Date.parse(ev.at);
+    const limits = deadlinesByItem(live.current.state, tz);
+    const drawn0 = drawnTimes(row, saved0, tz, limits).get(eventId) ?? Date.parse(ev.at);
     let gesture: 'day' | 'move' | null = null;
     let minutes = live.current.saved[eventId] ?? 0;
     let target: DropTarget | null = null;
@@ -979,6 +984,7 @@ export function TrackerScreen({
             row,
             saved0,
             tz,
+            limits,
           );
           if (next === minutes) return;
           minutes = next;
@@ -1016,6 +1022,7 @@ export function TrackerScreen({
     if (!(svg instanceof SVGSVGElement) || !cur) return;
     event.preventDefault();
     let day = cur;
+    const time = kind === 'ms' ? ms?.plannedTime : undefined;
     track(event, {
       threshold: 4,
       axis: 'x',
@@ -1025,14 +1032,20 @@ export function TrackerScreen({
       },
       onMove: (ev) => {
         const L = live.current.layout;
-        const next = dayAtX(L, svgPoint(svg, ev.clientX, ev.clientY).x, tz);
+        const x = svgPoint(svg, ev.clientX, ev.clientY).x;
+        const next = dayAtX(L, x, tz, kind === 'ms' ? (time ?? 'end') : 'noon');
         if (next === day) return;
         day = next;
         const label =
           kind === 'ms' && ms
-            ? `${ms.name} · ${formatDay(next)}${next !== cur ? ` (was ${formatDay(cur)})` : ''}`
+            ? `${ms.name} · ${formatDeadline(next, time)}${next !== cur ? ` (was ${formatDeadline(cur, time)})` : ''}`
             : formatDay(next);
-        setPreview({ kind, id, x: noonX(L, next, tz), label });
+        setPreview({
+          kind,
+          id,
+          x: kind === 'ms' ? deadlineX(L, next, time, tz) : noonX(L, next, tz),
+          label,
+        });
       },
       onDrop: () => {
         endDrag();

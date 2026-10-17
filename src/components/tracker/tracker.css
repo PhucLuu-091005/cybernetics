@@ -1864,6 +1864,14 @@ svg.tg .deadline-name {
   font-weight: 500;
   color: var(--ink-2);
 }
+.tk .time-in {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.tk .time-in .btn {
+  flex: none;
+}
 .tk .field input:disabled {
   color: var(--ink-3);
   background: var(--sunk);

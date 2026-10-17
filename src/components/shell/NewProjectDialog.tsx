@@ -109,6 +109,10 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
             Milestone date
             <input type="date" value={form.milestoneDate} onChange={edit('milestoneDate')} />
           </label>
+          <label className="field">
+            Time (optional)
+            <input type="time" value={form.milestoneTime ?? ''} onChange={edit('milestoneTime')} />
+          </label>
         </div>
         {problem && (
           <p className="new-project-problem" role="status">

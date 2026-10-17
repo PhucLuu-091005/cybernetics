@@ -39,17 +39,32 @@ const byTime = (a: Timed, b: Timed) =>
 
 const sameRowAndDay = (e: Timed, timeZone: string) => `${e.workItemId}|${dayOf(e.at, timeZone)}`;
 
+/** The milestone deadline of a row, by work item id, as `deadlinesByItem` gives it. */
+export type Deadlines = ReadonlyMap<string, number>;
+
+/** An event keeps its side of the deadline of its row, so a moved icon never tells a wrong story. */
+function deadlineSide(e: Timed, deadlines: Deadlines | undefined): { min: number; max: number } {
+  const limit = deadlines?.get(e.workItemId);
+  if (limit === undefined) return { min: -Infinity, max: Infinity };
+  return Date.parse(e.at) <= limit ? { min: -Infinity, max: limit } : { min: limit, max: Infinity };
+}
+
 /** Offsets saved before the drag kept the order could put an earlier event right of a later one. */
 export function drawnTimes(
   events: readonly Timed[],
   offsets: Offsets,
   timeZone: string,
+  deadlines?: Deadlines,
 ): Map<string, number> {
   const drawn = new Map<string, number>();
   const last = new Map<string, number>();
   for (const e of [...events].sort(byTime)) {
     const key = sameRowAndDay(e, timeZone);
-    const at = Math.max(drawnAt(e, offsets, timeZone), last.get(key) ?? -Infinity);
+    const side = deadlineSide(e, deadlines);
+    const at = Math.min(
+      side.max,
+      Math.max(drawnAt(e, offsets, timeZone), last.get(key) ?? -Infinity, side.min),
+    );
     last.set(key, at);
     drawn.set(e.id, at);
   }
@@ -62,12 +77,12 @@ export function clampDrag(
   events: readonly Timed[],
   offsets: Offsets,
   timeZone: string,
+  deadlines?: Deadlines,
 ): number {
   const key = sameRowAndDay(event, timeZone);
   const row = events.filter((e) => sameRowAndDay(e, timeZone) === key);
-  const drawn = drawnTimes(row, offsets, timeZone);
-  let min = -Infinity;
-  let max = Infinity;
+  const drawn = drawnTimes(row, offsets, timeZone, deadlines);
+  let { min, max } = deadlineSide(event, deadlines);
   for (const e of row) {
     if (e.id === event.id) continue;
     const t = drawn.get(e.id)!;

@@ -132,6 +132,7 @@ export function trackerSummary(payload: TrackerPayload, now = new Date()) {
         id: milestone.id,
         name: milestone.name,
         planned: milestone.planned,
+        plannedTime: milestone.plannedTime ?? null,
         firstPlanned: milestone.firstPlanned,
         status,
         statusLabel: STATUS_LABEL[status],

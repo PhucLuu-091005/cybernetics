@@ -4,7 +4,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { configureApp, createAgentToken, resetApp } from '../../../src/server/app';
 import { trackerQueue } from '../../../src/server/db/schema';
-import { getTrackerPayload } from '../../../src/server/tracker';
+import { createCr, crAction, getTrackerPayload } from '../../../src/server/tracker';
 import { DELETE, GET, POST } from '../../../src/app/mcp/route';
 import type { Scope } from '../../../src/contracts';
 import { createTestDatabase, type TestDb } from '../../support/db';
@@ -159,6 +159,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP tracker tools', () => {
       ['crm', 'late', '2026-09-18'],
       ['golive', 'planned', '2026-10-15'],
     ]);
+    expect(tracker.milestones[1]).toMatchObject({ planned: '2026-10-15', plannedTime: null });
     expect(
       tracker.openChangeRequests.map((cr: { num: number; status: string }) => [cr.num, cr.status]),
     ).toEqual([
@@ -205,6 +206,35 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP tracker tools', () => {
     expect(await call(agent, 'get_change_request', { num: 99 })).toMatchObject({
       isError: true,
       structuredContent: { code: 'NOT_FOUND' },
+    });
+  });
+
+  it('shows a milestone deadline time in get_tracker and in the changes of get_change_request', async () => {
+    const as = { projectId: demo.projectId, actAs: demo.ids.minh };
+    const { num } = await createCr(t.db, demo.owner, {
+      ...as,
+      title: 'Call at five',
+      ops: [
+        {
+          op: 'msDate',
+          a: { milestoneId: 'golive', date: '2026-10-15', time: '17:00', why: 'The client call.' },
+        },
+      ],
+    });
+    await crAction(t.db, demo.owner, { ...as, num, action: 'ready' });
+    const ready = await getTrackerPayload(t.db, demo.owner, as);
+    const revision = ready.crs.find((cr) => cr.num === num)!.revision;
+    await crAction(t.db, demo.owner, { ...as, num, action: 'merge', expectedRevision: revision });
+    const agent = await connect();
+    const tracker = (await call(agent, 'get_tracker')).structuredContent;
+    expect(tracker.milestones.find((m: { id: string }) => m.id === 'golive')).toMatchObject({
+      planned: '2026-10-15',
+      plannedTime: '17:00',
+    });
+    const one = (await call(agent, 'get_change_request', { num })).structuredContent;
+    expect(one.changeRequest.changes[0]).toMatchObject({
+      op: 'msDate',
+      description: { before: 'planned 15 Oct', after: 'planned 15 Oct 17:00' },
     });
   });
 
