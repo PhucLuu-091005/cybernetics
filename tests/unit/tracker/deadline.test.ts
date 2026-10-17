@@ -4,6 +4,7 @@ import {
   deadlineMs,
   deadlinesByItem,
   formatDeadline,
+  lateBy,
   milestoneDeadline,
 } from '../../../src/tracker/deadline';
 import { describeOp, diffLines } from '../../../src/tracker/describe';
@@ -143,6 +144,19 @@ describe('milestone deadline time: the instant and the label', () => {
     expect([...deadlinesByItem(s, TIME_ZONE)]).toEqual([
       ['a', Date.parse('2026-10-15T17:00:00+07:00')],
     ]);
+  });
+});
+
+describe('milestone deadline time: how late', () => {
+  it('counts hours on the day of the deadline and days after it, never 0 days', () => {
+    const m = { planned: '2026-10-15', plannedTime: '17:00' };
+    expect(lateBy(m, at('2026-10-15T17:20'), TIME_ZONE)).toBe('late 1 h');
+    expect(lateBy(m, at('2026-10-15T20:00'), TIME_ZONE)).toBe('late 3 h');
+    expect(lateBy(m, at('2026-10-16T09:00'), TIME_ZONE)).toBe('late 1 day');
+    expect(lateBy(m, at('2026-10-18T09:00'), TIME_ZONE)).toBe('late 3 days');
+    expect(lateBy({ planned: '2026-10-15' }, at('2026-10-17T09:00'), TIME_ZONE)).toBe(
+      'late 2 days',
+    );
   });
 });
 

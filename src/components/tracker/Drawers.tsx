@@ -12,6 +12,7 @@ import {
   itemStatus,
   KIND_LABEL,
   keysOf,
+  lateBy,
   mainState,
   milestoneStatus,
   replayOps,
@@ -39,7 +40,7 @@ import {
   type Session,
 } from './ContextBar';
 import { Icon, KIND_COLOR, KindIcon } from './icons';
-import { TimeInput } from './Modals';
+import { TimeInput } from './TimeInput';
 import { Moves } from './Pops';
 import type { TrackerActions, TrackerView } from './TrackerScreen';
 
@@ -97,9 +98,6 @@ type Base = {
   busy?: boolean;
 };
 
-const daysBetween = (from: string, to: string) =>
-  Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
-
 export function MilestoneDrawer({
   session,
   state,
@@ -139,7 +137,7 @@ export function MilestoneDrawer({
           {status === 'late' && (
             <small style={{ display: 'inline', color: 'var(--danger-ink)' }}>
               {' '}
-              late {daysBetween(m.planned, dayOf(asOf, tz))} days
+              {lateBy(m, asOf, tz)}
             </small>
           )}
         </>
