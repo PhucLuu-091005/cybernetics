@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { IdSchema, type ActorContext } from '../../contracts';
 import type { CrPermission, CrStatus, Member } from '../../tracker';
 import { AppError } from '../errors';
-import { trackerCrShares } from '../db/schema';
+import { trackerCrShares, workspaceMembers } from '../db/schema';
 import { findProjectForActor, lockProject, type ProjectRow, type Tx } from '../db/tx';
 import {
   findTracker,
@@ -23,6 +23,7 @@ export function resolveActing(
   members: readonly Member[],
   ctx: ActorContext,
   actAs?: string | null,
+  canSwitch = true,
 ): Member | null {
   // A viewer has a member row but acts as no one, so they read like a workspace guest.
   const own = members.find((item) => item.userId === ctx.userId && item.active) ?? null;
@@ -31,9 +32,32 @@ export function resolveActing(
   if (ctx.kind === 'agent') throw new AppError('FORBIDDEN', 'An agent acts only as its user');
   if (!tracker.demo)
     throw new AppError('FORBIDDEN', 'Working as another person works only in a demo project');
+  if (!canSwitch)
+    throw new AppError('FORBIDDEN', 'Only the person of this sandbox can work as another person');
   const member = members.find((item) => item.id === actAs && item.active);
   if (!member) throw new AppError('FORBIDDEN', 'That person is not a member of this project');
   return member;
+}
+
+/** A demo sandbox lets its own person play every member; someone invited into it works as themself. */
+async function canSwitchMember(
+  db: Reader,
+  ctx: ActorContext,
+  project: ProjectRow,
+  tracker: TrackerRow,
+): Promise<boolean> {
+  if (!tracker.demo || ctx.kind !== 'user') return false;
+  const [row] = await db
+    .select({ userId: workspaceMembers.userId })
+    .from(workspaceMembers)
+    .where(
+      and(
+        eq(workspaceMembers.workspaceId, project.workspaceId),
+        eq(workspaceMembers.userId, ctx.userId),
+      ),
+    )
+    .limit(1);
+  return !!row;
 }
 
 export async function actingMember(
@@ -44,7 +68,13 @@ export async function actingMember(
 ): Promise<Member | null> {
   const project = await findProjectForActor(tx, ctx, projectId, false);
   const tracker = await findTracker(tx, project.id);
-  return resolveActing(tracker, await loadMembers(tx, project.id), ctx, actAsCookie);
+  return resolveActing(
+    tracker,
+    await loadMembers(tx, project.id),
+    ctx,
+    actAsCookie,
+    await canSwitchMember(tx, ctx, project, tracker),
+  );
 }
 
 export type Scope = {
@@ -52,6 +82,8 @@ export type Scope = {
   tracker: TrackerRow;
   members: Member[];
   me: Member | null;
+  /** The demo select may switch the acting member. */
+  canActAs: boolean;
   /** The signed-in person, who stays the same while they act as another member. */
   userId: string;
   tenant: Tenant;
@@ -65,11 +97,14 @@ async function scopeOf(
 ): Promise<Scope> {
   const tracker = await findTracker(db, project.id);
   const members = await loadMembers(db, project.id);
+  const canSwitch = await canSwitchMember(db, ctx, project, tracker);
+  const me = resolveActing(tracker, members, ctx, actAs, canSwitch);
   return {
     project,
     tracker,
     members,
-    me: resolveActing(tracker, members, ctx, actAs),
+    me,
+    canActAs: canSwitch && me !== null,
     userId: ctx.userId,
     tenant: { workspaceId: project.workspaceId, projectId: project.id },
   };

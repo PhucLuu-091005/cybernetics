@@ -79,7 +79,7 @@ export function fromLocalInput(value: string, tz: string): string | null {
 const hourBefore = (asOf: string, tz: string) => toInstant(Date.parse(asOf) - HOUR, tz);
 const weekAfter = (asOf: string, tz: string) => addDays(dayOf(asOf, tz), 7);
 
-function ModalFrame({
+export function ModalFrame({
   title,
   onClose,
   children,

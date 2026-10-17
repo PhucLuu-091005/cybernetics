@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { IdSchema, type ActorContext } from '../../../../../../contracts';
 import { ReviewScreen, type ReviewTab } from '../../../../../../components/tracker/ReviewScreen';
 import { getApp } from '../../../../../../server/app';
+import { signedInAccount } from '../../../../../../server/domain/account';
 import { AppError } from '../../../../../../server/errors';
 import { requireActor } from '../../../../../../server/http/rsc';
 import { getTrackerPayload } from '../../../../../../server/tracker';
@@ -41,6 +42,7 @@ export default async function ChangeRequestPage({
       projectId={id}
       num={Number(num)}
       initialTab={tabOf(search.tab)}
+      account={await signedInAccount(getApp().db, actor.userId)}
       serverNow={serverMinute()}
     />
   );

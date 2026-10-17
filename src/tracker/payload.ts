@@ -95,6 +95,8 @@ export type TrackerPayload = {
   project: TrackerProject;
   members: Member[];
   me: Member | null;
+  /** The signed-in person may switch the acting member: only in their own demo sandbox. */
+  canActAs: boolean;
   base: TrackerBase;
   queue: TrackerQueue;
   commits: Commit[];
