@@ -859,7 +859,7 @@ function ShareModal({ session, cr, busy, on, onClose }: PropsOf<'share'>) {
   if (!cr) return <Gone onClose={onClose} />;
   const link = shareLink(window.location.origin, projectId, cr.num);
   const others = payload.members.filter(
-    (m) => m.id !== cr.author && !cr.shares.some((s) => s.memberId === m.id),
+    (m) => m.active && m.id !== cr.author && !cr.shares.some((s) => s.memberId === m.id),
   );
   const pick = who && others.some((m) => m.id === who) ? who : (others[0]?.id ?? '');
   const copy = async () => {
