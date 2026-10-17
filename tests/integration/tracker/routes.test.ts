@@ -11,7 +11,7 @@ import { seedDemo, workspaceGuest, type Demo } from '../../support/tracker-db';
 const origin = 'http://localhost:3000';
 const secret = 'tracker-routes-test-secret-of-32-bytes';
 const apiRoot = join(process.cwd(), 'src/app/api/v1');
-type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 type Handler = (
   request: Request,
   context: { params: Promise<Record<string, string>> },
@@ -514,6 +514,70 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
         status: 404,
         body: { code: 'NOT_FOUND' },
       });
+    });
+  });
+  describe('members', () => {
+    const members = 'projects/[projectId]/members';
+    const one = 'projects/[projectId]/members/[memberId]';
+    const of = (id: string) => ({ ...p(), memberId: id });
+    const signInAs = (userId: string) =>
+      jar.set(SESSION_COOKIE, signSession({ userId, expiresAt: Date.now() + 600_000 }, secret));
+
+    it('lists, invites, changes a role and removes, each answering with the new list', async () => {
+      const list = await call('GET', members, p());
+      expect(list.status).toBe(200);
+      expect(list.headers.get('cache-control')).toBe('private, no-store');
+      expect(list.body.canManage).toBe(true);
+      expect(list.body.members).toHaveLength(5);
+
+      const invited = await call('POST', members, p(), {
+        email: 'New.Person@Example.com',
+        role: 'viewer',
+      });
+      expect(invited.status).toBe(201);
+      const row = invited.body.members.find(
+        (m: { email: string | null }) => m.email === 'new.person@example.com',
+      );
+      expect(row).toMatchObject({ role: 'viewer', pending: true });
+
+      const changed = await call('PATCH', one, of(row.id), { role: 'member' });
+      expect(changed.status).toBe(200);
+      expect(changed.body.members.find((m: { id: string }) => m.id === row.id).role).toBe('member');
+      const removed = await call('DELETE', one, of(row.id), undefined, { noBody: true });
+      expect(removed.status).toBe(200);
+      expect(removed.body.members).toHaveLength(5);
+      expect((await call('DELETE', one, of(row.id))).status).toBe(404);
+    });
+
+    it('validates the body with the route schema', async () => {
+      for (const body of [
+        { email: 'nope', role: 'member' },
+        { email: 'a@example.com', role: 'admin' },
+        { email: 'a@example.com', role: 'member', actAs: demo.ids.lan },
+        { email: 'a@example.com', role: 'member', projectId: demo.ids.lan },
+      ])
+        expect((await call('POST', members, p(), body)).status).toBe(400);
+      expect((await call('PATCH', one, of(demo.ids.lan), { role: 'boss' })).status).toBe(400);
+      expect((await call('PATCH', one, of('not-a-uuid'), { role: 'viewer' })).status).toBe(400);
+    });
+
+    it('shows the list read-only to a member who is not the owner and refuses their writes', async () => {
+      expect(
+        (await call('POST', `${tracker}/act-as`, p(), { memberId: demo.ids.lan })).status,
+      ).toBe(200);
+      const list = await call('GET', members, p());
+      expect(list.body.canManage).toBe(false);
+      expect(
+        (await call('POST', members, p(), { email: 'x@example.com', role: 'member' })).status,
+      ).toBe(403);
+      expect((await call('PATCH', one, of(demo.ids.khoa), { role: 'viewer' })).status).toBe(403);
+      expect((await call('DELETE', one, of(demo.ids.khoa))).status).toBe(403);
+    });
+
+    it('hides the members of a project from a person outside it', async () => {
+      const stranger = await testActor(t.db, { name: 'Stranger' });
+      signInAs(stranger.userId);
+      expect((await call('GET', members, p())).status).toBe(404);
     });
   });
 });

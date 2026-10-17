@@ -19,6 +19,7 @@ import type { Scope } from '../../contracts';
 import type {
   CrCommentKind,
   CrPermission,
+  MemberAccess,
   CrStatus,
   Op,
   QueueEventInput,
@@ -139,11 +140,19 @@ export const trackerMembers = pgTable(
     roleLabel: text('role_label').notNull(),
     color: text('color').notNull(),
     userId: uuid('user_id').references(() => users.id),
+    // Lower case. An invite waits with no user_id until a person signs in with this address.
+    email: text('email'),
+    access: text('access').$type<MemberAccess>().notNull().default('member'),
+    // A removed member keeps its row, because change requests and history still name it.
+    removedAt: tz('removed_at'),
     createdAt: createdAt(),
   },
   (table) => [
     unique('tracker_members_project_id_unique').on(table.projectId, table.id),
     unique('tracker_members_project_user_unique').on(table.projectId, table.userId),
+    unique('tracker_members_project_email_unique').on(table.projectId, table.email),
+    index('tracker_members_user_idx').on(table.userId),
+    index('tracker_members_email_idx').on(table.email),
     inProject('tracker_members', table),
   ],
 );

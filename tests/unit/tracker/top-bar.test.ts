@@ -11,8 +11,8 @@ import type { Member, TrackerPayload } from '../../../src/tracker/payload';
 import { buildState } from '../../support/tracker-fixture';
 
 const members: Member[] = [
-  { id: 'minh', name: 'Minh Trần', roleLabel: 'Owner', color: '#111', userId: 'u1' },
-  { id: 'lan', name: 'Lan Phạm', roleLabel: 'Lead', color: '#222', userId: null },
+  { id: 'minh', name: 'Minh Trần', roleLabel: 'Owner', color: '#111', userId: 'u1', active: true },
+  { id: 'lan', name: 'Lan Phạm', roleLabel: 'Lead', color: '#222', userId: null, active: true },
 ];
 
 const NONE: HiddenList = { teams: [], items: [], count: 0 };

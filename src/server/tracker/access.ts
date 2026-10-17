@@ -24,13 +24,14 @@ export function resolveActing(
   ctx: ActorContext,
   actAs?: string | null,
 ): Member | null {
-  const own = members.find((item) => item.userId === ctx.userId) ?? null;
+  // A viewer has a member row but acts as no one, so they read like a workspace guest.
+  const own = members.find((item) => item.userId === ctx.userId && item.active) ?? null;
   // The cookie only switches a member to another member; it never makes a guest a member.
   if (!actAs || !own) return own;
   if (ctx.kind === 'agent') throw new AppError('FORBIDDEN', 'An agent acts only as its user');
   if (!tracker.demo)
     throw new AppError('FORBIDDEN', 'Working as another person works only in a demo project');
-  const member = members.find((item) => item.id === actAs);
+  const member = members.find((item) => item.id === actAs && item.active);
   if (!member) throw new AppError('FORBIDDEN', 'That person is not a member of this project');
   return member;
 }

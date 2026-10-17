@@ -18,7 +18,7 @@ export interface HttpIdentityStore {
     userId: string,
   ): Promise<{ userId: string; defaultWorkspaceId: string } | null>;
   resolveMembership(userId: string, workspaceId: string): Promise<Membership | null>;
-  /** Returns the project's workspace only while the user is a member of it. */
+  /** Returns the project's workspace only while the user may open it: through the workspace, or through a project member that is not removed. */
   resolveProject(
     userId: string,
     projectId: string,
