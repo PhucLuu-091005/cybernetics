@@ -81,7 +81,7 @@ describe('targetAt: the drop target under a point of the graph', () => {
     expect(targetAt(L, { x: 60, y })).toEqual({ type: 'loop', id: 'b' });
     expect(targetAt(L, { x: X0 + 300, y: y + 14 })).toEqual({ type: 'loop', id: 'b' });
     expect(targetAt(L, { x: L.x1, y: y - 14 })).toEqual({ type: 'loop', id: 'b' });
-    expect(L.x1).toBeLessThan(X1);
+    expect(L.x1).toBe(X1);
   });
 
   it('falls back to the team band outside a row', () => {

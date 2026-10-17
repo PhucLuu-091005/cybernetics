@@ -32,6 +32,54 @@ export function drawnAt(
   return Date.parse(event.at) + clampOffset(event.at, minutes, timeZone) * MINUTE;
 }
 
+type Timed = Pick<TrackerEvent, 'id' | 'at' | 'workItemId'>;
+
+const byTime = (a: Timed, b: Timed) =>
+  Date.parse(a.at) - Date.parse(b.at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+const sameRowAndDay = (e: Timed, timeZone: string) => `${e.workItemId}|${dayOf(e.at, timeZone)}`;
+
+/** Offsets saved before the drag kept the order could put an earlier event right of a later one. */
+export function drawnTimes(
+  events: readonly Timed[],
+  offsets: Offsets,
+  timeZone: string,
+): Map<string, number> {
+  const drawn = new Map<string, number>();
+  const last = new Map<string, number>();
+  for (const e of [...events].sort(byTime)) {
+    const key = sameRowAndDay(e, timeZone);
+    const at = Math.max(drawnAt(e, offsets, timeZone), last.get(key) ?? -Infinity);
+    last.set(key, at);
+    drawn.set(e.id, at);
+  }
+  return drawn;
+}
+
+export function clampDrag(
+  event: Timed,
+  minutes: number,
+  events: readonly Timed[],
+  offsets: Offsets,
+  timeZone: string,
+): number {
+  const key = sameRowAndDay(event, timeZone);
+  const row = events.filter((e) => sameRowAndDay(e, timeZone) === key);
+  const drawn = drawnTimes(row, offsets, timeZone);
+  let min = -Infinity;
+  let max = Infinity;
+  for (const e of row) {
+    if (e.id === event.id) continue;
+    const t = drawn.get(e.id)!;
+    if (byTime(e, event) < 0) min = Math.max(min, t);
+    else max = Math.min(max, t);
+  }
+  const at = Date.parse(event.at);
+  const lo = Math.ceil((min - at) / MINUTE);
+  const hi = Math.floor((max - at) / MINUTE);
+  return clampOffset(event.at, Math.min(hi, Math.max(lo, minutes)), timeZone);
+}
+
 export function offsetFor(at: string, drawnMs: number, timeZone: string): number {
   return clampOffset(at, (drawnMs - Date.parse(at)) / MINUTE, timeZone);
 }

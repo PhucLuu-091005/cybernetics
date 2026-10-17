@@ -8,30 +8,31 @@ import {
   type WorkItem,
 } from './model';
 import { descendantsOf } from './focus';
-import { drawnAt, type Offsets } from './offsets';
+import { drawnTimes, type Offsets } from './offsets';
 import type { Marks } from './ops';
 import { itemInfo, itemStatus, milestoneStatus, type ItemInfo } from './status';
 import { addDays, compareDay, dayOf, formatDay, formatStamp, startOfDayInstant } from './time';
 
 /**
- * SIDE is the fixed label column and RAIL the fixed milestone chip column; at zoom 1 the label
- * column, the time line and the rail fill VW together.
+ * SIDE is the fixed label column; at zoom 1 the label column and the time line fill VW together.
+ * Everything above TOP (the axis and the milestone line) stays pinned while the rows scroll.
  */
 export const GEOMETRY = {
   VW: 1060,
   X0: 236,
   X1: 1046,
   SIDE: 228,
-  RAIL: 132,
   AXIS_Y: 15,
   MS_Y: 33,
   TRUNK_Y: 48,
+  TOP: 64,
   ROW: 32,
   HEAD: 22,
+  INDENT: 12,
   MAX_ZOOM: 12,
 } as const;
 
-const { VW, X0, X1, SIDE, RAIL, AXIS_Y, MS_Y, TRUNK_Y, ROW, HEAD, MAX_ZOOM } = GEOMETRY;
+const { VW, X0, X1, SIDE, AXIS_Y, MS_Y, TRUNK_Y, TOP, ROW, HEAD, MAX_ZOOM } = GEOMETRY;
 const RIGHT = VW - X1;
 const HOUR = 3_600_000;
 const GROUP_GAP = 16;
@@ -50,6 +51,9 @@ export const STATUS_TONE: Record<Status, Tone> = {
   flate: 'caution',
 };
 
+/** Rows that match the filters, and their ancestors, which show dimmed so the tree stays readable. */
+export type RowMatch = { match: ReadonlySet<string>; context: ReadonlySet<string> };
+
 export type View = {
   hiddenRows: Set<string>;
   hiddenTeams: Set<string>;
@@ -61,12 +65,12 @@ export type View = {
   zoom?: number;
   offsets?: Offsets;
   focus?: string | null;
+  filter?: RowMatch | null;
   /** Rows carry a focus button next to the eye, so their labels are cut shorter. */
   focusButtons?: boolean;
 };
 
 export type Point = { x: number; y: number };
-export type Curve = { from: Point; c1: Point; c2: Point; to: Point };
 
 export type LayoutWindow = {
   start: string;
@@ -101,6 +105,8 @@ export type LayoutRow = {
   eyeLabel: string;
   focused: boolean;
   focusLabel: string;
+  depth: number;
+  dimmed: boolean;
 };
 type SegmentBase = { workItemId: string; x1: number; x2: number; y: number; tone: Tone };
 export type LayoutSegment =
@@ -118,55 +124,39 @@ export type LayoutEventGroup = {
   ariaLabel: string;
   tooltip: string;
 };
-/** The deadline of the milestone of a row, drawn on that row. */
-export type LayoutGoalTick = {
+/** It also tells which milestone the row belongs to, so rows need no milestone chip. */
+export type LayoutDeadline = {
   workItemId: string;
   milestoneId: string;
   date: string;
-  dateLabel: string;
-  dateAnchor: 'start' | 'end';
   x: number;
   y: number;
   tone: Tone;
+  stroke: Tone;
+  filled: boolean;
   changed: boolean;
+  /** A short milestone name, or null when the row has no room for it. */
+  label: string | null;
+  labelX: number;
+  labelAnchor: 'start' | 'end';
   ariaLabel: string;
   tooltip: string;
 };
-/** x is in the coordinates of the rail, which stays at the right edge while the time line scrolls. */
-export type LayoutMsChip = {
-  workItemId: string;
-  milestoneId: string;
+export type LayoutHandoffTarget = {
+  id: string;
+  teamId: string;
+  team: string;
+  title: string;
   text: string;
-  tone: Tone;
+};
+export type LayoutHandoff = {
+  fromId: string;
+  targets: LayoutHandoffTarget[];
   x: number;
   y: number;
   width: number;
   height: number;
-  ariaLabel: string;
-  tooltip: string;
-};
-export type LayoutStem = {
-  workItemId: string;
-  parentId: string | null;
-  x: number;
-  y1: number;
-  y2: number;
-  tone: Tone;
-};
-export type LayoutLink = Curve & {
-  fromId: string;
-  toId: string;
-  tone: Tone;
-  wait: boolean;
-};
-export type LayoutHandoff = {
-  fromId: string;
-  toId: string;
-  toTeamId: string;
-  x: number;
-  y: number;
-  size: number;
-  dir: 'up' | 'down';
+  dir: 'up' | 'down' | 'both';
   tone: Tone;
   wait: boolean;
   ariaLabel: string;
@@ -227,8 +217,6 @@ export type TrackerLayout = {
   width: number;
   /** The right end of the plotted window. */
   x1: number;
-  /** The width of the milestone chip column; 0 when no row has a milestone. */
-  rail: number;
   height: number;
   x: (t: number) => number;
   t: (x: number) => number;
@@ -239,10 +227,7 @@ export type TrackerLayout = {
   rows: LayoutRow[];
   segments: LayoutSegment[];
   eventGroups: LayoutEventGroup[];
-  goalTicks: LayoutGoalTick[];
-  msChips: LayoutMsChip[];
-  stems: LayoutStem[];
-  links: LayoutLink[];
+  deadlines: LayoutDeadline[];
   handoffs: LayoutHandoff[];
   trunk: LayoutTrunk;
   trunkSegments: LayoutTrunkSegment[];
@@ -268,7 +253,7 @@ type Ctx = {
   inWindow: Set<string>;
   /** Work items in the window that the viewer hid, by row or by team. */
   hidden: Set<string>;
-  /** Work items in the window outside the focus; they get no chip, as the focus panel lists the parent. */
+  /** Work items in the window outside the focus or the filters; they get no chip, as the focus panel lists the parent. */
   outside: Set<string>;
   eventsOf: (id: string) => TrackerEvent[];
   rows: Map<string, LayoutRow>;
@@ -284,25 +269,6 @@ const trunc = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…
 const later = (a: string, b: string) => (compareDay(a, b) >= 0 ? a : b);
 const baseTone = (info: ItemInfo): Tone => (info.done ? 'proceed' : 'route');
 const lateTone = (info: ItemInfo): Tone => (info.done ? 'caution' : 'danger');
-
-function curve(x1: number, y1: number, x2: number, y2: number): Curve {
-  const dx = Math.max(24, Math.abs(x2 - x1) / 2);
-  return {
-    from: { x: x1, y: y1 },
-    c1: { x: x1 + dx, y: y1 },
-    c2: { x: x2 - dx, y: y2 },
-    to: { x: x2, y: y2 },
-  };
-}
-
-function straight(x1: number, y1: number, x2: number, y2: number): Curve {
-  return {
-    from: { x: x1, y: y1 },
-    c1: { x: x1, y: y1 },
-    c2: { x: x2, y: y2 },
-    to: { x: x2, y: y2 },
-  };
-}
 
 function windowDays(
   state: TrackerState,
@@ -331,26 +297,48 @@ function windowDays(
 
 // The lane name is 10.5 px bold capitals with letter spacing.
 const LANE_CHAR = 7.6;
+const MAX_DEPTH = 3;
+
+/** Children follow their parent inside a team, so the indent of the labels reads as a tree. */
+function treeOrder(shown: WorkItem[]): Array<{ w: WorkItem; depth: number }> {
+  const ids = new Set(shown.map((w) => w.id));
+  const kids = new Map<string, WorkItem[]>();
+  for (const w of shown)
+    if (w.parentId && w.parentId !== w.id && ids.has(w.parentId))
+      kids.set(w.parentId, [...(kids.get(w.parentId) ?? []), w]);
+  const out: Array<{ w: WorkItem; depth: number }> = [];
+  const seen = new Set<string>();
+  const visit = (w: WorkItem, depth: number) => {
+    if (seen.has(w.id)) return;
+    seen.add(w.id);
+    out.push({ w, depth: Math.min(depth, MAX_DEPTH) });
+    for (const k of kids.get(w.id) ?? []) visit(k, depth + 1);
+  };
+  for (const w of shown) if (!w.parentId || !ids.has(w.parentId)) visit(w, 0);
+  // A parent loop has no root, so its rows join at the top level.
+  for (const w of shown) visit(w, 0);
+  return out;
+}
 
 function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
   const { state, view } = c;
   const lanes: LayoutLane[] = [];
-  let y = TRUNK_Y + 16;
+  let y = TOP;
   for (const team of state.teams) {
     const members = state.workItems.filter((w) => w.teamId === team.id && c.inWindow.has(w.id));
     const shown = members.filter((w) => !c.hidden.has(w.id) && !c.outside.has(w.id));
     if (view.hiddenTeams.has(team.id)) continue;
-    if (!shown.length && (members.length || view.focus)) continue;
+    if (!shown.length && (members.length || view.focus || view.filter)) continue;
     const top = y;
     y += HEAD;
-    for (const w of shown) {
+    for (const { w, depth } of treeOrder(shown)) {
       const info = c.infos.get(w.id)!;
       const focused = view.focus === w.id;
       c.rows.set(w.id, {
         id: w.id,
         teamId: team.id,
         title: w.title,
-        label: trunc(w.title, view.focusButtons ? 24 : 26),
+        label: trunc(w.title, (view.focusButtons ? 24 : 26) - 2 * depth),
         y: y + ROW / 2,
         done: info.done,
         status: itemStatus(w, c.eventsOf(w.id), view.asOf, c.tz),
@@ -359,6 +347,8 @@ function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
         eyeLabel: `Hide ${w.title}`,
         focused,
         focusLabel: `Focus on ${w.title}`,
+        depth,
+        dimmed: !!view.filter && !view.filter.match.has(w.id),
       });
       y += ROW;
     }
@@ -394,18 +384,12 @@ function startOf(c: Ctx, w: WorkItem): number {
   return sourcesDone ?? asOf - EMPTY_LEAD;
 }
 
-type AddChip = (id: string, source: string) => void;
-
-function linesOf(c: Ctx, shown: LayoutRow[], addChip: AddChip) {
+function linesOf(c: Ctx, shown: LayoutRow[]): LayoutSegment[] {
   const segments: LayoutSegment[] = [];
-  const stems: LayoutStem[] = [];
   for (const r of shown) {
     const w = c.items.get(r.id)!;
     const info = c.infos.get(r.id)!;
-    const begin = startOf(c, w);
-    const sx = Math.max(X0, c.x(begin));
-    const stem = begin >= c.startMs ? stemOf(c, w, r, sx, addChip) : null;
-    if (stem) stems.push(stem);
+    const sx = Math.max(X0, c.x(startOf(c, w)));
     if (info.start === null) {
       const waits = w.after
         .map((id) => c.items.get(id))
@@ -436,63 +420,23 @@ function linesOf(c: Ctx, shown: LayoutRow[], addChip: AddChip) {
       line(lx, c.x(endAt), lateTone(info));
     } else line(sx, c.x(endAt), baseTone(info));
   }
-  return { segments, stems };
+  return segments;
 }
 
-/** A parent that is not on the graph gets the arrow chip and no stem, as the owner wants no ghost lines. */
-function stemOf(
-  c: Ctx,
-  w: WorkItem,
-  r: LayoutRow,
-  sx: number,
-  addChip: AddChip,
-): LayoutStem | null {
-  const info = c.infos.get(w.id)!;
-  const parentId = w.parentId && c.items.has(w.parentId) ? w.parentId : null;
-  const parentRow = parentId ? c.rows.get(parentId) : undefined;
-  if (parentId && !parentRow) {
-    addChip(w.id, parentId);
-    return null;
-  }
-  const tone: Tone = info.start === null ? 'ink-3' : baseTone(info);
-  return { workItemId: w.id, parentId, x: sx, y1: parentRow?.y ?? TRUNK_Y, y2: r.y, tone };
-}
-
-/** Same-team links curve; a link into another team draws only a handoff mark, so long lines do not cross the graph. */
-function leadLinks(
-  c: Ctx,
-  shown: LayoutRow[],
-  addChip: AddChip,
-  handoffs: LayoutHandoff[],
-): LayoutLink[] {
-  const marksEnd = new Map<string, number>();
-  for (const h of handoffs)
-    marksEnd.set(h.fromId, Math.max(marksEnd.get(h.fromId) ?? 0, h.x + h.size));
-  const links: LayoutLink[] = [];
+/** A parent or source that is not on the graph gets the arrow chip, as the owner wants no ghost lines. */
+function chipSourcesOf(c: Ctx, shown: LayoutRow[]): Map<string, string[]> {
+  const sources = new Map<string, string[]>();
   for (const r of shown) {
     const w = c.items.get(r.id)!;
-    const begin = Math.max(X0, c.x(startOf(c, w)));
-    for (const src of w.after) {
-      const si = c.infos.get(src);
-      if (!si) continue;
-      const sr = c.rows.get(src);
-      if (!sr) {
-        addChip(w.id, src);
-        continue;
-      }
-      if (sr.teamId !== r.teamId) continue;
-      const wait = !si.finishedAt;
-      const path = si.finishedAt
-        ? curve(Math.max(c.x(Date.parse(si.finishedAt)), marksEnd.get(src) ?? 0), sr.y, begin, r.y)
-        : straight(c.xt, sr.y, c.xt, r.y);
-      links.push({ fromId: src, toId: w.id, tone: wait ? 'danger' : 'proceed', wait, ...path });
-    }
+    const up = [...new Set(w.parentId ? [w.parentId, ...w.after] : w.after)];
+    const off = up.filter((id) => c.items.has(id) && !c.rows.has(id) && !c.outside.has(id));
+    if (off.length) sources.set(r.id, off);
   }
-  return links;
+  return sources;
 }
 
 const MARK = 14;
-const MARK_GAP = 3;
+const MARK_WIDE = 24;
 // A done source ends in its Done icon (radius 10); an open one ends at the T line, where an editor has the + button.
 const MARK_AFTER_DONE = 12;
 const MARK_AFTER_OPEN = 32;
@@ -500,46 +444,58 @@ const MARK_AFTER_OPEN = 32;
 function handoffsOf(c: Ctx): LayoutHandoff[] {
   const teamIndex = new Map(c.state.teams.map((t, i) => [t.id, i]));
   const teamName = new Map(c.state.teams.map((t) => [t.id, t.name]));
-  const order = (w: WorkItem) => teamIndex.get(w.teamId) ?? Infinity;
-  const targets = [...c.items.values()]
+  const itemIndex = new Map(c.state.workItems.map((w, i) => [w.id, i]));
+  const team = (w: WorkItem) => teamIndex.get(w.teamId) ?? Infinity;
+  // A hidden row has no y, so inside one team the order of the work items decides.
+  const below = (a: WorkItem, b: WorkItem) => {
+    const ya = c.rows.get(a.id)?.y;
+    const yb = c.rows.get(b.id)?.y;
+    const inTeam =
+      ya !== undefined && yb !== undefined ? ya - yb : itemIndex.get(a.id)! - itemIndex.get(b.id)!;
+    return team(a) - team(b) || inTeam;
+  };
+  const receivers = [...c.items.values()]
     .filter((w) => c.inWindow.has(w.id) && teamIndex.has(w.teamId))
-    .sort((a, b) => order(a) - order(b));
+    .sort(below);
   const bySource = new Map<string, WorkItem[]>();
-  for (const w of targets) {
-    for (const src of w.after) {
-      const sr = c.rows.get(src);
-      if (!sr || sr.teamId === w.teamId) continue;
-      bySource.set(src, [...(bySource.get(src) ?? []), w]);
-    }
-  }
-  return [...bySource].flatMap(([src, list]) => {
+  for (const w of receivers)
+    for (const src of new Set(w.after))
+      if (src !== w.id && c.rows.has(src)) bySource.set(src, [...(bySource.get(src) ?? []), w]);
+  return [...bySource].map(([src, list]): LayoutHandoff => {
+    const source = c.items.get(src)!;
     const sr = c.rows.get(src)!;
     const finishedAt = c.infos.get(src)!.finishedAt;
     const wait = !finishedAt;
     const end = wait ? c.xt : c.x(Date.parse(finishedAt));
-    const span = list.length * (MARK + MARK_GAP) - MARK_GAP;
+    const width = list.length > 1 ? MARK_WIDE : MARK;
     const after = end + (wait ? MARK_AFTER_OPEN : MARK_AFTER_DONE);
-    // Near the right edge the marks go left of the end, so the graph never cuts them.
-    const x0 = after + span <= c.width - 2 ? after : end - MARK_AFTER_DONE - span;
-    return list.map((w, i): LayoutHandoff => {
+    // Near the right edge the mark goes left of the end, so the graph never cuts it.
+    const x = after + width <= c.width - 2 ? after : end - MARK_AFTER_DONE - width;
+    const targets = list.map((w) => {
       const team = teamName.get(w.teamId)!;
       const text = wait
         ? `Hands over to ${team} when done · received in ${w.title}`
         : `Handed over to ${team} · received in ${w.title}`;
-      return {
-        fromId: src,
-        toId: w.id,
-        toTeamId: w.teamId,
-        x: x0 + i * (MARK + MARK_GAP),
-        y: sr.y - MARK / 2,
-        size: MARK,
-        dir: order(w) < (teamIndex.get(sr.teamId) ?? 0) ? 'up' : 'down',
-        tone: wait ? 'danger' : 'proceed',
-        wait,
-        ariaLabel: text,
-        tooltip: text,
-      };
+      return { id: w.id, teamId: w.teamId, team, title: w.title, text };
     });
+    const ups = list.map((w) => below(w, source) < 0);
+    const lines = targets.map((t) => t.text);
+    return {
+      fromId: src,
+      targets,
+      x,
+      y: sr.y - MARK / 2,
+      width,
+      height: MARK,
+      dir: ups.every(Boolean) ? 'up' : ups.some(Boolean) ? 'both' : 'down',
+      tone: wait ? 'danger' : 'proceed',
+      wait,
+      ariaLabel:
+        lines.length > 1
+          ? `${lines.length} handoffs from ${source.title}: ${lines.join('; ')}`
+          : lines[0],
+      tooltip: lines.join('\n'),
+    };
   });
 }
 
@@ -551,64 +507,105 @@ function makesLate(c: Ctx, w: WorkItem, planned: string): boolean {
   return after(c.today) || after(w.plannedFinish);
 }
 
-function memberOf(c: Ctx, shown: LayoutRow[]) {
+const SHORT = 16;
+const LINK_WORDS = new Set([
+  'a',
+  'an',
+  'and',
+  'at',
+  'for',
+  'in',
+  'of',
+  'on',
+  'or',
+  'the',
+  'to',
+  'with',
+  '&',
+]);
+
+export function shortName(name: string): string {
+  const words = name.split(/\s+/).filter(Boolean);
+  const kept: string[] = [];
+  for (const word of words) {
+    if ([...kept, word].join(' ').length > SHORT) break;
+    kept.push(word);
+  }
+  while (kept.length > 1 && LINK_WORDS.has(kept.at(-1)!.toLowerCase())) kept.pop();
+  if (!kept.length) return trunc(name, SHORT);
+  const short = kept.join(' ');
+  return short.length < name.trim().length ? `${short}…` : short;
+}
+
+type Span = [number, number];
+const LABEL_GAP = 9;
+const LABEL_CHAR = 5.4;
+const EVENT_ROOM = 11;
+const WAIT_CHAR = 5.6;
+
+/** What already sits on each row near the line, so the milestone name goes only where it is free. */
+function busyOf(
+  segments: LayoutSegment[],
+  groups: LayoutEventGroup[],
+  handoffs: LayoutHandoff[],
+  chips: LayoutChip[],
+  rowOf: Map<number, string>,
+): Map<string, Span[]> {
+  const busy = new Map<string, Span[]>();
+  const add = (id: string | undefined, span: Span) => {
+    if (id) busy.set(id, [...(busy.get(id) ?? []), span]);
+  };
+  for (const g of groups) add(g.workItemId, [g.x - EVENT_ROOM, g.x + EVENT_ROOM]);
+  for (const h of handoffs) add(rowOf.get(h.y + h.height / 2), [h.x - 2, h.x + h.width + 2]);
+  for (const ch of chips) add(ch.workItemId, [ch.x - 2, ch.x + ch.size + 2]);
+  for (const s of segments)
+    if (s.kind === 'wait') add(s.workItemId, [s.textX - 2, s.textX + s.text.length * WAIT_CHAR]);
+  return busy;
+}
+
+function deadlinesOf(
+  c: Ctx,
+  shown: LayoutRow[],
+  statusOf: Map<string, MsStatus>,
+  busy: Map<string, Span[]>,
+): LayoutDeadline[] {
   const byId = new Map(c.state.milestones.map((m) => [m.id, m]));
-  return shown.flatMap((r) => {
+  return shown.flatMap((r): LayoutDeadline[] => {
     const m = r.milestoneId ? byId.get(r.milestoneId) : undefined;
     if (!m) return [];
     const w = c.items.get(r.id)!;
-    const late = makesLate(c, w, m.planned);
-    const tone: Tone = late ? (r.done ? 'caution' : 'danger') : 'ink-2';
-    const reason = late ? (r.done ? 'finished after it' : 'makes it late') : null;
-    return [{ r, m, late, tone, reason }];
-  });
-}
-
-const CHIP_CHAR = 5.6;
-
-function msChipsOf(c: Ctx, shown: LayoutRow[]): LayoutMsChip[] {
-  return memberOf(c, shown).map(({ r, m, tone, reason }) => {
-    const text = `◆ ${trunc(m.name, 18)}`;
-    const width = text.length * CHIP_CHAR + 14;
-    const day = formatDay(m.planned);
-    return {
-      workItemId: r.id,
-      milestoneId: m.id,
-      text,
-      tone,
-      x: RAIL - width - 6,
-      y: r.y - 7,
-      width,
-      height: 14,
-      ariaLabel: `Milestone ${m.name}, due ${day}${reason ? `, this work item ${reason}` : ''}`,
-      tooltip: `${m.name} · ${day}${reason ? `\nThis work item ${reason}.` : ''}`,
-    };
-  });
-}
-
-const DATE_GAP = 6;
-const DATE_CHAR = 5.4;
-
-function goalTicksOf(c: Ctx, shown: LayoutRow[]): LayoutGoalTick[] {
-  return memberOf(c, shown).flatMap(({ r, m, late, tone, reason }): LayoutGoalTick[] => {
-    // A passed deadline matters only where it still explains a delay.
-    if (compareDay(c.today, m.planned) > 0 && !late) return [];
-    const day = formatDay(m.planned);
-    const x = c.noonX(m.planned);
-    const text = `Milestone ${m.name} due ${day}`;
+    const { status } = statusOf.get(m.id)!;
+    const tone = STATUS_TONE[status];
+    const changed = !!c.marks?.dates.has(`ms:${m.id}`);
+    const reason = makesLate(c, w, m.planned)
+      ? r.done
+        ? 'finished after it'
+        : 'makes it late'
+      : null;
+    const x = Math.max(X0 + 4, c.noonX(m.planned));
+    const text = `${m.name} · deadline ${formatDay(m.planned)} · ${STATUS_LABEL[status]}`;
+    const name = shortName(m.name);
+    const width = name.length * LABEL_CHAR;
+    const free = ([a, b]: Span) =>
+      a >= X0 && b <= c.width - 2 && (busy.get(r.id) ?? []).every(([p, q]) => b < p || a > q);
+    const right: Span = [x + LABEL_GAP, x + LABEL_GAP + width];
+    const left: Span = [x - LABEL_GAP - width, x - LABEL_GAP];
+    const side = free(right) ? 'start' : free(left) ? 'end' : null;
     return [
       {
         workItemId: r.id,
         milestoneId: m.id,
         date: m.planned,
-        dateLabel: day,
-        // A date near the right edge goes to the left of its bar, so the graph never cuts the text.
-        dateAnchor: x + DATE_GAP + day.length * DATE_CHAR > c.width ? 'end' : 'start',
         x,
         y: r.y,
         tone,
-        changed: !!c.marks?.dates.has(`ms:${m.id}`),
-        ariaLabel: text,
+        stroke: changed ? 'change' : tone,
+        filled: status !== 'planned',
+        changed,
+        label: side ? name : null,
+        labelX: side === 'end' ? x - LABEL_GAP : x + LABEL_GAP,
+        labelAnchor: side ?? 'start',
+        ariaLabel: reason ? `${text}, this work item ${reason}` : text,
         tooltip: reason ? `${text}\nThis work item ${reason}.` : text,
       },
     ];
@@ -681,10 +678,11 @@ function ticksOf(c: Ctx, start: string, endMs: number): LayoutTick[] {
 }
 
 function groupsOf(c: Ctx, w: WorkItem, r: LayoutRow, info: ItemInfo): LayoutEventGroup[] {
-  const offsets = c.view.offsets ?? {};
+  const times = drawnTimes(info.events, c.view.offsets ?? {}, c.tz);
+  const real = new Map(info.events.map((e, i) => [e.id, i]));
   const drawn = info.events
-    .map((e) => ({ e, at: drawnAt(e, offsets, c.tz) }))
-    .sort((a, b) => a.at - b.at);
+    .map((e) => ({ e, at: times.get(e.id)! }))
+    .sort((a, b) => a.at - b.at || real.get(a.e.id)! - real.get(b.e.id)!);
   const groups: Array<{ x: number; events: TrackerEvent[] }> = [];
   for (const { e, at } of drawn) {
     if (at < c.startMs) continue;
@@ -754,7 +752,7 @@ function placeMilestones(c: Ctx, statusOf: Map<string, MsStatus>): LayoutMilesto
       label,
       ariaLabel: label,
       labelX: right ? mx - MS_GAP : mx + MS_GAP,
-      labelY: level ? TRUNK_Y + 17 : MS_Y,
+      labelY: level ? TRUNK_Y + 13 : MS_Y,
       anchor: right ? 'end' : 'start',
       level,
       labelBox: { x0, x1 },
@@ -793,30 +791,23 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
   );
   const focus = view.focus && items.has(view.focus) ? view.focus : null;
   const inFocus = focus ? descendantsOf(state, focus) : null;
-  const outside = new Set(inFocus ? [...inWindow].filter((id) => !inFocus.has(id)) : []);
-  const milestoneIds = new Set(state.milestones.map((m) => m.id));
-  const teamIds = new Set(state.teams.map((tm) => tm.id));
-  const rail = [...inWindow].some((id) => {
-    const w = items.get(id)!;
-    return (
-      !hidden.has(id) &&
-      !outside.has(id) &&
-      teamIds.has(w.teamId) &&
-      !!w.milestoneId &&
-      milestoneIds.has(w.milestoneId)
-    );
-  })
-    ? RAIL
-    : 0;
+  const filter = view.filter ?? null;
+  const outside = new Set(
+    [...inWindow].filter(
+      (id) =>
+        (inFocus && !inFocus.has(id)) ||
+        (filter && !filter.match.has(id) && !filter.context.has(id)),
+    ),
+  );
   const raw = view.zoom ?? 1;
   const zoom = Number.isFinite(raw) ? Math.min(MAX_ZOOM, Math.max(1, raw)) : 1;
-  const x1 = X0 + (X1 - rail - X0) * zoom;
+  const x1 = X0 + (X1 - X0) * zoom;
   const x = (t: number) => X0 + ((t - startMs) / (endMs - startMs)) * (x1 - X0);
   const t = (px: number) => startMs + ((px - X0) / (x1 - X0)) * (endMs - startMs);
   const people = new Map(state.people.map((p) => [p.id, p.name]));
   const c: Ctx = {
     state,
-    view: { ...view, focus },
+    view: { ...view, focus, filter },
     marks,
     tz,
     today: dayOf(view.asOf, tz),
@@ -839,14 +830,9 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     lateFrom: (w) => dayStart(addDays(w.plannedFinish, 1)),
   };
   const { lanes, height } = placeRows(c);
-  const shown = [...c.rows.values()];
-  const chipSources = new Map<string, Set<string>>();
-  const addChip: AddChip = (id, source) => {
-    if (!outside.has(source)) chipSources.set(id, (chipSources.get(id) ?? new Set()).add(source));
-  };
-  const { segments, stems } = linesOf(c, shown, addChip);
+  const shown = [...c.rows.values()].sort((a, b) => a.y - b.y);
+  const segments = linesOf(c, shown);
   const handoffs = handoffsOf(c);
-  const links = leadLinks(c, shown, addChip, handoffs);
   const statusOf = new Map(
     state.milestones.map((m) => [
       m.id,
@@ -854,11 +840,24 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     ]),
   );
   const item = (r: LayoutRow) => c.items.get(r.id)!;
+  const chipSources = chipSourcesOf(c, shown);
+  const chips = shown.flatMap((r) => {
+    const w = item(r);
+    const sources = (chipSources.get(r.id) ?? []).filter((id) => !throughShownRow(c, w, id));
+    return sources.length ? [chipOf(c, w, r, sources)] : [];
+  });
+  const eventGroups = shown.flatMap((r) => groupsOf(c, item(r), r, infos.get(r.id)!));
+  const busy = busyOf(
+    segments,
+    eventGroups,
+    handoffs,
+    chips,
+    new Map(shown.map((r) => [r.y, r.id])),
+  );
   return {
     zoom,
     width: c.width,
     x1,
-    rail,
     height,
     x,
     t,
@@ -874,20 +873,13 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     lanes,
     rows: shown,
     segments,
-    eventGroups: shown.flatMap((r) => groupsOf(c, item(r), r, infos.get(r.id)!)),
-    goalTicks: goalTicksOf(c, shown),
-    msChips: msChipsOf(c, shown),
-    stems,
-    links,
+    eventGroups,
+    deadlines: deadlinesOf(c, shown, statusOf, busy),
     handoffs,
     trunk: { x1: X0, x2: x1, y: TRUNK_Y },
     trunkSegments: trunkSegmentsOf(c, statusOf),
     milestones: placeMilestones(c, statusOf),
-    chips: shown.flatMap((r) => {
-      const w = item(r);
-      const sources = [...(chipSources.get(r.id) ?? [])].filter((id) => !throughShownRow(c, w, id));
-      return sources.length ? [chipOf(c, w, r, sources)] : [];
-    }),
+    chips,
     laneDrops: lanes.map((l) => ({
       teamId: l.teamId,
       x: X0,
