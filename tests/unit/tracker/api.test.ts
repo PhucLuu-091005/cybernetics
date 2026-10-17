@@ -144,7 +144,7 @@ describe('tracker api request shapes', () => {
     ['comment', { action: 'comment', body: 'Looks good', opIndex: 1 }],
     ['merge', { action: 'merge', picks: { 'loop:pg203:title': 'cr' }, expectedRevision: 4 }],
     ['request-changes', { action: 'request-changes', note: 'Add the date.', expectedRevision: 4 }],
-    ['close', { action: 'close', expectedRevision: 4 }],
+    ['close', { action: 'close', reason: 'Main has it already.', expectedRevision: 4 }],
   ])('sends the %s action to POST /crs/[num]/actions', async (_label, action) => {
     await crAction(PROJECT, 3, action);
     expect(last().url).toBe(`${BASE}/crs/3/actions`);
@@ -156,10 +156,12 @@ describe('tracker api request shapes', () => {
     // @ts-expect-error merge without expectedRevision
     const merge: CrAction = { action: 'merge', picks: {} };
     // @ts-expect-error close without expectedRevision
-    const close: CrAction = { action: 'close' };
+    const close: CrAction = { action: 'close', reason: 'Not needed.' };
+    // @ts-expect-error close without a reason
+    const silent: CrAction = { action: 'close', expectedRevision: 4 };
     // @ts-expect-error request-changes without expectedRevision
     const back: CrAction = { action: 'request-changes', note: 'Add the date.' };
-    expect([merge, close, back]).toHaveLength(3);
+    expect([merge, close, silent, back]).toHaveLength(4);
   });
 });
 

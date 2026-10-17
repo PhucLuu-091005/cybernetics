@@ -285,7 +285,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
 
   it('refuses request changes and close through the route without the revision the owner saw', async () => {
     const target = { ...p(), num: '2' };
-    for (const body of [{ action: 'request-changes', note: 'Split it.' }, { action: 'close' }])
+    for (const body of [
+      { action: 'request-changes', note: 'Split it.' },
+      { action: 'close', reason: 'Not needed.' },
+    ])
       expect(await call('POST', `${tracker}/crs/[num]/actions`, target, body)).toMatchObject({
         status: 400,
         body: { code: 'VALIDATION' },
