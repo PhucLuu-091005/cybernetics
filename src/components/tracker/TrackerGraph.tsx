@@ -14,7 +14,7 @@ import {
   GEOMETRY,
   STATUS_LABEL,
   STATUS_TONE,
-  type Curve,
+  type LayoutHandoff,
   type LayoutMilestone,
   type Tone,
   type TrackerLayout,
@@ -22,7 +22,7 @@ import {
 import { svgPoint } from './drag';
 import { Icon, SvgIcon } from './icons';
 
-const { VW, X0, SIDE, AXIS_Y, TRUNK_Y, MAX_ZOOM } = GEOMETRY;
+const { VW, X0, SIDE, AXIS_Y, TRUNK_Y, TOP, INDENT, MAX_ZOOM } = GEOMETRY;
 // The bin floats over the bottom of the graph, so the New team pill needs room above it.
 const TEAM_PILL_ROOM = 28;
 const ZOOM_STEP = 1.5;
@@ -31,7 +31,7 @@ const REVEAL_FLASH_MS = 1500;
 const REVEAL_PAD = 40;
 const TIP_ROOM = 180;
 
-export type PopKind = 'act' | 'loop' | 'stack';
+export type PopKind = 'act' | 'stack';
 export type DatePreview = { kind: 'item' | 'ms'; id: string; x: number; label?: string };
 /** A new key asks the graph to bring the row into view again, even for the same row. */
 export type Reveal = { rowId: string; key: number };
@@ -40,6 +40,7 @@ type Props = {
   layout: TrackerLayout;
   edit: boolean;
   selectedMs: string | null;
+  selectedRow?: string | null;
   flash: string | null;
   focusRow?: string | null;
   focusMs?: string | null;
@@ -56,17 +57,20 @@ type Props = {
   /** Without it, rows have no focus button. */
   onFocusItem?: (workItemId: string) => void;
   onHandoff?: (workItemId: string) => void;
+  /** A click on a row label or its line; without it a row click does nothing. */
+  onRow?: (workItemId: string) => void;
   onPop: (kind: PopKind, id: string, anchor: Element) => void;
   onMilestone: (milestoneId: string) => void;
   onAddEvent: (workItemId: string) => void;
   onNewMilestone: () => void;
   onNewTeam: () => void;
   onBackground: () => void;
+  /** Without it, the zoom corner has no full view button. */
+  full?: boolean;
+  onFull?: () => void;
 };
 
 const color = (tone: Tone) => `var(--${tone})`;
-const path = ({ from, c1, c2, to }: Curve) =>
-  `M${from.x} ${from.y} C${c1.x} ${c1.y} ${c2.x} ${c2.y} ${to.x} ${to.y}`;
 const cls = (...names: Array<string | false | null | undefined>) => names.filter(Boolean).join(' ');
 const share = (part: number, whole: number) => `${(100 * part) / whole}%`;
 const clampZoom = (z: number) => Math.min(MAX_ZOOM, Math.max(1, z));
@@ -79,6 +83,8 @@ function groupBy<T extends { workItemId: string }>(list: readonly T[]): Map<stri
 
 const TARGETS =
   '[data-eyerow],[data-eyeteam],[data-focusitem],[data-show],[data-handoff],[data-act],[data-ms],[data-goal],[data-plus],[data-newms],[data-newteam],[data-rowlabel],[data-loop]';
+const HAND_ICON = { up: 'cornerUp', down: 'cornerDown', both: 'upDown' } as const;
+const DIAMOND = 'M0 -6 L6 0 L0 6 L-6 0 Z';
 const ROWS = '[data-loop],[data-act],[data-rowlabel],[data-plus]';
 
 function MilestoneMark({ m }: { m: LayoutMilestone }) {
@@ -103,12 +109,18 @@ function MilestoneMark({ m }: { m: LayoutMilestone }) {
 export function TrackerGraph(props: Props) {
   const { layout: L, edit, selectedMs, focusRow, focusMs, lifted, preview } = props;
   const events = groupBy(L.eventGroups);
-  const goals = groupBy(L.goalTicks);
+  const deadlines = groupBy(L.deadlines);
   const chips = groupBy(L.chips);
+  const dim = new Set(L.rows.filter((r) => r.dimmed).map((r) => r.id));
+  const dimCls = (id: string) => dim.has(id) && 'dim';
   const xt = L.tLine.x;
   const H = L.height + (edit ? TEAM_PILL_ROOM : 0);
+  const BODY = H - TOP;
   const root = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  const body = useRef<HTMLDivElement>(null);
+  const head = useRef<HTMLDivElement>(null);
+  const headTime = useRef<HTMLDivElement>(null);
   const timeSvg = useRef<SVGSVGElement>(null);
   const latest = useRef({ L, onZoom: props.onZoom, onBackground: props.onBackground });
   useLayoutEffect(() => {
@@ -146,20 +158,38 @@ export function TrackerGraph(props: Props) {
     el.scrollLeft = (L.x(a.t) - SIDE) * scale - (a.clientX - el.getBoundingClientRect().left);
   }, [L]);
 
-  const frame = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const el = frame.current;
-    if (!el) return;
+    const el = root.current;
+    const pinned = head.current;
+    if (!el || !pinned) return;
     const onWheel = (event: WheelEvent) => {
-      if (!event.ctrlKey && !event.metaKey) return;
-      event.preventDefault();
-      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1;
-      zoomBy(Math.exp(-event.deltaY * unit * 0.002), event.clientX);
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault();
+        const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1;
+        zoomBy(Math.exp(-event.deltaY * unit * 0.002), event.clientX);
+      } else if (pinned.contains(event.target as Node) && event.deltaX && scroller.current) {
+        // The pinned axis has no scroll of its own, so a sideways swipe on it moves the time line.
+        event.preventDefault();
+        scroller.current.scrollLeft += event.deltaX;
+      }
     };
     // React registers wheel listeners as passive, and a passive listener cannot stop the page zoom.
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
   }, [zoomBy]);
+
+  // The pinned axis sits outside the scrolling graph, so it copies the sideways scroll of the rows.
+  const syncHead = useCallback(() => {
+    if (head.current && body.current) head.current.scrollLeft = body.current.scrollLeft;
+    if (headTime.current && scroller.current)
+      headTime.current.scrollLeft = scroller.current.scrollLeft;
+  }, []);
+  useEffect(() => {
+    const els = [body.current, scroller.current];
+    els.forEach((el) => el?.addEventListener('scroll', syncHead, { passive: true }));
+    return () => els.forEach((el) => el?.removeEventListener('scroll', syncHead));
+  }, [syncHead]);
+  useLayoutEffect(syncHead);
 
   const [revealed, setRevealed] = useState<{ id: string; key: number } | null>(null);
   const pendingReveal = useRef<Reveal | null>(null);
@@ -223,14 +253,47 @@ export function TrackerGraph(props: Props) {
     setTip({ text, x, y: r.top - box.top, align });
   };
   const hideTip = () => setTip(null);
-  const tipShown = !!tip;
+  const [menu, setMenu] = useState<{ fromId: string; x: number; y: number; align: string } | null>(
+    null,
+  );
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuMark = menu ? L.handoffs.find((h) => h.fromId === menu.fromId) : undefined;
+  const closeMenu = (refocus: boolean) => {
+    const from = menu?.fromId;
+    setMenu(null);
+    if (from && refocus)
+      root.current?.querySelector<SVGElement>(`svg.pg [data-handoff="${from}"]`)?.focus();
+  };
+  const openMenu = (el: Element, h: LayoutHandoff) => {
+    const box = root.current?.getBoundingClientRect();
+    if (!box) return;
+    const r = el.getBoundingClientRect();
+    const x = r.left + r.width / 2 - box.left;
+    const align = x < TIP_ROOM ? 'start' : x > box.width - TIP_ROOM ? 'end' : 'mid';
+    setMenu({ fromId: h.fromId, x, y: r.bottom - box.top, align });
+  };
+  const floating = !!tip || !!menu;
   useEffect(() => {
-    if (!tipShown) return;
-    const hide = () => setTip(null);
+    if (!floating) return;
+    const hide = (event: Event) => {
+      if (menuRef.current?.contains(event.target as Node)) return;
+      setTip(null);
+      setMenu(null);
+    };
     // Capture sees the scroll of every container, and any of them moves the mark away from its tip.
     document.addEventListener('scroll', hide, { capture: true, passive: true });
     return () => document.removeEventListener('scroll', hide, { capture: true });
-  }, [tipShown]);
+  }, [floating]);
+  useEffect(() => {
+    if (!menu) return;
+    menuRef.current?.querySelector<HTMLElement>('button')?.focus();
+    const onDown = (event: PointerEvent) => {
+      const t = event.target as Element;
+      if (!menuRef.current?.contains(t) && !t.closest?.('[data-handoff]')) setMenu(null);
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [menu]);
   // Label text measures differ by glyph, so a clip keeps a long label off the buttons.
   const clipId = `labels-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const labelEnd = X0 - (props.onFocusItem ? 54 : 36);
@@ -252,7 +315,11 @@ export function TrackerGraph(props: Props) {
     if (!el || !d) return props.onBackground();
     if (d.handoff) {
       setTip(null);
-      return props.onHandoff?.(d.handoff);
+      const h = L.handoffs.find((x) => x.fromId === d.handoff);
+      if (!h) return;
+      if (h.targets.length === 1) return props.onHandoff?.(h.targets[0].id);
+      if (menu?.fromId === h.fromId) return setMenu(null);
+      return openMenu(el, h);
     }
     if (d.act) return props.onPop(d.stack ? 'stack' : 'act', d.stack ?? d.act, el);
     if (d.ms) return props.onMilestone(d.ms);
@@ -260,11 +327,8 @@ export function TrackerGraph(props: Props) {
     if (d.plus) return props.onAddEvent(d.plus);
     if (d.newms) return props.onNewMilestone();
     if (d.newteam) return props.onNewTeam();
-    if (d.rowlabel) {
-      const row = root.current?.querySelector(`svg.pg [data-loop="${d.rowlabel}"]`);
-      return props.onPop('loop', d.rowlabel, row ?? el);
-    }
-    if (d.loop) return props.onPop('loop', d.loop, el);
+    if (d.rowlabel) return props.onRow?.(d.rowlabel);
+    if (d.loop) return props.onRow?.(d.loop);
   };
   const onClick = (event: MouseEvent<SVGSVGElement>) => run(event.target as Element);
   const onKeyDown = (event: KeyboardEvent<SVGSVGElement>) => {
@@ -276,7 +340,8 @@ export function TrackerGraph(props: Props) {
   };
   const svgProps = { onClick, onKeyDown };
   const button = (label: string) => ({ role: 'button', tabIndex: 0, 'aria-label': label });
-  const rowCls = (id: string) => cls(focusRow === id && 'focus', flash === id && 'flash');
+  const rowCls = (id: string) =>
+    cls(focusRow === id && 'focus', flash === id && 'flash', props.selectedRow === id && 'sel');
   const bands = (x: number, width: number) =>
     L.lanes.map((lane) => (
       <rect
@@ -289,10 +354,39 @@ export function TrackerGraph(props: Props) {
       />
     ));
 
+  const sideHead = (
+    <svg
+      className="tg pg-top pg-top-side"
+      viewBox={`0 0 ${SIDE} ${TOP}`}
+      style={{ width: share(SIDE, VW) }}
+      role="group"
+      aria-label="Milestones"
+      {...svgProps}
+    >
+      <text className="lane-name" x={12} y={TRUNK_Y + 4}>
+        MILESTONES
+      </text>
+      {edit && (
+        <g
+          className="pill"
+          data-newms="1"
+          transform={`translate(112 ${TRUNK_Y - 8})`}
+          {...button('New milestone')}
+        >
+          <rect width={104} height={16} rx={8} />
+          <text x={52} y={11.5} textAnchor="middle">
+            + New milestone
+          </text>
+        </g>
+      )}
+      <line className="divider" x1={SIDE - 0.5} x2={SIDE - 0.5} y1={0} y2={TOP} />
+    </svg>
+  );
+
   const side = (
     <svg
       className="tg pg-side"
-      viewBox={`0 0 ${SIDE} ${H}`}
+      viewBox={`0 ${TOP} ${SIDE} ${BODY}`}
       style={{ width: share(SIDE, VW) }}
       role="group"
       aria-label="Teams and work items"
@@ -317,27 +411,11 @@ export function TrackerGraph(props: Props) {
           )}
         </Fragment>
       ))}
-      <text className="lane-name" x={12} y={TRUNK_Y + 4}>
-        MILESTONES
-      </text>
-      {edit && (
-        <g
-          className="pill"
-          data-newms="1"
-          transform={`translate(112 ${TRUNK_Y - 8})`}
-          {...button('New milestone')}
-        >
-          <rect width={104} height={16} rx={8} />
-          <text x={52} y={11.5} textAnchor="middle">
-            + New milestone
-          </text>
-        </g>
-      )}
       {edit && (
         <g
           className="pill"
           data-newteam="1"
-          transform={`translate(12 ${(L.lanes.at(-1)?.bottom ?? TRUNK_Y + 16) + 6})`}
+          transform={`translate(12 ${(L.lanes.at(-1)?.bottom ?? TOP) + 6})`}
           {...button('New team')}
         >
           <rect width={84} height={16} rx={8} />
@@ -346,128 +424,108 @@ export function TrackerGraph(props: Props) {
           </text>
         </g>
       )}
-      {L.rows.map((r) => (
-        <Fragment key={`side-${r.id}`}>
-          <rect
-            className={cls('hit', rowCls(r.id))}
-            data-rowlabel={r.id}
-            x={22}
-            y={r.y - 15}
-            width={SIDE - 22}
-            height={30}
-          />
-          <line className="guide" x1={16} x2={24} y1={r.y} y2={r.y} />
-          <text
-            className={cls(
-              'row-label',
-              r.changed && 'changed',
-              selectedMs && r.milestoneId === selectedMs && 'sel',
-            )}
-            x={28}
-            y={r.y + 4}
-            clipPath={`url(#${clipId})`}
-          >
-            {r.label}
-            <title>{r.title}</title>
-          </text>
-          <rect
-            className="label-hit"
-            data-rowlabel={r.id}
-            x={26}
-            y={r.y - 10}
-            width={X0 - (props.onFocusItem ? 82 : 64)}
-            height={20}
-          >
-            {edit && <title>Drag onto a milestone to add it</title>}
-          </rect>
-          {props.onFocusItem && (
-            <g
-              className={cls('eye', 'focus-btn', r.focused && 'on')}
-              data-focusitem={r.id}
-              aria-pressed={r.focused}
-              {...button(r.focusLabel)}
+      {L.rows.map((r) => {
+        const indent = r.depth * INDENT;
+        return (
+          <Fragment key={`side-${r.id}`}>
+            <rect
+              className={cls('hit', rowCls(r.id))}
+              data-rowlabel={r.id}
+              x={22}
+              y={r.y - 15}
+              width={SIDE - 22}
+              height={30}
+            />
+            <line className="guide" x1={16} x2={24 + indent} y1={r.y} y2={r.y} />
+            <text
+              className={cls(
+                'row-label',
+                r.changed && 'changed',
+                r.dimmed && 'dim',
+                selectedMs && r.milestoneId === selectedMs && 'sel',
+              )}
+              x={28 + indent}
+              y={r.y + 4}
+              clipPath={`url(#${clipId})`}
             >
-              <rect x={X0 - 52} y={r.y - 9} width={18} height={18} rx={4} />
-              <SvgIcon name="focus" x={X0 - 43} y={r.y} size={12} />
+              {r.label}
+              <title>{r.title}</title>
+            </text>
+            <rect
+              className="label-hit"
+              data-rowlabel={r.id}
+              x={26}
+              y={r.y - 10}
+              width={X0 - (props.onFocusItem ? 82 : 64)}
+              height={20}
+            >
               <title>
-                {r.focused ? 'Leave focus' : 'Focus: show only this and the work from it'}
+                {edit ? 'Open the details, or drag onto a milestone to add it' : 'Open the details'}
               </title>
+            </rect>
+            {props.onFocusItem && (
+              <g
+                className={cls('eye', 'focus-btn', r.focused && 'on')}
+                data-focusitem={r.id}
+                aria-pressed={r.focused}
+                {...button(r.focusLabel)}
+              >
+                <rect x={X0 - 52} y={r.y - 9} width={18} height={18} rx={4} />
+                <SvgIcon name="focus" x={X0 - 43} y={r.y} size={12} />
+                <title>
+                  {r.focused ? 'Leave focus' : 'Focus: show only this and the work from it'}
+                </title>
+              </g>
+            )}
+            <g className="eye" data-eyerow={r.id} {...button(r.eyeLabel)}>
+              <rect x={X0 - 33} y={r.y - 9} width={18} height={18} />
+              <SvgIcon name="eye" x={X0 - 24} y={r.y} size={12} />
             </g>
-          )}
-          <g className="eye" data-eyerow={r.id} {...button(r.eyeLabel)}>
-            <rect x={X0 - 33} y={r.y - 9} width={18} height={18} />
-            <SvgIcon name="eye" x={X0 - 24} y={r.y} size={12} />
-          </g>
-        </Fragment>
-      ))}
-      <line className="divider" x1={SIDE - 0.5} x2={SIDE - 0.5} y1={0} y2={H} />
+          </Fragment>
+        );
+      })}
+      <line className="divider" x1={SIDE - 0.5} x2={SIDE - 0.5} y1={TOP} y2={H} />
     </svg>
   );
 
-  const time = (
+  const grid = L.ticks.map((tick) => (
+    <line
+      key={`grid-${tick.date}`}
+      className="grid"
+      x1={tick.x}
+      x2={tick.x}
+      y1={TRUNK_Y}
+      y2={L.height}
+    />
+  ));
+  const tline = <line className="tline" x1={xt} x2={xt} y1={L.tLine.y1} y2={L.tLine.y2} />;
+  const timeWidth = { width: share(L.width - SIDE, VW - SIDE) };
+
+  const timeHead = (
     <svg
-      ref={timeSvg}
-      className="tg pg"
-      viewBox={`${SIDE} 0 ${L.width - SIDE} ${H}`}
-      style={{ width: share(L.width - SIDE, VW - SIDE - L.rail) }}
+      className="tg pg-top pg-top-time"
+      viewBox={`${SIDE} 0 ${L.width - SIDE} ${TOP}`}
+      style={timeWidth}
       role="group"
-      aria-label={L.window.label}
+      aria-label="Dates and milestones"
       {...svgProps}
     >
-      {bands(SIDE, L.width - SIDE)}
-      {L.ticks.map((tick) => (
-        <Fragment key={tick.date}>
-          <line className="grid" x1={tick.x} x2={tick.x} y1={TRUNK_Y} y2={L.height} />
-          {tick.labelled && (
-            <text className="tick" x={tick.x} y={AXIS_Y}>
+      {grid}
+      {L.ticks.map(
+        (tick) =>
+          tick.labelled && (
+            <text key={`tick-${tick.date}`} className="tick" x={tick.x} y={AXIS_Y}>
               {tick.label}
             </text>
-          )}
-        </Fragment>
-      ))}
-      <line className="tline" x1={xt} x2={xt} y1={L.tLine.y1} y2={L.tLine.y2} />
+          ),
+      )}
+      {tline}
       <g className="tpill">
         <rect x={xt - 44} y={AXIS_Y - 12} width={88} height={17} rx={8.5} />
         <text x={xt} y={AXIS_Y}>
           {L.tLine.label}
         </text>
       </g>
-      {L.stems.map((s) => (
-        <path
-          key={`stem-${s.workItemId}`}
-          className="stem"
-          d={`M${s.x} ${s.y1} L${s.x} ${s.y2}`}
-          style={{ stroke: color(s.tone) }}
-        />
-      ))}
-      {L.segments.map((s, i) =>
-        s.kind === 'wait' ? (
-          <Fragment key={`wait-${s.workItemId}`}>
-            <line className="wait-line" x1={s.x1} x2={s.x2} y1={s.y} y2={s.y} />
-            <text className="wait-text" x={s.textX} y={s.textY}>
-              {s.text}
-            </text>
-          </Fragment>
-        ) : (
-          <line
-            key={`seg-${s.workItemId}-${i}`}
-            className="seg"
-            x1={s.x1}
-            x2={s.x2}
-            y1={s.y}
-            y2={s.y}
-            style={{ stroke: color(s.tone) }}
-          />
-        ),
-      )}
-      {L.links.map((link) => (
-        <path
-          key={`link-${link.fromId}-${link.toId}`}
-          className={cls('link', link.wait && 'wait')}
-          d={path(link)}
-          style={{ stroke: color(link.tone) }}
-        />
-      ))}
       <line className="trunk" x1={L.trunk.x1} x2={L.trunk.x2} y1={L.trunk.y} y2={L.trunk.y} />
       {L.trunkSegments.map((s) => (
         <line
@@ -480,6 +538,67 @@ export function TrackerGraph(props: Props) {
           style={{ stroke: color(s.tone) }}
         />
       ))}
+      {L.milestones.map((m) => {
+        const moved = preview?.kind === 'ms' && preview.id === m.id ? preview : null;
+        const mx = moved ? moved.x : m.x;
+        return (
+          <g
+            key={m.id}
+            className={cls('ms', selectedMs === m.id && 'sel', focusMs === m.id && 'glow')}
+            data-ms={m.id}
+            transform={`translate(${mx} ${m.y})`}
+            {...button(m.ariaLabel)}
+          >
+            <rect className="ms-hit" x={-15} y={-15} width={30} height={30} />
+            <MilestoneMark m={m} />
+            <text
+              className={cls('ms-label', m.changed && 'changed')}
+              x={m.labelX - m.x}
+              y={m.labelY - m.y}
+              textAnchor={m.anchor}
+              style={m.changed ? undefined : { fill: color(m.labelTone) }}
+            >
+              {moved?.label ?? m.label}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+
+  const time = (
+    <svg
+      ref={timeSvg}
+      className="tg pg"
+      viewBox={`${SIDE} ${TOP} ${L.width - SIDE} ${BODY}`}
+      style={timeWidth}
+      role="group"
+      aria-label={L.window.label}
+      {...svgProps}
+    >
+      {bands(SIDE, L.width - SIDE)}
+      {grid}
+      {tline}
+      {L.segments.map((s, i) =>
+        s.kind === 'wait' ? (
+          <g key={`wait-${s.workItemId}`} className={cls(dimCls(s.workItemId))}>
+            <line className="wait-line" x1={s.x1} x2={s.x2} y1={s.y} y2={s.y} />
+            <text className="wait-text" x={s.textX} y={s.textY}>
+              {s.text}
+            </text>
+          </g>
+        ) : (
+          <line
+            key={`seg-${s.workItemId}-${i}`}
+            className={cls('seg', dimCls(s.workItemId))}
+            x1={s.x1}
+            x2={s.x2}
+            y1={s.y}
+            y2={s.y}
+            style={{ stroke: color(s.tone) }}
+          />
+        ),
+      )}
       {L.rows.map((r) => (
         <Fragment key={`row-${r.id}`}>
           <rect
@@ -489,32 +608,40 @@ export function TrackerGraph(props: Props) {
             y={r.y - 15}
             width={L.width - SIDE}
             height={30}
-            {...button(`${r.title}, ${STATUS_LABEL[r.status]}`)}
+            {...button(`${r.title}, ${STATUS_LABEL[r.status]}. Open the details`)}
           />
-          {(goals.get(r.id) ?? []).map((g) => (
+          {(deadlines.get(r.id) ?? []).map((d) => (
             <g
-              key={`goal-${g.workItemId}`}
-              className="goal"
-              data-goal={g.milestoneId}
-              transform={`translate(${g.x} ${g.y})`}
-              {...button(g.ariaLabel)}
+              key={`deadline-${d.workItemId}`}
+              className={cls('deadline', dimCls(r.id), selectedMs === d.milestoneId && 'sel')}
+              data-goal={d.milestoneId}
+              transform={`translate(${d.x} ${d.y})`}
+              {...button(d.ariaLabel)}
+              onPointerEnter={(event) => showTip(event.currentTarget, d.tooltip)}
+              onPointerLeave={hideTip}
+              onFocus={(event) => showTip(event.currentTarget, d.tooltip)}
+              onBlur={hideTip}
             >
-              <rect className="goal-hit" x={-8} y={-15} width={16} height={30} />
+              <rect className="deadline-hit" x={-9} y={-15} width={18} height={30} />
               <path
-                className="goal-bar"
-                d="M0 -9 V9"
-                style={{ stroke: color(g.changed ? 'change' : g.tone) }}
+                className="deadline-mark"
+                d={DIAMOND}
+                style={{
+                  stroke: color(d.stroke),
+                  fill: d.filled ? color(d.tone) : 'var(--panel)',
+                }}
               />
-              <text
-                className="goal-date"
-                x={g.dateAnchor === 'end' ? -6 : 6}
-                y={-6}
-                textAnchor={g.dateAnchor}
-                style={{ fill: color(g.tone) }}
-              >
-                {g.dateLabel}
-              </text>
-              <title>{g.tooltip}</title>
+              {d.label && (
+                <text
+                  className="deadline-name"
+                  x={d.labelX - d.x}
+                  y={-7}
+                  textAnchor={d.labelAnchor}
+                  style={{ fill: color(d.tone === 'ink-3' ? 'ink-2' : d.tone) }}
+                >
+                  {d.label}
+                </text>
+              )}
             </g>
           ))}
           {(events.get(r.id) ?? []).map((g) => {
@@ -523,7 +650,7 @@ export function TrackerGraph(props: Props) {
             return (
               <g
                 key={g.topId}
-                className={cls('act', lifted === g.topId && 'lift')}
+                className={cls('act', lifted === g.topId && 'lift', dimCls(r.id))}
                 data-act={g.topId}
                 data-stack={n > 1 ? g.eventIds.join(',') : undefined}
                 data-in={g.workItemId}
@@ -568,7 +695,7 @@ export function TrackerGraph(props: Props) {
           {(chips.get(r.id) ?? []).map((c) => (
             <g
               key={`chip-${c.workItemId}`}
-              className="chip"
+              className={cls('chip', dimCls(r.id))}
               data-show={c.sources.join(',')}
               transform={`translate(${c.x} ${c.y})`}
               {...button(c.ariaLabel)}
@@ -580,28 +707,38 @@ export function TrackerGraph(props: Props) {
           ))}
         </Fragment>
       ))}
-      {L.handoffs.map((h) => (
-        <g
-          key={`hand-${h.fromId}-${h.toId}`}
-          className="handoff"
-          data-handoff={h.toId}
-          transform={`translate(${h.x} ${h.y})`}
-          {...button(h.ariaLabel)}
-          onPointerEnter={(event) => showTip(event.currentTarget, h.tooltip)}
-          onPointerLeave={hideTip}
-          onFocus={(event) => showTip(event.currentTarget, h.tooltip)}
-          onBlur={hideTip}
-        >
-          <rect width={h.size} height={h.size} rx={4} />
-          <SvgIcon
-            name={h.dir === 'up' ? 'cornerUp' : 'cornerDown'}
-            x={h.size / 2}
-            y={h.size / 2}
-            size={10}
-            color={color(h.tone)}
-          />
-        </g>
-      ))}
+      {L.handoffs.map((h) => {
+        const many = h.targets.length > 1;
+        return (
+          <g
+            key={`hand-${h.fromId}`}
+            className={cls('handoff', dimCls(h.fromId), menu?.fromId === h.fromId && 'open')}
+            data-handoff={h.fromId}
+            transform={`translate(${h.x} ${h.y})`}
+            {...button(h.ariaLabel)}
+            aria-haspopup={many ? 'menu' : undefined}
+            aria-expanded={many ? menu?.fromId === h.fromId : undefined}
+            onPointerEnter={(event) => !menu && showTip(event.currentTarget, h.tooltip)}
+            onPointerLeave={hideTip}
+            onFocus={(event) => !menu && showTip(event.currentTarget, h.tooltip)}
+            onBlur={hideTip}
+          >
+            <rect width={h.width} height={h.height} rx={4} />
+            <SvgIcon
+              name={HAND_ICON[h.dir]}
+              x={h.height / 2}
+              y={h.height / 2}
+              size={10}
+              color={color(h.tone)}
+            />
+            {many && (
+              <text className="hand-n" x={h.width - 5} y={10.5} textAnchor="end">
+                {h.targets.length}
+              </text>
+            )}
+          </g>
+        );
+      })}
       {L.laneDrops.map((d) => (
         <Fragment key={`drop-${d.teamId}`}>
           <rect
@@ -618,92 +755,70 @@ export function TrackerGraph(props: Props) {
           </text>
         </Fragment>
       ))}
-      {L.milestones.map((m) => {
-        const moved = preview?.kind === 'ms' && preview.id === m.id ? preview : null;
-        const mx = moved ? moved.x : m.x;
-        return (
-          <g
-            key={m.id}
-            className={cls('ms', selectedMs === m.id && 'sel', focusMs === m.id && 'glow')}
-            data-ms={m.id}
-            transform={`translate(${mx} ${m.y})`}
-            {...button(m.ariaLabel)}
-          >
-            <rect className="ms-hit" x={-15} y={-15} width={30} height={30} />
-            <MilestoneMark m={m} />
-            <text
-              className={cls('ms-label', m.changed && 'changed')}
-              x={m.labelX - m.x}
-              y={m.labelY - m.y}
-              textAnchor={m.anchor}
-              style={m.changed ? undefined : { fill: color(m.labelTone) }}
-            >
-              {moved?.label ?? m.label}
-            </text>
-          </g>
-        );
-      })}
     </svg>
   );
 
-  const rail = L.rail > 0 && (
-    <svg
-      className="tg pg-rail"
-      viewBox={`0 0 ${L.rail} ${H}`}
-      style={{ width: share(L.rail, VW) }}
-      role="group"
-      aria-label="Milestones of the work items"
-      {...svgProps}
-    >
-      {bands(0, L.rail)}
-      {L.rows.map((r) => (
-        <rect
-          key={`rail-${r.id}`}
-          className={cls('hit', 'rail-row', rowCls(r.id))}
-          x={0}
-          y={r.y - 15}
-          width={L.rail}
-          height={30}
-        />
-      ))}
-      <line className="divider" x1={0.5} x2={0.5} y1={0} y2={H} />
-      {L.msChips.map((c) => (
-        <g
-          key={`ms-chip-${c.workItemId}`}
-          className={cls(
-            'ms-chip',
-            c.tone === 'ink-2' && 'calm',
-            selectedMs === c.milestoneId && 'sel',
-          )}
-          data-goal={c.milestoneId}
-          transform={`translate(${c.x} ${c.y})`}
-          style={{ color: color(c.tone) }}
-          {...button(c.ariaLabel)}
-        >
-          <rect width={c.width} height={c.height} rx={7} />
-          <text x={c.width / 2} y={10} textAnchor="middle">
-            {c.text}
-          </text>
-          <title>{c.tooltip}</title>
-        </g>
-      ))}
-    </svg>
-  );
+  const onMenuKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('button') ?? []);
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      closeMenu(true);
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      items[(at + step + items.length) % items.length]?.focus();
+    }
+  };
 
   return (
     <div className={cls('tgraph', edit && 'editable')} ref={root}>
-      <div className="gscroll">
-        <div className="gframe" ref={frame}>
+      <div className="ghead" ref={head}>
+        <div className="gframe">
+          {sideHead}
+          <div className="gtime" ref={headTime}>
+            {timeHead}
+          </div>
+        </div>
+      </div>
+      <div className="gscroll" ref={body}>
+        <div className="gframe">
           {side}
           <div className="gtime" ref={scroller}>
             {time}
           </div>
-          {rail}
         </div>
       </div>
       {tip && (
         <div className={`hand-tip ${tip.align}`} role="tooltip" style={{ left: tip.x, top: tip.y }}>
           {tip.text}
+        </div>
+      )}
+      {menu && menuMark && (
+        <div
+          ref={menuRef}
+          className={`hand-menu ${menu.align}`}
+          role="menu"
+          aria-label={`Handoffs from ${L.rows.find((r) => r.id === menu.fromId)?.title ?? ''}`}
+          style={{ left: menu.x, top: menu.y }}
+          onKeyDown={onMenuKey}
+        >
+          <p>{menuMark.wait ? 'Hands over when done to' : 'Handed over to'}</p>
+          {menuMark.targets.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenu(null);
+                props.onHandoff?.(t.id);
+              }}
+            >
+              <b>{t.title}</b>
+              <small>{t.team}</small>
+            </button>
+          ))}
         </div>
       )}
       <div className="zoombar" role="group" aria-label="Time zoom">
@@ -736,6 +851,18 @@ export function TrackerGraph(props: Props) {
         >
           Fit
         </button>
+        {props.onFull && (
+          <button
+            type="button"
+            className="full"
+            aria-label={props.full ? 'Leave full view' : 'Full view'}
+            aria-pressed={!!props.full}
+            title={props.full ? 'Leave full view (Esc)' : 'Full view'}
+            onClick={props.onFull}
+          >
+            <Icon name={props.full ? 'minimize' : 'maximize'} size={14} />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -755,10 +882,10 @@ export function Legend() {
       {line('var(--danger)', 'Open after its planned finish')}
       {line('var(--caution)', 'Done after its planned finish')}
       <span>
-        <svg width="6" height="14" viewBox="0 0 6 14" aria-hidden="true">
-          <path d="M3 2V12" stroke="var(--ink-2)" strokeWidth="3" strokeLinecap="round" />
+        <svg width="12" height="12" viewBox="-7 -7 14 14" aria-hidden="true">
+          <path d={DIAMOND} fill="var(--ink-3)" stroke="var(--ink-3)" strokeWidth="1.5" />
         </svg>
-        Milestone date on its work items
+        Milestone deadline on its work items
       </span>
       {(Object.keys(STATUS_LABEL) as Array<keyof typeof STATUS_LABEL>).map((status) => (
         <span key={status} style={{ color: color(STATUS_TONE[status]) }}>

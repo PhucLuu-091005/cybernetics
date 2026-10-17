@@ -550,8 +550,8 @@
   overflow-x: hidden;
 }
 
-/* Three columns share one scale: the label column and the milestone rail stay put while the time
-   line scrolls. The frame keeps 900 px so a phone scrolls the whole graph instead of squeezing it. */
+/* Two columns share one scale: the label column stays put while the time line scrolls. The frame
+   keeps 900 px so a phone scrolls the whole graph instead of squeezing it. */
 .tk .tgraph {
   position: relative;
   display: flex;
@@ -563,6 +563,19 @@
 }
 .tk .gscroll {
   overflow-x: auto;
+}
+/* The axis and the milestone line stay pinned while the rows scroll; the graph copies the sideways
+   scroll into them, as an element with a scroll of its own cannot hold a sticky child. */
+.tk .ghead {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  overflow: hidden;
+  background: var(--panel);
+  box-shadow: 0 1px 0 var(--rule);
+}
+.tk .ghead .gtime {
+  overflow: hidden;
 }
 .tk .gframe {
   display: flex;
@@ -627,6 +640,29 @@
 .tk .zoombar button:disabled {
   opacity: 0.35;
   cursor: default;
+}
+.tk .zoombar .full {
+  margin-left: 2px;
+  box-shadow: -1px 0 0 var(--rule);
+  border-radius: 0 7px 7px 0;
+}
+.tk .zoombar .full[aria-pressed='true'] {
+  color: var(--ink);
+}
+/* Full view: the board covers the window (the Fullscreen API adds the screen when the browser allows
+   it), and only the graph with its drawers and pops stays. */
+.tk.board.fullview {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  height: 100dvh;
+  min-height: 0;
+}
+.tk.board.fullview > .p-head,
+.tk.board.fullview > .bbar,
+.tk.board.fullview > .ro-note,
+.tk.board.fullview > .legend2 {
+  display: none;
 }
 .tk .ro-note {
   flex: none;
@@ -714,8 +750,143 @@
   border-radius: 9px;
   background: var(--panel);
   color: var(--ink);
-  padding: 7px 10px 7px 31px;
+  padding: 7px 40px 7px 31px;
   font: 14px var(--f-ui);
+}
+/* No transform here: it would trap the popup below the pinned graph axis. */
+.tk .tfilter {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+}
+.tk .tfilter > summary {
+  list-style: none;
+}
+.tk .tfilter > summary::-webkit-details-marker {
+  display: none;
+}
+.tk .tfilter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 28px;
+  min-width: 28px;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 7px;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.tk .tfilter-btn:hover,
+.tk .tfilter[open] > .tfilter-btn {
+  background: var(--gray-bg);
+  color: var(--ink);
+}
+.tk .tfilter-btn.on {
+  color: var(--ink);
+}
+.tk .tfilter-btn .cnt {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--ink);
+  color: var(--panel);
+}
+.tk .tfilter-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: -4px;
+  z-index: 12;
+  width: 380px;
+  max-width: calc(100vw - 24px);
+  max-height: min(72vh, 560px);
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  font-size: 13px;
+}
+.tk .fgroup {
+  border: 0;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tk .fgroup legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.tk .fchip {
+  position: relative;
+  display: inline-flex;
+}
+.tk .fchip input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.tk .fchip span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 99px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.tk .fchip:hover span {
+  border-color: var(--ink-3);
+}
+.tk .fchip input:checked + span {
+  background: var(--gray-bg);
+  border-color: var(--ink);
+  color: var(--ink);
+  font-weight: 600;
+}
+.tk .fchip input:focus-visible + span {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.tk .fdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.tk .fdot.st-planned {
+  background: var(--ink-3);
+}
+.tk .fdot.st-early {
+  background: var(--teal);
+}
+.tk .fdot.st-ontime {
+  background: var(--proceed);
+}
+.tk .fdot.st-late {
+  background: var(--danger);
+}
+.tk .fdot.st-flate {
+  background: var(--caution);
+}
+.tk .tfilter-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-3);
 }
 .tk .tsearch input:hover {
   border-color: var(--ink-3);
@@ -1105,19 +1276,6 @@ svg.tg .seg {
   stroke-linecap: round;
   fill: none;
 }
-svg.tg .stem {
-  stroke-width: 1.6;
-  fill: none;
-  opacity: 1;
-}
-svg.tg .link {
-  fill: none;
-  stroke-width: 1.6;
-}
-svg.tg .link.wait {
-  stroke-width: 1.4;
-  opacity: 0.7;
-}
 svg.tg .wait-line {
   stroke: var(--ink-3);
   stroke-width: 2.5;
@@ -1136,6 +1294,20 @@ svg.tg .hit {
 svg.tg .hit:hover {
   fill: color-mix(in srgb, var(--ink) 4%, transparent);
 }
+/* The row with its details open, and a row with keyboard focus, get a quiet band and no lines. */
+svg.tg .hit.sel {
+  fill: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+:root .tk svg.tg .hit:focus-visible {
+  outline: none;
+  fill: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+svg.tg .dim {
+  opacity: 0.35;
+}
+svg.tg .row-label.dim {
+  opacity: 0.5;
+}
 /* Yellow marks changes, so the picked row and a revealed row use a neutral band with an ink edge.
    The band sits over the row line, so it stays see-through: a light grey on the light theme. */
 svg.tg .hit.flash,
@@ -1144,9 +1316,6 @@ svg.tg .hit.focus {
   stroke: var(--ink);
   stroke-width: 1.5px;
   vector-effect: non-scaling-stroke;
-}
-svg.tg .hit.rail-row {
-  pointer-events: none;
 }
 svg.tg .lane-drop {
   fill: transparent;
@@ -1210,28 +1379,6 @@ svg.tg .ms-label {
 svg.tg .ms.glow .ms-c {
   filter: drop-shadow(0 0 4px var(--ink));
 }
-svg.tg .ms-chip {
-  cursor: pointer;
-}
-svg.tg .ms-chip rect {
-  fill: var(--panel);
-  stroke: currentColor;
-  stroke-width: 1;
-}
-svg.tg .ms-chip text {
-  font-size: 9.5px;
-  font-weight: 700;
-  fill: currentColor;
-}
-svg.tg .ms-chip.calm rect {
-  stroke: var(--rule);
-}
-svg.tg .ms-chip.sel rect {
-  stroke-width: 2;
-}
-svg.tg .ms-chip:hover rect {
-  fill: var(--sunk);
-}
 svg.tg .eye {
   cursor: pointer;
   color: var(--ink-3);
@@ -1256,12 +1403,67 @@ svg.tg .handoff rect {
   stroke: var(--ink-3);
 }
 svg.tg .handoff:hover rect,
-svg.tg .handoff:focus rect {
+svg.tg .handoff:focus rect,
+svg.tg .handoff.open rect {
   fill: var(--gray-bg);
   stroke: var(--ink);
 }
-svg.tg .handoff > g {
+svg.tg .handoff > g,
+svg.tg .handoff .hand-n {
   pointer-events: none;
+}
+svg.tg .hand-n {
+  font-size: 9.5px;
+  font-weight: 700;
+  fill: var(--ink-2);
+}
+.tk .hand-menu {
+  position: absolute;
+  z-index: 8;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  transform: translate(-50%, 6px);
+  font-size: 13px;
+}
+.tk .hand-menu.start {
+  transform: translate(-12px, 6px);
+}
+.tk .hand-menu.end {
+  transform: translate(calc(-100% + 12px), 6px);
+}
+.tk .hand-menu p {
+  margin: 2px 8px 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.tk .hand-menu button {
+  display: grid;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.3;
+  cursor: pointer;
+}
+.tk .hand-menu button:hover {
+  background: var(--gray-bg);
+}
+.tk .hand-menu b {
+  font-weight: 600;
+}
+.tk .hand-menu small {
+  color: var(--ink-3);
+  font-size: 12px;
 }
 .tk .hand-tip {
   position: absolute;
@@ -1274,7 +1476,7 @@ svg.tg .handoff > g {
   line-height: 1.35;
   padding: 5px 9px;
   border-radius: 7px;
-  white-space: nowrap;
+  white-space: pre;
   box-shadow: var(--shadow);
   transform: translate(-50%, calc(-100% - 6px));
 }
@@ -1374,23 +1576,24 @@ svg.tg .pill text {
   font-weight: 600;
   fill: var(--ink);
 }
-svg.tg .goal {
+svg.tg .deadline {
   cursor: pointer;
 }
-svg.tg .goal-hit {
+svg.tg .deadline-hit {
   fill: transparent;
 }
-svg.tg .goal-bar {
-  stroke-width: 3.2;
-  stroke-linecap: round;
+svg.tg .deadline-mark {
+  stroke-width: 1.5;
+  stroke-linejoin: round;
 }
-svg.tg .goal:hover .goal-bar,
-svg.tg .goal:focus .goal-bar {
-  stroke-width: 4.4;
+svg.tg .deadline:hover .deadline-mark,
+svg.tg .deadline:focus .deadline-mark,
+svg.tg .deadline.sel .deadline-mark {
+  stroke-width: 2.5;
 }
-/* The date takes no pointer, so it never blocks a click on an event or the row; its halo keeps it
-   readable over an event of the same day. */
-svg.tg .goal-date {
+/* The name takes no pointer, so it never blocks a click on the row; its halo keeps it readable
+   over the row line. */
+svg.tg .deadline-name {
   font-size: 9.5px;
   font-weight: 600;
   pointer-events: none;
@@ -1414,7 +1617,8 @@ svg.tg .goal-date {
   max-width: calc(100% - 16px);
   font-size: 14px;
 }
-.tk .pop:focus {
+.tk .pop:focus,
+:root .tk .pop:focus-visible {
   outline: none;
 }
 .tk .pop-h {
@@ -1617,7 +1821,9 @@ svg.tg .goal-date {
   overflow: auto;
   font-size: 14px;
 }
-.tk .drawer:focus {
+/* The panel takes the focus only to move it near its content; its controls keep their own ring. */
+.tk .drawer:focus,
+:root .tk .drawer:focus-visible {
   outline: none;
 }
 .tk .drawer h4 {
@@ -2361,6 +2567,15 @@ svg.tg .lane-drop.glow {
     grid-template-columns: minmax(0, 1fr);
   }
   /* The rail becomes a sticky top bar at this width. */
+  .tk .ghead {
+    top: 66px;
+  }
+  .tk.board.fullview .ghead {
+    top: 0;
+  }
+  .tk.board.fullview {
+    overflow: auto;
+  }
   .tk .move-hint-slot {
     top: 66px;
   }

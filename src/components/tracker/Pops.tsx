@@ -3,11 +3,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } fro
 import {
   formatDay,
   formatStamp,
-  itemInfo,
-  itemStatus,
   KIND_LABEL,
-  STATUS_LABEL,
-  STATUS_TONE,
   type DateMove,
   type Offsets,
   type TrackerState,
@@ -19,7 +15,7 @@ import type { PopKind } from './TrackerGraph';
 import type { TrackerActions } from './TrackerScreen';
 
 export type PopTarget = {
-  kind: PopKind | 'kind' | 'rename' | 'added';
+  kind: PopKind | 'kind' | 'added';
   id: string;
   anchor: Element;
 };
@@ -34,7 +30,6 @@ type Common = {
   offsets?: Offsets;
   actions: TrackerActions;
   onClose: () => void;
-  onHideRow: (workItemId: string) => void;
   onDetails: (workItemId: string) => void;
 };
 
@@ -198,6 +193,11 @@ function ActPop({
       onClose={c.onClose}
     >
       <blockquote>{ev.text}</blockquote>
+      {item && (
+        <div className="pop-btns">
+          <Btn icon="loop" label="View in work item" onClick={() => c.onDetails(item.id)} />
+        </div>
+      )}
       {!!c.offsets && Object.hasOwn(c.offsets, ev.id) && c.offsets[ev.id] !== 0 && (
         <p className="moved">
           <Icon name="moveX" size={13} /> Moved inside its day in your view.
@@ -230,126 +230,6 @@ function ActPop({
       )}
       {!c.edit && (
         <p className="tip">Tip: drag an event left or right to move it inside its day.</p>
-      )}
-    </PopFrame>
-  );
-}
-
-function LoopPop({
-  target,
-  container,
-  ...c
-}: Common & { target: PopTarget; container: RefObject<HTMLDivElement | null> }) {
-  const item = c.state.workItems.find((w) => w.id === target.id);
-  const [moves, setMoves] = useState(false);
-  if (!item) return null;
-  if (moves) return <DuePop target={target} container={container} {...c} />;
-  const info = itemInfo(item, c.state.events);
-  const status = itemStatus(item, c.state.events, c.asOf, c.tz);
-  const team = c.state.teams.find((t) => t.id === item.teamId)?.name ?? '';
-  const milestone = c.state.milestones.find((m) => m.id === item.milestoneId);
-  const after = item.after
-    .map((id) => c.state.workItems.find((w) => w.id === id)?.title ?? '')
-    .join(', ');
-  return (
-    <PopFrame
-      target={target}
-      container={container}
-      label={item.title}
-      icon={ring(info.done ? 'var(--proceed)' : 'var(--route)', <Icon name="loop" size={15} />)}
-      head={
-        <>
-          <b>{item.title}</b>
-          <small>
-            {team} · done by {c.dir.name(item.doneBy)} · for {c.dir.name(item.requestedBy)}
-          </small>
-          <small>
-            Planned finish {formatDay(item.plannedFinish)} · {STATUS_LABEL[status]}
-            {item.moves.length > 0 && (
-              <>
-                {' · '}
-                <button
-                  className="lnk"
-                  type="button"
-                  aria-label={`See the ${item.moves.length} date moves`}
-                  onClick={() => setMoves(true)}
-                >
-                  moved {item.moves.length}×
-                </button>
-              </>
-            )}
-          </small>
-          <small>
-            {milestone ? `Milestone: ${milestone.name}` : 'No milestone'}
-            {item.after.length > 0 && ` · after ${after}`}
-          </small>
-        </>
-      }
-      onClose={c.onClose}
-    >
-      <div className="pop-btns">
-        {c.edit && !info.done && (
-          <>
-            <Btn
-              icon="plus"
-              label="Add an event"
-              tone="ink"
-              onClick={() => c.actions.addEvent(item.id)}
-            />
-            <Btn kind="done" label="Mark done" onClick={() => c.actions.markDone(item.id)} />
-          </>
-        )}
-        {c.edit && (
-          <>
-            <Btn
-              icon="cal"
-              label="Move the date"
-              onClick={() => c.actions.moveDate({ kind: 'item', id: item.id })}
-            />
-            <Btn icon="pencil" label="Rename" onClick={() => c.actions.rename(item.id)} />
-          </>
-        )}
-        <Btn icon="list" label="See details" onClick={() => c.onDetails(item.id)} />
-        <Btn icon="eyeoff" label="Hide from the graph" onClick={() => c.onHideRow(item.id)} />
-      </div>
-    </PopFrame>
-  );
-}
-
-function DuePop({
-  target,
-  container,
-  ...c
-}: Common & { target: PopTarget; container: RefObject<HTMLDivElement | null> }) {
-  const item = c.state.workItems.find((w) => w.id === target.id);
-  if (!item) return null;
-  const status = itemStatus(item, c.state.events, c.asOf, c.tz);
-  const day = formatDay(item.plannedFinish);
-  return (
-    <PopFrame
-      target={target}
-      container={container}
-      label={`Planned finish ${day}`}
-      icon={ring(`var(--${STATUS_TONE[status]})`, <Icon name="flag" size={15} />)}
-      head={
-        <>
-          <b>Planned finish · {day}</b>
-          <small>{item.title}</small>
-        </>
-      }
-      onClose={c.onClose}
-    >
-      <span className={`badge st-${status}`}>{STATUS_LABEL[status]}</span>
-      <Moves moves={item.moves} first={item.firstPlannedFinish} dir={c.dir} tz={c.tz} />
-      {c.edit && (
-        <div className="pop-btns" style={{ marginTop: 10 }}>
-          <Btn
-            icon="cal"
-            label="Move the date"
-            tone="ink"
-            onClick={() => c.actions.moveDate({ kind: 'item', id: item.id })}
-          />
-        </div>
       )}
     </PopFrame>
   );
@@ -456,49 +336,6 @@ function KindPop({
   );
 }
 
-function RenamePop({
-  target,
-  container,
-  ...c
-}: Common & { target: PopTarget; container: RefObject<HTMLDivElement | null> }) {
-  const item = c.state.workItems.find((w) => w.id === target.id);
-  const [title, setTitle] = useState(item?.title ?? '');
-  const input = useRef<HTMLInputElement>(null);
-  useLayoutEffect(() => {
-    input.current?.focus();
-    input.current?.select();
-  }, []);
-  if (!item) return null;
-  const save = () => c.actions.saveRename(item.id, title.trim());
-  return (
-    <PopFrame
-      target={target}
-      container={container}
-      label="New name"
-      icon={null}
-      head={<b>New name</b>}
-      focusSelf={false}
-      onClose={c.onClose}
-    >
-      <input
-        ref={input}
-        className="sel"
-        aria-label="Work item name"
-        value={title}
-        onChange={(event) => setTitle(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key !== 'Enter') return;
-          event.preventDefault();
-          save();
-        }}
-      />
-      <div className="m-foot">
-        <Btn icon="check" label="Save name" tone="ink" onClick={save} />
-      </div>
-    </PopFrame>
-  );
-}
-
 function AddedPop({
   target,
   container,
@@ -545,11 +382,7 @@ export function Pop(
       return <StackPop {...props} />;
     case 'kind':
       return <KindPop {...props} />;
-    case 'rename':
-      return <RenamePop {...props} />;
     case 'added':
       return <AddedPop {...props} />;
-    default:
-      return <LoopPop {...props} />;
   }
 }
