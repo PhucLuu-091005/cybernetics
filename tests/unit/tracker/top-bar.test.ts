@@ -107,7 +107,6 @@ function sessionOf(me: Member | null, crs: Cr[] = []): Session {
     queue,
     commits: [],
     crs,
-    offsets: {},
   };
   return {
     projectId: 'p1',

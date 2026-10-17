@@ -29,6 +29,5 @@ export {
   type ProjectMember,
   type ProjectTeam,
 } from './members';
-export { setEventOffset } from './offsets';
 export { addQueueCard, addQueueEntry, dismissQueueEntry } from './queue';
 export { getTrackerPayload } from './read';

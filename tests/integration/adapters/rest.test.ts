@@ -35,7 +35,6 @@ const expectedRoutes = [
   '/projects/:projectId/tracker/crs/:num/ops',
   '/projects/:projectId/tracker/crs/:num/ops/:index',
   '/projects/:projectId/tracker/crs/:num/actions',
-  '/projects/:projectId/tracker/offsets/:eventId',
 ];
 
 function routeFiles(): string[] {
@@ -136,13 +135,13 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
       { origin: 'https://evil.example' },
     );
     expect(response.status).toBe(403);
-    const moved = await call(
-      'PUT',
-      `/projects/${projectId}/tracker/offsets/p31`,
-      { minutes: 30 },
+    const named = await call(
+      'PATCH',
+      `/projects/${projectId}/teams/engineering`,
+      { name: 'Platform' },
       { origin: 'https://evil.example' },
     );
-    expect(moved.status).toBe(403);
+    expect(named.status).toBe(403);
   });
   it('returns 404 for a project in another workspace', async () => {
     const foreign = await seedDemo(t.db, await testActor(t.db));

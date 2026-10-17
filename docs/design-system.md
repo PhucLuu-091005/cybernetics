@@ -283,7 +283,7 @@ These rules come from the spec and the owner rulings. Do not change them without
 2. A "leads from" link shows only as one handoff mark per source row. Hover and focus list each receiver: "Handed over to <team> · received in <work item>". A click jumps to the receiver, or opens a short list when there are several.
 3. The axis band (dates, T pill, milestone line) stays pinned at the top while the rows scroll. Scrolls that bring a row into view stop below the pinned axis.
 4. A hidden row or team leaves no row, no line and no link. A team with no shown rows takes no room, except a team with no work items in the window, which keeps its empty lane as a drop target.
-5. An event is drawn at its time plus the viewer's own day offset, kept inside its day and in the time order of its row and day.
+5. An event is drawn at its own time.
 6. Milestones have no chip column at the row end. The deadline diamond on each member row tells which milestone the row belongs to.
 7. Main and every view that you cannot edit show information only: no drag that changes the graph, no edit buttons, no `+` buttons. The sideways move of an event inside its day works everywhere.
 8. Every SVG target has `role="button"`, `tabindex="0"`, an `aria-label`, and Enter or Space activates it.

@@ -996,7 +996,7 @@ test.describe('events at their own time', () => {
     const before = (await r3.boundingBox())!;
     const writes: string[] = [];
     page.on('request', (r) => {
-      if (r.method() !== 'GET' && r.url().includes('/offsets/')) writes.push(r.url());
+      if (r.method() !== 'GET' && r.url().includes('/api/')) writes.push(r.url());
     });
     const from = { x: before.x + before.width / 2, y: before.y + before.height / 2 };
     await page.mouse.move(from.x, from.y);
