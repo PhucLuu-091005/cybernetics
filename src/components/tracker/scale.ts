@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { View } from '../../tracker';
+import { clampDayWidth, type TrackerLayout, type View } from '../../tracker';
 
 export type TimeScale = Pick<View, 'span' | 'fitSpan' | 'dayWidth'>;
 
@@ -15,4 +15,15 @@ export function useTimeScale() {
   );
   const onZoom = useCallback((dayWidth: number) => setScale((s) => ({ ...s, dayWidth })), []);
   return { scale, onSpan, onZoom };
+}
+
+/** A factor of 0 fits again; zooming out stops at the fit, or where it is when already below. */
+export function zoomTarget(
+  L: Pick<TrackerLayout, 'fitDayWidth'>,
+  from: number,
+  factor: number,
+): number {
+  if (factor === 0) return L.fitDayWidth;
+  const next = clampDayWidth(from * factor, L.fitDayWidth);
+  return factor < 1 ? Math.max(next, Math.min(L.fitDayWidth, from)) : next;
 }

@@ -20,9 +20,10 @@ import {
   type TrackerLayout,
 } from '../../tracker';
 import { svgPoint } from './drag';
+import { zoomTarget } from './scale';
 import { Icon, SvgIcon } from './icons';
 
-const { X0, SIDE, AXIS_Y, TRUNK_Y, TOP, INDENT, MIN_DAY_WIDTH, MAX_DAY_WIDTH } = GEOMETRY;
+const { X0, SIDE, AXIS_Y, TRUNK_Y, TOP, INDENT, MAX_DAY_WIDTH } = GEOMETRY;
 // The bin floats over the bottom of the graph, so the New team pill needs room above it.
 const TEAM_PILL_ROOM = 28;
 const ZOOM_STEP = 1.5;
@@ -161,9 +162,7 @@ export function TrackerGraph(props: Props) {
     const el = scroller.current;
     const svg = timeSvg.current;
     const from = anchor.current?.dayWidth ?? now.dayWidth;
-    const floor = Math.max(MIN_DAY_WIDTH, Math.min(now.fitDayWidth, from));
-    const dayWidth =
-      factor === 0 ? now.fitDayWidth : Math.max(floor, Math.min(MAX_DAY_WIDTH, from * factor));
+    const dayWidth = zoomTarget(now, from, factor);
     if (!el || !svg || same(dayWidth, from)) return;
     const box = el.getBoundingClientRect();
     const cx =
