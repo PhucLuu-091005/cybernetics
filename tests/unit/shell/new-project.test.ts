@@ -69,12 +69,18 @@ describe('new project body', () => {
     ).not.toHaveProperty('time');
     expect(newProjectBody(form({ milestoneName: 'Go-live', milestoneTime: '17:00' }))).toBeNull();
   });
+  it('refuses a time without a name and a date instead of dropping it', () => {
+    expect(newProjectBody(form({ milestoneTime: '17:00' }))).toBeNull();
+    expect(newProjectProblem(form({ milestoneTime: '17:00' }))).toBe(
+      'Give the first milestone a name and a date, or leave its fields empty.',
+    );
+  });
   it('names the team or milestone problem in plain words', () => {
     expect(newProjectProblem(form())).toBeNull();
     expect(newProjectProblem(form({ teams: '\n' }))).toBe('Add at least one team');
     expect(newProjectProblem(form({ teams: 'QA\nqa' }))).toBe('Each team needs its own name');
     expect(newProjectProblem(form({ milestoneDate: '2026-12-01' }))).toBe(
-      'Give the first milestone a name and a date, or leave both empty.',
+      'Give the first milestone a name and a date, or leave its fields empty.',
     );
     expect(newProjectProblem(form({ teams: 'a'.repeat(201) }))).toBe(
       'Keep each team name to 200 characters',
