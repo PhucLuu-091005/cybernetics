@@ -545,6 +545,12 @@ describe('applyOp', () => {
     expect(state.teams.at(-1)).toEqual({ id: 'legal-team', name: 'Legal', leadId: 'priya' });
   });
 
+  it('addTeam keeps a team that the project already has, so a merged one replays', () => {
+    const s = larkspurState();
+    const { state } = applyOp(s, makeOp('addTeam', { id: 'it', name: 'X', leadId: null }));
+    expect(state.teams).toEqual(s.teams);
+  });
+
   it.each<[string, Op]>([
     ['msRemove without a milestone', makeOp('msRemove', { workItemId: 'pg203' })],
     ['msAdd to an unknown milestone', makeOp('msAdd', { workItemId: 'pg203', milestoneId: 'x' })],
@@ -557,7 +563,6 @@ describe('applyOp', () => {
       'newMs with a taken id',
       makeOp('newMs', { id: 'crm', name: 'X', planned: '2026-10-20', members: [] }),
     ],
-    ['addTeam with a taken id', makeOp('addTeam', { id: 'it', name: 'X', leadId: null })],
     [
       'addEvent with a taken id',
       makeOp('addEvent', {

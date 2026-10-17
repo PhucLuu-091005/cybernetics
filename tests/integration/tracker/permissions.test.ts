@@ -66,8 +66,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker permissions', () => {
     });
   });
 
-  it('lets only the owner of Main merge, close or request changes', async () => {
-    for (const key of ['lan', 'quang', 'ha']) {
+  it('lets only a member who may merge merge, close or request changes', async () => {
+    for (const key of ['lan', 'khoa', 'ha']) {
       await expect(
         action(key, 2, { action: 'merge', picks: {}, expectedRevision: 0 }),
       ).rejects.toMatchObject(forbidden);

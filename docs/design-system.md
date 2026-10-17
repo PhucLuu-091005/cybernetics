@@ -242,6 +242,13 @@ The rail is flat: `--sunk` fill and a 1px `--rule` right border. Items (`.rail-i
 - `.ro-note` (Main is read-only): `--route-bg` with `--route-ink` text, `--r-ctl`, a close button and Don't show again.
 - `.legend2`: a `--fs-xs` legend below the graph with the 4 line colours, the deadline diamond, the 5 milestone statuses and the yellow "Name" sample.
 
+### 8.12 Tables of people and teams (Members page)
+
+- `src/components/members/members.css`. The page is full width: no narrow column. Each table is rows on one CSS grid template, a `--rule` line under the column heads (`--fs-xs`, `--ink-3`) and `--rule-2` hairlines between rows; no card.
+- People: avatar 28px, name weight 600, email and role label in `--fs-xs` `--ink-3`, `.chipx` for Project lead / You / Invited, teams with a small upper-case "LEAD" in `--ink-3`, four centred native checkboxes with `accent-color: var(--ink)`, row actions as `.btn.sm` (Remove is `.btn-danger`). A box that a rule holds is disabled and its tooltip says why.
+- Below 1180px the row actions go under the person; at a phone width each row stacks (person, teams, the four boxes in two columns with their names, actions), and the team rows show Lead and People captions.
+- The New project dialog lists its teams the same way: rows with hairlines and an `×` icon button (26px, `--ink-3`, hover `--hover`), then an input with Add.
+
 ## 9. Graph marks
 
 Geometry in view-box units (`GEOMETRY` in `src/tracker/layout.ts`): width 1060, label column `SIDE` 228, time line from `X0` 236 to `X1` 1046, axis text at y 15, milestone labels at y 33, milestone line at y 48, rows start below `TOP` 64. Zoom goes from 1 to 12, each step ×1.5, and stretches only the time line.

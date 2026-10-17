@@ -1,3 +1,4 @@
+import { ALL_GRANTS, DEFAULT_GRANTS } from '../../../tracker/permissions';
 import type {
   CrCommentKind,
   CrPermission,
@@ -565,15 +566,29 @@ export function larkspurQueueRows(id: LarkspurIds = keep): QueueRow[] {
   ];
 }
 
-/** The people who use the demo; colours and role labels come from the prototype. */
+/** The people who use the demo; colours and role labels come from the prototype. Quang may also merge. */
 export const LARKSPUR_MEMBERS = [
-  { key: 'minh', roleLabel: 'Project owner, owns Main', color: '#0f766e' },
-  { key: 'lan', roleLabel: 'Digitization lead', color: '#7c3aed' },
-  { key: 'quang', roleLabel: 'Engineering lead', color: '#2563eb' },
-  { key: 'ha', roleLabel: 'QA analyst', color: '#db2777' },
-  { key: 'khoa', roleLabel: 'Solutions engineer', color: '#d97706' },
+  { key: 'minh', roleLabel: 'Project lead', color: '#0f766e', grants: ALL_GRANTS },
+  { key: 'lan', roleLabel: 'Digitization lead', color: '#7c3aed', grants: DEFAULT_GRANTS },
+  {
+    key: 'quang',
+    roleLabel: 'Engineering lead',
+    color: '#2563eb',
+    grants: { ...DEFAULT_GRANTS, mergeCrs: true },
+  },
+  { key: 'ha', roleLabel: 'QA analyst', color: '#db2777', grants: DEFAULT_GRANTS },
+  { key: 'khoa', roleLabel: 'Solutions engineer', color: '#d97706', grants: DEFAULT_GRANTS },
 ].map((member) => ({ ...member, name: PEOPLE[member.key] }));
 export const LARKSPUR_OWNER = 'minh';
+
+/** Team leads follow the role labels; each member sits in the team of their own work. */
+export const LARKSPUR_TEAM_PEOPLE: Record<string, { lead: string | null; members: string[] }> = {
+  implementation: { lead: 'minh', members: ['minh'] },
+  digitization: { lead: 'lan', members: ['lan'] },
+  'solutions-engineering': { lead: null, members: ['khoa'] },
+  engineering: { lead: 'quang', members: ['quang'] },
+  'digitization-qa': { lead: null, members: ['ha'] },
+};
 
 export type LarkspurCr = {
   title: string;

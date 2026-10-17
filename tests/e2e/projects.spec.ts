@@ -20,7 +20,27 @@ test('a new project starts with its teams and an empty graph, and its first chan
   const create = page.getByRole('dialog', { name: 'New project' });
   await create.getByLabel('Project name').fill('KYC portal');
   await create.getByLabel('Client').fill('Brightwater Bank');
-  await create.getByLabel('Teams, one per line').fill('Onboarding\nEngineering\nQA');
+  const teams = create.getByRole('list', { name: 'Teams' });
+  await expect(teams.getByRole('listitem')).toHaveText([
+    'Product',
+    'Design',
+    'Engineering',
+    'QA',
+    'Operations',
+  ]);
+  for (const team of ['Product', 'Design', 'Engineering', 'QA', 'Operations'])
+    await create.getByRole('button', { name: `Remove ${team}` }).click();
+  await expect(create).toContainText('Add at least one team');
+  const addTeam = create.getByLabel('Add a team');
+  for (const team of ['Onboarding', 'Engineering', 'QA']) {
+    await addTeam.fill(team);
+    await addTeam.press('Enter');
+  }
+  await addTeam.fill('qa');
+  await create.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(create).toContainText('QA is already in the list.');
+  await addTeam.fill('');
+  await expect(teams.getByRole('listitem')).toHaveText(['Onboarding', 'Engineering', 'QA']);
   await create.getByLabel('First milestone (optional)').fill('Portal live');
   await create.getByLabel('Milestone date').fill('2026-11-20');
   await create.getByRole('button', { name: 'Create project' }).click();
@@ -40,10 +60,10 @@ test('a new project starts with its teams and an empty graph, and its first chan
   const bar = page.locator('.bbar').first();
   const view = page.locator('.gpick > summary');
   await expect(view).toContainText('read-only');
-  await expect(view).toContainText(`Owner: ${owner}`);
+  await expect(view).toContainText(`Lead: ${owner}`);
   await expect(page.locator('.bbar')).toHaveCount(0);
   await expect(page.getByLabel('Demo: act as')).toHaveCount(0);
-  await expect(page.locator('.me')).toContainText('Project owner, owns Main');
+  await expect(page.locator('.me')).toContainText('Project lead');
 
   await expect(page.locator('.p-side')).toHaveCount(0);
   await expect(page.locator('.empty').getByRole('button', { name: 'Add a work item' })).toHaveCount(

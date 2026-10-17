@@ -26,6 +26,8 @@ const TABLES = [
   'tracker_members',
   'tracker_projects',
   'tracker_queue',
+  'tracker_team_members',
+  'tracker_teams',
   'users',
   'workspace_members',
   'workspaces',

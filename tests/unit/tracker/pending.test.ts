@@ -42,7 +42,7 @@ const payload: TrackerPayload = {
     windowStart: null,
     asOf: null,
     demo: true,
-    ownerMemberId: 'minh',
+    leadMemberId: 'minh',
   },
   members: [],
   me: null,

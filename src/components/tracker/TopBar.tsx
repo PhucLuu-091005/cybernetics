@@ -37,12 +37,12 @@ function ViewMenu({ session, view, cr, actions, onView, onDrawer }: Props) {
     onView(next);
   };
   const open = payload.crs.filter(isOpen).sort(byNumDesc);
-  const owner = payload.project.ownerMemberId;
+  const lead = payload.project.leadMemberId;
   return (
     <details ref={ref} className="gpick">
       <summary
         className="graph-btn"
-        aria-label={`View: ${cr ? `#${cr.num} ${cr.title}` : `Main, read-only, owner ${dir.name(owner)}`}. Switch view`}
+        aria-label={`View: ${cr ? `#${cr.num} ${cr.title}` : `Main, read-only, project lead ${dir.name(lead)}`}. Switch view`}
       >
         <span className="gdot" style={{ background: cr ? dir.color(cr.author) : 'var(--ink)' }} />
         <span>{cr ? `#${cr.num} ${trunc(cr.title, 22)}` : 'Main'}</span>
@@ -50,8 +50,8 @@ function ViewMenu({ session, view, cr, actions, onView, onDrawer }: Props) {
           <>
             <span className="chipx">read-only</span>
             <span className="gowner">
-              <Avatar id={owner} dir={dir} sm />
-              <span>Owner: {dir.name(owner)}</span>
+              <Avatar id={lead} dir={dir} sm />
+              <span>Lead: {dir.name(lead)}</span>
             </span>
           </>
         )}
@@ -61,7 +61,7 @@ function ViewMenu({ session, view, cr, actions, onView, onDrawer }: Props) {
         <button type="button" className={view === 'main' ? 'on' : ''} onClick={() => pick('main')}>
           <span className="gdot" style={{ background: 'var(--ink)' }} />
           <span>
-            Main<small>Read-only · owner {dir.name(owner)}</small>
+            Main<small>Read-only · project lead {dir.name(lead)}</small>
           </span>
         </button>
         {open.length > 0 && <hr />}
@@ -87,15 +87,17 @@ function ViewMenu({ session, view, cr, actions, onView, onDrawer }: Props) {
           </button>
         ))}
         <hr />
-        <button
-          type="button"
-          onClick={() => {
-            close();
-            actions.newCr();
-          }}
-        >
-          <Icon name="plus" /> New change request
-        </button>
+        {session.canCreate && (
+          <button
+            type="button"
+            onClick={() => {
+              close();
+              actions.newCr();
+            }}
+          >
+            <Icon name="plus" /> New change request
+          </button>
+        )}
         <button
           type="button"
           onClick={() => {
@@ -154,7 +156,7 @@ export function TopBar(props: Props) {
       >
         <Icon name="pr" /> {ready > 0 ? `${ready} ready to merge` : 'Change requests'}
       </button>
-      {!cr && (
+      {!cr && session.canCreate && (
         <button className="btn btn-ink" type="button" onClick={actions.newCr}>
           <Icon name="plus" /> New change request
         </button>

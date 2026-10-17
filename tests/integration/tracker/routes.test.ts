@@ -99,7 +99,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
     expect(reply.body.project).toMatchObject({
       id: demo.projectId,
       demo: true,
-      ownerMemberId: demo.ids.minh,
+      leadMemberId: demo.ids.minh,
     });
     expect(reply.body.me.id).toBe(demo.ids.minh);
     expect(reply.body.members).toHaveLength(5);
@@ -367,7 +367,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
     expect(payload.body.base.milestones).toMatchObject([
       { name: 'Go-live', planned: '2026-12-01' },
     ]);
-    expect(payload.body.project).toMatchObject({ demo: false, ownerMemberId: payload.body.me.id });
+    expect(payload.body.project).toMatchObject({ demo: false, leadMemberId: payload.body.me.id });
     expect(payload.body.me.userId).toBe(demo.owner.userId);
     const actAs = await call(
       'POST',
@@ -523,55 +523,85 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
     const signInAs = (userId: string) =>
       jar.set(SESSION_COOKIE, signSession({ userId, expiresAt: Date.now() + 600_000 }, secret));
 
-    it('lists, invites, changes a role and removes, each answering with the new list', async () => {
+    const VIEW_MAIN = { viewMain: true, viewCrs: false, createCrs: false, mergeCrs: false };
+    const teams = 'projects/[projectId]/teams';
+    const team = 'projects/[projectId]/teams/[teamId]';
+
+    it('lists, invites, grants and removes, each answering with the new list', async () => {
       const list = await call('GET', members, p());
       expect(list.status).toBe(200);
       expect(list.headers.get('cache-control')).toBe('private, no-store');
       expect(list.body.canManage).toBe(true);
       expect(list.body.members).toHaveLength(5);
+      expect(list.body.teams).toHaveLength(7);
 
       const invited = await call('POST', members, p(), {
         email: 'New.Person@Example.com',
-        role: 'viewer',
+        grants: VIEW_MAIN,
       });
       expect(invited.status).toBe(201);
       const row = invited.body.members.find(
         (m: { email: string | null }) => m.email === 'new.person@example.com',
       );
-      expect(row).toMatchObject({ role: 'viewer', pending: true });
+      expect(row).toMatchObject({ grants: VIEW_MAIN, pending: true });
 
-      const changed = await call('PATCH', one, of(row.id), { role: 'member' });
+      const changed = await call('PATCH', one, of(row.id), {
+        grants: { ...VIEW_MAIN, createCrs: true },
+      });
       expect(changed.status).toBe(200);
-      expect(changed.body.members.find((m: { id: string }) => m.id === row.id).role).toBe('member');
+      expect(
+        changed.body.members.find((m: { id: string }) => m.id === row.id).grants,
+      ).toMatchObject({ viewCrs: true, createCrs: true });
       const removed = await call('DELETE', one, of(row.id), undefined, { noBody: true });
       expect(removed.status).toBe(200);
       expect(removed.body.members).toHaveLength(5);
       expect((await call('DELETE', one, of(row.id))).status).toBe(404);
     });
 
+    it('adds, changes and deletes a team', async () => {
+      const added = await call('POST', teams, p(), { name: 'Legal' });
+      expect(added.status).toBe(201);
+      const legal = added.body.teams.find((item: { name: string }) => item.name === 'Legal');
+      const changed = await call(
+        'PATCH',
+        team,
+        { ...p(), teamId: legal.id },
+        { leadId: demo.ids.khoa },
+      );
+      expect(changed.status).toBe(200);
+      expect(changed.body.teams.find((item: { id: string }) => item.id === legal.id)).toMatchObject(
+        { leadId: demo.ids.khoa, memberIds: [demo.ids.khoa] },
+      );
+      const gone = await call('DELETE', team, { ...p(), teamId: legal.id }, undefined, {
+        noBody: true,
+      });
+      expect(gone.status).toBe(200);
+      expect((await call('DELETE', team, { ...p(), teamId: 'engineering' })).status).toBe(400);
+    });
+
     it('validates the body with the route schema', async () => {
       for (const body of [
-        { email: 'nope', role: 'member' },
-        { email: 'a@example.com', role: 'admin' },
-        { email: 'a@example.com', role: 'member', actAs: demo.ids.lan },
-        { email: 'a@example.com', role: 'member', projectId: demo.ids.lan },
+        { email: 'nope' },
+        { email: 'a@example.com', role: 'member' },
+        { email: 'a@example.com', actAs: demo.ids.lan },
+        { email: 'a@example.com', projectId: demo.ids.lan },
       ])
         expect((await call('POST', members, p(), body)).status).toBe(400);
       expect((await call('PATCH', one, of(demo.ids.lan), { role: 'boss' })).status).toBe(400);
-      expect((await call('PATCH', one, of('not-a-uuid'), { role: 'viewer' })).status).toBe(400);
+      expect((await call('PATCH', one, of('not-a-uuid'), { grants: VIEW_MAIN })).status).toBe(400);
+      expect((await call('POST', teams, p(), { name: '  ' })).status).toBe(400);
     });
 
-    it('shows the list read-only to a member who is not the owner and refuses their writes', async () => {
+    it('shows the list read-only to a member who is not the project lead and refuses their writes', async () => {
       expect(
         (await call('POST', `${tracker}/act-as`, p(), { memberId: demo.ids.lan })).status,
       ).toBe(200);
       const list = await call('GET', members, p());
       expect(list.body.canManage).toBe(false);
-      expect(
-        (await call('POST', members, p(), { email: 'x@example.com', role: 'member' })).status,
-      ).toBe(403);
-      expect((await call('PATCH', one, of(demo.ids.khoa), { role: 'viewer' })).status).toBe(403);
+      expect((await call('POST', members, p(), { email: 'x@example.com' })).status).toBe(403);
+      expect((await call('PATCH', one, of(demo.ids.khoa), { grants: VIEW_MAIN })).status).toBe(403);
       expect((await call('DELETE', one, of(demo.ids.khoa))).status).toBe(403);
+      expect((await call('POST', teams, p(), { name: 'Legal' })).status).toBe(403);
     });
 
     it('hides the members of a project from a person outside it', async () => {

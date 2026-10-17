@@ -1,19 +1,21 @@
 import { z } from 'zod';
 import type { ActorContext } from '../../contracts';
-import { queueFromRows, type TrackerPayload } from '../../tracker';
+import { canSeeCr, queueFromRows, type TrackerPayload } from '../../tracker';
 import { toIso, type Db } from '../db/tx';
 import { invalidInput } from '../errors';
 import { requireScope } from '../http/scopes';
-import { ProjectScopeSchema, readScope, type Scope } from './access';
+import { ProjectScopeSchema, readScope, requireView, subjectOf, type Scope } from './access';
 import { loadCommits, loadCrs, loadOffsets, loadQueue, type Reader } from './store';
 
 const GetTrackerInputSchema = z.strictObject(ProjectScopeSchema);
 
 export async function buildPayload(db: Reader, scope: Scope): Promise<TrackerPayload> {
   const { project, tracker, members, me } = scope;
+  requireView(scope);
+  const subject = subjectOf(scope);
   const queue = await loadQueue(db, project.id);
   const commits = await loadCommits(db, project.id);
-  const crs = await loadCrs(db, project.id, members);
+  const crs = (await loadCrs(db, project.id, members)).filter((cr) => canSeeCr(subject, cr));
   const offsets = await loadOffsets(db, project.id, scope.userId);
   return {
     project: {
@@ -24,7 +26,7 @@ export async function buildPayload(db: Reader, scope: Scope): Promise<TrackerPay
       windowStart: tracker.windowStart,
       asOf: tracker.asOf === null ? null : toIso(tracker.asOf),
       demo: tracker.demo,
-      ownerMemberId: tracker.ownerMemberId,
+      leadMemberId: tracker.ownerMemberId,
     },
     members,
     me,
