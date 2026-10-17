@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureApp, resetApp } from '../../../src/server/app';
 import { SESSION_COOKIE, signSession } from '../../../src/server/http/session';
-import { and, eq } from 'drizzle-orm';
 import { createTestDatabase, testActor, type TestDb } from '../../support/db';
 import { seedDemo, workspaceGuest, type Demo } from '../../support/tracker-db';
 
