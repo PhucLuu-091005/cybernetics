@@ -45,14 +45,12 @@ const NEEDS: Record<Grant, Grant[]> = {
   mergeCrs: ['viewCrs', 'viewMain'],
 };
 
-/** Adds every grant that a grant needs. */
 export function closeGrants(grants: Grants): Grants {
   const next = { ...grants };
   for (const grant of GRANTS) if (grants[grant]) for (const need of NEEDS[grant]) next[need] = true;
   return next;
 }
 
-/** On: also the grants it needs. Off: also the grants that need it. */
 export function setGrant(grants: Grants, grant: Grant, on: boolean): Grants {
   if (on) return closeGrants({ ...grants, [grant]: true });
   const next = { ...grants, [grant]: false };
@@ -88,7 +86,6 @@ const READER: Rights = {
   manage: false,
 };
 
-/** The rights of one member, from the facts the Members page also shows. */
 export function memberRights(facts: {
   projectLead: boolean;
   teamLead: boolean;
@@ -152,7 +149,6 @@ export function canSeeCr(subject: PermissionSubject, cr: CrPart & { status: stri
   );
 }
 
-/** The present members who may merge, the project lead first. */
 export function mergerIds(
   subject: PermissionSubject & {
     members: ReadonlyArray<{ id: string; grants: Grants; active: boolean }>;
