@@ -757,39 +757,26 @@ function MilestoneModal({ session, state, asOf, busy, on, onClose }: PropsOf<'ms
 
 function TeamModal({ state, busy, on, onClose }: PropsOf<'team'>) {
   const [name, setName] = useState('');
-  const [leadId, setLeadId] = useState('');
   const create = () => {
-    const made = newTeamOp(state, { id: newId(), name, leadId });
+    const made = newTeamOp(state, { id: newId(), name });
     if (made.ok) on.commit([made.op]);
     else on.toast(made.message);
   };
   return (
     <ModalFrame title="New team" onClose={onClose}>
-      <div className="grid2">
-        <label className="field">
-          Name
-          <input
-            value={name}
-            maxLength={200}
-            placeholder="For example: Design"
-            onChange={(event) => setName(event.target.value)}
-            onKeyDown={(event) => event.key === 'Enter' && create()}
-          />
-        </label>
-        <label className="field">
-          Lead (optional)
-          <select value={leadId} onChange={(event) => setLeadId(event.target.value)}>
-            <option value="">No lead</option>
-            {state.people.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <label className="field">
+        Name
+        <input
+          value={name}
+          maxLength={200}
+          placeholder="For example: Design"
+          onChange={(event) => setName(event.target.value)}
+          onKeyDown={(event) => event.key === 'Enter' && create()}
+        />
+      </label>
       <p className="tip">
-        The team gets its own lane. Its lead is the first choice for Done by on new work items.
+        The team gets its own lane. After the merge, the project lead picks its lead and people on
+        the Members page.
       </p>
       <Foot label="Add team" busy={busy} onCancel={onClose} onCreate={create} />
     </ModalFrame>

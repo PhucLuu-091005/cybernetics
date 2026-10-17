@@ -583,6 +583,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project teams', () => {
     await t?.close();
   });
   const own = () => ({ projectId: demo.projectId });
+  const as = (key: string) => ({ projectId: demo.projectId, actAs: demo.ids[key] });
 
   it('adds, renames and deletes a team, and Main shows the new list at once', async () => {
     demo = await seedDemo(t.db);
@@ -659,12 +660,36 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project teams', () => {
     const merged = await getTrackerPayload(t.db, owner, own());
     expect(merged.base.teams.find((team) => team.id === 'legal')).toMatchObject({
       name: 'Legal',
-      leadId: demo.ids.lan,
+      leadId: null,
     });
     await updateTeam(t.db, owner, { ...own(), teamId: 'legal', name: 'Legal and Compliance' });
     const payload = await getTrackerPayload(t.db, owner, own());
     expect(payload.base.teams.filter((team) => team.id === 'legal')).toEqual([
-      { id: 'legal', name: 'Legal and Compliance', leadId: demo.ids.lan },
+      { id: 'legal', name: 'Legal and Compliance', leadId: null },
     ]);
+  });
+
+  it('never makes a team lead through a merge, so a merger cannot give the create right', async () => {
+    demo = await seedDemo(t.db);
+    await updateMember(t.db, demo.owner, { ...own(), memberId: demo.ids.ha, grants: VIEW_ALL });
+    const { num } = await createCr(t.db, demo.owner, {
+      ...as('lan'),
+      title: 'Legal team',
+      ops: [{ op: 'addTeam', a: { id: 'legal', name: 'Legal', leadId: demo.ids.ha } }],
+    });
+    const ready = await crAction(t.db, demo.owner, { ...as('lan'), num, action: 'ready' });
+    await crAction(t.db, demo.owner, {
+      ...as('quang'),
+      num,
+      action: 'merge',
+      picks: {},
+      expectedRevision: ready.crs.find((cr) => cr.num === num)!.revision,
+    });
+    const list = await listProjectMembers(t.db, demo.owner, own());
+    expect(list.teams.find((team) => team.id === 'legal')).toMatchObject({ leadId: null });
+    expect(list.members.find((m) => m.id === demo.ids.ha)?.rights.create).toBe(false);
+    await expect(
+      createCr(t.db, demo.owner, { ...as('ha'), title: 'Not allowed' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });

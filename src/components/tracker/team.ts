@@ -1,7 +1,7 @@
 import type { TrackerState } from '../../tracker';
 import type { OpInput } from './api';
 
-export type NewTeam = { id: string; name: string; leadId: string };
+export type NewTeam = { id: string; name: string };
 
 const sameName = (a: string, b: string) =>
   a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase();
@@ -15,6 +15,5 @@ export function newTeamOp(
   if (!name) return { ok: false, message: 'Give the team a name.' };
   const taken = state.teams.find((t) => sameName(t.name, name));
   if (taken) return { ok: false, message: `${taken.name} is already a team.` };
-  const leadId = state.people.some((p) => p.id === team.leadId) ? team.leadId : null;
-  return { ok: true, op: { op: 'addTeam', a: { id: team.id, name, leadId } } };
+  return { ok: true, op: { op: 'addTeam', a: { id: team.id, name, leadId: null } } };
 }
