@@ -1,6 +1,5 @@
 import { AccountMenu, type Account } from './AccountMenu';
 
-/** The top bar of a project page that is not the graph: the page name, the project, and the account menu. */
 export function PageHead({
   title,
   project,

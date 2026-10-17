@@ -405,7 +405,6 @@
   }
 }
 
-/* Project pages beside the graph (Members, Settings): the tracker bar and controls, flat rows with hairlines. */
 .tk.pg {
   min-height: 100vh;
 }

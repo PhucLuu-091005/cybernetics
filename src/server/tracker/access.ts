@@ -82,7 +82,6 @@ export type Scope = {
   tracker: TrackerRow;
   members: Member[];
   me: Member | null;
-  /** The demo select may switch the acting member. */
   canActAs: boolean;
   /** The signed-in person, who stays the same while they act as another member. */
   userId: string;
