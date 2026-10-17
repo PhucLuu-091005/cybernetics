@@ -4,7 +4,7 @@ Promise Graph is an event tracker for a whole project. It shows what happened at
 
 People and their agents add events and work items to a Queue. In a change request, a person drags them onto the graph. Main is read-only: every change goes through a change request, and the owner of Main merges it.
 
-![The Larkspur demo project on Main: the Main selector with read-only and the owner, the read-only notice, teams, work items, events and milestones](docs/screenshots/tracker-main.png)
+![The Larkspur demo project on Main: the view selector with read-only and the owner, the read-only notice, teams, work items, events and milestones](docs/screenshots/tracker-main.png)
 
 ## What it does
 
@@ -14,9 +14,10 @@ People and their agents add events and work items to a Queue. In a change reques
 - **Milestones.** A milestone has 5 statuses: Planned, Finished early, Finished on time, Late and Finished late. It is done when all its work items are done. Its circle on the milestone line shows the status.
 - **Milestone deadlines.** Each work item in a milestone shows a diamond at the milestone deadline, in the milestone status colour. A deadline can have a time, such as 15 Oct 17:00; without one, it is the end of that day, after every event of the day. The first row of each team in that milestone also shows the milestone name when it has room. Its tooltip names the milestone, the date and the status, and says when the row makes the milestone late. A click on the diamond opens the milestone.
 - **Planned finish.** Each work item has a Planned finish date and the same 5 statuses. To move a Planned finish or a milestone date, you must write a reason. The app keeps the first date and every move: who, when, from, to and why.
-- **Queue.** New events and work items wait in the Queue. People add them with **Add**, and agents add them through MCP. The Queue shows only in a change request that you edit. Drag a card onto a work item or a team to place it. Every drag also has a click way. The Queue toggle hides the Queue, so the graph gets the full width.
-- **Main is read-only.** On Main, the graph and its pops show information only: no drag that changes the graph, no edit buttons. The Main selector at the top left says read-only and shows the owner of Main. A notice below the top bar says so too; **New change request** is in the top bar. **Don't show again** hides the notice for you. A merged or closed change request and a change request that someone else edits are read-only too.
-- **One change requests button.** The button beside History reads **N ready to merge**, or **Change requests** when nothing is ready. It opens the list of change requests.
+- **Queue.** New events and work items wait in the Queue. People add them with **Add**, and agents add them through MCP. The Queue shows only on a change request page that you edit, in the **Queue** tab of the side panel. Drag a card onto a work item or a team to place it. Every drag also has a click way. The panel button hides the side panel, so the graph gets the full width.
+- **Main is read-only.** On Main, the graph and its pops show information only: no drag that changes the graph, no edit buttons. The second row starts with the view selector: on Main it says **Main**, read-only, and shows the owner of Main. A notice below the top bar says so too; **New change request** is in the top bar. **Don't show again** hides the notice for you. A merged or closed change request and a change request that someone else edits are read-only too.
+- **View selector.** The title in the second row is the view selector: **Main**, or the number and name of a change request. A click opens a menu with Main, the open change requests, **New change request** and **All change requests**.
+- **Change requests button.** The **Change requests** button beside History opens the list of change requests. A red badge on it counts the change requests that are ready to merge; at 0 it has no badge.
 - **Search.** Type in **Search work items** at the top right. The search matches the title, the team and the people of each work item. Pick a result with the arrow keys and Enter, or with a click. A click on a row of the graph opens the same details panel. The graph shows the row again if it is hidden, zooms to it and flashes it. The details panel opens: the status, the planned finish with every move and its reason, the start, the finish, the time spent in hours and days, the parent, the sources and all the events. A click on an event opens its pop on the graph.
 - **Your own event positions.** Drag an event left or right to move its icon inside its day, for example to pull a stack apart. This works in every view, Main included. The position is yours only, stays after a reload, and never changes the event time. **Reset position** in the event pop puts it back.
 - **Filters.** The filter button in the search box narrows the graph by status, team, milestone and person. Typed text narrows it too, with the same matches as the search list. The parents of a matching row stay as dimmed context. **Clear filters** shows every row again. Filters are yours only and are not saved.
@@ -24,20 +25,21 @@ People and their agents add events and work items to a Queue. In a change reques
 - **Members.** The **Members** page lists the people of the project with their role. The owner of Main invites a person by email as a Member or a Viewer, changes a role, makes another member the owner, and removes a member. An invite waits until that person signs in with Google using the same email; then the project opens for them. A member creates change requests; a viewer reads only. Other people see the list read-only.
 - **Account menu.** A click on your avatar at the top right opens a menu with the theme (System, Light or Dark) and **Sign out**.
 - **Change requests.** A change request is a Draft, Ready, Merged or Closed. It always shows the latest Main plus its own changes. **Share** gives a person Can edit or Can view. Everyone in the project can view every change request.
-- **One editor at a time.** A person with Can edit presses **Ask to edit**. The current editor presses **Hand over** or **Not now**.
+- **One editor at a time.** A person with Can edit presses **Ask to edit**. The current editor presses **Hand over** or **Not now**. A member without edit access sees **View only.** and presses **Ask for edit access**; the editor sees the ask in the header and presses **Grant Can edit** or **Not now**.
 - **Ready.** **Mark as ready** locks the change request. The editor presses **Edit again** to unlock it.
-- **Review.** The owner of Main reviews a ready change request on its own page: **Changes** (before and after, the reason of each date move, comments), **On the graph** (Before and After) and **Conversation**. The owner can merge it, request changes or close it.
-- **Clashes.** A change clashes when Main took a different change on the same spot after the change request made its change. The owner picks Main or the change request for each clash. The merge records each pick.
-- **History.** History lists every merge into Main, newest first, with **See changes** and **Open graph**.
+- **The change request page.** Each change request has one page. Its header holds the title (the view selector), the status, the people and the actions. The side panel lists the **Changes** (before and after, the reason of each date move, who; a click finds the change on the graph). The graph shows **Before** (Main) and **After** (the change request, with yellow marks). The editor edits right there: the **Queue** tab, drag onto the graph, add an event, mark done, move a date, rename, × to undo one change, **Mark as ready**, **Edit again**, **Share**. The owner of Main reviews a ready change request on the same page: **Request changes** (with a note) or **Merge into Main**.
+- **Cancel.** The author, the editor or the owner of Main presses **Cancel change request** and writes a reason. The change request becomes Closed; its header and History show who cancelled it and why.
+- **Clashes.** A change clashes when Main took a different change on the same spot after the change request made its change. The owner picks Main or the change request for each clash at the top of the Changes list. The merge records each pick.
+- **History.** History lists every merge into Main, newest first, with **Open #N**, and below them the cancelled change requests with the reason.
 
 The app never calls an AI model and holds no provider key.
 
 | | |
 |---|---|
-| ![The details panel of the Go-live date: first planned 30 Sept, moved once to 15 Oct, with the reason and the events](docs/screenshots/date-moves.png) | ![Change request #5 with the Queue and its Changes drawer: an event from the Queue and a date move with its reason](docs/screenshots/change-request.png) |
-| The details of a work item after a search: the status, the times, the first date, each move and its reason, and the events. | A change request with 2 changes. The second change moves a date and shows why. |
-| ![The review of #3 with one clash with Main on the PG-203 name](docs/screenshots/review-clash.png) | ![Main history with the merges and the resolved clash](docs/screenshots/history.png) |
-| The review page. **Merge into Main** stays off until the owner picks a version for the clash. | History records each merge and each resolved clash. |
+| ![The details panel of the Go-live date: first planned 30 Sept, moved once to 15 Oct, with the reason and the events](docs/screenshots/date-moves.png) | ![The change request page of #4 in edit mode: the Queue tab in the side panel, the graph with Before and After](docs/screenshots/change-request.png) |
+| The details of a work item after a search: the status, the times, the first date, each move and its reason, and the events. | A change request page that you edit: the Queue in the side panel and the graph on the right. |
+| ![The change request page of #3 with one clash with Main on the PG-203 name](docs/screenshots/review-clash.png) | ![Main history with the merges and the resolved clash](docs/screenshots/history.png) |
+| The owner on a ready change request. **Merge into Main** stays off until the owner picks a version for the clash. | History records each merge and each resolved clash. |
 
 | | |
 |---|---|
@@ -60,17 +62,19 @@ Main opens with a notice that it is read-only. Press **×** to close it for now,
 2. Lan: press **New change request**, then **Create**. Drag the Queue event "Where is the root cause report…" onto Sync incident report.
 3. Lan: search "PG-203" and pick it. In the details panel, press **Move the date**. Pick the date, write the reason, then press **Move the date**.
 4. Lan: press **Share**, pick Khoa Lê with **Can edit**, then press **Add**.
-5. Khoa: Lan's change request opens, and Lan is editing. Press **Ask to edit**.
+5. Khoa: Lan's change request stays open, and Lan is editing. Press **Ask to edit**.
 6. Lan: the yellow row says that Khoa asks to edit. Press **Hand over**.
-7. Khoa: drag the event "Scope call…" onto Dynamics CRM sync scope.
+7. Khoa: open the **Queue** tab and drag the event "Scope call…" onto Dynamics CRM sync scope.
 8. Khoa: press **Mark as ready**.
-9. Minh: on #2, press **Review and merge**. Look at the Changes and On the graph tabs, then press **Merge into Main**.
+9. Minh: press **Change requests** (its badge counts the ready ones), then **Review and merge** on #2. Look at the Changes, Before and After, then press **Merge into Main**.
 10. Minh: open #3 by Quang. Its PG-203 name clashes with #2. Pick one version, then merge.
-11. Minh: open #5 and read why the PG-203 date moves. Press **Request changes**. Then Khoa: press **Read**, then **Mark as ready** again.
-12. Anyone: press **History**, then **See changes** on a merge.
-13. Anyone: open a merged change request (**History**, **Open graph**). It is read-only history: no Queue, no drag and no edit buttons. Press **New change request** to change more.
+11. Minh: open #5 and read why the PG-203 date moves. Press **Request changes** and write a note. Then Khoa: the header shows the note; press **Mark as ready** again.
+12. Anyone: press **History**, then **Open #3** on a merge.
+13. Anyone: open a merged change request (**History**, **Open #1**). It is read-only history: no Queue, no drag and no edit buttons. Press **New change request** to change more.
+14. Quang: open #4 by Hà. It says **View only.** Press **Ask for edit access**. Then Hà: press **Grant Can edit**.
+15. Hà: press **Cancel change request**, write a reason, and confirm. History lists #4 under Cancelled with the reason.
 
-[tests/e2e/tracker.spec.ts](tests/e2e/tracker.spec.ts) runs these 13 steps in a browser.
+[tests/e2e/tracker.spec.ts](tests/e2e/tracker.spec.ts) runs these 15 steps in a browser.
 
 ## Connect an agent
 

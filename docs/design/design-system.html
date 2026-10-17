@@ -278,7 +278,11 @@ table.t td.mono { font: 12px var(--f-id); white-space: nowrap; }
 .tk .toast button { display: inline-flex; align-items: center; gap: 5px; border: 1px solid color-mix(in srgb, var(--panel) 40%, transparent); background: none; color: var(--panel); border-radius: 6px; padding: 4px 10px; font: 500 var(--fs-s) var(--f-ui); cursor: pointer; }
 .tk .p-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--rule); flex-wrap: wrap; min-height: 52px; background: var(--panel); }
 .tk .p-head .sp { flex: 1; }
-.tk .graph-btn { display: flex; gap: 8px; align-items: center; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); border-radius: var(--r-ctl); padding: 0 10px; cursor: pointer; font: 600 var(--fs-s) var(--f-ui); min-height: 32px; box-shadow: var(--shadow-sm); }
+.tk .vsel { display: flex; gap: 7px; align-items: center; border: 0; background: none; color: var(--ink); border-radius: var(--r-ctl); padding: 0 8px; margin-left: -8px; cursor: pointer; font: 600 var(--fs) var(--f-ui); min-height: 32px; }
+.tk .vsel:hover { background: var(--hover); }
+.tk .crs-btn { position: relative; }
+.tk .nbadge { position: absolute; top: -7px; right: -7px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--danger); color: #fff; font: 600 10.5px/18px var(--f-ui); text-align: center; box-shadow: 0 0 0 2px var(--panel); }
+.tk .bnote { flex-basis: 100%; margin: 0; font-size: var(--fs-s); color: var(--ink-2); }
 .tk .demo { display: flex; align-items: center; gap: 8px; font-size: 10.5px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
 .tk .demo select { min-height: 32px; border: 1px solid var(--rule); background: var(--panel); border-radius: var(--r-ctl); padding: 0 6px; font: 500 var(--fs-s) var(--f-ui); text-transform: none; letter-spacing: 0; color: var(--ink); box-shadow: var(--shadow-sm); }
 .tk .me { display: flex; align-items: center; gap: 8px; padding-left: 10px; border-left: 1px solid var(--rule); }
@@ -703,23 +707,24 @@ Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fiel
       </aside>
       <div style="flex:1;min-width:560px">
         <div class="p-head">
-          <button class="graph-btn" type="button"><span class="gdot" style="background:var(--ink)"></span>Main</button>
+          <div class="tsearch" style="flex:1"><span id="ic-search2"></span><input placeholder="Search work items" aria-label="Search work items"><span class="tfilter-btn" id="fbtn2"></span></div>
           <button class="hid-pill" type="button">2 hidden</button>
-          <span class="sp"></span>
-          <div class="tsearch" style="width:220px"><span id="ic-search2"></span><input placeholder="Search work items" aria-label="Search work items"><span class="tfilter-btn" id="fbtn2"></span></div>
           <button class="btn" type="button">History</button>
+          <button class="btn crs-btn" type="button" aria-label="Change requests, 2 ready to merge">Change requests<span class="nbadge" aria-hidden="true">2</span></button>
+          <button class="btn btn-ink" type="button">New change request</button>
           <label class="demo">Demo<select><option>Minh Trần</option></select></label>
           <div class="me"><span class="av" style="background:#0d74ce">MT</span><span><b>Minh Trần</b><small>Owner of Main</small></span></div>
         </div>
-        <div class="bbar main"><span class="bt">Main</span><span class="muted">Read-only. Every change goes through a change request.</span><span class="sp"></span><button class="btn btn-ink" type="button">New change request</button></div>
+        <div class="bbar main"><button class="vsel" type="button"><span class="gdot" style="background:var(--ink)"></span>Main ▾</button><span class="chipx">read-only</span><span class="muted">Owner: Minh Trần</span></div>
         <div class="ro-note"><p>Main is read-only. To change it, create a change request.</p><button class="lnk" type="button">Don't show again</button><button class="x" type="button" aria-label="Close">×</button></div>
-        <div class="bbar other"><span class="bt">#4 Test plan for the CRS section</span><span class="chipx">Draft</span><span class="muted">Lan Phạm edits this change request.</span><span class="sp"></span><button class="btn" type="button">Ask to edit</button></div>
-        <div class="bbar mine"><span class="bt">#5 PG-203 date and test plan</span><span class="chipx">Draft</span><span class="sp"></span><button class="btn" type="button">Share</button><button class="btn btn-ink" type="button">Mark as ready</button>
-          <div class="ask-row">Khoa Lê asks to edit. <button class="btn sm" type="button">Hand over</button><button class="btn sm" type="button">Not now</button></div>
+        <div class="bbar other"><button class="vsel" type="button">#4 Test plan for the CRS section ▾</button><span class="chipx">Draft</span><span class="chipx pen">Hà is editing</span><span class="sp"></span><span class="muted">View only.</span><button class="btn btn-ink" type="button">Ask for edit access</button></div>
+        <div class="bbar mine"><button class="vsel" type="button">#5 PG-203 date and test plan ▾</button><span class="chipx">Draft</span><span class="chipx pen">You are editing</span><span class="sp"></span><button class="btn" type="button">Share</button><button class="btn" type="button">Cancel change request</button><button class="btn btn-ink" type="button">Mark as ready</button>
+          <div class="ask-row">Quang Nguyễn asks for edit access to #5. <button class="btn sm btn-ink" type="button">Grant Can edit</button><button class="btn sm" type="button">Not now</button></div>
         </div>
+        <div class="bbar main"><button class="vsel" type="button">#2 Place PG-204 in Engineering ▾</button><span class="chipx">Closed</span><span class="muted">Cancelled by Lan Phạm, 9 Oct 17:00. Nothing went into Main.</span><p class="bnote"><b>Reason:</b> Main has these dates already.</p></div>
       </div>
     </div>
-    <p class="cap">The rail is flat on <code>--sunk</code>: bold current item on <code>--gray-bg</code>, no cards. Context bars: Main on sunk, someone else's request on route-bg, your own on the edit tint.</p>
+    <p class="cap">The rail is flat on <code>--sunk</code>: bold current item on <code>--gray-bg</code>, no cards. The top bar: the search takes the free room; Change requests carries a red badge with the number of ready change requests. Context bars start with the view selector: Main on sunk, someone else's request on route-bg, your own on the edit tint, a cancelled one with its reason.</p>
   </div>
 
   <h2 id="graph">7. Graph marks</h2>
