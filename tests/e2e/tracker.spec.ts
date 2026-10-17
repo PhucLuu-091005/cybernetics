@@ -373,6 +373,18 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(page.locator('svg.pg-side .hit.sel[data-rowlabel="pg203"]')).toHaveCount(1);
     const ring = await drawer.evaluate((el) => getComputedStyle(el).outlineStyle);
     expect(ring).toBe('none');
+    const stroke = (id: string) =>
+      page.locator(`svg.pg [data-loop="${id}"]`).evaluate((el) => getComputedStyle(el).stroke);
+    expect(await stroke('pg203')).toBe('none');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    const focusColour = await page.evaluate(() =>
+      getComputedStyle(document.documentElement).getPropertyValue('--focus').trim(),
+    );
+    expect(focusColour).not.toBe('');
+    await expect(page.locator('svg.pg [data-loop="pg203"]')).toBeFocused();
+    expect(await stroke('pg203')).not.toBe('none');
 
     await page.locator('svg.pg-side .label-hit[data-rowlabel="crs"]').click();
     await expect(drawer.locator('h4')).toHaveText('CRS tax residency section with DealCloud sync');
@@ -434,15 +446,14 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(rows).toHaveCount(13);
   });
 
-  test('the axis stays pinned while the rows scroll, and full view fills the screen', async ({
+  test('the axis stays pinned while the rows scroll, and follows the sideways scroll', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 700 });
-    await signIn(page, 'tracker-full');
+    await signIn(page, 'tracker-pin');
     const canvas = page.locator('.gcanvas');
     const head = page.locator('.ghead');
     const crm = page.locator('svg.tg [data-ms="crm"]');
-    const drawer = page.locator('.drawer');
 
     const top = (await canvas.boundingBox())!.y;
     await canvas.evaluate((el) => el.scrollTo(0, 400));
@@ -451,27 +462,70 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     expect(Math.round((await head.boundingBox())!.y)).toBe(Math.round(top));
     await expect(page.locator('svg.pg-side [data-rowlabel="golive"]').first()).not.toBeInViewport();
 
+    const golive = page.locator('svg.pg [data-loop="golive"]');
+    await golive.focus();
+    const headBottom = (await head.boundingBox())!;
+    expect((await golive.boundingBox())!.y).toBeGreaterThanOrEqual(
+      headBottom.y + headBottom.height - 1,
+    );
+
+    for (let i = 0; i < 3; i += 1) await page.getByRole('button', { name: 'Zoom in' }).click();
+    const rows = page.locator('.gscroll .gtime');
+    await rows.evaluate((el) => el.scrollTo({ left: 300 }));
+    await expect.poll(() => rows.evaluate((el) => el.scrollLeft)).toBe(300);
+    await expect
+      .poll(() => page.locator('.ghead .gtime').evaluate((el) => el.scrollLeft))
+      .toBe(300);
+  });
+
+  test('full view fills the screen and leaves with the button or the browser', async ({ page }) => {
+    await signIn(page, 'tracker-full');
     const full = page.getByRole('button', { name: 'Full view' });
+    const board = page.locator('.tk.fullview');
     await full.click();
-    await expect(page.locator('.tk.fullview')).toHaveCount(1);
+    await expect(board).toHaveCount(1);
+    await expect(full).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.p-head')).toBeHidden();
     await expect(page.locator('.legend2')).toBeHidden();
     const box = (await page.locator('.tk.board').boundingBox())!;
     expect(box.x).toBe(0);
     expect(box.width).toBe(1440);
+    await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
+    await full.click();
+    await expect(board).toHaveCount(0);
+    await expect(full).toHaveAttribute('aria-pressed', 'false');
+    await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
+
+    await full.click();
+    await expect(board).toHaveCount(1);
+    await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
+    // The browser's own Esc leaves full screen without a key event; the board follows the change.
+    await page.evaluate(() => document.exitFullscreen());
+    await expect(board).toHaveCount(0);
+    await expect(page.locator('.p-head')).toBeVisible();
+  });
+
+  test('without the Fullscreen API, full view covers the window and Esc closes the top layer first', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      Element.prototype.requestFullscreen = () => Promise.reject(new Error('refused'));
+    });
+    await signIn(page, 'tracker-fallback');
+    const board = page.locator('.tk.fullview');
+    const drawer = page.locator('.drawer');
+    await page.getByRole('button', { name: 'Full view' }).click();
+    await expect(board).toHaveCount(1);
+    expect(await page.evaluate(() => document.fullscreenElement)).toBeNull();
+    const box = (await page.locator('.tk.board').boundingBox())!;
+    expect([box.x, box.y, box.width]).toEqual([0, 0, 1440]);
     await page.locator('svg.pg [data-loop="pg203"]').click({ position: { x: 40, y: 15 } });
     await expect(drawer.locator('h4')).toHaveText('PG-203 Country list field type');
     await page.keyboard.press('Escape');
     await expect(drawer).toHaveCount(0);
-    await expect(page.locator('.tk.fullview')).toHaveCount(1);
+    await expect(board).toHaveCount(1);
     await page.keyboard.press('Escape');
-    await expect(page.locator('.tk.fullview')).toHaveCount(0);
-    await expect(page.locator('.p-head')).toBeVisible();
-
-    await full.click();
-    await expect(page.locator('.tk.fullview')).toHaveCount(1);
-    await page.getByRole('button', { name: 'Leave full view' }).click();
-    await expect(page.locator('.tk.fullview')).toHaveCount(0);
+    await expect(board).toHaveCount(0);
     await expect(page.locator('.legend2')).toBeVisible();
   });
 
@@ -559,6 +613,15 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await page.keyboard.press('Escape');
       await expect(menu).toHaveCount(0);
       await expect(mark).toBeFocused();
+      await page.keyboard.press('Enter');
+      await expect(menu).toBeVisible();
+      await page.keyboard.press('Tab');
+      await expect(menu).toHaveCount(0);
+      await expect(mark).toBeFocused();
+      await page.keyboard.press('Enter');
+      await expect(menu).toBeVisible();
+      await page.locator('.zoombar').getByRole('button', { name: 'Zoom in' }).focus();
+      await expect(menu).toHaveCount(0);
       await mark.click();
       await menu.getByRole('menuitem', { name: /PG-203 Country list field type/ }).click();
       await expect(menu).toHaveCount(0);

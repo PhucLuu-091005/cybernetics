@@ -21,6 +21,7 @@ import {
   layoutTracker,
   matchRows,
   NO_FILTER,
+  pruneFilter,
   offsetFor,
   toInstant,
   type Offsets,
@@ -344,7 +345,9 @@ export function TrackerScreen({
   }
   const showNotice = view === 'main' && noticeOff === false && !noticeClosed;
   const [queueOpen, setQueueOpen] = useState(true);
-  const [rowFilter, setRowFilter] = useState<RowFilter>(NO_FILTER);
+  const [chosenFilter, setRowFilter] = useState<RowFilter>(NO_FILTER);
+  // Ids from another change request view stay chosen, but only the ids of this view filter it.
+  const rowFilter = useMemo(() => pruneFilter(state, chosenFilter), [state, chosenFilter]);
   const rowMatch = useMemo(
     () => matchRows(state, rowFilter, asOf, tz),
     [state, rowFilter, asOf, tz],

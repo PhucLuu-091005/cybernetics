@@ -878,7 +878,6 @@ export function ReviewScreen({
                       setInView((r) => ({ rowId: id, key: (r?.key ?? 0) + 1 }));
                     }}
                     onPop={noop}
-                    onMilestone={noop}
                     onAddEvent={noop}
                     onNewMilestone={noop}
                     onNewTeam={noop}
