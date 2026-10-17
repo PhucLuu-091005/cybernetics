@@ -29,6 +29,7 @@ import { Avatar } from './avatar';
 import { trunc, type Session } from './ContextBar';
 import { Icon, KindIcon } from './icons';
 import { newTeamOp } from './team';
+import { TimeInput } from './TimeInput';
 
 export type ModalState =
   | { mode: 'add'; what: 'event' | 'item' }
@@ -254,25 +255,6 @@ function DateInput({ value, onChange }: { value: string; onChange: (v: string) =
       value={value}
       onChange={(event) => event.target.value && onChange(event.target.value)}
     />
-  );
-}
-
-/** Empty means no time: the deadline is then the end of the day. */
-export function TimeInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <span className="time-in">
-      <input
-        type="time"
-        value={value}
-        aria-label="Time (optional)"
-        onChange={(event) => onChange(event.target.value)}
-      />
-      {value && (
-        <button type="button" className="btn sm" onClick={() => onChange('')}>
-          No time
-        </button>
-      )}
-    </span>
   );
 }
 

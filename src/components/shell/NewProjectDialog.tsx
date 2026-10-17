@@ -12,6 +12,7 @@ import {
   newProjectProblem,
   type NewProjectForm,
 } from './new-project';
+import { TimeInput } from '../tracker/TimeInput';
 
 export function NewProjectDialog({ onClose }: { onClose: () => void }) {
   const router = useRouter();
@@ -111,7 +112,10 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
           </label>
           <label className="field">
             Time (optional)
-            <input type="time" value={form.milestoneTime ?? ''} onChange={edit('milestoneTime')} />
+            <TimeInput
+              value={form.milestoneTime ?? ''}
+              onChange={(value) => setForm((current) => ({ ...current, milestoneTime: value }))}
+            />
           </label>
         </div>
         {problem && (

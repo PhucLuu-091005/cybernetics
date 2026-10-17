@@ -6,7 +6,7 @@ export const CLIENT_MAX = ProjectSchema.shape.clientName.maxLength ?? undefined;
 const TitleSchema = noNul(ProjectSchema.shape.title);
 const ClientSchema = noNul(ProjectSchema.shape.clientName);
 export const DEFAULT_TEAMS = 'Implementation\nEngineering\nQA';
-const MILESTONE_PROBLEM = 'Give the first milestone a name and a date, or leave both empty.';
+const MILESTONE_PROBLEM = 'Give the first milestone a name and a date, or leave its fields empty.';
 
 export type NewProjectForm = {
   name: string;
@@ -34,7 +34,7 @@ function milestoneOf(
   const name = form.milestoneName.trim(),
     date = form.milestoneDate,
     time = form.milestoneTime ?? '';
-  if (!name && !date) return null;
+  if (!name && !date) return time ? MILESTONE_PROBLEM : null;
   if (!name || !date) return MILESTONE_PROBLEM;
   const parsed = FirstMilestoneSchema.safeParse({ name, date, ...(time ? { time } : {}) });
   return parsed.success ? (parsed.data ?? null) : parsed.error.issues[0].message;
