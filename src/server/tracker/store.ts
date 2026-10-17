@@ -1,5 +1,5 @@
 import { and, asc, eq, isNull } from 'drizzle-orm';
-import type { Commit, Cr, CrCommentKind, Member, QueueRow } from '../../tracker';
+import type { Commit, Cr, CrCommentKind, Grants, Member, QueueRow } from '../../tracker';
 import { AppError } from '../errors';
 import {
   trackerCommits,
@@ -11,6 +11,8 @@ import {
   trackerMembers,
   trackerProjects,
   trackerQueue,
+  trackerTeamMembers,
+  trackerTeams,
 } from '../db/schema';
 import { toIso, type Db, type Tx } from '../db/tx';
 
@@ -22,6 +24,7 @@ export type Tenant = { workspaceId: string; projectId: string };
 
 const isoOrNull = (value: string | null) => (value === null ? null : toIso(value));
 
+/** Main's team list comes from the project's teams, so a rename or a new lead shows at once in every view. */
 export async function findTracker(db: Reader, projectId: string): Promise<TrackerRow> {
   const [row] = await db
     .select()
@@ -29,7 +32,63 @@ export async function findTracker(db: Reader, projectId: string): Promise<Tracke
     .where(eq(trackerProjects.projectId, projectId))
     .limit(1);
   if (!row) throw new AppError('NOT_FOUND', 'This project has no tracker yet');
-  return row;
+  const teams = await loadTeams(db, projectId);
+  return {
+    ...row,
+    base: {
+      ...row.base,
+      teams: teams.map(({ id, name, leadId }) => ({ id, name, leadId })),
+    },
+  };
+}
+
+export async function insertTeams(
+  tx: Tx,
+  tenant: Tenant,
+  teams: ReadonlyArray<{ id: string; name: string; leadId: string | null; memberIds: string[] }>,
+) {
+  if (!teams.length) return;
+  await tx
+    .insert(trackerTeams)
+    .values(
+      teams.map((team) => ({ ...tenant, id: team.id, name: team.name, leadMemberId: team.leadId })),
+    );
+  const members = teams.flatMap((team) =>
+    [...new Set([...team.memberIds, ...(team.leadId ? [team.leadId] : [])])].map((memberId) => ({
+      ...tenant,
+      teamId: team.id,
+      memberId,
+    })),
+  );
+  if (members.length) await tx.insert(trackerTeamMembers).values(members);
+}
+
+export type TeamRow = { id: string; name: string; leadId: string | null; memberIds: string[] };
+
+export async function loadTeams(db: Reader, projectId: string): Promise<TeamRow[]> {
+  const teams = await db
+    .select()
+    .from(trackerTeams)
+    .where(eq(trackerTeams.projectId, projectId))
+    .orderBy(asc(trackerTeams.seq));
+  const members = await db
+    .select({ teamId: trackerTeamMembers.teamId, memberId: trackerTeamMembers.memberId })
+    .from(trackerTeamMembers)
+    .innerJoin(
+      trackerMembers,
+      and(
+        eq(trackerMembers.projectId, trackerTeamMembers.projectId),
+        eq(trackerMembers.id, trackerTeamMembers.memberId),
+      ),
+    )
+    .where(eq(trackerTeamMembers.projectId, projectId))
+    .orderBy(asc(trackerMembers.seq));
+  return teams.map((team) => ({
+    id: team.id,
+    name: team.name,
+    leadId: team.leadMemberId,
+    memberIds: members.filter((row) => row.teamId === team.id).map((row) => row.memberId),
+  }));
 }
 
 export async function loadMembers(db: Reader, projectId: string): Promise<Member[]> {
@@ -44,9 +103,17 @@ export async function loadMembers(db: Reader, projectId: string): Promise<Member
     roleLabel: row.roleLabel,
     color: row.color,
     userId: row.userId,
-    active: row.removedAt === null && row.access === 'member' && !isInvite(row),
+    active: row.removedAt === null && !isInvite(row),
+    grants: grantsOf(row),
   }));
 }
+
+export const grantsOf = (row: typeof trackerMembers.$inferSelect): Grants => ({
+  viewMain: row.viewMain,
+  viewCrs: row.viewCrs,
+  createCrs: row.createCrs,
+  mergeCrs: row.mergeCrs,
+});
 
 export const isInvite = (row: { userId: string | null; email: string | null }) =>
   row.userId === null && row.email !== null;

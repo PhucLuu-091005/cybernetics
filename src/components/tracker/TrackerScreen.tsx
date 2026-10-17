@@ -35,6 +35,8 @@ import {
   type TrackerLayout,
   type TrackerPayload,
   type TrackerState,
+  can,
+  mergerIds,
 } from '../../tracker';
 import {
   actAs,
@@ -61,6 +63,7 @@ import {
   roleIn,
   trunc,
   type Session,
+  mergerNames,
 } from './ContextBar';
 import {
   dayAtX,
@@ -315,17 +318,19 @@ export function TrackerScreen({
   if (focus && !focused) setFocus(null);
   const inFocus = useMemo(() => (focused ? descendantsOf(state, focused) : null), [state, focused]);
   const me = payload.me?.id ?? null;
-  const isOwner = !!me && me === project.ownerMemberId;
+  const canMerge = !!me && can(payload, 'merge');
+  const canCreate = !!me && can(payload, 'create');
+  const mergers = useMemo(() => mergerIds(payload), [payload]);
   const dir = useMemo(
     () => makeDirectory(payload.members, state.people),
     [payload.members, state.people],
   );
   const session: Session = useMemo(
-    () => ({ projectId, payload, me, isOwner, dir, tz }),
-    [projectId, payload, me, isOwner, dir, tz],
+    () => ({ projectId, payload, me, canMerge, canCreate, mergers, dir, tz }),
+    [projectId, payload, me, canMerge, canCreate, mergers, dir, tz],
   );
   const edit = !!cr && canEditCr(cr, me);
-  const ownerName = dir.name(project.ownerMemberId);
+  const mergerName = mergerNames(session);
 
   const [hidden, setHidden] = useState<ViewState>(EMPTY_VIEW);
   useLayoutEffect(() => {
@@ -676,7 +681,7 @@ export function TrackerScreen({
     if (!created) return;
     setDrawer(null);
     setView(created.num);
-    showToast(`#${created.num} is open. Main stays the same until ${ownerName} merges it.`);
+    showToast(`#${created.num} is open. Main stays the same until ${mergerName} merges it.`);
   };
 
   const onEditAgain = async () => {
@@ -716,7 +721,7 @@ export function TrackerScreen({
     const num = cr.num;
     if (!(await action(num, { action: 'ready' }, true))) return;
     setDrawer(null);
-    showToast(`#${num} is ready. ${ownerName} can merge it now.`, () => {
+    showToast(`#${num} is ready. ${mergerName} can merge it now.`, () => {
       void action(num, { action: 'unready' }, true);
     });
   };
@@ -853,13 +858,13 @@ export function TrackerScreen({
       next.crs
         .filter((c) => c.status === 'draft' && roleIn(c, nextMe) !== 'view')
         .sort(byNumDesc)[0];
-    const owner = nextMe === next.project.ownerMemberId;
+    const merger = !!nextMe && can(next, 'merge');
     setPayload(next);
     setPop(null);
     setMoving(null);
     closeModal();
     setDrawer(
-      owner && !drafts.length && next.crs.some((c) => c.status === 'ready')
+      merger && !drafts.length && next.crs.some((c) => c.status === 'ready')
         ? { mode: 'crs' }
         : null,
     );
@@ -1293,7 +1298,7 @@ export function TrackerScreen({
                     <ol>
                       <li>Add work items and events. They wait in the Queue on the left.</li>
                       <li>Drag a work item onto a team, then drag events onto the work item.</li>
-                      <li>Mark the change request as ready, and the owner merges it.</li>
+                      <li>Mark the change request as ready, and {mergerName} merges it.</li>
                     </ol>
                     <div className="row-btns">
                       <button
@@ -1323,9 +1328,9 @@ export function TrackerScreen({
                         In the change request, add work items and events, then drag them onto the
                         graph.
                       </li>
-                      <li>Mark the change request as ready, and the owner merges it.</li>
+                      <li>Mark the change request as ready, and {mergerName} merges it.</li>
                     </ol>
-                    {!cr && (
+                    {!cr && canCreate && (
                       <div className="row-btns">
                         <button className="btn btn-ink big" type="button" onClick={actions.newCr}>
                           <Icon name="plus" /> New change request

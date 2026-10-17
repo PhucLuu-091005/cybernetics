@@ -21,6 +21,7 @@ import {
   type Resolution,
   type TrackerPayload,
   type TrackerState,
+  canSeeCr,
 } from '../../tracker';
 import { AppError, invalidInput } from '../errors';
 import {
@@ -37,16 +38,19 @@ import {
   OPEN,
   ProjectScopeSchema,
   requireEditor,
-  requireMember,
-  requireOwner,
+  requireRight,
   requireStatus,
+  rightsIn,
+  subjectOf,
   writeScope,
   type Scope,
 } from './access';
+import { addMergedTeams } from './members';
 import { buildPayload } from './read';
 import { addComment, loadCommits, loadQueue, lockCr, mainRevision, type CrRow } from './store';
 
 const MAX_OPS = 500;
+const MISSING_CRS = 'You cannot see the change requests of this project';
 const Text = (max: number) => noNul(z.string().trim().min(1, 'Must not be empty').max(max));
 const RouteNumber = z
   .union([
@@ -60,7 +64,7 @@ const RouteNumber = z
 const MemberId = z.string().max(100);
 const Target = { ...ProjectScopeSchema, num: RouteNumber.pipe(z.number().positive()) };
 const Seen = { ...Target, expectedRevision: RevisionSchema.optional() };
-/** The owner decides on what they saw, so merge, close and request changes must name that revision. */
+/** The merger decides on what they saw, so merge, close and request changes must name that revision. */
 const Reviewed = { ...Target, expectedRevision: RevisionSchema };
 
 const CreateCrInputSchema = z.strictObject({
@@ -162,6 +166,8 @@ function admit(
   ).state;
   return raws.map((raw) => {
     const op = candidate(raw, rev, by);
+    if (op.op === 'addTeam' && state.teams.some((team) => team.id === op.a.id))
+      throw new AppError('VALIDATION', `The change does not fit: team ${op.a.id} already exists`);
     try {
       const applied = applyOp(state, op, tz);
       state = applied.state;
@@ -220,7 +226,7 @@ export async function createCr(
   const input = parse(CreateCrInputSchema, raw, 'Invalid change request');
   return withTransaction(db, async (tx) => {
     const scope = await writeScope(tx, ctx, input.projectId, input.actAs);
-    const me = requireMember(ctx, scope.me);
+    const me = requireRight(ctx, scope, 'create');
     const main = await loadMain(tx, scope);
     const ops = admit(main, [], input.ops ?? [], me.id, scope.tracker.timeZone);
     const [{ num }] = await tx
@@ -326,7 +332,7 @@ async function unready(run: Run) {
 
 async function ask(run: Run) {
   const { tx, ctx, scope, cr } = run;
-  const me = requireMember(ctx, scope.me);
+  const me = requireRight(ctx, scope, 'create');
   requireStatus(cr, OPEN);
   requireSeen(run);
   if (cr.editor === me.id) throw new AppError('VALIDATION', `You already edit #${cr.num}`);
@@ -344,7 +350,7 @@ async function ask(run: Run) {
 
 async function cancelAsk(run: Run) {
   const { tx, ctx, scope, cr } = run;
-  const me = requireMember(ctx, scope.me);
+  const me = requireRight(ctx, scope, 'viewMain');
   requireSeen(run);
   const removed = await tx
     .delete(trackerCrAsks)
@@ -360,6 +366,8 @@ async function handover(run: Run, to: string) {
   requireSeen(run);
   const next = memberOf(scope, to);
   if (next.id === me.id) throw new AppError('VALIDATION', `You already edit #${cr.num}`);
+  if (!rightsIn(scope, next).create)
+    throw new AppError('FORBIDDEN', `${next.name} cannot create or edit change requests`);
   if (!hasEditRight(cr, await loadShares(tx, cr), next.id))
     throw new AppError('FORBIDDEN', `${next.name} cannot edit #${cr.num}. Share it first.`);
   await updateCr(tx, cr, { editor: next.id });
@@ -401,6 +409,11 @@ async function share(run: Run, memberId: string, permission: 'edit' | 'view' | '
   const member = memberOf(scope, memberId, permission !== 'remove');
   if (member.id === cr.author || member.id === cr.editor)
     throw new AppError('VALIDATION', `${member.name} already can edit #${cr.num}`);
+  if (permission === 'edit' && !rightsIn(scope, member).create)
+    throw new AppError(
+      'VALIDATION',
+      `${member.name} cannot create or edit change requests. Share it to view, or ask the project lead.`,
+    );
   const row = and(
     eq(trackerCrShares.projectId, cr.projectId),
     eq(trackerCrShares.crId, cr.id),
@@ -444,7 +457,9 @@ async function share(run: Run, memberId: string, permission: 'edit' | 'view' | '
 
 async function comment(run: Run, body: string, opIndex: number | null) {
   const { tx, ctx, scope, cr } = run;
-  const me = requireMember(ctx, scope.me);
+  const me = requireRight(ctx, scope, 'viewMain');
+  if (!canSeeCr(subjectOf(scope), { ...cr, shares: await loadShares(tx, cr) }))
+    throw new AppError('FORBIDDEN', MISSING_CRS);
   requireStatus(cr, OPEN);
   requireSeen(run);
   if (opIndex !== null && opIndex >= cr.ops.length)
@@ -464,7 +479,7 @@ const resolutionLine = (r: Resolution) =>
 
 async function merge(run: Run, picks: Record<string, 'main' | 'cr'>) {
   const { tx, ctx, scope, cr } = run;
-  const me = requireOwner(ctx, scope);
+  const me = requireRight(ctx, scope, 'merge');
   requireStatus(cr, ['ready']);
   requireSeen(run);
   const main = await loadMain(tx, scope);
@@ -514,6 +529,7 @@ async function merge(run: Run, picks: Record<string, 'main' | 'cr'>) {
     ops,
     resolutions,
   });
+  await addMergedTeams(tx, scope, ops);
   await updateCr(tx, cr, {
     status: 'merged',
     mergedRev: rev,
@@ -534,7 +550,7 @@ async function merge(run: Run, picks: Record<string, 'main' | 'cr'>) {
 
 async function requestChanges(run: Run, note: string) {
   const { tx, ctx, scope, cr } = run;
-  const me = requireOwner(ctx, scope);
+  const me = requireRight(ctx, scope, 'merge');
   requireStatus(cr, ['ready']);
   requireSeen(run);
   await updateCr(tx, cr, { status: 'draft' });
@@ -548,7 +564,7 @@ async function requestChanges(run: Run, note: string) {
 
 async function close(run: Run) {
   const { tx, ctx, scope, cr } = run;
-  const me = requireOwner(ctx, scope);
+  const me = requireRight(ctx, scope, 'merge');
   requireStatus(cr, ['ready']);
   requireSeen(run);
   const commits = await loadCommits(tx, scope.project.id);

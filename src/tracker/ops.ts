@@ -326,8 +326,8 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
     }
     case 'addTeam': {
       const { id, name, leadId } = op.a;
-      assertNew(s.teams, id, 'team');
-      s.teams.push({ id, name, leadId });
+      // A merge also writes the team into the project's team list, which Main replays from.
+      if (!s.teams.some((team) => team.id === id)) s.teams.push({ id, name, leadId });
       return {
         item: name,
         change: 'added',

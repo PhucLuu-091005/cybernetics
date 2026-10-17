@@ -25,6 +25,7 @@ const members: Member[] = LARKSPUR_MEMBERS.map((m) => ({
   color: m.color,
   userId: null,
   active: true,
+  grants: m.grants,
 }));
 
 function described(commits: readonly Commit[], ops: readonly Op[], upto?: number): Op[] {
@@ -106,7 +107,7 @@ function payload(crs: Cr[], commits: Commit[], me = LARKSPUR_OWNER): TrackerPayl
       windowStart: null,
       asOf: null,
       demo: true,
-      ownerMemberId: LARKSPUR_OWNER,
+      leadMemberId: LARKSPUR_OWNER,
     },
     members,
     me: members.find((m) => m.id === me) ?? null,
@@ -191,7 +192,7 @@ describe('reviewModel', () => {
     ]);
     expect(model.clashes).toEqual([]);
     expect(model.dropped).toEqual([]);
-    expect(model.owner).toBe(true);
+    expect(model.merger).toBe(true);
     expect(model.canMerge).toBe(true);
   });
 
@@ -199,7 +200,7 @@ describe('reviewModel', () => {
     const { cr1, cr2, cr3, cr4, commits } = seed();
     const crs = [cr1, cr2, cr3, cr4];
     const asLan = reviewModel(payload(crs, commits, 'lan'), 2, {});
-    expect(asLan?.owner).toBe(false);
+    expect(asLan?.merger).toBe(false);
     expect(asLan?.canMerge).toBe(false);
     expect(reviewModel(payload(crs, commits), 4, {})?.canMerge).toBe(false);
     const empty = makeCr(5, { author: 'lan', ops: [] });
@@ -306,7 +307,7 @@ describe('reviewModel', () => {
     const p = payload([...crs.filter((c) => c.num !== 3), draft], commits);
     const model = reviewModel(p, 3, { 'loop:pg203:title': 'cr' });
     if (!model) throw new Error('no model');
-    expect(model.owner).toBe(true);
+    expect(model.merger).toBe(true);
     expect(model.clashes.map((k) => [k.key, k.index, k.fromAuthor])).toEqual([
       ['loop:pg203:title', 1, 'lan'],
     ]);

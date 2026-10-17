@@ -193,7 +193,7 @@ test.describe('the tracker walkthrough', () => {
       await bar.getByRole('button', { name: 'Mark as ready' }).click();
       await expect(toast).toContainText('#5 is ready. Minh Trần can merge it now.');
       await expect(bar).toContainText('Ready to merge');
-      await expect(bar).toContainText('Locked. Waiting for Minh.');
+      await expect(bar).toContainText('Locked. Waiting for Minh or Quang.');
       await expect(bar.getByRole('button', { name: 'Edit again' })).toBeVisible();
     });
 
@@ -299,7 +299,7 @@ test.describe('the tracker walkthrough', () => {
 test.describe('the top bar', () => {
   test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
 
-  test('Main shows read-only and its owner in the selector, and one button opens the change requests', async ({
+  test('Main shows read-only and its project lead in the selector, and one button opens the change requests', async ({
     page,
   }) => {
     const { projectId, graph } = await signIn(page, 'tracker-top-bar');
@@ -307,7 +307,7 @@ test.describe('the top bar', () => {
     const view = head.locator('.gpick > summary');
     await expect(view).toContainText('Main');
     await expect(view).toContainText('read-only');
-    await expect(view).toContainText('Owner: Minh Trần');
+    await expect(view).toContainText('Lead: Minh Trần');
     await expect(view.locator('.av')).toHaveText('MT');
     await expect(page.getByText('Every change goes through a change request')).toHaveCount(0);
     await expect(page.locator('.bbar')).toHaveCount(0);
