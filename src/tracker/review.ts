@@ -85,6 +85,11 @@ function workItemIdOf(op: Op, after: TrackerState): string | null {
     case 'msRemove':
     case 'msAdd':
     case 'due':
+    case 'doneBy':
+    case 'requestedBy':
+    case 'team':
+    case 'parent':
+    case 'after':
       return op.a.workItemId;
     case 'place':
     case 'qms':

@@ -1,6 +1,6 @@
 'use client';
 import { useState, type KeyboardEvent } from 'react';
-import { formatDay, formatStamp, KIND_LABEL, type TrackerState } from '../../tracker';
+import { formatDeadline, formatStamp, KIND_LABEL, type TrackerState } from '../../tracker';
 import { Avatar, type Directory } from './avatar';
 import { trunc } from './ContextBar';
 import { Icon, KIND_COLOR, KindIcon } from './icons';
@@ -148,7 +148,7 @@ export function QueuePanel({
                 style={{ ['--kc' as string]: 'var(--ink-2)' }}
                 role="button"
                 tabIndex={0}
-                aria-label={`Work item ${it.title}, done by ${dir.name(it.doneBy)}, planned finish ${formatDay(it.plannedFinish)}`}
+                aria-label={`Work item ${it.title}, done by ${dir.name(it.doneBy)}, planned finish ${formatDeadline(it.plannedFinish, it.plannedFinishTime)}`}
                 onClick={() => onItem(it.id)}
                 onKeyDown={activate(() => onItem(it.id))}
               >
@@ -165,7 +165,8 @@ export function QueuePanel({
                 <div className="qf">
                   <Avatar id={it.doneBy} dir={dir} sm />{' '}
                   <span className="who">{dir.name(it.doneBy)}</span> ·{' '}
-                  <Icon name="flag" size={10} /> {formatDay(it.plannedFinish)}
+                  <Icon name="flag" size={10} />{' '}
+                  {formatDeadline(it.plannedFinish, it.plannedFinishTime)}
                   {it.milestoneId && (
                     <>
                       {' '}

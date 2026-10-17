@@ -124,15 +124,6 @@ export function dropAction(
   }
 }
 
-/**
- * A sideways start moves the icon inside its day, a display choice open in every view; an up or down
- * start moves the event to another work item, which changes the graph and needs an editable draft.
- */
-export function eventGesture(dx: number, dy: number, edit: boolean): 'day' | 'move' | null {
-  if (Math.abs(dx) > Math.abs(dy)) return 'day';
-  return edit ? 'move' : null;
-}
-
 export function noonX(layout: TrackerLayout, date: string, tz: string): number {
   return Math.min(layout.x1 - 4, layout.x(Date.parse(startOfDayInstant(date, tz)) + 12 * HOUR));
 }

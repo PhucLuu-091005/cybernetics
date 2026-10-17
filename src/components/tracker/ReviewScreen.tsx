@@ -19,6 +19,7 @@ import {
   layoutTracker,
   onlyMainNote,
   toInstant,
+  windowStartFor,
   type Cr,
   type CrCommentKind,
   type Picks,
@@ -475,13 +476,12 @@ export function ReviewScreen({
               asOf,
               timeZone: tz,
               ...scale,
-              offsets: live.offsets,
-              ...(project.windowStart ? { windowStart: project.windowStart } : {}),
+              windowStart: windowStartFor(graphState, project.windowStart, asOf, tz),
             },
             view === 'after' ? model.marks : undefined,
           )
         : null,
-    [graphState, model, view, hidden, asOf, tz, scale, live.offsets, project.windowStart],
+    [graphState, model, view, hidden, asOf, tz, scale, project.windowStart],
   );
 
   const graphHref = `/projects/${projectId}/graph?cr=${num}`;

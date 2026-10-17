@@ -3,7 +3,6 @@ import {
   dayAtX,
   deadlineX,
   dropAction,
-  eventGesture,
   noonX,
   retarget,
   targetAt,
@@ -199,24 +198,6 @@ describe('dropAction: what a drop does', () => {
       text: 'Drop a work item name on a milestone diamond to add it to that milestone.',
     });
     expect(dropAction(row, null, s)).toEqual({ kind: 'none' });
-  });
-});
-
-describe('eventGesture: the first move of an event drag picks what it does', () => {
-  it('moves the icon inside its day for a sideways start, in every view', () => {
-    expect(eventGesture(10, 3, false)).toBe('day');
-    expect(eventGesture(-10, 9, true)).toBe('day');
-    expect(eventGesture(10, -3, true)).toBe('day');
-  });
-
-  it('moves the event to another work item for an up or down start in an editable change request', () => {
-    expect(eventGesture(3, 10, true)).toBe('move');
-    expect(eventGesture(6, -6, true)).toBe('move');
-  });
-
-  it('does nothing for an up or down start in a read-only view', () => {
-    expect(eventGesture(3, 10, false)).toBeNull();
-    expect(eventGesture(6, 6, false)).toBeNull();
   });
 });
 

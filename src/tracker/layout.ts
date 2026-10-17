@@ -8,9 +8,8 @@ import {
   type TrackerState,
   type WorkItem,
 } from './model';
-import { deadlinesByItem, formatDeadline, milestoneDeadline } from './deadline';
-import { descendantsOf } from './focus';
-import { drawnTimes, type Offsets } from './offsets';
+import { formatDeadline, itemDeadline, milestoneDeadline } from './deadline';
+import { descendantsOf, teamDescendants } from './focus';
 import type { Marks } from './ops';
 import { itemInfo, itemStatus, milestoneStatus, type ItemInfo } from './status';
 import { addDays, compareDay, dayOf, formatDay, formatStamp, startOfDayInstant } from './time';
@@ -81,8 +80,9 @@ export type View = {
   fitSpan?: number;
   /** 1 fits the window to `fitSpan`; more widens the time line. Used only without `dayWidth`. */
   zoom?: number;
-  offsets?: Offsets;
   focus?: string | null;
+  /** A focus on a team shows its rows and the work that comes from them. */
+  focusTeam?: string | null;
   filter?: RowMatch | null;
   /** Rows carry a focus button next to the eye, so their labels are cut shorter. */
   focusButtons?: boolean;
@@ -109,6 +109,8 @@ export type LayoutLane = {
   alt: boolean;
   guide: { y1: number; y2: number } | null;
   eyeLabel: string;
+  focused: boolean;
+  focusLabel: string;
 };
 export type LayoutRow = {
   id: string;
@@ -172,8 +174,10 @@ export type LayoutHandoffTarget = {
 export type LayoutHandoff = {
   fromId: string;
   targets: LayoutHandoffTarget[];
-  /** The Handoff event the mark sits on, or null when it sits after the finish or the T line. */
+  /** The Handoff event whose icon is the mark, or null when the mark sits after the finish or the T line. */
   eventId: string | null;
+  /** The top event of the icon group that holds that Handoff event; the group draws the mark. */
+  groupId: string | null;
   x: number;
   y: number;
   width: number;
@@ -285,8 +289,6 @@ type Ctx = {
   rows: Map<string, LayoutRow>;
   name: (id: string) => string;
   dayStart: (date: string) => number;
-  /** The milestone deadline of each member work item. */
-  deadlines: Map<string, number>;
   deadlineX: (m: Milestone) => number;
   lateFrom: (w: WorkItem) => number;
 };
@@ -323,6 +325,31 @@ function windowDays(
   return { start, end: compareDay(end, start) > 0 ? end : addDays(start, 1) };
 }
 
+const START_MARGIN_DAYS = 3;
+
+/**
+ * The project's window start, moved earlier when a work item on the board starts before it, so every
+ * event of the board shows at Fit. Work items that finished before the project's start stay off the board.
+ */
+export function windowStartFor(
+  state: Pick<TrackerState, 'workItems' | 'events'>,
+  windowStart: string | null | undefined,
+  asOf: string,
+  timeZone: string,
+): string | undefined {
+  if (!windowStart) return undefined;
+  const startMs = Date.parse(startOfDayInstant(windowStart, timeZone));
+  const infos = new Map(state.workItems.map((w) => [w.id, itemInfo(w, state.events, asOf)]));
+  let earliest = Infinity;
+  for (const w of state.workItems) {
+    const info = infos.get(w.id)!;
+    if (info.finishedAt && Date.parse(info.finishedAt) < startMs) continue;
+    earliest = Math.min(earliest, itemStartMs(w, infos, asOf));
+  }
+  if (!(earliest < startMs)) return windowStart;
+  return addDays(dayOf(new Date(earliest).toISOString(), timeZone), -START_MARGIN_DAYS);
+}
+
 // The lane name is 10.5 px bold capitals with letter spacing.
 const LANE_CHAR = 7.6;
 const MAX_DEPTH = 3;
@@ -356,7 +383,7 @@ function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
     const members = state.workItems.filter((w) => w.teamId === team.id && c.inWindow.has(w.id));
     const shown = members.filter((w) => !c.hidden.has(w.id) && !c.outside.has(w.id));
     if (view.hiddenTeams.has(team.id)) continue;
-    if (!shown.length && (members.length || view.focus || view.filter)) continue;
+    if (!shown.length && (members.length || view.focus || view.focusTeam || view.filter)) continue;
     const top = y;
     y += HEAD;
     for (const { w, depth } of treeOrder(shown)) {
@@ -387,30 +414,37 @@ function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
     lanes.push({
       teamId: team.id,
       name: team.name,
-      label: trunc(team.name.toUpperCase(), Math.floor((X0 - 40 - 12) / LANE_CHAR)),
+      label: trunc(
+        team.name.toUpperCase(),
+        Math.floor((X0 - (view.focusButtons ? 58 : 40) - 12) / LANE_CHAR),
+      ),
       index,
       top,
       bottom: y,
       alt: index % 2 === 1,
       guide: lastY ? { y1: top + 20, y2: lastY } : null,
       eyeLabel: `Hide ${team.name}`,
+      focused: view.focusTeam === team.id,
+      focusLabel: `Focus on ${team.name}`,
     });
   }
   return { lanes, height: y + 56 };
 }
 
-function startOf(c: Ctx, w: WorkItem): number {
-  const info = c.infos.get(w.id)!;
+function itemStartMs(w: WorkItem, infos: ReadonlyMap<string, ItemInfo>, asOfIso: string): number {
+  const info = infos.get(w.id)!;
   if (info.start) return Date.parse(info.start);
   const ends = w.after
-    .map((id) => c.infos.get(id))
+    .map((id) => infos.get(id))
     .flatMap((i) => (i?.finishedAt ? [Date.parse(i.finishedAt)] : []));
   const sourcesDone = ends.length ? Math.max(...ends) : null;
-  const asOf = Date.parse(c.view.asOf);
+  const asOf = Date.parse(asOfIso);
   // A demo project keeps asOf in the past while the item is placed today, so since can lie after the T line.
   if (w.since) return Math.max(Math.min(Date.parse(w.since), asOf), sourcesDone ?? 0);
   return sourcesDone ?? asOf - EMPTY_LEAD;
 }
+
+const startOf = (c: Ctx, w: WorkItem) => itemStartMs(w, c.infos, c.view.asOf);
 
 function linesOf(c: Ctx, shown: LayoutRow[]): LayoutSegment[] {
   const segments: LayoutSegment[] = [];
@@ -468,22 +502,19 @@ const MARK_WIDE = 24;
 // A done source ends in its Done icon (radius 10); an open one ends at the T line, where an editor has the + button.
 const MARK_AFTER_DONE = 12;
 const MARK_AFTER_OPEN = 32;
-// On a Handoff event the mark is a badge on the top right of its icon (radius 10), inside the row band.
-const BADGE_DX = 5;
 const ICON_R = 10;
-const BADGE_RISE = 16;
 
 function handoffEventOf(
   c: Ctx,
   id: string,
   groups: LayoutEventGroup[],
-): { id: string; x: number } | null {
+): { id: string; group: LayoutEventGroup } | null {
   const ev = c.infos
     .get(id)!
     .events.filter((e) => e.kind === 'handoff')
     .at(-1);
   const group = ev && groups.find((g) => g.workItemId === id && g.eventIds.includes(ev.id));
-  return ev && group ? { id: ev.id, x: group.x } : null;
+  return ev && group ? { id: ev.id, group } : null;
 }
 
 function handoffsOf(c: Ctx, groups: LayoutEventGroup[]): LayoutHandoff[] {
@@ -512,14 +543,12 @@ function handoffsOf(c: Ctx, groups: LayoutEventGroup[]): LayoutHandoff[] {
     const finishedAt = c.infos.get(src)!.finishedAt;
     const handoff = handoffEventOf(c, src, groups);
     const wait = !finishedAt && !handoff;
-    const end = handoff ? handoff.x : wait ? c.xt : c.x(Date.parse(finishedAt!));
-    const width = list.length > 1 ? MARK_WIDE : MARK;
-    const gap = handoff ? BADGE_DX : wait ? MARK_AFTER_OPEN : MARK_AFTER_DONE;
-    const after = end + gap;
+    const end = wait ? c.xt : c.x(Date.parse(finishedAt ?? c.view.asOf));
+    const width = handoff ? 2 * ICON_R : list.length > 1 ? MARK_WIDE : MARK;
+    const after = end + (wait ? MARK_AFTER_OPEN : MARK_AFTER_DONE);
     // Near the right edge the mark goes left of the end, so the graph never cuts it.
-    // Near the edge a badge goes left of its icon (radius 10) instead of covering it.
-    const before = end - (handoff ? ICON_R + BADGE_DX : MARK_AFTER_DONE) - width;
-    const x = after + width <= c.width - 2 ? after : before;
+    const before = end - MARK_AFTER_DONE - width;
+    const x = handoff ? handoff.group.x - ICON_R : after + width <= c.width - 2 ? after : before;
     const targets = list.map((w) => {
       const team = teamName.get(w.teamId)!;
       const text = wait
@@ -533,10 +562,11 @@ function handoffsOf(c: Ctx, groups: LayoutEventGroup[]): LayoutHandoff[] {
       fromId: src,
       targets,
       eventId: handoff?.id ?? null,
+      groupId: handoff?.group.topId ?? null,
       x,
-      y: handoff ? sr.y - BADGE_RISE : sr.y - MARK / 2,
+      y: handoff ? sr.y - ICON_R : sr.y - MARK / 2,
       width,
-      height: MARK,
+      height: handoff ? 2 * ICON_R : MARK,
       dir: ups.every(Boolean) ? 'up' : ups.some(Boolean) ? 'both' : 'down',
       tone: wait ? 'danger' : 'proceed',
       wait,
@@ -554,7 +584,7 @@ function makesLate(c: Ctx, w: WorkItem, m: Milestone): boolean {
   const info = c.infos.get(w.id)!;
   const deadline = milestoneDeadline(m, c.tz);
   if (info.finishedAt) return Date.parse(info.finishedAt) > deadline;
-  return Date.parse(c.view.asOf) > deadline || compareDay(w.plannedFinish, m.planned) > 0;
+  return Date.parse(c.view.asOf) > deadline || itemDeadline(w, c.tz) > deadline;
 }
 
 type Span = [number, number];
@@ -692,7 +722,8 @@ function ticksOf(c: Ctx, start: string, endMs: number): LayoutTick[] {
   const ticks: LayoutTick[] = [];
   const daily = c.x(c.dayStart(addDays(start, 1))) - c.x(c.startMs) >= DAY_TICK;
   const weekday = new Date(`${start}T00:00:00Z`).getUTCDay();
-  const first = daily ? addDays(start, 1) : addDays(start, (8 - weekday) % 7);
+  // A tick on the first day would sit on the label column and lose half its date.
+  const first = daily ? addDays(start, 1) : addDays(start, (8 - weekday) % 7 || 7);
   for (let d = first; c.dayStart(d) < endMs; d = addDays(d, daily ? 1 : 7)) {
     const tx = c.x(c.dayStart(d));
     ticks.push({
@@ -706,13 +737,9 @@ function ticksOf(c: Ctx, start: string, endMs: number): LayoutTick[] {
 }
 
 function groupsOf(c: Ctx, w: WorkItem, r: LayoutRow, info: ItemInfo): LayoutEventGroup[] {
-  const times = drawnTimes(info.events, c.view.offsets ?? {}, c.tz, c.deadlines);
-  const real = new Map(info.events.map((e, i) => [e.id, i]));
-  const drawn = info.events
-    .map((e) => ({ e, at: times.get(e.id)! }))
-    .sort((a, b) => a.at - b.at || real.get(a.e.id)! - real.get(b.e.id)!);
   const groups: Array<{ x: number; events: TrackerEvent[] }> = [];
-  for (const { e, at } of drawn) {
+  for (const e of info.events) {
+    const at = Date.parse(e.at);
     if (at < c.startMs) continue;
     const ex = c.x(at);
     const last = groups.at(-1);
@@ -820,7 +847,15 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     }),
   );
   const focus = view.focus && items.has(view.focus) ? view.focus : null;
-  const inFocus = focus ? descendantsOf(state, focus) : null;
+  const focusTeam =
+    !focus && view.focusTeam && state.teams.some((t) => t.id === view.focusTeam)
+      ? view.focusTeam
+      : null;
+  const inFocus = focus
+    ? descendantsOf(state, focus)
+    : focusTeam
+      ? teamDescendants(state, focusTeam)
+      : null;
   const filter = view.filter ?? null;
   const outside = new Set(
     [...inWindow].filter(
@@ -850,7 +885,7 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
   const people = new Map(state.people.map((p) => [p.id, p.name]));
   const c: Ctx = {
     state,
-    view: { ...view, focus, filter },
+    view: { ...view, focus, focusTeam, filter },
     marks,
     tz,
     today: dayOf(view.asOf, tz),
@@ -869,9 +904,8 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     rows: new Map(),
     name: (id) => (id === 'agent' ? 'Agent' : (people.get(id) ?? id)),
     dayStart,
-    deadlines: deadlinesByItem(state, tz),
     deadlineX: (m) => Math.min(x1 - 4, x(milestoneDeadline(m, tz))),
-    lateFrom: (w) => dayStart(addDays(w.plannedFinish, 1)),
+    lateFrom: (w) => itemDeadline(w, tz),
   };
   const { lanes, height } = placeRows(c);
   const shown = [...c.rows.values()].sort((a, b) => a.y - b.y);

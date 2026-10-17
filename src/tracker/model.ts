@@ -35,7 +35,7 @@ export type Person = { id: string; name: string };
 
 export type Team = { id: string; name: string; leadId: string | null };
 
-/** Only milestone moves carry times: a milestone deadline can have a time of day (HH:mm). */
+/** A milestone deadline and a planned finish can have a time of day (HH:mm), so a move carries both. */
 export type DateMove = {
   from: string;
   fromTime?: string;
@@ -66,7 +66,9 @@ export type WorkItem = {
   parentId: string | null;
   after: string[];
   plannedFinish: string;
+  plannedFinishTime?: string;
   firstPlannedFinish: string;
+  firstPlannedFinishTime?: string;
   moves: DateMove[];
   since: string | null;
 };
@@ -102,6 +104,7 @@ export type QueueItem = {
   milestoneId: string | null;
   after: string | null;
   plannedFinish: string;
+  plannedFinishTime?: string;
   addedBy: string | null;
   agent: boolean;
   createdAt: string;
