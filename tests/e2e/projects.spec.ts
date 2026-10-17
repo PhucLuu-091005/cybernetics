@@ -34,7 +34,7 @@ test('a new project starts with its teams and an empty graph, and its first chan
   const side = page.locator('svg.pg-side');
   for (const team of ['Onboarding', 'Engineering', 'QA'])
     await expect(side.getByRole('button', { name: `Hide ${team}`, exact: true })).toBeVisible();
-  await expect(svg).toContainText('Portal live · 20 Nov · Planned');
+  await expect(page.locator('svg.pg-top-time')).toContainText('Portal live · 20 Nov · Planned');
   await expect(svg.locator('[data-loop]')).toHaveCount(0);
   await expect(page.locator('.empty')).toContainText('This project has no work yet.');
   const bar = page.locator('.bbar').first();
