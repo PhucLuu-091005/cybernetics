@@ -68,7 +68,6 @@ type Props = {
   busy?: boolean;
   onView: (view: TrackerView) => void;
   onChanges: () => void;
-  onRequests: () => void;
 };
 
 function NewCrButton({ actions, primary }: { actions: TrackerActions; primary?: boolean }) {
@@ -79,26 +78,15 @@ function NewCrButton({ actions, primary }: { actions: TrackerActions; primary?: 
   );
 }
 
-function MainBar({
-  session,
-  actions,
-  onView,
-  onRequests,
-}: Omit<Props, 'cr' | 'onChanges' | 'busy'>) {
-  const { payload, me, isOwner, dir } = session;
+/** On Main the top bar holds the change request buttons, so this row shows only when something waits for you. */
+function MainBar({ session, onView }: Pick<Props, 'session' | 'onView'>) {
+  const { payload, me, dir } = session;
   const draft = myDrafts(payload.crs, me)[0];
-  const ready = payload.crs.filter((c) => c.status === 'ready').length;
+  const asks = asksForMe(payload.crs, me);
+  if (!draft && !asks.length) return null;
   return (
     <div className="bbar main" role="region" aria-label="Main">
-      <span className="bt">
-        <Icon name="lock" size={14} /> Main · read-only
-      </span>
-      <span className="muted">
-        Owner: {dir.name(payload.project.ownerMemberId)}. Every change goes through a change
-        request.
-      </span>
-      <span className="sp" />
-      {asksForMe(payload.crs, me).flatMap((c) =>
+      {asks.flatMap((c) =>
         c.asks.map((ask) => (
           <button
             key={`${c.num}-${ask.memberId}`}
@@ -111,17 +99,11 @@ function MainBar({
           </button>
         )),
       )}
-      {isOwner && ready > 0 && (
-        <button className="btn" type="button" onClick={onRequests}>
-          <Icon name="pr" /> {ready} ready to merge
-        </button>
-      )}
       {draft && (
         <button className="btn" type="button" onClick={() => onView(draft.num)}>
           <Icon name="pr" /> Open #{draft.num} (draft)
         </button>
       )}
-      <NewCrButton actions={actions} primary />
     </div>
   );
 }

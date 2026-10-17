@@ -24,6 +24,7 @@ const members: Member[] = LARKSPUR_MEMBERS.map((m) => ({
   roleLabel: m.roleLabel,
   color: m.color,
   userId: null,
+  active: true,
 }));
 
 function described(commits: readonly Commit[], ops: readonly Op[], upto?: number): Op[] {
@@ -109,6 +110,7 @@ function payload(crs: Cr[], commits: Commit[], me = LARKSPUR_OWNER): TrackerPayl
     },
     members,
     me: members.find((m) => m.id === me) ?? null,
+    canActAs: true,
     base,
     queue,
     commits,

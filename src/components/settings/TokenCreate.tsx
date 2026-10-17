@@ -56,34 +56,34 @@ export function TokenCreate({
     router.refresh();
   };
   return (
-    <form className="card pad stack" aria-label="Create a token" onSubmit={submit}>
+    <form className="pg-sec pg-create" aria-label="Create a token" onSubmit={submit}>
       <h2>Create a token</h2>
       {failure && <ConflictBanner title="The token was not created." error={failure} />}
-      <label className="field">
-        Label
-        <input
-          value={label}
-          maxLength={200}
-          onChange={(event) => setLabel(event.target.value)}
-          placeholder="Claude Code, release review"
-        />
-      </label>
-      <label className="field">
-        Expires
-        <select value={days} onChange={(event) => setDays(Number(event.target.value))}>
-          {expiryOptions.map((option) => (
-            <option key={option.days} value={option.days}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
-        <legend className="field" style={{ marginBottom: 6 }}>
-          Permissions
-        </legend>
+      <div className="pg-form">
+        <label className="field pg-grow">
+          Label
+          <input
+            value={label}
+            maxLength={200}
+            onChange={(event) => setLabel(event.target.value)}
+            placeholder="Claude Code, release review"
+          />
+        </label>
+        <label className="field">
+          Expires
+          <select value={days} onChange={(event) => setDays(Number(event.target.value))}>
+            {expiryOptions.map((option) => (
+              <option key={option.days} value={option.days}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <fieldset className="pg-scopes">
+        <legend>Permissions</legend>
         {SCOPES.map(({ scope, title, text }) => (
-          <label key={scope} className="scope-row">
+          <label key={scope} className="pg-scope">
             <input
               type="checkbox"
               checked={scopes.has(scope)}
@@ -92,10 +92,7 @@ export function TokenCreate({
             />
             <span>
               <b>{title}</b> <span className="id faint">{scope}</span>
-              <br />
-              <span className="faint" style={{ fontSize: 12 }}>
-                {text}
-              </span>
+              <small>{text}</small>
             </span>
           </label>
         ))}
@@ -103,7 +100,6 @@ export function TokenCreate({
       <button
         className="btn btn-ink"
         type="submit"
-        style={{ alignSelf: 'flex-start' }}
         disabled={!hydrated || busy || created !== null || !label.trim() || !scopes.size}
       >
         Create token

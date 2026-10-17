@@ -43,9 +43,9 @@ export function createIdentityServices(options: IdentityOptions) {
   ): Promise<ActorContext> {
     let workspaceId = session.defaultWorkspaceId;
     if (projectId) {
+      // resolveProject checks the workspace or the project membership, so an invited member opens only this project.
       const project = await store.resolveProject(session.userId, projectId);
-      if (!project || !(await store.resolveMembership(session.userId, project.workspaceId)))
-        throw new AppError('NOT_FOUND', 'Project not found');
+      if (!project) throw new AppError('NOT_FOUND', 'Project not found');
       workspaceId = project.workspaceId;
     } else if (!(await store.resolveMembership(session.userId, workspaceId)))
       throw new AppError('NOT_FOUND', 'Workspace not found');
@@ -82,8 +82,6 @@ export function createIdentityServices(options: IdentityOptions) {
         !Number.isFinite(Date.parse(token.expiresAt))
       )
         throw new AppError('UNAUTHENTICATED', 'Invalid or expired token');
-      if (!(await store.resolveMembership(token.userId, token.workspaceId)))
-        throw new AppError('NOT_FOUND', 'Project not found');
       const project = await store.resolveProject(token.userId, token.projectId);
       const requested = requestedProject(request);
       if (

@@ -1,0 +1,40 @@
+import { eq } from 'drizzle-orm';
+import type { ActorContext } from '../../contracts';
+import { users } from '../db/schema';
+import type { Db } from '../db/tx';
+import { AppError } from '../errors';
+import { listProjectMembers } from '../tracker/members';
+
+export type AccountBadge = { name: string; detail?: string; color?: string };
+
+export async function signedInAccount(db: Db, userId: string): Promise<AccountBadge> {
+  const [row] = await db
+    .select({ name: users.name, email: users.email })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return { name: row?.name ?? 'You', ...(row?.email ? { detail: row.email } : {}) };
+}
+
+/** The top right of a project page names the acting member, as the graph does; a person with none sees their own name. */
+export async function projectAccount(
+  db: Db,
+  ctx: ActorContext,
+  projectId: string,
+  actAs: string | undefined,
+): Promise<AccountBadge> {
+  for (const cookie of actAs ? [actAs, undefined] : [undefined]) {
+    try {
+      const { members } = await listProjectMembers(db, ctx, {
+        projectId,
+        ...(cookie ? { actAs: cookie } : {}),
+      });
+      const you = members.find((member) => member.you);
+      if (you) return { name: you.name, detail: you.label || undefined, color: you.color };
+      break;
+    } catch (error) {
+      if (!(error instanceof AppError) || error.code === 'RATE_LIMITED') throw error;
+    }
+  }
+  return { ...(await signedInAccount(db, ctx.userId)), detail: 'Can view' };
+}

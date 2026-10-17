@@ -46,6 +46,7 @@ const payload: TrackerPayload = {
   },
   members: [],
   me: null,
+  canActAs: true,
   base: larkspurBase(),
   queue: queueFromRows(larkspurQueueRows()),
   commits: [],

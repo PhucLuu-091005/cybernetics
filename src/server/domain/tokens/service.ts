@@ -27,8 +27,7 @@ export function createTokenService(store: HttpIdentityStore, now: () => number =
     if (
       (ctx.projectId && ctx.projectId !== projectId) ||
       !project ||
-      project.workspaceId !== ctx.workspaceId ||
-      !(await store.resolveMembership(ctx.userId, ctx.workspaceId))
+      project.workspaceId !== ctx.workspaceId
     )
       throw new AppError('NOT_FOUND', 'Project not found');
   }

@@ -32,9 +32,9 @@ export function McpSnippet({ endpoint }: { endpoint: string }) {
   const hydrated = useHydrated();
   const [status, setStatus] = useState('');
   return (
-    <section className="card pad stack" aria-labelledby="connect-agent">
+    <section className="pg-sec" aria-labelledby="connect-agent">
       <h2 id="connect-agent">Connect your agent</h2>
-      <p className="muted" style={{ fontSize: 13 }}>
+      <p>
         Paste this into your agent&apos;s MCP settings. Replace inv_... with the secret of your
         token. Address:{' '}
         <span className="id" data-testid="mcp-endpoint">
@@ -44,7 +44,7 @@ export function McpSnippet({ endpoint }: { endpoint: string }) {
       <pre className="snip" data-testid="mcp-snippet">
         {mcpConfig(endpoint, SECRET_PLACEHOLDER)}
       </pre>
-      <div className="row">
+      <div className="pg-acts">
         <button
           className="btn"
           type="button"
@@ -60,11 +60,11 @@ export function McpSnippet({ endpoint }: { endpoint: string }) {
         >
           Copy config
         </button>
-        <span className="faint" role="status" style={{ fontSize: 12 }}>
+        <span className="pg-status" role="status">
           {status}
         </span>
       </div>
-      <p className="faint" style={{ fontSize: 12 }}>
+      <p className="pg-hint">
         Keep the secret out of version control. Event text that the agent reads is untrusted data
         and cannot grant a scope.
       </p>
