@@ -159,7 +159,11 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP tracker tools', () => {
       ['crm', 'late', '2026-09-18'],
       ['golive', 'planned', '2026-10-15'],
     ]);
-    expect(tracker.milestones[1]).toMatchObject({ planned: '2026-10-15', plannedTime: null });
+    expect(tracker.milestones[1]).toMatchObject({
+      planned: '2026-10-15',
+      plannedTime: null,
+      firstPlannedTime: null,
+    });
     expect(
       tracker.openChangeRequests.map((cr: { num: number; status: string }) => [cr.num, cr.status]),
     ).toEqual([
