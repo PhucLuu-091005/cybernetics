@@ -106,6 +106,7 @@ import {
   writeViewState,
   type ViewState,
 } from './view-state';
+import { useTimeScale } from './scale';
 
 export type TrackerView = 'main' | number;
 export type DrawerMode = 'ms' | 'item' | 'changes' | 'crs' | 'history';
@@ -364,7 +365,7 @@ export function TrackerScreen({
   const [drawer, setDrawer] = useState<Drawer | null>(null);
   const [pop, setPop] = useState<(PopTarget & { view: TrackerView }) | null>(null);
   const [inView, setInView] = useState<Reveal | null>(null);
-  const [zoom, setZoom] = useState(1);
+  const { scale, onSpan, onZoom } = useTimeScale();
   const [toast, setToast] = useState<ToastState | null>(null);
   const [modal, setModal] = useState<{ key: number; state: ModalState } | null>(null);
   // A counter, so the first of two writes in flight does not clear busy for the second.
@@ -464,7 +465,7 @@ export function TrackerScreen({
           hiddenTeams: new Set(hidden.hiddenTeams),
           asOf,
           timeZone: tz,
-          zoom,
+          ...scale,
           offsets,
           focus: focused,
           filter: rowMatch,
@@ -473,7 +474,18 @@ export function TrackerScreen({
         },
         current.marks,
       ),
-    [state, hidden, asOf, tz, zoom, offsets, focused, rowMatch, project.windowStart, current.marks],
+    [
+      state,
+      hidden,
+      asOf,
+      tz,
+      scale,
+      offsets,
+      focused,
+      rowMatch,
+      project.windowStart,
+      current.marks,
+    ],
   );
   // Pointer handlers outlive the render that started a drag, and a poll can land in between.
   const live = useRef<{
@@ -1226,7 +1238,8 @@ export function TrackerScreen({
               preview={preview}
               moving={!!moving}
               reveal={inView}
-              onZoom={setZoom}
+              onZoom={onZoom}
+              onSpan={onSpan}
               onMoveTo={onMoveTo}
               onToggleRow={toggleRow}
               onToggleTeam={toggleTeam}

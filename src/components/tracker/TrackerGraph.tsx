@@ -22,7 +22,7 @@ import {
 import { svgPoint } from './drag';
 import { Icon, SvgIcon } from './icons';
 
-const { VW, X0, SIDE, AXIS_Y, TRUNK_Y, TOP, INDENT, MAX_ZOOM } = GEOMETRY;
+const { X0, SIDE, AXIS_Y, TRUNK_Y, TOP, INDENT, MIN_DAY_WIDTH, MAX_DAY_WIDTH } = GEOMETRY;
 // The bin floats over the bottom of the graph, so the New team pill needs room above it.
 const TEAM_PILL_ROOM = 28;
 const ZOOM_STEP = 1.5;
@@ -49,7 +49,10 @@ type Props = {
   /** While an event waits for its new work item, a click on a row picks that row. */
   moving?: boolean;
   reveal?: Reveal | null;
-  onZoom: (zoom: number) => void;
+  /** Units per day; one unit is one pixel. */
+  onZoom: (dayWidth: number) => void;
+  /** The visible width of the time line, measured on every resize. */
+  onSpan?: (width: number) => void;
   onMoveTo?: (workItemId: string | null) => void;
   onToggleRow: (workItemId: string) => void;
   onToggleTeam: (teamId: string) => void;
@@ -75,8 +78,8 @@ const color = (tone: Tone) => `var(--${tone})`;
 // Status colours are tuned for lines; text takes the darker -ink step where one exists, for AA contrast.
 const ink = (tone: Tone) => `var(--${tone}-ink, var(--${tone}))`;
 const cls = (...names: Array<string | false | null | undefined>) => names.filter(Boolean).join(' ');
-const share = (part: number, whole: number) => `${(100 * part) / whole}%`;
-const clampZoom = (z: number) => Math.min(MAX_ZOOM, Math.max(1, z));
+const same = (a: number, b: number) => Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(b));
+const atFit = (L: TrackerLayout) => L.zoom <= 1 + 1e-9;
 
 function groupBy<T extends { workItemId: string }>(list: readonly T[]): Map<string, T[]> {
   const map = new Map<string, T[]>();
@@ -125,37 +128,59 @@ export function TrackerGraph(props: Props) {
   const head = useRef<HTMLDivElement>(null);
   const headTime = useRef<HTMLDivElement>(null);
   const timeSvg = useRef<SVGSVGElement>(null);
-  const latest = useRef({ L, onZoom: props.onZoom, onBackground: props.onBackground });
+  const latest = useRef({
+    L,
+    onZoom: props.onZoom,
+    onSpan: props.onSpan,
+    onBackground: props.onBackground,
+  });
   useLayoutEffect(() => {
-    latest.current = { L, onZoom: props.onZoom, onBackground: props.onBackground };
+    latest.current = {
+      L,
+      onZoom: props.onZoom,
+      onSpan: props.onSpan,
+      onBackground: props.onBackground,
+    };
   });
 
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const report = () => latest.current.onSpan?.(el.clientWidth);
+    report();
+    const watch = new ResizeObserver(report);
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, []);
+
   // Wheel events can arrive faster than renders, so the next zoom builds on the one still pending.
-  const anchor = useRef<{ zoom: number; t: number; clientX: number } | null>(null);
-  /** A factor of 0 fits the window to the width again. */
+  const anchor = useRef<{ dayWidth: number; t: number; clientX: number } | null>(null);
+  /** A factor of 0 fits the window to the width again; zooming out stops at the fit. */
   const zoomBy = useCallback((factor: number, clientX?: number) => {
     const { L: now, onZoom, onBackground } = latest.current;
     const el = scroller.current;
     const svg = timeSvg.current;
-    const from = anchor.current?.zoom ?? now.zoom;
-    const zoom = clampZoom(from * factor);
-    if (!el || !svg || zoom === from) return;
+    const from = anchor.current?.dayWidth ?? now.dayWidth;
+    const floor = Math.max(MIN_DAY_WIDTH, Math.min(now.fitDayWidth, from));
+    const dayWidth =
+      factor === 0 ? now.fitDayWidth : Math.max(floor, Math.min(MAX_DAY_WIDTH, from * factor));
+    if (!el || !svg || same(dayWidth, from)) return;
     const box = el.getBoundingClientRect();
     const cx =
       clientX === undefined
         ? box.left + box.width / 2
         : Math.min(box.right, Math.max(box.left, clientX));
     const t = anchor.current?.t ?? now.t(svgPoint(svg, cx, box.top).x);
-    anchor.current = { zoom, t, clientX: anchor.current?.clientX ?? cx };
+    anchor.current = { dayWidth, t, clientX: anchor.current?.clientX ?? cx };
     // A pop stays where its anchor was, so it closes before the anchor moves.
     onBackground();
-    onZoom(zoom);
+    onZoom(dayWidth);
   }, []);
   useLayoutEffect(() => {
     const a = anchor.current;
     const el = scroller.current;
     const svg = timeSvg.current;
-    if (!a || !el || !svg || a.zoom !== L.zoom) return;
+    if (!a || !el || !svg || !same(a.dayWidth, L.dayWidth)) return;
     anchor.current = null;
     const scale = svg.getBoundingClientRect().width / (L.width - SIDE);
     el.scrollLeft = (L.x(a.t) - SIDE) * scale - (a.clientX - el.getBoundingClientRect().left);
@@ -255,13 +280,14 @@ export function TrackerGraph(props: Props) {
   useEffect(() => {
     if (revealKey === undefined || revealRow === undefined) return;
     const target = { rowId: revealRow, key: revealKey };
-    if (latest.current.L.zoom > 1) return showRow(target);
+    const now = latest.current.L;
+    if (!atFit(now)) return showRow(target);
     pendingReveal.current = target;
-    latest.current.onZoom(REVEAL_ZOOM);
+    latest.current.onZoom(Math.min(MAX_DAY_WIDTH, REVEAL_ZOOM * now.fitDayWidth));
   }, [revealKey, revealRow, showRow]);
   useLayoutEffect(() => {
     const target = pendingReveal.current;
-    if (!target || L.zoom === 1) return;
+    if (!target || atFit(L)) return;
     pendingReveal.current = null;
     showRow(target);
   }, [L, showRow]);
@@ -392,7 +418,7 @@ export function TrackerGraph(props: Props) {
     <svg
       className="tg pg-top pg-top-side"
       viewBox={`0 0 ${SIDE} ${TOP}`}
-      style={{ width: share(SIDE, VW) }}
+      style={{ width: SIDE }}
       role="group"
       aria-label="Milestones"
       {...svgProps}
@@ -421,7 +447,7 @@ export function TrackerGraph(props: Props) {
     <svg
       className="tg pg-side"
       viewBox={`0 ${TOP} ${SIDE} ${BODY}`}
-      style={{ width: share(SIDE, VW) }}
+      style={{ width: SIDE }}
       role="group"
       aria-label="Teams and work items"
       {...svgProps}
@@ -533,7 +559,7 @@ export function TrackerGraph(props: Props) {
     />
   ));
   const tline = <line className="tline" x1={xt} x2={xt} y1={L.tLine.y1} y2={L.tLine.y2} />;
-  const timeWidth = { width: share(L.width - SIDE, VW - SIDE) };
+  const timeWidth = { width: L.width - SIDE };
 
   const timeHead = (
     <svg
@@ -867,7 +893,7 @@ export function TrackerGraph(props: Props) {
           type="button"
           aria-label="Zoom out"
           title="Zoom out"
-          disabled={L.zoom <= 1}
+          disabled={atFit(L)}
           onClick={() => zoomBy(1 / ZOOM_STEP)}
         >
           <svg width={14} height={14} viewBox="0 0 24 24" aria-hidden="true">
@@ -878,7 +904,7 @@ export function TrackerGraph(props: Props) {
           type="button"
           aria-label="Zoom in"
           title="Zoom in (or Ctrl and the wheel)"
-          disabled={L.zoom >= MAX_ZOOM}
+          disabled={L.dayWidth >= MAX_DAY_WIDTH - 1e-9}
           onClick={() => zoomBy(ZOOM_STEP)}
         >
           <Icon name="plus" size={14} />
@@ -887,7 +913,7 @@ export function TrackerGraph(props: Props) {
           type="button"
           className="fit"
           aria-label="Fit to width"
-          disabled={L.zoom === 1}
+          disabled={same(L.zoom, 1)}
           onClick={() => zoomBy(0)}
         >
           Fit

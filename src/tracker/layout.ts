@@ -16,8 +16,9 @@ import { itemInfo, itemStatus, milestoneStatus, type ItemInfo } from './status';
 import { addDays, compareDay, dayOf, formatDay, formatStamp, startOfDayInstant } from './time';
 
 /**
- * SIDE is the fixed label column; at zoom 1 the label column and the time line fill VW together.
- * Everything above TOP (the axis and the milestone line) stays pinned while the rows scroll.
+ * One unit is one CSS pixel. SIDE is the fixed label column; VW - SIDE is the visible time line when
+ * the view does not give its width. Everything above TOP (the axis and the milestone line) stays
+ * pinned while the rows scroll.
  */
 export const GEOMETRY = {
   VW: 1060,
@@ -32,15 +33,21 @@ export const GEOMETRY = {
   HEAD: 22,
   INDENT: 12,
   MAX_ZOOM: 12,
+  MIN_DAY_WIDTH: 2,
+  MAX_DAY_WIDTH: 480,
 } as const;
 
 const { VW, X0, X1, SIDE, AXIS_Y, MS_Y, TRUNK_Y, TOP, ROW, HEAD, MAX_ZOOM } = GEOMETRY;
+const { MIN_DAY_WIDTH, MAX_DAY_WIDTH } = GEOMETRY;
 const RIGHT = VW - X1;
+const DAY = 86_400_000;
 const HOUR = 3_600_000;
 const GROUP_GAP = 16;
 const EMPTY_LEAD = 48 * HOUR;
 // A day this wide fits its own "14 Sept" label, so the axis can tick every day.
 const DAY_TICK = 60;
+// Half the T pill (88 wide) plus half a tick label such as "12 Oct", so the pill never covers a date.
+const T_PILL_ROOM = 66;
 
 export type Tone =
   'proceed' | 'route' | 'danger' | 'caution' | 'teal' | 'ink-2' | 'ink-3' | 'change';
@@ -63,7 +70,13 @@ export type View = {
   timeZone: string;
   windowStart?: string;
   windowEnd?: string;
-  /** 1 fits the window to the width; more widens the time line. */
+  /** The visible width of the time line; a wider view shows more time at the same scale. */
+  span?: number;
+  /** Units per day. Without it the scale is `zoom` times the fit of the window to `fitSpan`. */
+  dayWidth?: number;
+  /** The width the first fit used, so the scale does not follow later changes of `span`. */
+  fitSpan?: number;
+  /** 1 fits the window to `fitSpan`; more widens the time line. Used only without `dayWidth`. */
   zoom?: number;
   offsets?: Offsets;
   focus?: string | null;
@@ -218,7 +231,11 @@ export type LayoutLaneDrop = {
 };
 
 export type TrackerLayout = {
+  /** The day width over the fit to the current `span`: 1 at fit, less when the view widened since. */
   zoom: number;
+  dayWidth: number;
+  /** The day width that fits the window to the current `span`. */
+  fitDayWidth: number;
   /** The right end of the time line content, including its right margin. */
   width: number;
   /** The right end of the plotted window. */
@@ -674,7 +691,12 @@ function ticksOf(c: Ctx, start: string, endMs: number): LayoutTick[] {
   const first = daily ? addDays(start, 1) : addDays(start, (8 - weekday) % 7);
   for (let d = first; c.dayStart(d) < endMs; d = addDays(d, daily ? 1 : 7)) {
     const tx = c.x(c.dayStart(d));
-    ticks.push({ date: d, x: tx, label: formatDay(d), labelled: Math.abs(tx - c.xt) > 56 });
+    ticks.push({
+      date: d,
+      x: tx,
+      label: formatDay(d),
+      labelled: Math.abs(tx - c.xt) > T_PILL_ROOM,
+    });
   }
   return ticks;
 }
@@ -803,11 +825,24 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
         (filter && !filter.match.has(id) && !filter.context.has(id)),
     ),
   );
-  const raw = view.zoom ?? 1;
-  const zoom = Number.isFinite(raw) ? Math.min(MAX_ZOOM, Math.max(1, raw)) : 1;
-  const x1 = X0 + (X1 - X0) * zoom;
-  const x = (t: number) => X0 + ((t - startMs) / (endMs - startMs)) * (x1 - X0);
-  const t = (px: number) => startMs + ((px - X0) / (x1 - X0)) * (endMs - startMs);
+  const days = (endMs - startMs) / DAY;
+  const room = (span: number | undefined) =>
+    Math.max(1, (span && Number.isFinite(span) ? span : VW - SIDE) - (X0 - SIDE) - RIGHT);
+  const visible = room(view.span);
+  const given = view.dayWidth;
+  let plot: number;
+  if (given !== undefined && Number.isFinite(given) && given > 0) {
+    plot = Math.min(MAX_DAY_WIDTH, Math.max(MIN_DAY_WIDTH, given)) * days;
+  } else {
+    const raw = view.zoom ?? 1;
+    const zoom = Number.isFinite(raw) ? Math.min(MAX_ZOOM, Math.max(1, raw)) : 1;
+    plot = room(view.fitSpan ?? view.span) * zoom;
+  }
+  // A fit computed from the day width can land a hair past the view, which would add a scroll bar.
+  const x1 = X0 + (plot - visible > 1e-6 ? plot : visible);
+  const x = (t: number) => X0 + ((t - startMs) / (endMs - startMs)) * plot;
+  const t = (px: number) => startMs + ((px - X0) / plot) * (endMs - startMs);
+  const plotEndMs = t(x1);
   const people = new Map(state.people.map((p) => [p.id, p.name]));
   const c: Ctx = {
     state,
@@ -854,7 +889,9 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
   const handoffs = handoffsOf(c, eventGroups);
   const busy = busyOf(segments, eventGroups, handoffs, chips);
   return {
-    zoom,
+    zoom: plot / visible,
+    dayWidth: plot / days,
+    fitDayWidth: visible / days,
     width: c.width,
     x1,
     height,
@@ -867,7 +904,7 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
       endMs,
       label: `Work items from ${formatDay(start)} to ${formatDay(addDays(end, -1))}`,
     },
-    ticks: ticksOf(c, start, endMs),
+    ticks: ticksOf(c, start, plotEndMs),
     tLine: { x: c.xt, y1: AXIS_Y + 5, y2: height, label: `T ${formatStamp(view.asOf, tz)}` },
     lanes,
     rows: shown,
