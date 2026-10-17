@@ -1,6 +1,7 @@
 import type { Commit } from './clash';
 import type { TrackerBase, TrackerQueue } from './model';
 import type { Op } from './ops';
+import type { Grants } from './permissions';
 import type { QueueEventInput, QueueItemInput } from './schemas';
 
 export type MemberAccess = 'member' | 'viewer';
@@ -11,8 +12,10 @@ export type Member = {
   roleLabel: string;
   color: string;
   userId: string | null;
-  /** Can act: a member who is not a viewer, not removed and not a pending invite. */
+  /** A present person: not removed and not a pending invite. What they may do comes from `can`. */
   active: boolean;
+  /** The stored grants; `rightsOf` adds the project lead and team lead rules. */
+  grants: Grants;
 };
 
 export type CrStatus = 'draft' | 'ready' | 'merged' | 'closed';
@@ -88,7 +91,8 @@ export type TrackerProject = {
   windowStart: string | null;
   asOf: string | null;
   demo: boolean;
-  ownerMemberId: string;
+  /** The project lead: exactly one per project, with every right. */
+  leadMemberId: string;
 };
 
 export type TrackerPayload = {

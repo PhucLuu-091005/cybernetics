@@ -26,7 +26,7 @@ import {
 } from '../../tracker';
 import type { OpInput, QueueEntry } from './api';
 import { Avatar } from './avatar';
-import { trunc, type Session } from './ContextBar';
+import { mergerNames, trunc, type Session } from './ContextBar';
 import { Icon, KindIcon } from './icons';
 import { newTeamOp } from './team';
 import { TimeInput } from './TimeInput';
@@ -843,7 +843,7 @@ function DueModal({ modal, session, state, busy, on, onClose }: PropsOf<'due'>) 
       </label>
       <p className="tip">
         Everyone sees this reason in the history of this {isMs ? 'milestone' : 'work item'}, and the
-        owner of Main sees it in the review.
+        person who merges sees it in the review.
       </p>
       <Foot
         label="Move the date"
@@ -858,7 +858,7 @@ function DueModal({ modal, session, state, busy, on, onClose }: PropsOf<'due'>) 
 }
 
 function NewCrModal({ session, busy, on, onClose }: PropsOf<'newcr'>) {
-  const { dir, me, payload } = session;
+  const { dir, me } = session;
   const [title, setTitle] = useState(() => `${(me ? dir.name(me) : 'My').split(' ')[0]}'s changes`);
   const create = () => {
     if (!title.trim()) return on.toast('Give the change request a name.');
@@ -877,7 +877,7 @@ function NewCrModal({ session, busy, on, onClose }: PropsOf<'newcr'>) {
       </label>
       <p className="tip">
         It starts from the latest Main. Only you can edit it until you share it. When you finish,
-        mark it as ready, and {dir.name(payload.project.ownerMemberId)} merges it into Main.
+        mark it as ready, and {mergerNames(session)} merges it into Main.
       </p>
       <Foot label="Create" busy={busy} onCancel={onClose} onCreate={create} />
     </ModalFrame>

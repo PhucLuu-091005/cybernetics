@@ -6,6 +6,8 @@ import {
   agentTokens,
   projects,
   trackerMembers,
+  trackerTeamMembers,
+  trackerTeams,
   users,
   workspaceMembers,
   workspaces,
@@ -56,10 +58,46 @@ async function linkInvites(
         .where(eq(trackerMembers.id, invite.id));
     } else if (old.removedAt !== null) {
       // Change requests and history name the old member, so it comes back instead of the invite.
+      const project = invite.projectId;
+      const teams = await tx
+        .select()
+        .from(trackerTeamMembers)
+        .where(
+          and(
+            eq(trackerTeamMembers.projectId, project),
+            eq(trackerTeamMembers.memberId, invite.id),
+          ),
+        );
+      if (teams.length)
+        await tx
+          .insert(trackerTeamMembers)
+          .values(teams.map((row) => ({ ...row, memberId: old.id })))
+          .onConflictDoNothing();
+      await tx
+        .delete(trackerTeamMembers)
+        .where(
+          and(
+            eq(trackerTeamMembers.projectId, project),
+            eq(trackerTeamMembers.memberId, invite.id),
+          ),
+        );
+      await tx
+        .update(trackerTeams)
+        .set({ leadMemberId: old.id })
+        .where(and(eq(trackerTeams.projectId, project), eq(trackerTeams.leadMemberId, invite.id)));
       await tx.delete(trackerMembers).where(eq(trackerMembers.id, invite.id));
       await tx
         .update(trackerMembers)
-        .set({ removedAt: null, access: invite.access, email, name: user.name })
+        .set({
+          removedAt: null,
+          access: invite.access,
+          viewMain: invite.viewMain,
+          viewCrs: invite.viewCrs,
+          createCrs: invite.createCrs,
+          mergeCrs: invite.mergeCrs,
+          email,
+          name: user.name,
+        })
         .where(eq(trackerMembers.id, old.id));
     }
   }

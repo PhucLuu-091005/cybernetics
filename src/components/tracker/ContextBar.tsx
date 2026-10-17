@@ -18,7 +18,10 @@ export type Session = {
   projectId: string;
   payload: TrackerPayload;
   me: string | null;
-  isOwner: boolean;
+  canMerge: boolean;
+  canCreate: boolean;
+  /** The members who may merge, the project lead first. */
+  mergers: string[];
   dir: Directory;
   tz: string;
 };
@@ -34,6 +37,9 @@ export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' :
 export const trunc = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 export const isOpen = (c: Cr) => c.status === 'draft' || c.status === 'ready';
 export const byNumDesc = (a: Cr, b: Cr) => b.num - a.num;
+export const mergerNames = (session: Pick<Session, 'mergers' | 'dir'>, first = false) =>
+  session.mergers.map(first ? session.dir.first : session.dir.name).join(' or ') ||
+  'the project lead';
 
 export function roleIn(c: Cr, memberId: string | null): 'author' | CrPermission {
   if (!memberId) return 'view';
@@ -70,7 +76,16 @@ type Props = {
   onChanges: () => void;
 };
 
-function NewCrButton({ actions, primary }: { actions: TrackerActions; primary?: boolean }) {
+function NewCrButton({
+  session,
+  actions,
+  primary,
+}: {
+  session: Session;
+  actions: TrackerActions;
+  primary?: boolean;
+}) {
+  if (!session.canCreate) return null;
   return (
     <button className={`btn${primary ? ' btn-ink' : ''}`} type="button" onClick={actions.newCr}>
       <Icon name="plus" /> New change request
@@ -111,8 +126,7 @@ function MainBar({ session, onView }: Pick<Props, 'session' | 'onView'>) {
 export function ContextBar(props: Props) {
   const { session, cr: c, actions, onChanges, busy = false } = props;
   if (!c) return <MainBar {...props} />;
-  const { payload, me, isOwner, dir, projectId, tz } = session;
-  const owner = payload.project.ownerMemberId;
+  const { payload, me, canMerge, dir, projectId, tz } = session;
   const n = c.ops.length;
   const head = (
     <>
@@ -143,7 +157,7 @@ export function ContextBar(props: Props) {
         <Link className="btn" href={reviewHref(projectId, c.num)}>
           See what changed
         </Link>
-        <NewCrButton actions={actions} primary />
+        <NewCrButton session={session} actions={actions} primary />
       </div>
     );
   }
@@ -167,7 +181,7 @@ export function ContextBar(props: Props) {
   if (role === 'view') {
     tone = 'main';
     buttons =
-      c.status === 'ready' && isOwner ? (
+      c.status === 'ready' && canMerge ? (
         review(true, true)
       ) : (
         <>
@@ -227,13 +241,13 @@ export function ContextBar(props: Props) {
     tone = 'other';
     buttons = (
       <>
-        <span className="muted">Locked. Waiting for {dir.first(owner)}.</span>
+        <span className="muted">Locked. Waiting for {mergerNames(session, true)}.</span>
         {c.editor === me && (
           <button className="btn" type="button" disabled={busy} onClick={actions.editAgain}>
             <Icon name="pencil" /> Edit again
           </button>
         )}
-        {isOwner ? review(true, true) : review(false, false)}
+        {canMerge ? review(true, true) : review(false, false)}
       </>
     );
   }
@@ -242,7 +256,10 @@ export function ContextBar(props: Props) {
       {head}
       <span className="chipx">{plural(n, 'change')}</span>
       {clashes > 0 && (
-        <span className="chipx warn" title={`${dir.name(owner)} picks a version when merging.`}>
+        <span
+          className="chipx warn"
+          title={`${mergerNames(session)} picks a version when merging.`}
+        >
           {plural(clashes, 'clash')} with Main
         </span>
       )}

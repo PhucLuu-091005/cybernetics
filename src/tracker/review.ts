@@ -11,6 +11,7 @@ import { clashLabel } from './describe';
 import type { TrackerEvent, TrackerQueue, TrackerState } from './model';
 import { replayOps, sameOp, type Marks, type Op, type OpDescription, type Replay } from './ops';
 import type { Cr, Resolution, TrackerPayload } from './payload';
+import { can } from './permissions';
 
 export type ReviewClash = Clash & {
   label: string;
@@ -47,7 +48,8 @@ export const SKIP_REASON: Record<SkipReason, string> = {
 
 export type ReviewModel = {
   cr: Cr;
-  owner: boolean;
+  /** The viewer may merge, request changes and close. */
+  merger: boolean;
   before: TrackerState;
   after: TrackerState;
   marks: Marks;
@@ -59,8 +61,7 @@ export type ReviewModel = {
   dropped: Resolution[];
 };
 
-const isOwner = (payload: TrackerPayload) =>
-  !!payload.me && payload.me.id === payload.project.ownerMemberId;
+const isMerger = (payload: TrackerPayload) => !!payload.me && can(payload, 'merge');
 
 function eventIdOf(op: Op): string | null {
   switch (op.op) {
@@ -274,10 +275,10 @@ export function reviewModel(
       clash,
     };
   });
-  const owner = isOwner(payload);
+  const merger = isMerger(payload);
   return {
     cr,
-    owner,
+    merger,
     before: shape.before,
     after,
     marks: shape.after.marks,
@@ -286,7 +287,7 @@ export function reviewModel(
     picks: current,
     canMerge:
       cr.status === 'ready' &&
-      owner &&
+      merger &&
       shape.after.entries.some((entry) => !entry.skipped) &&
       clashes.every(
         (clash) =>
@@ -297,7 +298,7 @@ export function reviewModel(
 }
 
 /**
- * The owner merges what they reviewed, so the review keeps the opened revision of the change request
+ * A merger merges what they reviewed, so the review keeps the opened revision of the change request
  * until they review again. Comments, asks and shares do not change the revision and stay live.
  * Other viewers decide nothing on that revision, so they always see the live change request.
  */
@@ -306,7 +307,7 @@ export function openedReview(
   opened: Cr | null,
 ): { payload: TrackerPayload; changed: boolean } {
   const now = opened && live.crs.find((c) => c.num === opened.num);
-  if (!isOwner(live) || !opened || !now || now.revision === opened.revision)
+  if (!isMerger(live) || !opened || !now || now.revision === opened.revision)
     return { payload: live, changed: false };
   const kept: Cr = {
     ...opened,

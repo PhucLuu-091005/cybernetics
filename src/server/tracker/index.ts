@@ -18,13 +18,16 @@ export { appendOp, createCr, crAction, removeOp, type CrActionInput } from './cr
 export { FirstMilestoneSchema, ProjectTeamsSchema } from '../../tracker';
 export { createTrackerProject, seedTrackerDemo, type CreateTrackerProjectInput } from './projects';
 export {
-  changeMemberRole,
+  addTeam,
+  deleteTeam,
   inviteMember,
   listProjectMembers,
   removeMember,
-  type MemberRole,
+  updateMember,
+  updateTeam,
   type MembersPayload,
   type ProjectMember,
+  type ProjectTeam,
 } from './members';
 export { setEventOffset } from './offsets';
 export { addQueueCard, addQueueEntry, dismissQueueEntry } from './queue';

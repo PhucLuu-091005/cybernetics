@@ -23,6 +23,7 @@ import {
   type CrCommentKind,
   type Picks,
   type TrackerPayload,
+  mergerIds,
 } from '../../tracker';
 import {
   openedReview,
@@ -312,14 +313,14 @@ function DiffCard({
 function ClashBox({
   ctx,
   model,
-  ownerName,
+  mergerName,
   canPick,
   picks,
   onPick,
 }: {
   ctx: Ctx;
   model: ReviewModel;
-  ownerName: string;
+  mergerName: string;
   canPick: boolean;
   picks: Picks;
   onPick: (key: string, side: 'main' | 'cr') => void;
@@ -334,7 +335,7 @@ function ClashBox({
       <p className="small muted" style={{ margin: 0 }}>
         {canPick
           ? 'Main changed the same spot after this change request started. Pick the version to keep. The change request records your pick.'
-          : `Main changed the same spot after this change request started. ${ownerName} picks a version when merging.`}
+          : `Main changed the same spot after this change request started. ${mergerName} picks a version when merging.`}
       </p>
       {model.clashes.map((clash, i) => {
         const side = (value: 'main' | 'cr', label: string, text: string) => {
@@ -502,9 +503,9 @@ export function ReviewScreen({
   const ctx: Ctx = { dir, tz, cr };
   const n = changes.length;
   const open = isOpen(cr);
-  const canPick = cr.status === 'ready' && model.owner;
+  const canPick = cr.status === 'ready' && model.merger;
   const canComment = open && !!payload.me;
-  const ownerName = dir.name(project.ownerMemberId);
+  const mergerName = mergerIds(payload).map(dir.name).join(' or ') || 'the project lead';
   const eds = editorsOf(cr).filter((id) => id !== cr.author);
   const say = (text: string) => setToast({ text, at: Date.now() });
   const changeHidden = (next: ViewState) => {
@@ -708,7 +709,7 @@ export function ReviewScreen({
         )}
         {cr.status === 'draft' && (
           <div className="callout small">
-            This is a draft. Its editors can still change it. Main changes only after {ownerName}{' '}
+            This is a draft. Its editors can still change it. Main changes only after {mergerName}{' '}
             merges it.
           </div>
         )}
@@ -716,7 +717,7 @@ export function ReviewScreen({
           <ClashBox
             ctx={ctx}
             model={model}
-            ownerName={ownerName}
+            mergerName={mergerName}
             canPick={canPick}
             picks={model.picks}
             onPick={(key, side) => setPicks((p) => ({ ...p, [key]: side }))}

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { IdSchema, type ActorContext } from '../../../../../contracts';
 import { TrackerScreen } from '../../../../../components/tracker/TrackerScreen';
@@ -18,6 +19,18 @@ export default async function GraphPage({ params }: { params: Promise<{ id: stri
   if (!IdSchema.safeParse(id).success) notFound();
   const actor = await requireActor(`/projects/${id}/graph`);
   const payload = await trackerPayload(actor, id, (await cookies()).get(`pg_act_${id}`)?.value);
+  if (payload === 'no-view')
+    return (
+      <div className="screen">
+        <div className="card pad" role="status">
+          <h1>You cannot see Main of this project yet.</h1>
+          <p className="muted" style={{ marginTop: 6 }}>
+            The project lead decides who sees Main. The{' '}
+            <Link href={`/projects/${id}/members`}>Members page</Link> names the project lead.
+          </p>
+        </div>
+      </div>
+    );
   if (!payload)
     return (
       <div className="screen">
@@ -48,13 +61,15 @@ async function trackerPayload(
   actor: ActorContext,
   projectId: string,
   actAs: string | undefined,
-): Promise<TrackerPayload | null> {
+): Promise<TrackerPayload | 'no-view' | null> {
   const db = getApp().db;
   try {
     return await getTrackerPayload(db, actor, { projectId, ...(actAs ? { actAs } : {}) });
   } catch (error) {
     if (!(error instanceof AppError)) throw error;
     if (error.code === 'NOT_FOUND') return null;
+    const details = error.extras.details as { reason?: string } | undefined;
+    if (error.code === 'FORBIDDEN' && details?.reason === 'no-view') return 'no-view';
     // A stale act-as cookie (a removed member, a project that left demo mode) must not lock the page.
     if (actAs && (error.code === 'FORBIDDEN' || error.code === 'VALIDATION'))
       return trackerPayload(actor, projectId, undefined);

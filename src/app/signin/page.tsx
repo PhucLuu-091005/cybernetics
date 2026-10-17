@@ -136,8 +136,8 @@ export default async function SignInPage({
         <h1>See every step of a project, and why the plan changed.</h1>
         <p className="lede">
           Every team, work item and event sits on one graph. A planned date keeps its first value
-          and every move, with who moved it and why. Main changes only when its owner merges a
-          change request.
+          and every move, with who moved it and why. Main changes only when a person with the Merge
+          right merges a change request.
         </p>
         <Hero />
       </div>
