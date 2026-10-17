@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { IdSchema, type ActorContext } from '../../../../../../contracts';
-import { ReviewScreen, type ReviewTab } from '../../../../../../components/tracker/ReviewScreen';
+import { TrackerScreen } from '../../../../../../components/tracker/TrackerScreen';
 import { getApp } from '../../../../../../server/app';
 import { signedInAccount } from '../../../../../../server/domain/account';
 import { AppError } from '../../../../../../server/errors';
@@ -13,17 +13,13 @@ import type { TrackerPayload } from '../../../../../../tracker';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Change request · Promise Graph' };
 
-const tabOf = (raw: string | string[] | undefined): ReviewTab =>
-  raw === 'graph' || raw === 'talk' ? raw : 'changes';
-
+/** The one place to see, edit, review and merge a change request; old `?tab=` links land here too. */
 export default async function ChangeRequestPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string; num: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [{ id, num }, search] = await Promise.all([params, searchParams]);
+  const { id, num } = await params;
   if (!IdSchema.safeParse(id).success || !/^\d{1,9}$/.test(num)) notFound();
   const actor = await requireActor(`/projects/${id}/changes/${num}`);
   const payload = await trackerPayload(actor, id, (await cookies()).get(`pg_act_${id}`)?.value);
@@ -37,11 +33,12 @@ export default async function ChangeRequestPage({
     );
   if (!payload.crs.some((cr) => cr.num === Number(num))) notFound();
   return (
-    <ReviewScreen
+    <TrackerScreen
+      key={num}
       payload={payload}
       projectId={id}
       num={Number(num)}
-      initialTab={tabOf(search.tab)}
+      userId={actor.userId}
       account={await signedInAccount(getApp().db, actor.userId)}
       serverNow={serverMinute()}
     />

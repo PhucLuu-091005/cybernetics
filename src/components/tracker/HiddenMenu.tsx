@@ -14,7 +14,7 @@ const FOCUSABLE = 'input, button, select, a[href], summary, [tabindex="0"]';
 
 /** The menu goes away with the last hidden entry, so the focus moves to a control next to it. */
 function neighbour(details: HTMLElement): HTMLElement | null {
-  for (const step of ['nextElementSibling', 'previousElementSibling'] as const) {
+  for (const step of ['previousElementSibling', 'nextElementSibling'] as const) {
     for (let el = details[step]; el; el = el[step]) {
       if (!(el instanceof HTMLElement)) continue;
       const target = el.matches(FOCUSABLE) ? el : el.querySelector<HTMLElement>(FOCUSABLE);
