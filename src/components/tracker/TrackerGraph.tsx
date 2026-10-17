@@ -71,6 +71,8 @@ type Props = {
 };
 
 const color = (tone: Tone) => `var(--${tone})`;
+// Status colours are tuned for lines; text takes the darker -ink step where one exists, for AA contrast.
+const ink = (tone: Tone) => `var(--${tone}-ink, var(--${tone}))`;
 const cls = (...names: Array<string | false | null | undefined>) => names.filter(Boolean).join(' ');
 const share = (part: number, whole: number) => `${(100 * part) / whole}%`;
 const clampZoom = (z: number) => Math.min(MAX_ZOOM, Math.max(1, z));
@@ -556,7 +558,7 @@ export function TrackerGraph(props: Props) {
               x={m.labelX - m.x}
               y={m.labelY - m.y}
               textAnchor={m.anchor}
-              style={m.changed ? undefined : { fill: color(m.labelTone) }}
+              style={m.changed ? undefined : { fill: ink(m.labelTone) }}
             >
               {moved?.label ?? m.label}
             </text>
@@ -637,7 +639,7 @@ export function TrackerGraph(props: Props) {
                   x={d.labelX - d.x}
                   y={-7}
                   textAnchor={d.labelAnchor}
-                  style={{ fill: color(d.tone === 'ink-3' ? 'ink-2' : d.tone) }}
+                  style={{ fill: ink(d.tone === 'ink-3' ? 'ink-2' : d.tone) }}
                 >
                   {d.label}
                 </text>
