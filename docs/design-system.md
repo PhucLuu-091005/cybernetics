@@ -3,7 +3,7 @@
 This file describes the visual language of the event tracker. The values come from the CSS in the repository. When this file and the CSS disagree, the CSS is right: fix this file in the same commit.
 
 - Visual reference: [docs/design/design-system.html](design/design-system.html). Open it from the file system. It shows every token and component in light and dark.
-- Sources: [src/app/globals.css](../src/app/globals.css) (base tokens and global components), [src/app/shell.css](../src/app/shell.css) (rail and project switcher), [src/components/tracker/tracker.css](../src/components/tracker/tracker.css) (tracker tokens, board, graph, pops, drawers, modals), [src/components/tracker/review.css](../src/components/tracker/review.css) (review screen), [src/components/tracker/icons.tsx](../src/components/tracker/icons.tsx) (icons), [src/tracker/layout.ts](../src/tracker/layout.ts) (graph geometry and status tones).
+- Sources: [src/app/globals.css](../src/app/globals.css) (base tokens and global components), [src/app/shell.css](../src/app/shell.css) (rail and project switcher), [src/components/tracker/tracker.css](../src/components/tracker/tracker.css) (tracker tokens, board, graph, pops, drawers, modals), [src/components/tracker/review.css](../src/components/tracker/review.css) (clash picks and the Before / After switch of the change request page), [src/components/tracker/icons.tsx](../src/components/tracker/icons.tsx) (icons), [src/tracker/layout.ts](../src/tracker/layout.ts) (graph geometry and status tones).
 - Direction: D2 Radix calm, chosen by the owner on 17 October 2026, drawn flat with few cards. The option page is [docs/design/2026-10-17-design-directions.html](design/2026-10-17-design-directions.html).
 - Behaviour rules of the graph come from the spec: [docs/superpowers/specs/2026-10-16-event-tracker-design.md](superpowers/specs/2026-10-16-event-tracker-design.md), decisions 2, 3, 5, 8 and section 3.8.
 
@@ -147,9 +147,9 @@ The CSS has no spacing tokens. Use the values below and match the code around yo
 - Control height: 32px (`.btn`, inputs, selects, the search). Small: 28px (`.btn.sm`, icon buttons, the hidden badge). Big: 40px (`.btn.big`, sign-in).
 - Bars: the top bar (`.p-head`) has a minimum height of 52px and padding `10px 12px`. The context bar (`.bbar`) has a minimum height of 48px and padding `8px 12px`.
 - Lists: rows have `10px 0` or `10px 12px` padding and a `--rule-2` top border.
-- Widths: rail 212px (56px folded), Queue 252px, drawer 380px, pop 312px, modal 620px, search 150px to 260px, filter and search panels 380px.
+- Widths: rail 212px (56px folded), change request side panel 320px, drawer 380px, pop 312px, modal 620px, search from 160px to all the free room, filter and search panels 380px. Secondary pages (Members, Settings): one centred column of up to 1200px with 24px gutters (16px on a phone) for the head and the body; Settings splits into the tokens and a 340px to 420px Connect your agent column from 1180px.
 - Graph density: row 32 units, team head 22 units, indent 12 units per level (3 levels at most). The graph scales the 1060-unit view box to the canvas width.
-- Phone (760px and less): 16px side gutters, the rail becomes a sticky top bar, the search takes its own line, the Queue stacks above the graph and its cards scroll sideways, a drawer covers the full height below the rail. The page has no horizontal scroll at 390px.
+- Phone (760px and less): 16px side gutters, the rail becomes a sticky top bar, the top bar puts History, Change requests and the account on the first line and the search on the last, the side panel stacks above the graph and its cards scroll sideways, a drawer covers the full height below the rail. The page has no horizontal scroll at 390px.
 
 ## 6. Shadows and layers
 
@@ -179,7 +179,7 @@ Stacking order (`z-index`), low to high: pinned axis, zoom bar and bin 3; move h
 | `.btn` | `--panel` fill, 1px `--rule` border, `--r-ctl`, `--shadow-sm`, 32px, `--fs-s` weight 500. Hover: `--sunk`. | Default action. |
 | `.btn-ink` | `--ink` fill, `--panel` text. Hover: opacity 0.9. | The one main action of a bar, a modal or a drawer (Create, Merge into Main, Move the date). One per area. |
 | `.btn-draft` | Default look with a `.cnt` count on `--change-bg`. | The change request button that counts your changes. |
-| `.btn-danger` | Default look, `--danger-ink` text. | Close without merging, Remove. |
+| `.btn-danger` | Default look, `--danger-ink` text. | Remove. |
 | `.btn.sm`, `.btn.big` | 28px and `--fs-xs`; 40px and `--fs`. | Dense rows; sign-in. |
 | `:disabled` | Opacity 0.4 (0.45 for the global `.btn`), `not-allowed` cursor. | Keep the button visible and say why in a tooltip or a line of text. |
 | `.lnk` | No box, `--route-ink`, weight 500, underline on hover. | Inline links in text and lists. |
@@ -193,6 +193,7 @@ Stacking order (`z-index`), low to high: pinned axis, zoom bar and bin 3; move h
 - `.cnt`: an 18px round count on `--gray-bg`. On an ink button it uses 22 % of `--panel`.
 - `.fchip`: filter chips in the filter panel. Idle: 1px `--rule` border, `--ink-2`. Checked: `--gray-bg`, `--ink` border and text, weight 600. Status chips start with an 8px status dot.
 - `.hid-pill`: the "N hidden" badge in the top bar, 28px, `--gray-bg`. Hover or open: `--rule` fill.
+- `.nbadge`: the app icon badge on the Change requests button: an 18px pill in `--danger` with white 10.5px weight 600 text and a 2px `--panel` ring, at the top right corner of the button. It counts the Ready change requests and is absent at 0. It is the only solid red count in the app.
 - `.bot`: the Agent chip on a Queue card, on `--route-bg`.
 
 ### 8.3 Inputs
@@ -203,7 +204,7 @@ Stacking order (`z-index`), low to high: pinned axis, zoom bar and bin 3; move h
 
 ### 8.4 Search with filter
 
-- `.tsearch`: a 32px input on `--sunk` with the search icon at the left and the filter button inside the right edge. It grows from 150px to 260px; on a phone it takes the full line.
+- `.tsearch`: a 32px input on `--sunk` with the search icon at the left and the filter button inside the right edge. It takes all the free room of the top bar (at least 160px); on a phone it takes the full line.
 - Hover: `--ink-3` border. Focus: `--panel` fill and the input focus ring.
 - `.tsearch-pop`: up to 8 results, each with the title (weight 600), the team (`--fs-xs`, `--ink-3`) and a status badge. The active result has `--gray-bg`. Arrow keys, Enter and Esc work.
 - `.tfilter-btn`: a 28px icon button. While filters are on, it shows a count on an ink pill. `.tfilter-pop` holds the groups Status, Team, Milestone and Person as `.fchip` groups, and a footer with "N of M work items match" and Clear filters.
@@ -237,8 +238,10 @@ The rail is flat: `--sunk` fill and a 1px `--rule` right border. Items (`.rail-i
 
 ### 8.11 Top bar and context bar
 
-- `.p-head` (top bar): `--panel`, a `--rule` bottom hairline. It holds the view switcher (`.graph-btn`, a 32px button with a 10px dot in the colour of the change request author, ink for Main), the "N hidden" badge, Search work items, History, Change requests with a count, the demo select (upper-case 10.5px label) and the acting member (28px avatar, name, role) after a `--rule` divider.
-- `.bbar` (context bar): says what the view is and what you can do. `.bbar.main` on `--sunk`, `.bbar.mine` on `--edit-bg` (you edit), `.bbar.other` on `--route-bg` (someone else's change request). The ask row (`.ask-row`) is a full-width line on `--caution-bg`.
+- `.p-head` (top bar): `--panel`, a `--rule` bottom hairline. It holds Search work items (all the free room), the "N hidden" badge, History, Change requests with its `.nbadge`, New change request, the demo select (upper-case 10.5px label) and the acting member (28px avatar, name, role) after a `--rule` divider.
+- `.bbar` (context bar): says what the view is and what you can do. It starts with the view selector (`.gpick > .vsel`): the title of the view in `--fs` weight 600 with a pull-request icon (a 10px ink dot for Main) and a chevron, no box; hover or open: `--hover`. A long title ends with an ellipsis at 56 characters. `.bbar.main` on `--sunk`, `.bbar.mine` on `--edit-bg` (you edit), `.bbar.other` on `--route-bg` (someone else's change request). The ask row (`.ask-row`) is a full-width line on `--caution-bg`; a note (`.bnote`, the cancel reason or the "asked for changes" note) is a full-width `--fs-s` line in `--ink-2`.
+- `.cr-side` (side panel of the change request page): 320px, the Changes and Queue tabs as a `.qseg`, a list of changes as rows with hairlines (`.chg-row`; the picked one on `--gray-bg`), the clash picks (`.res-box`) at the top. `.gtools` above the graph holds the Before / After `.seg`.
+- `.btn-stop`: a solid `--danger` button with white text, only for the confirm button of Cancel change request.
 - `.ro-note` (Main is read-only): `--route-bg` with `--route-ink` text, `--r-ctl`, a close button and Don't show again.
 - `.legend2`: a `--fs-xs` legend below the graph with the 4 line colours, the deadline diamond, the 5 milestone statuses and the yellow "Name" sample.
 
