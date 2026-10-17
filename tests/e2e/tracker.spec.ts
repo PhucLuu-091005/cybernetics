@@ -2,7 +2,12 @@ import { expect, test, type Page } from '@playwright/test';
 import { drag, hydrated } from './helpers';
 
 type TrackerRead = {
-  crs: Array<{ num: number; status: string }>;
+  crs: Array<{
+    num: number;
+    status: string;
+    shares: Array<{ memberId: string; permission: string }>;
+  }>;
+  members: Array<{ id: string; name: string }>;
   commits: Array<{ crNum: number | null; resolutions: Array<{ chose: string }> }>;
 };
 
@@ -25,6 +30,8 @@ async function actAs(page: Page, name: string) {
   await page.getByLabel('Demo: act as').selectOption({ label: name });
   await expect(page.locator('.me b')).toHaveText(name);
 }
+
+const crPath = (graph: string, num: number) => graph.replace(/graph$/, `changes/${num}`);
 
 async function readTracker(page: Page, projectId: string): Promise<TrackerRead> {
   const response = await page.request.get(`/api/v1/projects/${projectId}/tracker`);
@@ -68,13 +75,13 @@ test.describe('the tracker walkthrough', () => {
       await page.keyboard.press('Enter');
       await expect(drawer).toHaveAttribute('aria-label', title);
     };
-    const openReview = async (num: number) => {
-      await visit(page, `${graph}?cr=${num}`);
-      await bar.getByRole('link', { name: 'Review and merge' }).click();
-      await page.waitForURL(new RegExp(`/changes/${num}`));
-      await expect(page.locator('.pr-tabs')).toBeVisible();
-      await hydrated(page);
+    const side = page.locator('.cr-side');
+    const changes = page.getByRole('list', { name: 'Changes' });
+    const openCr = async (num: number) => {
+      await visit(page, crPath(graph, num));
+      await expect(bar).toContainText(`#${num}`);
     };
+    const showQueue = () => side.getByRole('button', { name: /^Queue/ }).click();
 
     await test.step("0. Main says it is read-only, and Don't show again keeps the notice away", async () => {
       const note = page.getByRole('note', { name: 'Main is read-only' });
@@ -125,9 +132,13 @@ test.describe('the tracker walkthrough', () => {
       await actAs(page, 'Lan Phạm');
       await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
       await dialog.getByRole('button', { name: 'Create', exact: true }).click();
-      await page.waitForURL(/cr=5$/);
+      await page.waitForURL(/\/changes\/5$/);
       await expect(bar).toContainText('#5');
       await expect(bar).toContainText('You are editing');
+      await expect(side.getByRole('button', { name: /^Queue/ })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
       await drag(page, queueEvent('Where is the root cause report'), row('incident'));
       await expect(toast).toContainText('Message by Sarah Kim: added');
       await expect(bar).toContainText('1 change');
@@ -161,9 +172,7 @@ test.describe('the tracker walkthrough', () => {
 
     await test.step('4. Lan shares #5 with Khoa, Can edit', async () => {
       await bar.getByRole('button', { name: 'Share' }).click();
-      await expect(dialog.getByLabel('Link')).toHaveValue(
-        /\/projects\/[0-9a-f-]{36}\/graph\?cr=5$/,
-      );
+      await expect(dialog.getByLabel('Link')).toHaveValue(/\/projects\/[0-9a-f-]{36}\/changes\/5$/);
       await dialog.getByLabel('Person').selectOption({ label: 'Khoa Lê' });
       await dialog.getByLabel('Access', { exact: true }).selectOption('edit');
       await dialog.getByRole('button', { name: 'Add', exact: true }).click();
@@ -175,7 +184,7 @@ test.describe('the tracker walkthrough', () => {
 
     await test.step('5. Khoa opens #5 while Lan edits and asks to edit', async () => {
       await actAs(page, 'Khoa Lê');
-      await expect(page).toHaveURL(/cr=5$/);
+      await expect(page).toHaveURL(/\/changes\/5$/);
       await expect(bar).toContainText('Lan is editing');
       await bar.getByRole('button', { name: 'Ask to edit' }).click();
       await expect(bar).toContainText('Waiting for Lan');
@@ -192,6 +201,7 @@ test.describe('the tracker walkthrough', () => {
     await test.step('7. Khoa drags the scope call onto Dynamics CRM sync scope', async () => {
       await actAs(page, 'Khoa Lê');
       await expect(bar).toContainText('You are editing');
+      await showQueue();
       await drag(page, queueEvent('Scope call'), row('dynamics'));
       await expect(toast).toContainText('Meeting by Sarah Kim: added');
       await expect(page.locator('.pop')).toContainText('Added a Meeting');
@@ -206,34 +216,43 @@ test.describe('the tracker walkthrough', () => {
       await expect(bar.getByRole('button', { name: 'Edit again' })).toBeVisible();
     });
 
-    await test.step('9. Minh reviews #2 and merges it into Main', async () => {
+    await test.step('9. Minh opens #2 from the Change requests button and merges it into Main', async () => {
       await actAs(page, 'Minh Trần');
-      await expect(page.locator('.drawer', { hasText: 'Change requests' })).toBeVisible();
-      await openReview(2);
-      await page.getByRole('tab', { name: /On the graph/ }).click();
-      await expect(page.getByRole('button', { name: 'After', exact: true })).toBeVisible();
-      await page.getByRole('tab', { name: /Changes/ }).click();
-      await page.getByRole('button', { name: 'Merge into Main' }).click();
-      await page.waitForURL(/\/graph/);
+      await expect(page).toHaveURL(/\/changes\/5$/);
+      const requests = page.getByRole('button', { name: 'Change requests, 3 ready to merge' });
+      await expect(requests.locator('.nbadge')).toHaveText('3');
+      await requests.click();
+      await page
+        .locator('.drawer')
+        .getByRole('button', { name: 'Review and merge' })
+        .last()
+        .click();
+      await page.waitForURL(/\/changes\/2$/);
+      await expect(bar).toContainText('#2');
+      await expect(page.getByRole('button', { name: 'After', exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      await page.getByRole('button', { name: 'Before', exact: true }).click();
+      await page.getByRole('button', { name: 'After', exact: true }).click();
+      await expect(page.getByRole('tab')).toHaveCount(0);
+      await bar.getByRole('button', { name: 'Merge into Main' }).click();
       await expect(bar).toContainText('Merged into Main by Minh Trần');
+      await expect(toast).toContainText('#2 is in Main now.');
       const tracker = await readTracker(page, projectId);
       expect(tracker.crs.find((c) => c.num === 2)?.status).toBe('merged');
       expect(tracker.commits).toHaveLength(2);
     });
 
     await test.step('10. Minh resolves the PG-203 name clash in #3 and merges', async () => {
-      await visit(page, `${graph}?cr=3`);
+      await openCr(3);
       await expect(bar).toContainText('1 clash with Main');
-      await bar.getByRole('link', { name: 'Review and merge' }).click();
-      await page.waitForURL(/\/changes\/3/);
-      await hydrated(page);
-      const merge = page.getByRole('button', { name: 'Merge into Main' });
+      const merge = bar.getByRole('button', { name: 'Merge into Main' });
       await expect(page.locator('.res-box')).toBeVisible();
       await expect(merge).toBeDisabled();
       await page.locator('.res-box input[type=radio][value="cr"]').first().check();
       await expect(merge).toBeEnabled();
       await merge.click();
-      await page.waitForURL(/\/graph/);
       await expect(bar).toContainText('#3');
       await expect(bar).toContainText('Merged into Main by Minh Trần');
       const commit = (await readTracker(page, projectId)).commits.find((c) => c.crNum === 3);
@@ -241,20 +260,17 @@ test.describe('the tracker walkthrough', () => {
     });
 
     await test.step('11. Minh asks for changes on #5; Khoa reads the note and marks it ready again', async () => {
-      await openReview(5);
-      await expect(page.locator('.dquote', { hasText: 'Why it moves' })).toContainText(
-        'Lan sends the country list on 10 October',
-      );
-      await page.getByRole('button', { name: 'Request changes' }).click();
-      await page.locator('#rv-note').fill('Add the date Lan promised for the country list.');
-      await page.getByRole('button', { name: 'Send back to draft' }).click();
-      await expect(page.locator('.tk-toast')).toContainText(
-        '#5 is a draft again. Khoa Lê sees your note.',
-      );
-      await expect(page.locator('.cs-head h1 .chipx')).toHaveText('Draft');
-      await expect(
-        page.getByText('This is a draft. Its editors can still change it.'),
-      ).toBeVisible();
+      await openCr(5);
+      await expect(changes).toContainText('Why: Lan sends the country list on 10 October');
+      await bar.getByRole('button', { name: 'Request changes' }).click();
+      const send = dialog.getByRole('button', { name: 'Send back to draft' });
+      await expect(send).toBeDisabled();
+      await dialog
+        .getByLabel('What should change?')
+        .fill('Add the date Lan promised for the country list.');
+      await send.click();
+      await expect(toast).toContainText('#5 is a draft again. Khoa Lê sees your note.');
+      await expect(bar.locator('.chipx').first()).toHaveText('Draft');
       await expect(page.getByText('This change request changed since you opened it.')).toHaveCount(
         0,
       );
@@ -264,41 +280,76 @@ test.describe('the tracker walkthrough', () => {
 
       await visit(page, graph);
       await actAs(page, 'Khoa Lê');
-      await expect(bar).toContainText('Minh Trần asked for changes');
-      await bar.getByRole('link', { name: 'Read', exact: true }).click();
-      await page.waitForURL(/\/changes\/5/);
-      await expect(page.locator('#rv-panel')).toContainText(
-        'Add the date Lan promised for the country list.',
+      await page.waitForURL(/\/changes\/5$/);
+      await expect(bar).toContainText(
+        'Minh Trần asked for changes: Add the date Lan promised for the country list.',
       );
-      await page.getByRole('link', { name: 'Back to the graph' }).first().click();
-      await expect(page.locator('svg.pg')).toBeVisible();
-      await hydrated(page);
       await bar.getByRole('button', { name: 'Mark as ready' }).click();
       await expect(toast).toContainText('#5 is ready');
     });
 
-    await test.step('12. History lists the merges, and See changes opens one', async () => {
+    await test.step('12. History lists the merges, and Open goes to the change request page', async () => {
       await page.locator('.p-head').getByRole('button', { name: 'History' }).click();
       const history = page.locator('.drawer');
       for (const text of ['#3', '#2', '#1', '1 clash resolved'])
         await expect(history).toContainText(text);
-      await history.getByRole('link', { name: 'See changes' }).first().click();
-      await page.waitForURL(/\/changes\/3/);
-      await expect(page.locator('.pr-tabs')).toBeVisible();
+      await history.getByRole('button', { name: 'Open #3' }).click();
+      await page.waitForURL(/\/changes\/3$/);
+      await expect(bar).toContainText('#3');
     });
 
-    await test.step('13. Merged #1 is read-only history: no Queue, no drag, and New change request in the bar', async () => {
+    await test.step('13. Merged #1 is read-only history: no Queue and no drag', async () => {
       await visit(page, graph);
       await page.locator('.p-head').getByRole('button', { name: 'History' }).click();
-      await page.locator('.drawer').getByRole('button', { name: 'Open graph' }).last().click();
-      await page.waitForURL(/cr=1$/);
+      await page.locator('.drawer').getByRole('button', { name: 'Open #1' }).click();
+      await page.waitForURL(/\/changes\/1$/);
       await expect(bar).toContainText('Read-only history.');
-      await expect(bar.getByRole('button', { name: 'New change request' })).toBeVisible();
-      await expect(page.locator('.p-side')).toHaveCount(0);
+      await expect(
+        page.locator('.p-head').getByRole('button', { name: 'New change request' }),
+      ).toBeVisible();
+      await expect(page.locator('.qpanel')).toHaveCount(0);
+      await expect(side.getByRole('button', { name: /^Queue/ })).toHaveCount(0);
       const ev = page.locator('svg.pg [data-act][data-in="golive"]').first();
       await drag(page, ev, row('test'));
       await expect(dialog).toHaveCount(0);
       await expect(page.locator('svg.pg [data-act][data-in="test"]')).toHaveCount(0);
+    });
+
+    await test.step('14. Quang asks Hà for edit access to #4, and Hà grants Can edit', async () => {
+      await openCr(4);
+      await actAs(page, 'Quang Nguyễn');
+      await expect(bar).toContainText('View only.');
+      await bar.getByRole('button', { name: 'Ask for edit access' }).click();
+      await expect(bar).toContainText('Waiting for Hà');
+      await actAs(page, 'Hà Đỗ');
+      const ask = page.locator('.ask-row');
+      await expect(ask).toContainText('Quang Nguyễn asks for edit access to #4.');
+      await ask.getByRole('button', { name: 'Grant Can edit' }).click();
+      await expect(toast).toContainText('Quang Nguyễn can edit #4 now.');
+      await expect(ask).toHaveCount(0);
+      const tracker = await readTracker(page, projectId);
+      const quang = tracker.members.find((m) => m.name === 'Quang Nguyễn')?.id;
+      expect(tracker.crs.find((c) => c.num === 4)?.shares).toContainEqual({
+        memberId: quang,
+        permission: 'edit',
+      });
+    });
+
+    await test.step('15. Hà cancels #4 with a reason; the header and History show it', async () => {
+      await bar.getByRole('button', { name: 'Cancel change request' }).click();
+      const confirm = dialog.getByRole('button', { name: 'Cancel change request' });
+      await expect(confirm).toBeDisabled();
+      await dialog.getByLabel('Reason').fill('Main has these test dates already.');
+      await confirm.click();
+      await expect(toast).toContainText('#4 is cancelled. Nothing went into Main.');
+      await expect(bar).toContainText('Closed');
+      await expect(bar).toContainText('Cancelled by Hà Đỗ');
+      await expect(bar).toContainText('Reason: Main has these test dates already.');
+      await page.locator('.p-head').getByRole('button', { name: 'History' }).click();
+      await expect(page.locator('.drawer')).toContainText('Cancelled (1)');
+      await expect(page.locator('.drawer')).toContainText(
+        'Reason: Main has these test dates already.',
+      );
     });
 
     expect(problems).toEqual([]);
@@ -308,23 +359,30 @@ test.describe('the tracker walkthrough', () => {
 test.describe('the top bar', () => {
   test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
 
-  test('Main shows read-only and its project lead in the selector, and one button opens the change requests', async ({
+  test('the context bar holds the view selector, and the Change requests button carries a badge', async ({
     page,
   }) => {
     const { projectId, graph } = await signIn(page, 'tracker-top-bar');
     const head = page.locator('.p-head');
-    const view = head.locator('.gpick > summary');
-    await expect(view).toContainText('Main');
-    await expect(view).toContainText('read-only');
-    await expect(view).toContainText('Lead: Minh Trần');
-    await expect(view.locator('.av')).toHaveText('MT');
+    const bar = page.locator('.bbar');
+    const view = bar.locator('.gpick > summary');
+    await expect(head.locator('.gpick')).toHaveCount(0);
+    await expect(bar).toHaveCount(1);
+    await expect(view).toHaveAccessibleName(
+      'View: Main, read-only, project lead Minh Trần. Switch view',
+    );
+    await expect(bar).toContainText('read-only');
+    await expect(bar.locator('.gowner')).toContainText('Lead: Minh Trần');
+    await expect(bar.locator('.gowner .av')).toHaveText('MT');
     await expect(page.getByText('Every change goes through a change request')).toHaveCount(0);
-    await expect(page.locator('.bbar')).toHaveCount(0);
 
     const ready = (await readTracker(page, projectId)).crs.filter((c) => c.status === 'ready');
-    const requests = head.getByRole('button', { name: `${ready.length} ready to merge` });
+    const requests = head.getByRole('button', {
+      name: `Change requests, ${ready.length} ready to merge`,
+    });
     await expect(requests).toHaveCount(1);
-    await expect(page.getByRole('button', { name: /Change requests, \d+ waiting/ })).toHaveCount(0);
+    await expect(requests).toContainText('Change requests');
+    await expect(requests.locator('.nbadge')).toHaveText(String(ready.length));
     await requests.click();
     const drawer = page.locator('.drawer', { hasText: 'Change requests' });
     await expect(drawer).toBeVisible();
@@ -333,35 +391,43 @@ test.describe('the top bar', () => {
     await expect(drawer).toHaveCount(0);
 
     const search = head.locator('.tsearch');
-    expect((await search.boundingBox())!.width).toBeGreaterThan(260);
+    expect((await search.boundingBox())!.width).toBeGreaterThan(400);
     const box = await head.boundingBox();
     expect(box!.height).toBeLessThan(60);
 
+    await view.click();
+    await page
+      .locator('.gmenu')
+      .getByRole('button', { name: /#4 Test plan/ })
+      .click();
+    await page.waitForURL(/\/changes\/4$/);
+    await expect(view).toContainText('#4 Test plan for the CRS section');
+
     await actAs(page, 'Hà Đỗ');
-    await page.waitForURL(/cr=4$/);
-    const bar = page.locator('.bbar');
+    await expect(page).toHaveURL(/\/changes\/4$/);
     await expect(bar).toContainText('You are editing');
-    for (const name of ['Share', 'Mark as ready'])
+    for (const name of ['Share', 'Mark as ready', 'Cancel change request'])
       await expect(bar.getByRole('button', { name })).toBeVisible();
-    await expect(head.getByRole('button', { name: 'New change request' })).toHaveCount(0);
-    await expect(head.getByRole('button', { name: /ready to merge|Change requests/ })).toHaveCount(
-      1,
-    );
+    await expect(head.getByRole('button', { name: 'New change request' })).toHaveCount(1);
 
     await visit(page, graph);
-    await expect(bar).toHaveCount(1);
     await bar.getByRole('button', { name: 'Open #4 (draft)' }).click();
-    await page.waitForURL(/cr=4$/);
+    await page.waitForURL(/\/changes\/4$/);
     await visit(page, graph);
     await actAs(page, 'Minh Trần');
     await head.getByRole('button', { name: 'New change request' }).click();
     const dialog = page.locator('.m-card');
     await dialog.getByRole('button', { name: 'Create', exact: true }).click();
-    await page.waitForURL(/cr=5$/);
+    await page.waitForURL(/\/changes\/5$/);
     await expect(bar).toContainText('#5');
-    await page.goto(`/projects/${projectId}/changes/2`);
-    await expect(page.locator('.pr-tabs')).toBeVisible();
-    await expect(page.locator('.cs-crumb details.acct summary b')).toHaveText('Minh Trần');
+
+    await page.goto(`${graph}?cr=2`);
+    await page.waitForURL(/\/changes\/2$/);
+    await page.goto(`/projects/${projectId}/changes/2?tab=talk`);
+    await expect(bar).toContainText('#2');
+    await expect(page.getByRole('tab')).toHaveCount(0);
+    await expect(page.getByText('Conversation')).toHaveCount(0);
+    await expect(page.locator('.p-head details.acct summary b')).toHaveText('Minh Trần');
   });
 });
 
@@ -410,7 +476,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
 
     await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
     await dialog.getByRole('button', { name: 'Create', exact: true }).click();
-    await page.waitForURL(/cr=\d+$/);
+    await page.waitForURL(/\/changes\/\d+$/);
     for (const [id, title] of [
       ['pg201', 'PG-201'],
       ['rehearsal', 'rehearsal'],
@@ -436,7 +502,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     const drawer = page.locator('.drawer');
     await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
     await dialog.getByRole('button', { name: 'Create', exact: true }).click();
-    await page.waitForURL(/cr=\d+$/);
+    await page.waitForURL(/\/changes\/\d+$/);
 
     await page.locator('svg.tg [data-ms="crm"] .ms-hit').click();
     await expect(drawer.locator('h4')).toHaveText('CRM integration live');
@@ -953,7 +1019,7 @@ test.describe('events at their own time', () => {
 test.describe('the tracker at phone width', () => {
   test.use({ viewport: { width: 390, height: 844 }, colorScheme: 'light', hasTouch: true });
 
-  test('the graph, a change request, a modal and the review page never scroll sideways', async ({
+  test('the graph, a change request page, its modals and the other pages never scroll sideways', async ({
     page,
   }) => {
     await page.goto('/signin?label=tracker-phone');
@@ -974,21 +1040,30 @@ test.describe('the tracker at phone width', () => {
     // The phone rail hides the fold button, so the first picks may land before hydration.
     await expect(async () => {
       await page.getByLabel('Demo: act as').selectOption({ label: 'Hà Đỗ' }, { timeout: 2_000 });
-      await expect(page).toHaveURL(/cr=4$/, { timeout: 2_000 });
+      await expect(page).toHaveURL(/\/changes\/4$/, { timeout: 2_000 });
     }).toPass();
     await expect(page.locator('.bbar').first()).toContainText('#4');
     await noHorizontalScroll(page);
 
     const add = page.getByRole('dialog', { name: 'Add to the queue' });
     await expect(async () => {
-      await page.locator('.p-side').getByRole('button', { name: 'Add' }).click({ timeout: 2_000 });
+      await page
+        .locator('.cr-side')
+        .getByRole('button', { name: /^Queue/ })
+        .click({ timeout: 2_000 });
+      await page.locator('.qpanel').getByRole('button', { name: 'Add' }).click({ timeout: 2_000 });
       await expect(add).toBeVisible({ timeout: 1_000 });
     }).toPass();
     await noHorizontalScroll(page);
     await page.keyboard.press('Escape');
 
+    await page.locator('.bbar').getByRole('button', { name: 'Cancel change request' }).click();
+    await expect(page.getByRole('dialog', { name: 'Cancel #4?' })).toBeVisible();
+    await noHorizontalScroll(page);
+    await page.keyboard.press('Escape');
+
     await page.goto(graph.replace(/graph$/, 'changes/2'));
-    await expect(page.locator('.pr-tabs')).toBeVisible();
+    await expect(page.locator('.bbar').first()).toContainText('#2');
     await noHorizontalScroll(page);
 
     for (const path of ['members', 'settings/tokens']) {

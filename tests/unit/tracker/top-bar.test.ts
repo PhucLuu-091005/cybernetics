@@ -126,7 +126,6 @@ function render(
   hidden: HiddenList = NONE,
   filter: RowFilter = NO_FILTER,
   crs: Cr[] = [],
-  cr: Cr | null = null,
 ) {
   const session = sessionOf(me, crs);
   const { base, queue } = session.payload;
@@ -135,14 +134,11 @@ function render(
       session,
       account: { name: 'Signed In', detail: 'signed@example.com' },
       userId: 'u1',
-      view: cr ? cr.num : 'main',
-      cr,
       state: { ...base, queue },
       asOf: '2026-10-09T18:00:00+07:00',
       hidden,
       drawer: null,
       actions: NO_ACTIONS,
-      onView: () => {},
       onDrawer: () => {},
       onUnhideTeam: () => {},
       onUnhideItem: () => {},
@@ -213,28 +209,29 @@ describe('TopBar', () => {
     expect(html).not.toContain('Show all');
   });
 
-  it('shows on Main that it is read-only and who leads the project, in the view selector', () => {
+  it('leaves the view selector to the context bar', () => {
     const html = render(members[1]);
-    expect(html).toContain('read-only</span>');
-    expect(html).toContain('Lead: Minh Trần');
-    expect(html).toContain(
-      'aria-label="View: Main, read-only, project lead Minh Trần. Switch view"',
-    );
+    expect(html).not.toContain('gpick');
+    expect(html).not.toContain('Switch view');
   });
 
-  it('has one change requests button that reads Change requests, or the number ready to merge', () => {
-    expect(render(members[0])).toMatch(/class="btn crs-btn"[^>]*>.*Change requests<\/button>/);
+  it('has one Change requests button with a badge for the ready ones, and no badge at 0', () => {
+    const plain = render(members[0]);
+    expect(plain).toMatch(/class="btn crs-btn"[^>]*>.*Change requests<\/button>/);
+    expect(plain).not.toContain('nbadge');
     const html = render(members[0], NONE, NO_FILTER, [draft(1, 'ready'), draft(2, 'ready')]);
-    expect(html).toMatch(/class="btn crs-btn"[^>]*>.*2 ready to merge<\/button>/);
+    expect(html).toContain('aria-label="Change requests, 2 ready to merge"');
+    expect(html).toMatch(/<span class="nbadge" aria-hidden="true">2<\/span>/);
+    expect(html).not.toContain('ready to merge</button>');
     expect(html.match(/crs-btn/g)).toHaveLength(1);
-    expect(html).not.toContain('js-req');
   });
 
-  it('puts New change request in the top bar on Main only; the view menu always has it', () => {
+  it('puts New change request in the top bar on Main and in a change request, for a member only', () => {
     const count = (html: string) => html.match(/New change request/g)?.length ?? 0;
-    expect(count(render(members[1]))).toBe(2);
+    expect(count(render(members[1]))).toBe(1);
     const cr = draft(5, 'draft');
-    expect(count(render(members[1], NONE, NO_FILTER, [cr], cr))).toBe(1);
+    expect(count(render(members[1], NONE, NO_FILTER, [cr]))).toBe(1);
+    expect(count(render(null))).toBe(0);
   });
 
   it('lists only the seeded members who can act and your own member in the Demo select', () => {
@@ -258,26 +255,123 @@ describe('TopBar', () => {
   });
 });
 
-describe('ContextBar on Main', () => {
-  const bar = (me: Member, crs: Cr[]) =>
-    renderToStaticMarkup(
-      createElement(ContextBar, {
-        session: sessionOf(me, crs),
-        cr: null,
-        actions: NO_ACTIONS,
-        onView: () => {},
-        onChanges: () => {},
-      }),
-    );
+const bar = (me: Member | null, crs: Cr[], cr: Cr | null = null) =>
+  renderToStaticMarkup(
+    createElement(ContextBar, {
+      session: sessionOf(me, crs),
+      cr,
+      actions: NO_ACTIONS,
+      onView: () => {},
+      onDrawer: () => {},
+    }),
+  );
 
-  it('leaves no row when nothing waits for the person', () => {
-    expect(bar(members[0], [draft(1, 'ready')])).toBe('');
+describe('ContextBar on Main', () => {
+  it('holds the view selector: Main, read-only and its project lead', () => {
+    const html = bar(members[0], [draft(1, 'ready')]);
+    expect(html).toContain('class="gpick"');
+    expect(html).toContain(
+      'aria-label="View: Main, read-only, project lead Minh Trần. Switch view"',
+    );
+    expect(html).toContain('read-only</span>');
+    expect(html).toContain('Lead: Minh Trần');
+    expect(html).not.toContain('Open #');
   });
 
-  it('shows the row only to open a draft of your own, without the read-only sentence', () => {
+  it('offers to open a draft of your own, without the read-only sentence', () => {
     const html = bar(members[1], [draft(4, 'draft')]);
     expect(html).toContain('Open #4 (draft)');
     expect(html).not.toContain('Every change goes through a change request');
-    expect(html).not.toContain('New change request');
+  });
+});
+
+describe('ContextBar in a change request', () => {
+  const shared = (over: Partial<Cr>): Cr => ({ ...draft(5, 'draft'), ...over });
+
+  it('makes the title the view selector, with the status, people, editing state and count', () => {
+    const cr = draft(5, 'draft');
+    const html = bar(members[1], [cr], cr);
+    expect(html).toContain('aria-label="View: #5 Change 5. Switch view"');
+    expect(html).toMatch(/<summary[^>]*>.*#5 Change 5.*<\/summary>/);
+    expect(html).toContain('Draft');
+    expect(html).toContain('You are editing');
+    expect(html).toContain('0 changes');
+    expect(html.match(/class="bbar/g)).toHaveLength(1);
+  });
+
+  it('gives a member without edit right a button to ask for edit access', () => {
+    const cr = draft(5, 'draft');
+    const html = bar(members[3], [cr], cr);
+    expect(html).toContain('View only.');
+    expect(html).toContain('Ask for edit access');
+    expect(html).not.toContain('Ask Lan for edit access');
+    expect(html).not.toContain('Cancel change request');
+  });
+
+  it('gives a member without the create right a plain view-only note and no ask', () => {
+    const cr = draft(5, 'draft');
+    const reader = { ...members[3], grants: { ...DEFAULT_GRANTS, createCrs: false } };
+    const html = bar(reader, [cr], cr);
+    expect(html).toContain('View only.');
+    expect(html).not.toContain('Ask for edit access');
+    expect(html).not.toContain('Ask to edit');
+  });
+
+  it('shows the asker that the ask waits, with Cancel', () => {
+    const cr = shared({ asks: [{ memberId: 'mai', createdAt: '2026-10-09T10:00:00.000Z' }] });
+    const html = bar(members[3], [cr], cr);
+    expect(html).toContain('Waiting for Lan');
+    expect(html).not.toContain('Ask for edit access');
+  });
+
+  it('shows the editor an ask for access with Grant Can edit and Not now', () => {
+    const cr = shared({ asks: [{ memberId: 'mai', createdAt: '2026-10-09T10:00:00.000Z' }] });
+    const html = bar(members[1], [cr], cr);
+    expect(html).toContain('Mai Vũ</b> asks for edit access to #5.');
+    expect(html).toContain('Grant Can edit');
+    expect(html).toContain('Not now');
+    expect(html).not.toContain('Hand over');
+  });
+
+  it('shows the editor an ask to edit from a member who can edit, with Hand over', () => {
+    const cr = shared({
+      shares: [{ memberId: 'mai', permission: 'edit' }],
+      asks: [{ memberId: 'mai', createdAt: '2026-10-09T10:00:00.000Z' }],
+    });
+    const html = bar(members[1], [cr], cr);
+    expect(html).toContain('Mai Vũ</b> asks to edit #5.');
+    expect(html).toContain('Hand over');
+    expect(html).not.toContain('Grant Can edit');
+  });
+
+  it('offers Cancel change request to the author and a merger, and merge to a merger', () => {
+    const cr = draft(5, 'ready');
+    expect(bar(members[1], [cr], cr)).toContain('Cancel change request');
+    const owner = bar(members[0], [cr], cr);
+    expect(owner).toContain('Cancel change request');
+    expect(owner).toContain('Request changes');
+    expect(owner).toContain('Merge into Main');
+  });
+
+  it('shows the reason of a cancelled change request', () => {
+    const cr = shared({
+      status: 'closed',
+      closedBy: 'lan',
+      closedAt: '2026-10-09T11:00:00.000Z',
+      comments: [
+        {
+          id: 'c1',
+          memberId: 'lan',
+          kind: 'closed',
+          body: 'Main has it already.',
+          opIndex: null,
+          createdAt: '2026-10-09T11:00:00.000Z',
+        },
+      ],
+    });
+    const html = bar(members[0], [cr], cr);
+    expect(html).toContain('Closed');
+    expect(html).toContain('Cancelled by Lan Phạm');
+    expect(html).toContain('Main has it already.');
   });
 });

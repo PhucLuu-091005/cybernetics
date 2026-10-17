@@ -28,6 +28,22 @@ const subject = (
   base: { teams: leads.map((leadId) => ({ leadId })) },
 });
 
+const crOf = (
+  status: string,
+  over: Partial<{ author: string; editor: string }> = {},
+): {
+  author: string;
+  editor: string;
+  status: string;
+  shares: Array<{ memberId: string; permission: string }>;
+} => ({
+  author: 'ha',
+  editor: 'ha',
+  status,
+  shares: [{ memberId: 'khoa', permission: 'edit' }],
+  ...over,
+});
+
 describe('grants', () => {
   it('closes upward: a change request right needs Main, create and merge need the list', () => {
     expect(closeGrants(grants('createCrs'))).toEqual(grants('viewMain', 'viewCrs', 'createCrs'));
@@ -106,18 +122,48 @@ describe('rightsOf and can', () => {
     });
   });
 
-  it('edits a change request with the create right and a part in it', () => {
+  it('edits only the draft whose current editor you are, with the create right', () => {
     const member = subject({ id: 'ha', grants: DEFAULT_GRANTS });
-    const cr = { author: 'lan', editor: 'lan', shares: [{ memberId: 'ha', permission: 'edit' }] };
+    const cr = crOf('draft');
     expect(can(member, 'edit')).toBe(true);
     expect(can(member, 'edit', cr)).toBe(true);
-    expect(can(member, 'edit', { ...cr, shares: [{ memberId: 'ha', permission: 'view' }] })).toBe(
-      false,
-    );
-    expect(can(member, 'edit', { author: 'ha', editor: 'lan', shares: [] })).toBe(true);
+    expect(can(member, 'edit', crOf('ready'))).toBe(false);
+    expect(can(subject({ id: 'khoa', grants: DEFAULT_GRANTS }), 'edit', cr)).toBe(false);
     const viewer = subject({ id: 'ha', grants: grants('viewMain', 'viewCrs') });
     expect(can(viewer, 'edit', cr)).toBe(false);
     expect(can(viewer, 'edit')).toBe(false);
+    expect(can(subject(null), 'edit', cr)).toBe(false);
+  });
+
+  it('lets the author, the editor or a merger cancel an open change request', () => {
+    const handed = crOf('draft', { editor: 'khoa' });
+    const as = (id: string, g: Grants = DEFAULT_GRANTS) => subject({ id, grants: g });
+    expect(can(as('ha'), 'cancel', handed)).toBe(true);
+    expect(can(as('khoa'), 'cancel', handed)).toBe(true);
+    expect(can(as('minh', NO_GRANTS), 'cancel', handed)).toBe(true);
+    expect(can(as('quang', grants('mergeCrs')), 'cancel', handed)).toBe(true);
+    expect(can(as('lan'), 'cancel', handed)).toBe(false);
+    expect(can(as('ha'), 'cancel', crOf('merged'))).toBe(false);
+    expect(can(as('minh'), 'cancel', crOf('closed'))).toBe(false);
+    expect(can(subject(null), 'cancel', handed)).toBe(false);
+  });
+
+  it('lets a member with the create right, but not the editor, ask about an open change request', () => {
+    const as = (id: string, g: Grants = DEFAULT_GRANTS) => subject({ id, grants: g });
+    expect(can(as('lan'), 'ask', crOf('draft'))).toBe(true);
+    expect(can(as('khoa'), 'ask', crOf('ready'))).toBe(true);
+    expect(can(as('ha'), 'ask', crOf('draft'))).toBe(false);
+    expect(can(subject(null), 'ask', crOf('draft'))).toBe(false);
+    expect(can(as('lan'), 'ask', crOf('merged'))).toBe(false);
+    expect(can(as('lan', grants('viewMain', 'viewCrs')), 'ask', crOf('draft'))).toBe(false);
+  });
+
+  it('lets the editor with the create right share an open change request', () => {
+    const as = (id: string, g: Grants = DEFAULT_GRANTS) => subject({ id, grants: g });
+    expect(can(as('ha'), 'share', crOf('ready'))).toBe(true);
+    expect(can(as('khoa'), 'share', crOf('draft'))).toBe(false);
+    expect(can(as('ha'), 'share', crOf('closed'))).toBe(false);
+    expect(can(as('ha', grants('viewMain', 'viewCrs')), 'share', crOf('draft'))).toBe(false);
   });
 });
 

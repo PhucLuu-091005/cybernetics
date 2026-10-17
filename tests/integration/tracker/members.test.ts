@@ -233,6 +233,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
       ...as('lan'),
       num: 2,
       action: 'close',
+      reason: 'Not needed.',
       expectedRevision: ready.revision,
     });
     await expect(
@@ -240,6 +241,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
         ...as('ha'),
         num: 3,
         action: 'close',
+        reason: 'Not needed.',
         expectedRevision: before.crs.find((cr) => cr.num === 3)!.revision,
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });

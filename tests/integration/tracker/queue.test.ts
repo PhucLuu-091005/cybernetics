@@ -246,6 +246,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker queue', () => {
       ...scope('minh'),
       num: fromEvent.num,
       action: 'close',
+      reason: 'The card goes elsewhere.',
       expectedRevision: revision,
     });
     const payload = await dismiss('qe2');

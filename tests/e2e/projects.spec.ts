@@ -58,10 +58,11 @@ test('a new project starts with its teams and an empty graph, and its first chan
   await expect(svg.locator('[data-loop]')).toHaveCount(0);
   await expect(page.locator('.empty')).toContainText('This project has no work yet.');
   const bar = page.locator('.bbar').first();
-  const view = page.locator('.gpick > summary');
-  await expect(view).toContainText('read-only');
-  await expect(view).toContainText(`Lead: ${owner}`);
-  await expect(page.locator('.bbar')).toHaveCount(0);
+  await expect(bar.locator('.gpick > summary')).toHaveAccessibleName(
+    `View: Main, read-only, project lead ${owner}. Switch view`,
+  );
+  await expect(bar).toContainText('read-only');
+  await expect(bar).toContainText(`Lead: ${owner}`);
   await expect(page.getByLabel('Demo: act as')).toHaveCount(0);
   await expect(page.locator('.me')).toContainText('Project lead');
 
@@ -74,7 +75,8 @@ test('a new project starts with its teams and an empty graph, and its first chan
   const named = page.getByRole('dialog', { name: 'New change request' });
   await named.getByLabel('Name').fill('Place the tax ID work');
   await named.getByRole('button', { name: 'Create', exact: true }).click();
-  await page.waitForURL(/cr=1$/);
+  await page.waitForURL(/\/changes\/1$/);
+  await hydrated(page);
   await expect(bar).toContainText('#1 Place the tax ID work');
   await expect(bar).toContainText('You are editing');
   await expect(bar.getByRole('button', { name: 'Mark as ready' })).toBeDisabled();
@@ -99,19 +101,16 @@ test('a new project starts with its teams and an empty graph, and its first chan
 
   await bar.getByRole('button', { name: 'Mark as ready' }).click();
   await expect(bar).toContainText('Ready to merge');
-  await bar.getByRole('link', { name: 'Review and merge' }).click();
-  await page.waitForURL(/\/changes\/1$/);
-  await hydrated(page);
-  await expect(page.getByText('No clashes', { exact: true })).toBeVisible();
-  await expect(page.locator('#rv-panel')).toContainText('Team: Engineering');
-  await page.getByRole('button', { name: 'Merge into Main' }).click();
-  await page.waitForURL(/\/graph/);
+  await expect(page.getByRole('region', { name: 'Clashes with Main' })).toHaveCount(0);
+  await expect(page.getByRole('list', { name: 'Changes' })).toContainText(
+    'Tax ID field on the KYC form: placed',
+  );
+  await bar.getByRole('button', { name: 'Merge into Main' }).click();
   await expect(bar).toContainText(`Merged into Main by ${owner}`);
 
   await page.goto(graph);
   await hydrated(page);
-  await expect(view).toContainText('read-only');
-  await expect(page.locator('.bbar')).toHaveCount(0);
+  await expect(bar).toContainText('read-only');
   await expect(svg.locator('[data-loop]')).toHaveCount(1);
   await expect(page.locator('.empty')).toHaveCount(0);
   await page.locator('.p-head').getByRole('button', { name: 'History' }).click();
