@@ -191,7 +191,7 @@ test.describe('the tracker walkthrough', () => {
 
     await test.step('8. Khoa marks #5 as ready, which locks it', async () => {
       await bar.getByRole('button', { name: 'Mark as ready' }).click();
-      await expect(toast).toContainText('#5 is ready. Minh Trần can merge it now.');
+      await expect(toast).toContainText('#5 is ready. Minh Trần or Quang Nguyễn can merge it now.');
       await expect(bar).toContainText('Ready to merge');
       await expect(bar).toContainText('Locked. Waiting for Minh or Quang.');
       await expect(bar.getByRole('button', { name: 'Edit again' })).toBeVisible();
