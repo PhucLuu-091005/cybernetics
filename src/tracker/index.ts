@@ -11,3 +11,4 @@ export * from './review';
 export * from './search';
 export * from './offsets';
 export * from './focus';
+export * from './filter';
