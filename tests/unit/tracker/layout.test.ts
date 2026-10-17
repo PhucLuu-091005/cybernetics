@@ -251,6 +251,16 @@ describe('layoutTracker: a scale that does not follow the width', () => {
     expect(wider.zoom).toBeLessThan(1);
   });
 
+  it('fits a window so long that the fit is under the floor, and keeps that fit', () => {
+    const long = view({ windowStart: '2024-01-01' });
+    const L = layoutTracker(larkspurState(), long);
+    expect(L.fitDayWidth).toBeLessThan(GEOMETRY.MIN_DAY_WIDTH);
+    const F = layoutTracker(larkspurState(), { ...long, dayWidth: L.fitDayWidth });
+    expect(F.dayWidth).toBeCloseTo(L.fitDayWidth, 9);
+    expect(F.zoom).toBeCloseTo(1, 9);
+    expect(F.x1).toBeCloseTo(X1, 6);
+  });
+
   it('keeps a given day width inside its limits', () => {
     const { MIN_DAY_WIDTH, MAX_DAY_WIDTH } = GEOMETRY;
     expect(layoutTracker(larkspurState(), view({ dayWidth: 0.01 })).dayWidth).toBe(MIN_DAY_WIDTH);
@@ -1058,7 +1068,8 @@ describe('layoutTracker: handoff marks and chips', () => {
     );
     const M = layoutTracker(s, view());
     const h1 = M.eventGroups.find((g) => g.eventIds.includes('h1'))!;
-    expect(M.handoffs[0].x).toBe(h1.x - 5 - 24);
+    expect(M.handoffs[0].x).toBe(h1.x - 10 - 5 - 24);
+    expect(M.handoffs[0].x + M.handoffs[0].width).toBeLessThan(h1.x - 10);
   });
 
   it('gives a source one mark per source row, never one per receiver', () => {

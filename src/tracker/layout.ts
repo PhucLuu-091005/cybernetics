@@ -39,6 +39,9 @@ export const GEOMETRY = {
 
 const { VW, X0, X1, SIDE, AXIS_Y, MS_Y, TRUNK_Y, TOP, ROW, HEAD, MAX_ZOOM } = GEOMETRY;
 const { MIN_DAY_WIDTH, MAX_DAY_WIDTH } = GEOMETRY;
+/** A window so long that its fit is under the floor can still fit. */
+export const clampDayWidth = (dayWidth: number, fitDayWidth: number) =>
+  Math.min(MAX_DAY_WIDTH, Math.max(Math.min(MIN_DAY_WIDTH, fitDayWidth), dayWidth));
 const RIGHT = VW - X1;
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
@@ -467,6 +470,7 @@ const MARK_AFTER_DONE = 12;
 const MARK_AFTER_OPEN = 32;
 // On a Handoff event the mark is a badge on the top right of its icon (radius 10), inside the row band.
 const BADGE_DX = 5;
+const ICON_R = 10;
 const BADGE_RISE = 16;
 
 function handoffEventOf(
@@ -513,8 +517,9 @@ function handoffsOf(c: Ctx, groups: LayoutEventGroup[]): LayoutHandoff[] {
     const gap = handoff ? BADGE_DX : wait ? MARK_AFTER_OPEN : MARK_AFTER_DONE;
     const after = end + gap;
     // Near the right edge the mark goes left of the end, so the graph never cuts it.
-    const x =
-      after + width <= c.width - 2 ? after : end - (handoff ? BADGE_DX : MARK_AFTER_DONE) - width;
+    // Near the edge a badge goes left of its icon (radius 10) instead of covering it.
+    const before = end - (handoff ? ICON_R + BADGE_DX : MARK_AFTER_DONE) - width;
+    const x = after + width <= c.width - 2 ? after : before;
     const targets = list.map((w) => {
       const team = teamName.get(w.teamId)!;
       const text = wait
@@ -831,7 +836,7 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
   const given = view.dayWidth;
   let plot: number;
   if (given !== undefined && Number.isFinite(given) && given > 0) {
-    plot = Math.min(MAX_DAY_WIDTH, Math.max(MIN_DAY_WIDTH, given)) * days;
+    plot = clampDayWidth(given, visible / days) * days;
   } else {
     const raw = view.zoom ?? 1;
     const zoom = Number.isFinite(raw) ? Math.min(MAX_ZOOM, Math.max(1, raw)) : 1;
