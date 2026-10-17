@@ -97,7 +97,6 @@ export async function listProjectMembers(
   );
 }
 
-/** One owner write: lock the project, check the acting owner, change, and answer with the new list. */
 async function ownerWrite(
   db: Db,
   ctx: ActorContext,

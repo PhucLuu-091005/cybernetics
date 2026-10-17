@@ -215,7 +215,6 @@
 .tk .graph-btn:hover {
   background: var(--sunk);
 }
-/* The owner sits inside the Main selector, so Main needs no second row to say who merges. */
 .tk .gowner {
   display: inline-flex;
   align-items: center;
@@ -2189,7 +2188,6 @@ svg.tg .deadline-name {
   .tk .qempty {
     flex: 1;
   }
-  /* Phone: the view and the account share the first line; the actions wrap below; the search is last. */
   .tk .p-head:not(.pg-head) > * {
     order: 2;
   }
