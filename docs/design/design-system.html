@@ -709,7 +709,7 @@ Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fiel
           <div class="tsearch" style="width:220px"><span id="ic-search2"></span><input placeholder="Search work items" aria-label="Search work items"><span class="tfilter-btn" id="fbtn2"></span></div>
           <button class="btn" type="button">History</button>
           <label class="demo">Demo<select><option>Minh Trần</option></select></label>
-          <div class="me"><span class="av" style="background:#0d74ce">MT</span><span><b>Minh Trần</b><small>Owner of Main</small></span></div>
+          <div class="me"><span class="av" style="background:#0d74ce">MT</span><span><b>Minh Trần</b><small>Project lead</small></span></div>
         </div>
         <div class="bbar main"><span class="bt">Main</span><span class="muted">Read-only. Every change goes through a change request.</span><span class="sp"></span><button class="btn btn-ink" type="button">New change request</button></div>
         <div class="ro-note"><p>Main is read-only. To change it, create a change request.</p><button class="lnk" type="button">Don't show again</button><button class="x" type="button" aria-label="Close">×</button></div>
@@ -720,6 +720,13 @@ Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fiel
       </div>
     </div>
     <p class="cap">The rail is flat on <code>--sunk</code>: bold current item on <code>--gray-bg</code>, no cards. Context bars: Main on sunk, someone else's request on route-bg, your own on the edit tint.</p>
+
+    <h3>People and teams tables (Members page)</h3>
+    <div class="stage">
+      <div style="display:grid;grid-template-columns:minmax(180px,2fr) minmax(140px,1.4fr) repeat(4,84px);gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--rule);color:var(--ink-3);font-size:var(--fs-xs)"><span>Person</span><span>Teams</span><span style="text-align:center">View Main</span><span style="text-align:center">View CRs</span><span style="text-align:center">Create CRs</span><span style="text-align:center">Merge</span></div>
+      <div style="display:grid;grid-template-columns:minmax(180px,2fr) minmax(140px,1.4fr) repeat(4,84px);gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--rule-2)"><span><b>Lan Phạm</b> <span class="chipx">You</span><br><small class="muted">Digitization lead</small></span><span>Digitization <small class="muted">LEAD</small></span><span style="text-align:center"><input type="checkbox" checked disabled aria-label="View Main"></span><span style="text-align:center"><input type="checkbox" checked disabled aria-label="View change requests"></span><span style="text-align:center"><input type="checkbox" checked disabled aria-label="Create change requests"></span><span style="text-align:center"><input type="checkbox" aria-label="Merge change requests"></span></div>
+    </div>
+    <p class="cap">Rows on one grid with hairlines, no card. A box that a rule holds (the project lead, a team lead, a bigger grant) is disabled and its tooltip says why.</p>
   </div>
 
   <h2 id="graph">7. Graph marks</h2>
