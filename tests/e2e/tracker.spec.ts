@@ -99,12 +99,12 @@ test.describe('the tracker walkthrough', () => {
       await expect(page.locator('svg.pg [data-act][data-in="pg203"]')).toHaveCount(2);
       await row('pg203').focus();
       await page.keyboard.press('Enter');
-      const pop = page.locator('.pop');
-      await expect(pop.getByRole('button', { name: 'See details' })).toBeVisible();
+      await expect(drawer.locator('h4')).toHaveText('PG-203 Country list field type');
+      await expect(page.locator('.pop')).toHaveCount(0);
       for (const name of ['Add an event', 'Move the date', 'Rename', 'Mark done'])
-        await expect(pop.getByRole('button', { name })).toHaveCount(0);
+        await expect(drawer.getByRole('button', { name })).toHaveCount(0);
       await page.keyboard.press('Escape');
-      await expect(pop).toHaveCount(0);
+      await expect(drawer).toHaveCount(0);
     });
 
     await test.step('1. Search finds the Go-live date; its details show the first date, the move and its reason', async () => {
@@ -296,51 +296,47 @@ test.describe('the tracker walkthrough', () => {
   });
 });
 
-test.describe('milestone ticks, chips, hiding and the time zoom', () => {
+test.describe('milestone deadlines, hiding and the time zoom', () => {
   test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
 
-  test('ticks the milestone date on its rows and opens the milestone from a tick or a chip', async ({
+  test('marks the milestone deadline on every member row and opens the milestone from it', async ({
     page,
   }) => {
     await signIn(page, 'tracker-goal');
-    const pop = page.locator('.pop');
     const dialog = page.locator('.m-card');
     const drawer = page.locator('.drawer');
+    const tip = page.getByRole('tooltip');
     const goLive = page.locator(
-      'svg.pg .goal[aria-label="Milestone Go-live and first close due 15 Oct"]',
+      'svg.pg .deadline[aria-label^="Go-live and first close · deadline 15 Oct"]',
     );
     const crm = page.locator(
-      'svg.pg .goal[aria-label="Milestone CRM integration live due 18 Sept"]',
+      'svg.pg .deadline[aria-label^="CRM integration live · deadline 18 Sept"]',
     );
 
     await expect(goLive).toHaveCount(5);
-    await expect(crm).toHaveCount(1);
-    await expect(page.locator('svg.pg [data-due], svg.pg .due-ghost, svg.pg .mslink')).toHaveCount(
-      0,
-    );
-    await expect(goLive.first().locator('.goal-date')).toHaveText('15 Oct');
-    await expect(page.locator('svg.pg [data-ms="crm"] .ms-c')).toHaveCount(1);
+    await expect(crm).toHaveCount(3);
+    await expect(page.locator('svg.pg-rail, svg.tg .ms-chip, svg.tg .goal')).toHaveCount(0);
+    await expect(page.locator('svg.tg [data-ms="crm"] .ms-c')).toHaveCount(1);
 
-    await crm.focus();
+    await crm.first().locator('.deadline-mark').hover();
+    await expect(tip).toContainText('CRM integration live · deadline 18 Sept · Late');
+    await crm.first().focus();
     await page.keyboard.press(' ');
     await expect(drawer).toContainText('CRM integration live');
     await page.keyboard.press('Escape');
     await expect(drawer).toHaveCount(0);
 
-    const chips = page.locator('svg.pg-rail .ms-chip');
-    await expect(chips).toHaveCount(8);
-    await page
-      .locator(
-        'svg.pg-rail [aria-label="Milestone CRM integration live, due 18 Sept, this work item makes it late"]',
-      )
-      .click();
-    await expect(drawer).toContainText('CRM integration live');
-    await page.keyboard.press('Escape');
-
     await page.locator('svg.pg [data-loop="pg201"]').focus();
     await page.keyboard.press('Enter');
-    await expect(pop).toContainText(/Finished (early|on time)/);
-    await expect(pop.getByRole('button', { name: 'Move the date' })).toHaveCount(0);
+    await expect(drawer.locator('h4')).toHaveText('PG-201 CRS form logic');
+    await expect(drawer).toContainText(/Finished (early|on time)/);
+    await expect(drawer.getByRole('button', { name: 'Move the date' })).toHaveCount(0);
+    const facts = await drawer.locator('.facts dt').allTextContents();
+    expect(facts.slice(facts.indexOf('Started'), facts.indexOf('Started') + 3)).toEqual([
+      'Started',
+      'Planned finish',
+      'Finished',
+    ]);
     await page.keyboard.press('Escape');
 
     await page.locator('.bbar').getByRole('button', { name: 'New change request' }).click();
@@ -352,13 +348,131 @@ test.describe('milestone ticks, chips, hiding and the time zoom', () => {
     ] as const) {
       await page.locator(`svg.pg [data-loop="${id}"]`).focus();
       await page.keyboard.press('Enter');
-      await expect(pop).toContainText(/Finished (early|on time)/);
-      await pop.getByRole('button', { name: 'Move the date' }).click();
+      await expect(drawer).toContainText(/Finished (early|on time)/);
+      await drawer.getByRole('button', { name: 'Move the date' }).click();
       await expect(dialog).toContainText('Move the planned finish');
       await expect(dialog).toContainText(new RegExp(title, 'i'));
       await page.keyboard.press('Escape');
       await expect(dialog).toHaveCount(0);
+      await page.keyboard.press('Escape');
+      await expect(drawer).toHaveCount(0);
     }
+  });
+
+  test('a click on a row opens its details, and an event brief leads to its work item', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-click');
+    const drawer = page.locator('.drawer');
+    const pop = page.locator('.pop');
+
+    await page.locator('svg.pg [data-loop="pg203"]').click({ position: { x: 40, y: 15 } });
+    await expect(drawer.locator('h4')).toHaveText('PG-203 Country list field type');
+    await expect(pop).toHaveCount(0);
+    await expect(page.locator('svg.pg .hit.sel[data-loop="pg203"]')).toHaveCount(1);
+    await expect(page.locator('svg.pg-side .hit.sel[data-rowlabel="pg203"]')).toHaveCount(1);
+    const ring = await drawer.evaluate((el) => getComputedStyle(el).outlineStyle);
+    expect(ring).toBe('none');
+
+    await page.locator('svg.pg-side .label-hit[data-rowlabel="crs"]').click();
+    await expect(drawer.locator('h4')).toHaveText('CRS tax residency section with DealCloud sync');
+    await expect(page.locator('svg.pg .hit.sel')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await expect(drawer).toHaveCount(0);
+
+    await page.locator('svg.pg [data-act="p31"]').click();
+    await expect(pop).toContainText('Add a multi-select country list field.');
+    await pop.getByRole('button', { name: 'View in work item' }).click();
+    await expect(drawer.locator('h4')).toHaveText('PG-203 Country list field type');
+    await expect(pop).toHaveCount(0);
+  });
+
+  test('filters in the search box narrow the graph and keep the parents as context', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-filter');
+    const rows = page.locator('svg.pg [data-loop]');
+    const control = page.locator('.tfilter-btn');
+    const search = page.getByRole('combobox', { name: 'Search work items' });
+    await expect(rows).toHaveCount(13);
+
+    await control.click();
+    const panel = page.getByRole('group', { name: 'Filter the graph' });
+    await panel.locator('.fchip', { hasText: /^Late$/ }).click();
+    await expect(page.getByRole('button', { name: 'Clear filters' })).toBeEnabled();
+    await expect(page.locator('summary[aria-label="Filters, 1 on"]')).toHaveCount(1);
+    await expect(panel).toContainText('4 of 14 work items match');
+    await expect(rows).toHaveCount(5);
+    const dimmed = page.locator('svg.pg-side .row-label.dim');
+    await expect(dimmed).toHaveCount(1);
+    await expect(dimmed).toContainText('CRS tax residency');
+    await expect(page.locator('svg.pg-side [data-eyeteam="digitization"]')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(panel).toBeHidden();
+
+    await search.fill('PG-20');
+    await expect(page.getByRole('listbox', { name: 'Work items' }).getByRole('option')).toHaveCount(
+      3,
+    );
+    await expect(rows).toHaveCount(2);
+    await search.fill('');
+    await expect(rows).toHaveCount(5);
+    await control.click();
+    await page.getByRole('button', { name: 'Clear filters' }).click();
+    await expect(rows).toHaveCount(13);
+    await expect(page.locator('summary[aria-label="Filters"]')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+
+    await search.fill('pg-20');
+    await expect(rows).toHaveCount(4);
+    await page.keyboard.press('Enter');
+    const drawer = page.locator('.drawer');
+    await expect(drawer.locator('h4')).toHaveText('PG-201 CRS form logic');
+    await expect(drawer).toBeFocused();
+    expect(await drawer.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('none');
+    await expect(search).toHaveValue('');
+    await expect(rows).toHaveCount(13);
+  });
+
+  test('the axis stays pinned while the rows scroll, and full view fills the screen', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 700 });
+    await signIn(page, 'tracker-full');
+    const canvas = page.locator('.gcanvas');
+    const head = page.locator('.ghead');
+    const crm = page.locator('svg.tg [data-ms="crm"]');
+    const drawer = page.locator('.drawer');
+
+    const top = (await canvas.boundingBox())!.y;
+    await canvas.evaluate((el) => el.scrollTo(0, 400));
+    await expect.poll(() => canvas.evaluate((el) => el.scrollTop)).toBeGreaterThan(300);
+    await expect(crm).toBeInViewport();
+    expect(Math.round((await head.boundingBox())!.y)).toBe(Math.round(top));
+    await expect(page.locator('svg.pg-side [data-rowlabel="golive"]').first()).not.toBeInViewport();
+
+    const full = page.getByRole('button', { name: 'Full view' });
+    await full.click();
+    await expect(page.locator('.tk.fullview')).toHaveCount(1);
+    await expect(page.locator('.p-head')).toBeHidden();
+    await expect(page.locator('.legend2')).toBeHidden();
+    const box = (await page.locator('.tk.board').boundingBox())!;
+    expect(box.x).toBe(0);
+    expect(box.width).toBe(1440);
+    await page.locator('svg.pg [data-loop="pg203"]').click({ position: { x: 40, y: 15 } });
+    await expect(drawer.locator('h4')).toHaveText('PG-203 Country list field type');
+    await page.keyboard.press('Escape');
+    await expect(drawer).toHaveCount(0);
+    await expect(page.locator('.tk.fullview')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.tk.fullview')).toHaveCount(0);
+    await expect(page.locator('.p-head')).toBeVisible();
+
+    await full.click();
+    await expect(page.locator('.tk.fullview')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Leave full view' }).click();
+    await expect(page.locator('.tk.fullview')).toHaveCount(0);
+    await expect(page.locator('.legend2')).toBeVisible();
   });
 
   test('lists a stack, zooms it apart, and hides rows without a trace but a chip', async ({
@@ -366,7 +480,7 @@ test.describe('milestone ticks, chips, hiding and the time zoom', () => {
   }) => {
     await signIn(page, 'tracker-zoom');
     const pop = page.locator('.pop');
-    const scroller = page.locator('.gtime');
+    const scroller = page.locator('.gscroll .gtime');
     const overflow = () => scroller.evaluate((e) => e.scrollWidth - e.clientWidth);
 
     const stack = page.locator('svg.pg [data-act="r3"]');
@@ -418,22 +532,47 @@ test.describe('milestone ticks, chips, hiding and the time zoom', () => {
     const fit = page.getByRole('button', { name: 'Fit to width' });
     await expect(rows).toHaveCount(13);
 
-    await test.step('a link into another team is a mark at the source, with a tooltip on hover and focus', async () => {
-      await expect(page.locator('svg.pg path.link')).toHaveCount(0);
-      const text = 'Handed over to Engineering · received in PG-203 Country list field type';
-      const mark = page.getByRole('button', { name: text });
+    await test.step('one mark per source lists every handoff, and a click on a receiver shows it', async () => {
+      await expect(page.locator('svg.tg path.link, svg.tg path.stem')).toHaveCount(0);
+      const lines = [
+        'Handed over to Solutions Engineering · received in PG-201 CRS form logic',
+        'Handed over to Solutions Engineering · received in PG-202 DealCloud mapping for CRS fields',
+        'Handed over to Engineering · received in PG-203 Country list field type',
+      ];
+      const marks = page.locator('svg.pg [data-handoff="analyse"]');
+      await expect(marks).toHaveCount(1);
+      const mark = marks.first();
+      await expect(mark).toHaveText('3');
       await mark.hover();
-      await expect(tip).toHaveText(text);
+      await expect(tip).toHaveText(lines.join('\n'));
       await page.mouse.move(5, 5);
       await expect(tip).toHaveCount(0);
       await side.locator('[data-eyerow="pg203"]').click();
       await expect(row('pg203')).toHaveCount(0);
       await mark.focus();
-      await expect(tip).toHaveText(text);
+      await expect(tip).toHaveText(lines.join('\n'));
       await page.keyboard.press('Enter');
+      const menu = page.getByRole('menu', {
+        name: 'Handoffs from Analyse the CRS and FATCA rules',
+      });
+      await expect(menu.getByRole('menuitem')).toHaveCount(3);
+      await page.keyboard.press('Escape');
+      await expect(menu).toHaveCount(0);
+      await expect(mark).toBeFocused();
+      await mark.click();
+      await menu.getByRole('menuitem', { name: /PG-203 Country list field type/ }).click();
+      await expect(menu).toHaveCount(0);
       await expect(row('pg203')).toHaveCount(1);
       await expect(page.locator('svg.pg .hit.flash[data-loop="pg203"]')).toHaveCount(1);
       await expect(fit).toBeEnabled();
+      await fit.click();
+
+      const single = page.getByRole('button', {
+        name: 'Hands over to Digitization QA when done · received in Test the CRS section end to end',
+      });
+      await single.click();
+      await expect(page.getByRole('menu')).toHaveCount(0);
+      await expect(page.locator('svg.pg .hit.flash[data-loop="test"]')).toHaveCount(1);
       await fit.click();
     });
 
@@ -545,15 +684,15 @@ test.describe('an event moved inside its day', () => {
     const { projectId } = await signIn(page, 'tracker-day');
     const r3 = page.locator('svg.pg [data-act="r3"]');
     const zoomIn = page.getByRole('button', { name: 'Zoom in' });
-    const zoom3 = async () => {
-      for (let i = 0; i < 3; i += 1) await zoomIn.click();
+    const zoomTwice = async () => {
+      for (let i = 0; i < 2; i += 1) await zoomIn.click();
       await r3.scrollIntoViewIfNeeded();
     };
     const offsets = async () => {
       const response = await page.request.get(`/api/v1/projects/${projectId}/tracker`);
       return ((await response.json()) as { offsets: Record<string, number> }).offsets;
     };
-    await zoom3();
+    await zoomTwice();
     await expect(r3).toHaveAttribute('data-stack', 'r1,r2,r3');
     const before = (await r3.boundingBox())!;
     const from = { x: before.x + before.width / 2, y: before.y + before.height / 2 };
@@ -574,7 +713,7 @@ test.describe('an event moved inside its day', () => {
 
     await page.reload();
     await hydrated(page);
-    await zoom3();
+    await zoomTwice();
     await expect(r3).not.toHaveAttribute('data-stack', /./);
     const after = (await r3.boundingBox())!;
     expect(after.x + after.width / 2).toBeGreaterThan(from.x + 10);
