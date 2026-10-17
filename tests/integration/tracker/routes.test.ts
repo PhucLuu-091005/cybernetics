@@ -4,7 +4,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { configureApp, resetApp } from '../../../src/server/app';
 import { SESSION_COOKIE, signSession } from '../../../src/server/http/session';
 import { and, eq } from 'drizzle-orm';
-import { trackerEventOffsets } from '../../../src/server/db/schema';
 import { createTestDatabase, testActor, type TestDb } from '../../support/db';
 import { seedDemo, workspaceGuest, type Demo } from '../../support/tracker-db';
 
@@ -92,7 +91,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
     ]);
   });
 
-  it('reads the seeded sandbox payload as the owner of Main', async () => {
+  it('reads the seeded sandbox payload as the project lead, with no day offsets', async () => {
     const reply = await call('GET', tracker, p());
     expect(reply.status).toBe(200);
     expect(reply.headers.get('cache-control')).toBe('private, no-store');
@@ -105,6 +104,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
     expect(reply.body.members).toHaveLength(5);
     expect(reply.body.crs.map((cr: { num: number }) => cr.num)).toEqual([1, 2, 3, 4]);
     expect(reply.body.queue.events).toHaveLength(4);
+    expect(reply.body).not.toHaveProperty('offsets');
   });
 
   it('adds a queue event and dismisses a card with a DELETE that has no body', async () => {
@@ -399,126 +399,6 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
     }
   });
 
-  describe('day offsets of events', () => {
-    const offsets = 'projects/[projectId]/tracker/offsets/[eventId]';
-    const put = (eventId: string, body: unknown) => call('PUT', offsets, { ...p(), eventId }, body);
-    const signInAs = (userId: string) =>
-      jar.set(SESSION_COOKIE, signSession({ userId, expiresAt: Date.now() + 600_000 }, secret));
-    const rowsOf = (userId: string) =>
-      t.db
-        .select()
-        .from(trackerEventOffsets)
-        .where(
-          and(
-            eq(trackerEventOffsets.projectId, demo.projectId),
-            eq(trackerEventOffsets.userId, userId),
-          ),
-        );
-
-    it('stores the offset of the signed-in person and returns it in the payload', async () => {
-      expect((await call('GET', tracker, p())).body.offsets).toEqual({});
-      const saved = await put('p31', { minutes: 120 });
-      expect(saved.status).toBe(200);
-      expect(saved.body.offsets).toEqual({ p31: 120 });
-      expect((await put('p31', { minutes: -45 })).body.offsets).toEqual({ p31: -45 });
-      expect((await call('GET', tracker, p())).body.offsets).toEqual({ p31: -45 });
-      expect(await rowsOf(demo.owner.userId)).toMatchObject([
-        {
-          workspaceId: demo.workspaceId,
-          projectId: demo.projectId,
-          userId: demo.owner.userId,
-          eventId: 'p31',
-          offsetMinutes: -45,
-        },
-      ]);
-    });
-
-    it('deletes the row for 0', async () => {
-      await put('p31', { minutes: 120 });
-      const reset = await put('p31', { minutes: 0 });
-      expect(reset.status).toBe(200);
-      expect(reset.body.offsets).toEqual({});
-      expect(await rowsOf(demo.owner.userId)).toEqual([]);
-      expect((await put('p32', { minutes: 0 })).status).toBe(200);
-    });
-
-    it('keeps each person to their own rows', async () => {
-      await put('p31', { minutes: 120 });
-      const guest = await workspaceGuest(t.db, demo.owner);
-      signInAs(guest.userId);
-      expect((await call('GET', tracker, p())).body.offsets).toEqual({});
-      expect((await put('p31', { minutes: 30 })).body.offsets).toEqual({ p31: 30 });
-      expect((await put('p31', { minutes: 0 })).body.offsets).toEqual({});
-      signInAs(demo.owner.userId);
-      expect((await call('GET', tracker, p())).body.offsets).toEqual({ p31: 120 });
-      expect(await rowsOf(demo.owner.userId)).toHaveLength(1);
-      expect(await rowsOf(guest.userId)).toEqual([]);
-    });
-
-    it('keeps the offsets of the signed-in person while they act as another member', async () => {
-      await put('p31', { minutes: 120 });
-      await call('POST', `${tracker}/act-as`, p(), { memberId: demo.ids.lan });
-      const read = await call('GET', tracker, p());
-      expect(read.body.me.id).toBe(demo.ids.lan);
-      expect(read.body.offsets).toEqual({ p31: 120 });
-    });
-
-    it('refuses an offset that leaves the day of the event, or is not a whole number', async () => {
-      // p31 happens at 09:20 in Asia/Ho_Chi_Minh: 560 minutes after midnight, 879 before 23:59.
-      for (const minutes of [880, -561, 1440, 1.5, '10', null])
-        expect(await put('p31', { minutes })).toMatchObject({
-          status: 400,
-          body: { code: 'VALIDATION' },
-        });
-      expect((await put('p31', {})).status).toBe(400);
-      expect((await put('p31', { minutes: 879 })).body.offsets).toEqual({ p31: 879 });
-      expect((await put('p31', { minutes: -560 })).body.offsets).toEqual({ p31: -560 });
-    });
-
-    it('finds the event in the queue or in a change request, and answers 404 for no event', async () => {
-      expect(await put('nope', { minutes: 10 })).toMatchObject({
-        status: 404,
-        body: { code: 'NOT_FOUND' },
-      });
-      expect((await put(demo.ids.qe1, { minutes: 10 })).body.offsets).toMatchObject({
-        [demo.ids.qe1]: 10,
-      });
-      const created = await call('POST', `${tracker}/crs`, p(), { title: 'Add an event' });
-      await call(
-        'POST',
-        `${tracker}/crs/[num]/ops`,
-        { ...p(), num: String(created.body.num) },
-        {
-          op: {
-            op: 'addEvent',
-            a: {
-              workItemId: 'pg203',
-              ev: {
-                id: 'added1',
-                kind: 'message',
-                at: '2026-10-08T23:00:00+07:00',
-                by: 'lan',
-                text: 'Late note.',
-              },
-            },
-          },
-          expectedRevision: 0,
-        },
-      );
-      expect((await put('added1', { minutes: 59 })).body.offsets).toMatchObject({ added1: 59 });
-      expect((await put('added1', { minutes: 60 })).status).toBe(400);
-    });
-
-    it('refuses a person outside the workspace and a route body that names another event', async () => {
-      expect((await put('p31', { minutes: 10, eventId: 'p32' })).status).toBe(400);
-      const stranger = await testActor(t.db, { name: 'Stranger' });
-      signInAs(stranger.userId);
-      expect(await put('p31', { minutes: 10 })).toMatchObject({
-        status: 404,
-        body: { code: 'NOT_FOUND' },
-      });
-    });
-  });
   describe('members', () => {
     const members = 'projects/[projectId]/members';
     const one = 'projects/[projectId]/members/[memberId]';

@@ -5,7 +5,7 @@ import { toIso, type Db } from '../db/tx';
 import { invalidInput } from '../errors';
 import { requireScope } from '../http/scopes';
 import { ProjectScopeSchema, readScope, requireView, subjectOf, type Scope } from './access';
-import { loadCommits, loadCrs, loadOffsets, loadQueue, type Reader } from './store';
+import { loadCommits, loadCrs, loadQueue, type Reader } from './store';
 
 const GetTrackerInputSchema = z.strictObject(ProjectScopeSchema);
 
@@ -16,7 +16,6 @@ export async function buildPayload(db: Reader, scope: Scope): Promise<TrackerPay
   const queue = await loadQueue(db, project.id);
   const commits = await loadCommits(db, project.id);
   const crs = (await loadCrs(db, project.id, members)).filter((cr) => canSeeCr(subject, cr));
-  const offsets = await loadOffsets(db, project.id, scope.userId);
   return {
     project: {
       id: project.id,
@@ -35,7 +34,6 @@ export async function buildPayload(db: Reader, scope: Scope): Promise<TrackerPay
     queue: queueFromRows(queue),
     commits,
     crs,
-    offsets,
   };
 }
 
