@@ -9,4 +9,3 @@ test-results/
 .superpowers/
 .worktrees/
 *.tsbuildinfo
-AGENTS.md
