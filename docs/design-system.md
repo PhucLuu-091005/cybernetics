@@ -76,8 +76,8 @@ The owner chose C2 on 17 October 2026. Yellow marks what a change request change
 
 | Token | Light | Dark | Role |
 |---|---|---|---|
-| `--change` | `#d5ae39` | `#ffe629` | Strokes: the ring around a changed event, the stroke of a changed milestone circle or a moved deadline diamond. |
-| `--change-bg` | `#ffe770` | `#524202` | The highlighter behind a changed name (an SVG text stroke of 9 px painted under the text), the `.chipx.pen` chip, the count on the draft button, the legend sample. |
+| `--change` | `#e0a800` | `#ffe629` | Strokes: the 3-unit ring around a changed event, the 3-unit stroke of a changed milestone circle or a moved deadline diamond. Round 7 made it more saturated so it reads in both themes. |
+| `--change-bg` | `#ffe14d` | `#6e5a00` | The highlighter behind a changed name (an SVG text stroke of 11 px painted under the text), the `.chipx.pen` chip, the count on the draft button, the legend sample. |
 | `--change-text` | `var(--ink)` | `var(--ink)` | Text on `--change-bg`. |
 | `--edit-bg` | `#fefce9` | `#1b180f` | The context bar of a change request that you edit (`.bbar.mine`). |
 
@@ -106,7 +106,7 @@ WCAG contrast ratios of the current values (text needs 4.5, lines and marks need
 | `--ink-2` on `--panel` | 5.94 | 8.45 |
 | `--ink-3` on `--panel` / `--sunk` / `--gray-bg` | 5.25 / 5.00 / 4.62 | 5.79 / 6.20 / 4.75 |
 | `-ink` on its own `-bg` (route, proceed, danger, caution, teal) | 4.85, 4.85, 4.85, 4.90, 4.67 | 7.08, 7.91, 7.75, 7.83, 8.07 |
-| `--ink` on `--change-bg` | 13.20 | 8.46 |
+| `--ink` on `--change-bg` | 12.59 | 5.79 |
 | Line step on `--panel` (route, proceed, danger, caution, teal) | 3.26, 3.03, 3.91, 3.33, 3.46 | 5.39, 5.80, 4.49, 5.28, 5.73 |
 | `--focus` on `--panel` | 4.77 | 8.37 |
 
@@ -167,7 +167,7 @@ Stacking order (`z-index`), low to high: pinned axis, zoom bar and bin 3; move h
 - Stroke: `currentColor`, width 2, round caps and joins. The Done kind and the `check`, `branch`, `cornerUp`, `cornerDown` and `upDown` shapes use width 2.4, so they stay clear at 10px. `grip` is the only filled shape.
 - Sizes: 16px by default, 14px in buttons and the zoom bar, 12px to 13px for the eye and focus buttons on the graph, 13 units inside an event circle, 10 units inside a graph mark.
 - Kinds: `message` (mail), `task` (clipboard check), `handoff` (two arrows), `decision` (scales), `meeting` (people), `delivery` (package check), `issue` (triangle alert), `done` (double check).
-- UI shapes: `eye`, `eyeoff`, `plus`, `pencil`, `move`, `moveX`, `trash`, `undo`, `check`, `x`, `tag`, `diamond`, `list`, `inbox`, `sidebar`, `chev`, `branch`, `focus`, `cornerDown`, `cornerUp`, `upDown`, `filter`, `maximize`, `minimize`, `loop`, `grip`, `search`, `bot`, `lock`, `pr`, `merge`, `share`, `history`, `flag`, `link`, `cal`. Rail shapes: `graph`, `settings`, `theme`, `signOut`, `panel`, `chevron`.
+- UI shapes: `eye`, `eyeoff`, `plus`, `pencil`, `move`, `trash`, `undo`, `check`, `x`, `tag`, `diamond`, `list`, `inbox`, `sidebar`, `chev`, `branch`, `focus`, `cornerDown`, `cornerUp`, `upDown`, `filter`, `maximize`, `minimize`, `loop`, `grip`, `search`, `bot`, `lock`, `pr`, `merge`, `share`, `history`, `flag`, `link`, `cal`. Rail shapes: `graph`, `settings`, `theme`, `signOut`, `panel`, `chevron`.
 - An icon next to text is decorative (`aria-hidden="true"`). An icon-only button needs an `aria-label` and a `title`.
 
 ## 8. Components
@@ -251,16 +251,17 @@ Geometry in view-box units (`GEOMETRY` in `src/tracker/layout.ts`): width 1060, 
 | Team lane | Alternate lanes get a `--sunk` band. The team name is 10.5px weight 600 upper case in `--ink-2`. An eye button hides the team. A neutral `--rule` guide joins the rows of the team in the label column. |
 | Row label | 12px `--ink`, indented 12 units per level. A changed name gets the yellow highlighter. A row in the picked milestone is weight 600. A filter context row shows at 50 % opacity. |
 | Row line | 3 units, round caps. `--route` while open, `--proceed` when done. The part after the row's own Planned finish is `--danger` while open and `--caution` when done. A row with no events shows a `--ink-3` line at 45 % opacity and an italic "Waiting for ..." or "No events yet". |
-| Event | A circle of radius 10 with a `--panel` fill and a 2-unit stroke in the row tone, and the Lucide kind icon (13 units) in the same tone. Events closer than 16 units form a stack: up to 2 offset circles behind, filled with an 18 % tint. A changed event gets a yellow ring of radius 15 (`--change` stroke, 16 % fill). |
+| Event | A circle of radius 10 with a `--panel` fill and a 2-unit stroke in the row tone, and the Lucide kind icon (13 units) in the same tone. Events closer than 16 units form a stack: up to 2 offset circles behind, filled with an 18 % tint. A changed event gets a yellow ring of radius 15 (a 3-unit `--change` stroke, 30 % fill). Events sit at their own time; nothing drags them inside the day. |
 | T line and pill | A solid 1-unit `--ink-3` line at the demo clock or now. The pill on the axis is an `--ink` capsule (88 × 17) with `--panel` text. |
 | Milestone line | A 4-unit `--trunk` line with round caps. A coloured segment shows a slip: `--danger` from the date to the T line while late, `--caution` from the date to the finish when finished late, `--teal` from the finish to the date when finished early. |
-| Milestone circle | Radius 8, stroke 2 (3.5 when picked). Filled with the status tone; Planned is an outline. A tick for finished early or on time, "!" for late or finished late, both in `--panel`. A changed milestone gets a `--change` stroke. The label "name · date · status" is 11px weight 600 in the `-ink` step, on 2 levels when labels collide. |
-| Deadline diamond | On every member row at noon of the milestone date: a 12-unit diamond, stroke 1.5 (2.5 on hover, focus or pick). Filled with the milestone status tone; Planned is an outline. A moved date gets a `--change` stroke. The milestone name shows once per team and milestone (9.5px weight 600, `--panel` halo) beside the first member row, or not at all when it has no room. |
-| Handoff mark | One mark per source row, after its finish (or after the T line while open): a 14 × 14 box, 24 wide with a count, radius 4, `--panel` fill and `--ink-3` stroke. The arrow (`cornerUp`, `cornerDown` or `upDown`, 10 units) is `--proceed` for a done source and `--danger` for an open one. Hover or open: `--gray-bg` fill and `--ink` stroke. |
+| Milestone circle | Radius 8, stroke 2 (3.5 when picked). Filled with the status tone; Planned is an outline. A tick for finished early or on time, "!" for late or finished late, both in `--panel`. A changed milestone gets a 3-unit `--change` stroke. The label "name · date · status" is 11px weight 600 in the `-ink` step, on 2 levels when labels collide. |
+| Deadline diamond | On every member row at noon of the milestone date: a 12-unit diamond, stroke 1.5 (2.5 on hover, focus or pick). Filled with the milestone status tone; Planned is an outline. A moved date gets a 3-unit `--change` stroke. The milestone name shows once per team and milestone (9.5px weight 600, `--panel` halo) beside the first member row, or not at all when it has no room. |
+| Handoff mark | One symbol per source row. When the source has a Handoff event, its event icon (or the stack that holds it) is the mark: no separate badge, a `--gray-bg` fill on hover or open, and the receiver count (8.5px weight 700, `--ink-2`, `--panel` halo) on the top right of the ring when there are several receivers. Without a Handoff event the mark sits after the finish (or after the T line while open): a 14 × 14 box, 24 wide with a count, radius 4, `--panel` fill and `--ink-3` stroke; the arrow (`cornerUp`, `cornerDown` or `upDown`, 10 units) is `--proceed` for a done source and `--danger` for an open one; hover or open: `--gray-bg` fill and `--ink` stroke. |
 | Hidden-source chip | A 14-unit square, radius 4, `--panel` fill, `--ink-3` stroke, the `branch` icon in `--ink-2`. Only direct children of a hidden source get it. |
 | Add button | In an editable view, a radius-9 circle with a `+` at 20 units right of the T line on each open row. |
 | Selection band | The row with open details: a band of 6 % `--ink` and nothing else. The reveal flash and the picked review row: 8 % `--ink`. A drop target while you drag: 9 % `--ink` with a 2-unit `--ink` outline. |
-| Focus ring | A 2px `--focus` stroke with `vector-effect: non-scaling-stroke` on the row hit area; a `--focus` outline on milestone circles. |
+| Focus ring | A thin 1px `--focus` stroke with `vector-effect: non-scaling-stroke` on the row hit area (it reads as a line above and below the row); a `--focus` outline on milestone circles. |
+| Focus button | On each row and each team head, left of the eye: an 18-unit square, radius 4, the `focus` icon. Pressed: a `--focus` fill with a `--panel` icon. |
 | Bin | Shows only while you drag: a sticky box at the bottom left with a `--danger` border and `--danger-ink` text; `--danger-bg` and scale 1.06 when the pointer is over it. |
 | Zoom bar | Floats at the bottom right of the graph: Zoom out, Zoom in, Fit and Full view in a `--panel` box with `--r-ctl` and `--shadow`. It moves left of an open drawer. |
 
