@@ -203,6 +203,65 @@ describe('layoutTracker: time zoom', () => {
   });
 });
 
+describe('layoutTracker: a scale that does not follow the width', () => {
+  const DAYS = 37;
+  const plot = X1 - X0;
+  const fitDay = plot / DAYS;
+  const span = VW - SIDE;
+
+  it('fits the window to the visible time line by default and reports that day width', () => {
+    const L = layoutTracker(larkspurState(), view());
+    expect(L.fitDayWidth).toBeCloseTo(fitDay, 9);
+    expect(L.dayWidth).toBeCloseTo(fitDay, 9);
+    expect(L.zoom).toBe(1);
+    const wider = layoutTracker(larkspurState(), view({ span: span + 300 }));
+    expect(wider.fitDayWidth).toBeCloseTo((plot + 300) / DAYS, 9);
+  });
+
+  it('keeps one day width when the visible time line widens, and draws more time instead', () => {
+    const narrow = layoutTracker(larkspurState(), view({ dayWidth: 40, span }));
+    const wide = layoutTracker(larkspurState(), view({ dayWidth: 40, span: span + 400 }));
+    expect(narrow.dayWidth).toBe(40);
+    expect(wide.dayWidth).toBe(40);
+    expect(wide.x(midnight('2026-09-11')) - wide.x(midnight('2026-09-10'))).toBeCloseTo(40, 9);
+    expect(wide.eventGroups).toEqual(narrow.eventGroups);
+    expect(wide.deadlines.map((d) => d.x)).toEqual(narrow.deadlines.map((d) => d.x));
+    expect(wide.milestones.map((m) => m.x)).toEqual(narrow.milestones.map((m) => m.x));
+    expect(wide.x1).toBe(narrow.x1);
+    expect(narrow.x1).toBeCloseTo(X0 + 40 * DAYS, 9);
+  });
+
+  it('fills a visible time line that is wider than the window, with ticks, trunk and drop bands', () => {
+    const L = layoutTracker(larkspurState(), view({ dayWidth: 10, span: 900 }));
+    expect(L.x1).toBe(SIDE + 900 - (VW - X1));
+    expect(L.width).toBe(SIDE + 900);
+    expect(L.window.end).toBe('2026-10-17');
+    expect(L.ticks.at(-1)!.x).toBeLessThan(L.x1);
+    expect(L.ticks.at(-1)!.date > '2026-10-17').toBe(true);
+    expect(L.trunk.x2).toBe(L.x1);
+    expect(L.laneDrops[0].width).toBe(L.x1 - X0);
+    expect(L.zoom).toBeCloseTo(10 / ((900 - (X0 - SIDE) - (VW - X1)) / DAYS), 9);
+  });
+
+  it('keeps the first fit when the time line widens before any zoom', () => {
+    const first = layoutTracker(larkspurState(), view({ fitSpan: span, span }));
+    const wider = layoutTracker(larkspurState(), view({ fitSpan: span, span: span + 400 }));
+    expect(wider.dayWidth).toBeCloseTo(first.dayWidth, 9);
+    expect(wider.eventGroups).toEqual(first.eventGroups);
+    expect(wider.zoom).toBeLessThan(1);
+  });
+
+  it('keeps a given day width inside its limits', () => {
+    const { MIN_DAY_WIDTH, MAX_DAY_WIDTH } = GEOMETRY;
+    expect(layoutTracker(larkspurState(), view({ dayWidth: 0.01 })).dayWidth).toBe(MIN_DAY_WIDTH);
+    expect(layoutTracker(larkspurState(), view({ dayWidth: 1e6 })).dayWidth).toBe(MAX_DAY_WIDTH);
+    expect(layoutTracker(larkspurState(), view({ dayWidth: Number.NaN })).dayWidth).toBeCloseTo(
+      fitDay,
+      9,
+    );
+  });
+});
+
 describe('layoutTracker: day offsets', () => {
   const groups = (L: TrackerLayout) =>
     L.eventGroups.filter((g) => g.workItemId === 'rehearsal').map((g) => g.eventIds);

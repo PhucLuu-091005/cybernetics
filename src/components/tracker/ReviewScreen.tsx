@@ -48,6 +48,7 @@ import {
   writeViewState,
   type ViewState,
 } from './view-state';
+import { useTimeScale } from './scale';
 
 export type ReviewTab = 'changes' | 'graph' | 'talk';
 const TABS: ReviewTab[] = ['changes', 'graph', 'talk'];
@@ -420,7 +421,7 @@ export function ReviewScreen({
   const [tab, setTabState] = useState<ReviewTab>(initialTab);
   const [sel, setSel] = useState(0);
   const [view, setView] = useState<'before' | 'after'>('after');
-  const [zoom, setZoom] = useState(1);
+  const { scale, onSpan, onZoom } = useTimeScale();
   const [viewed, setViewed] = useState<number[]>([]);
   const [picks, setPicks] = useState<Picks>({});
   const [asking, setAsking] = useState(false);
@@ -469,14 +470,14 @@ export function ReviewScreen({
               hiddenTeams: new Set(hidden.hiddenTeams),
               asOf,
               timeZone: tz,
-              zoom,
+              ...scale,
               offsets: live.offsets,
               ...(project.windowStart ? { windowStart: project.windowStart } : {}),
             },
             view === 'after' ? model.marks : undefined,
           )
         : null,
-    [graphState, model, view, hidden, asOf, tz, zoom, live.offsets, project.windowStart],
+    [graphState, model, view, hidden, asOf, tz, scale, live.offsets, project.windowStart],
   );
 
   const graphHref = `/projects/${projectId}/graph?cr=${num}`;
@@ -882,7 +883,8 @@ export function ReviewScreen({
                     onNewMilestone={noop}
                     onNewTeam={noop}
                     onBackground={noop}
-                    onZoom={setZoom}
+                    onZoom={onZoom}
+                    onSpan={onSpan}
                   />
                 </div>
               </div>
