@@ -1,57 +1,48 @@
 /* Ported from docs/design/2026-10-16-event-tracker-v8.html. HTML rules sit under .tk because a global
    stylesheet stays loaded after client navigation; svg.tg is unique to the tracker graph. */
-/* The --change tokens mark what a change request changed; the owner picks their final colour later. */
+/* C2 highlighter: --change-bg marks what a change request changed, --edit-bg tints the bar of a request you edit. */
 :root {
-  --change: #eab308;
+  --change: #d5ae39;
   --change-text: var(--ink);
-  --change-bg: #fde047;
-  --edit-bg: #fefce8;
-  --teal: #0d9488;
-  --teal-bg: #ccfbf1;
-  --gray-bg: #f1f1f1;
-  --k-message: #2563eb;
-  --k-task: #7c3aed;
-  --k-handoff: #0d9488;
-  --k-decision: #d97706;
-  --k-meeting: #db2777;
-  --k-delivery: #16a34a;
-  --k-issue: #dc2626;
-  --k-done: #15803d;
+  --change-bg: #ffe770;
+  --edit-bg: #fefce9;
+  --k-message: #0c67b6;
+  --k-task: #6550b9;
+  --k-handoff: #0e738c;
+  --k-decision: #975800;
+  --k-meeting: #ba2784;
+  --k-delivery: #54722b;
+  --k-issue: #be282d;
+  --k-done: #1e744e;
 }
 :root[data-theme='dark'] {
-  --change: #facc15;
+  --change: #ffe629;
   --change-text: var(--ink);
-  --change-bg: #854d0e;
-  --edit-bg: #1c1a0a;
-  --teal: #2dd4bf;
-  --teal-bg: #042f2e;
-  --gray-bg: #1f1f1f;
-  --k-message: #60a5fa;
-  --k-task: #a78bfa;
-  --k-handoff: #2dd4bf;
-  --k-decision: #fbbf24;
-  --k-meeting: #f472b6;
-  --k-delivery: #4ade80;
-  --k-issue: #f87171;
-  --k-done: #86efac;
+  --change-bg: #524202;
+  --edit-bg: #1b180f;
+  --k-message: #70b8ff;
+  --k-task: #baa7ff;
+  --k-handoff: #4ccce6;
+  --k-decision: #ffca16;
+  --k-meeting: #ff8dcc;
+  --k-delivery: #d4ff70;
+  --k-issue: #ff9592;
+  --k-done: #3dd68c;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --change: #facc15;
+    --change: #ffe629;
     --change-text: var(--ink);
-    --change-bg: #854d0e;
-    --edit-bg: #1c1a0a;
-    --teal: #2dd4bf;
-    --teal-bg: #042f2e;
-    --gray-bg: #1f1f1f;
-    --k-message: #60a5fa;
-    --k-task: #a78bfa;
-    --k-handoff: #2dd4bf;
-    --k-decision: #fbbf24;
-    --k-meeting: #f472b6;
-    --k-delivery: #4ade80;
-    --k-issue: #f87171;
-    --k-done: #86efac;
+    --change-bg: #524202;
+    --edit-bg: #1b180f;
+    --k-message: #70b8ff;
+    --k-task: #baa7ff;
+    --k-handoff: #4ccce6;
+    --k-decision: #ffca16;
+    --k-meeting: #ff8dcc;
+    --k-delivery: #d4ff70;
+    --k-issue: #ff9592;
+    --k-done: #3dd68c;
   }
 }
 
@@ -63,7 +54,8 @@
   min-height: 100vh;
   background: var(--panel);
   color: var(--ink);
-  font: 15px/1.6 var(--f-ui);
+  font: var(--fs)/1.5 var(--f-ui);
+  letter-spacing: -0.005em;
 }
 .tk,
 .tk *,
@@ -80,44 +72,43 @@
   color: var(--ink-2);
 }
 .tk .small {
-  font-size: 13px;
+  font-size: var(--fs-s);
 }
 
 .tk .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 6px;
   border: 1px solid var(--rule);
   background: var(--panel);
   color: var(--ink);
-  border-radius: 9px;
-  padding: 7px 12px;
-  font-weight: 600;
-  font-size: 14px;
+  border-radius: var(--r-ctl);
+  padding: 6px 11px;
+  font-weight: 500;
+  font-size: var(--fs-s);
   cursor: pointer;
-  min-height: 36px;
+  min-height: 32px;
   white-space: nowrap;
   line-height: 1.2;
-  box-shadow: none;
+  box-shadow: var(--shadow-sm);
   text-decoration: none;
 }
 .tk .btn:hover:not(:disabled) {
-  border-color: var(--ink-3);
-  background: var(--panel);
+  background: var(--sunk);
 }
 .tk .btn svg {
   flex: none;
 }
 .tk .btn.big {
-  min-height: 44px;
-  font-size: 15px;
-  padding: 9px 16px;
-  border-radius: 11px;
+  min-height: 40px;
+  font-size: var(--fs);
+  padding: 8px 16px;
+  border-radius: var(--r-ctl);
 }
 .tk .btn.sm {
-  min-height: 30px;
-  font-size: 12px;
+  min-height: 28px;
+  font-size: var(--fs-xs);
   padding: 4px 9px;
   border-radius: 8px;
 }
@@ -134,10 +125,13 @@
 .tk .btn-draft:hover:not(:disabled) {
   background: var(--panel);
   color: var(--ink);
-  border-color: var(--ink);
+}
+.tk .btn-draft .cnt {
+  background: var(--change-bg);
+  color: var(--change-text);
 }
 .tk .btn-danger {
-  color: var(--danger);
+  color: var(--danger-ink);
 }
 .tk .btn:disabled {
   opacity: 0.4;
@@ -146,28 +140,31 @@
 .tk .cnt {
   display: inline-grid;
   place-items: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
   border-radius: 99px;
   background: var(--gray-bg);
-  color: var(--ink-2);
-  font-size: 12px;
+  color: var(--ink);
+  font-size: 11px;
 }
 .tk .btn-ink .cnt {
-  background: rgba(255, 255, 255, 0.25);
+  background: color-mix(in srgb, var(--panel) 22%, transparent);
   color: inherit;
 }
 .tk .lnk {
   border: 0;
   background: none;
   padding: 0;
-  color: var(--route);
+  color: var(--route-ink);
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 400;
-  text-decoration: underline;
+  font-size: var(--fs-s);
+  font-weight: 500;
+  text-decoration: none;
   text-underline-offset: 2px;
+}
+.tk .lnk:hover {
+  text-decoration: underline;
 }
 .tk .x {
   border: 0;
@@ -183,9 +180,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--rule);
   flex-wrap: wrap;
+  min-height: 52px;
 }
 .tk .p-head .sp {
   flex: 1;
@@ -205,15 +203,17 @@
   align-items: center;
   border: 1px solid var(--rule);
   background: var(--panel);
-  border-radius: 10px;
-  padding: 6px 10px;
+  border-radius: var(--r-ctl);
+  padding: 0 10px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--fs-s);
   font-weight: 600;
   max-width: 100%;
+  min-height: 32px;
+  box-shadow: var(--shadow-sm);
 }
 .tk .graph-btn:hover {
-  border-color: var(--ink-3);
+  background: var(--sunk);
 }
 .tk .gdot {
   width: 10px;
@@ -230,7 +230,7 @@
   max-width: calc(100vw - 32px);
   background: var(--panel);
   border: 1px solid var(--rule);
-  border-radius: 12px;
+  border-radius: var(--r-pop);
   box-shadow: var(--shadow);
   padding: 6px;
 }
@@ -241,29 +241,29 @@
   align-items: center;
   border: 0;
   background: none;
-  padding: 8px 10px;
+  padding: 7px 10px;
   border-radius: 8px;
   cursor: pointer;
   text-align: left;
-  font-size: 14px;
+  font-size: var(--fs);
   line-height: 1.4;
 }
 .tk .gmenu button:hover {
-  background: var(--sunk);
+  background: var(--hover);
 }
 .tk .gmenu button.on {
-  font-weight: 700;
-  background: var(--sunk);
+  font-weight: 600;
+  background: var(--gray-bg);
 }
 .tk .gmenu small {
   display: block;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 400;
 }
 .tk .gmenu hr {
   border: 0;
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--rule-2);
   margin: 4px 0;
 }
 .tk .hid-menu {
@@ -279,14 +279,15 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  font-weight: 500;
   background: var(--gray-bg);
   color: var(--ink-2);
   border-radius: 99px;
-  padding: 5px 8px 5px 10px;
+  padding: 0 8px 0 10px;
   white-space: nowrap;
   cursor: pointer;
+  min-height: 28px;
 }
 .tk .hid-pill:hover,
 .tk .hid-menu[open] > .hid-pill {
@@ -304,10 +305,10 @@
   overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--rule);
-  border-radius: 12px;
+  border-radius: var(--r-pop);
   box-shadow: var(--shadow);
-  padding: 12px;
-  font-size: 14px;
+  padding: 10px 12px;
+  font-size: var(--fs);
 }
 .tk .hid-pop:focus {
   outline: none;
@@ -326,7 +327,7 @@
   justify-content: space-between;
   gap: 10px;
   padding: 7px 0;
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--rule-2);
 }
 .tk .hid-list li:first-child {
   border-top: 0;
@@ -339,7 +340,7 @@
 }
 .tk .hid-list .tt b,
 .tk .ft-node .tt b {
-  font-size: 13px;
+  font-size: var(--fs-s);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -347,7 +348,7 @@
 }
 .tk .hid-list .tt small,
 .tk .ft-node .tt small {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-3);
 }
 .tk .hid-foot {
@@ -355,62 +356,61 @@
   justify-content: flex-end;
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--rule-2);
 }
 .tk .demo {
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: var(--gray-bg);
-  border-radius: 10px;
-  padding: 3px 4px 3px 9px;
-  font-size: 11px;
-  font-weight: 700;
+  gap: 8px;
+  font-size: 10.5px;
+  font-weight: 600;
   color: var(--ink-3);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
 }
 .tk .demo select {
-  border: 0;
+  min-height: 32px;
+  border: 1px solid var(--rule);
   background: var(--panel);
-  border-radius: 7px;
-  padding: 5px 6px;
-  font-size: 12px;
-  font-weight: 600;
+  border-radius: var(--r-ctl);
+  padding: 0 6px;
+  font-size: var(--fs-s);
+  font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
   color: var(--ink);
   max-width: 160px;
+  box-shadow: var(--shadow-sm);
 }
 .tk .me {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   padding-left: 10px;
   border-left: 1px solid var(--rule);
 }
 .tk .me b {
-  font-size: 13px;
+  font-size: var(--fs-s);
   display: block;
   line-height: 1.2;
 }
 .tk .me small {
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   color: var(--ink-3);
   display: block;
   line-height: 1.2;
 }
 .tk .av {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: grid;
   place-items: center;
   color: #fff;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   flex: none;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   line-height: 1;
 }
 .tk .av.sm {
@@ -435,11 +435,12 @@
   flex-direction: row;
   align-items: center;
   gap: 10px;
-  padding: 8px 14px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--rule);
   flex-wrap: wrap;
-  font-size: 13px;
+  font-size: var(--fs-s);
   min-width: 0;
+  min-height: 48px;
 }
 .tk .bbar.mine {
   background: var(--edit-bg);
@@ -451,7 +452,7 @@
   background: var(--route-bg);
 }
 .tk .bbar .bt {
-  font-weight: 700;
+  font-weight: 600;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -461,28 +462,28 @@
   flex: 1;
 }
 .tk .bbar .muted {
-  font-size: 12.5px;
+  font-size: var(--fs-s);
 }
 .tk .chipx {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11.5px;
-  font-weight: 700;
-  padding: 2px 8px;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  padding: 1px 9px;
   border-radius: 99px;
-  background: var(--panel);
+  background: var(--gray-bg);
   color: var(--ink-2);
   white-space: nowrap;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 .tk .chipx.warn {
   background: var(--caution-bg);
-  color: var(--caution);
+  color: var(--caution-ink);
 }
 .tk .chipx.ok {
   background: var(--proceed-bg);
-  color: var(--proceed);
+  color: var(--proceed-ink);
 }
 .tk .chipx.pen {
   background: var(--change-bg);
@@ -490,7 +491,7 @@
 }
 .tk .chipx.route {
   background: var(--route-bg);
-  color: var(--route);
+  color: var(--route-ink);
 }
 .tk .ask-row {
   flex-basis: 100%;
@@ -499,9 +500,9 @@
   align-items: center;
   flex-wrap: wrap;
   background: var(--caution-bg);
-  border-radius: 10px;
+  border-radius: var(--r-ctl);
   padding: 6px 10px;
-  font-size: 13px;
+  font-size: var(--fs-s);
 }
 
 /* The board fills the viewport: the bars and the legend stay put, and the graph canvas scrolls
@@ -521,11 +522,11 @@
   width: 252px;
   flex: none;
   border-right: 1px solid var(--rule);
-  padding: 12px;
+  padding: 12px 12px 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background: var(--sunk);
+  background: var(--panel);
   min-width: 0;
   min-height: 0;
 }
@@ -590,15 +591,15 @@
   box-shadow: var(--shadow);
   display: flex;
   gap: 2px;
-  padding: 2px;
+  padding: 3px;
   border: 1px solid var(--rule);
-  border-radius: 9px;
+  border-radius: var(--r-ctl);
   background: var(--panel);
 }
 /* An open drawer covers the right of the graph, so the zoom controls move to its left. */
 @media (min-width: 761px) {
   .tk .gwrap:has(> .drawer-slot) .zoombar {
-    margin-right: calc(min(380px, 100%) + 12px);
+    margin-right: calc(min(380px, 100%) + 20px);
   }
 }
 .tk .zoombar button {
@@ -608,7 +609,7 @@
   height: 24px;
   padding: 0 6px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 6px;
   background: none;
   color: var(--ink-2);
   font: 600 12px/1 var(--f-ui);
@@ -621,7 +622,7 @@
   stroke-linecap: round;
 }
 .tk .zoombar button:hover:not(:disabled) {
-  background: var(--sunk);
+  background: var(--hover);
   color: var(--ink);
 }
 .tk .zoombar button:disabled {
@@ -635,21 +636,28 @@
   gap: 10px;
   flex-wrap: wrap;
   margin: 10px 12px 4px;
-  padding: 8px 10px 8px 12px;
-  border: 1px solid var(--rule);
-  border-radius: 12px;
-  background: var(--sunk);
-  color: var(--ink-2);
-  font-size: 13px;
+  padding: 7px 10px 7px 12px;
+  border-radius: var(--r-ctl);
+  background: var(--route-bg);
+  color: var(--route-ink);
+  font-size: var(--fs-s);
 }
 .tk .ro-note > svg {
   flex: none;
-  color: var(--ink-3);
+  color: currentColor;
 }
 .tk .ro-note p {
   margin: 0;
   flex: 1 1 220px;
-  color: var(--ink);
+  color: inherit;
+}
+.tk .ro-note .lnk,
+.tk .ro-note .x {
+  color: inherit;
+}
+.tk .ro-note .lnk {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .tk .pop .moved {
   display: flex;
@@ -658,7 +666,7 @@
   gap: 6px;
   margin: 8px 0 0;
   color: var(--ink-2);
-  font-size: 12px;
+  font-size: var(--fs-xs);
 }
 .tk .pop .moved svg {
   flex: none;
@@ -680,16 +688,16 @@
   display: grid;
   place-items: center;
   flex: none;
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--rule);
-  border-radius: 8px;
-  background: var(--panel);
-  color: var(--ink-2);
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--ink-3);
   cursor: pointer;
 }
 .tk .qtop .ib:hover {
-  border-color: var(--ink-3);
+  background: var(--hover);
   color: var(--ink);
 }
 .tk .tsearch {
@@ -709,16 +717,19 @@
 }
 .tk .tsearch input {
   width: 100%;
-  min-height: 36px;
+  min-height: 32px;
   border: 1px solid var(--rule);
-  border-radius: 9px;
-  background: var(--panel);
+  border-radius: var(--r-ctl);
+  background: var(--sunk);
   color: var(--ink);
-  padding: 7px 10px 7px 31px;
-  font: 14px var(--f-ui);
+  padding: 5px 10px 5px 30px;
+  font: var(--fs-s) var(--f-ui);
 }
 .tk .tsearch input:hover {
   border-color: var(--ink-3);
+}
+.tk .tsearch input:focus {
+  background: var(--panel);
 }
 .tk .tsearch-pop {
   position: absolute;
@@ -729,7 +740,7 @@
   max-width: calc(100vw - 24px);
   background: var(--panel);
   border: 1px solid var(--rule);
-  border-radius: 12px;
+  border-radius: var(--r-pop);
   box-shadow: var(--shadow);
   padding: 6px;
 }
@@ -759,14 +770,14 @@
   line-height: 1.3;
 }
 .tk .tsearch-pop .tt b {
-  font-size: 13px;
+  font-size: var(--fs-s);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .tk .tsearch-pop .tt small {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-3);
 }
 .tk .tsearch-pop .badge {
@@ -776,7 +787,7 @@
 .tk .tsearch-pop .none {
   margin: 0;
   padding: 7px 8px;
-  font-size: 12.5px;
+  font-size: var(--fs-s);
   color: var(--ink-3);
 }
 .tk .empty {
@@ -787,15 +798,15 @@
   width: min(460px, calc(100% - 32px));
   background: var(--panel);
   border: 1px solid var(--rule);
-  border-radius: 14px;
+  border-radius: var(--r-sheet);
   box-shadow: var(--shadow);
   padding: 16px;
   z-index: 4;
-  font-size: 14px;
+  font-size: var(--fs);
 }
 .tk .empty h4 {
   margin: 0 0 6px;
-  font-size: 17px;
+  font-size: 15px;
 }
 .tk .empty ol {
   margin: 6px 0 12px;
@@ -809,13 +820,13 @@
 }
 .tk .legend2 {
   display: flex;
-  gap: 14px;
+  gap: 6px 16px;
   flex-wrap: wrap;
-  padding: 8px 14px;
+  padding: 9px 14px;
   border-top: 1px solid var(--rule);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-2);
-  background: var(--sunk);
+  background: var(--panel);
   align-items: center;
 }
 .tk .legend2 span {
@@ -825,8 +836,8 @@
 }
 .tk .legend2 i.ln {
   display: inline-block;
-  width: 22px;
-  height: 3px;
+  width: 16px;
+  height: 2.5px;
   border-radius: 2px;
 }
 .tk .legend2 svg {
@@ -835,8 +846,8 @@
 }
 .tk .ms-sw {
   display: inline-block;
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   border: 2px solid currentColor;
   margin: 0 4px 0 2px;
@@ -861,24 +872,25 @@
 }
 .tk .qtop h4 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--fs);
   display: flex;
   align-items: center;
   gap: 7px;
+  font-weight: 600;
 }
 .tk .qtop p {
   margin: 2px 0 0;
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   color: var(--ink-3);
   line-height: 1.35;
 }
 .tk .qseg {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4px;
+  gap: 2px;
   background: var(--gray-bg);
-  border-radius: 11px;
-  padding: 4px;
+  border-radius: var(--r-ctl);
+  padding: 2px;
 }
 .tk .qseg button {
   display: flex;
@@ -887,10 +899,10 @@
   gap: 6px;
   border: 0;
   background: none;
-  border-radius: 8px;
-  padding: 7px 4px;
-  font-size: 12.5px;
-  font-weight: 600;
+  border-radius: 6px;
+  padding: 4px;
+  font-size: var(--fs-s);
+  font-weight: 500;
   cursor: pointer;
   color: var(--ink-2);
   white-space: nowrap;
@@ -898,18 +910,13 @@
 .tk .qseg button[aria-pressed='true'] {
   background: var(--panel);
   color: var(--ink);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow:
+    var(--shadow-sm),
+    0 0 0 1px var(--rule);
 }
 .tk .qseg .n {
-  display: inline-grid;
-  place-items: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 99px;
-  background: var(--ink);
-  color: var(--panel);
-  font-size: 10.5px;
+  font: 500 10.5px var(--f-id);
+  color: var(--ink-3);
 }
 .tk .qsearch {
   position: relative;
@@ -918,10 +925,11 @@
 .tk .qsearch input {
   width: 100%;
   border: 1px solid var(--rule);
-  background: var(--panel);
-  border-radius: 9px;
-  padding: 7px 9px 7px 28px;
-  font-size: 12.5px;
+  background: var(--sunk);
+  border-radius: var(--r-ctl);
+  padding: 5px 9px 5px 28px;
+  font-size: var(--fs-s);
+  min-height: 30px;
 }
 .tk .qsearch svg {
   position: absolute;
@@ -933,53 +941,45 @@
 .tk .qlist {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
   overflow: auto;
   min-width: 0;
+  margin: 0 -12px;
+  border-top: 1px solid var(--rule);
 }
 .tk .qc {
   position: relative;
-  background: var(--panel);
-  border: 1px solid var(--rule);
-  border-radius: 12px;
-  padding: 9px 10px;
-  font-size: 12px;
+  background: none;
+  border-bottom: 1px solid var(--rule-2);
+  padding: 10px 12px;
+  font-size: var(--fs-xs);
   line-height: 1.4;
   cursor: pointer;
   user-select: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition:
-    box-shadow 0.15s,
-    transform 0.15s;
   overflow: hidden;
 }
 .tk .qc:hover {
-  box-shadow: 0 6px 18px -8px rgba(0, 0, 0, 0.25);
-  transform: translateY(-1px);
-  border-color: var(--ink-3);
+  background: var(--hover);
 }
 .tk .qc .qk {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--fs-xs);
+  font-weight: 600;
   color: var(--kc);
-  background: color-mix(in srgb, var(--kc) 12%, transparent);
-  padding: 1px 7px 1px 5px;
-  border-radius: 99px;
 }
 .tk .qc .grip {
   position: absolute;
-  right: 8px;
-  top: 9px;
+  right: 10px;
+  top: 10px;
   color: var(--ink-3);
   opacity: 0.6;
 }
 .tk .qc .qt {
-  margin: 6px 0 7px;
+  margin: 4px 0 6px;
   color: var(--ink);
-  font-size: 12.5px;
+  font-size: var(--fs-s);
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -987,36 +987,37 @@
 }
 .tk .qc .qt b {
   display: block;
-  font-size: 13.5px;
+  font-size: var(--fs-s);
   margin-bottom: 2px;
+  font-weight: 600;
 }
 .tk .qc .qf {
   display: flex;
   align-items: center;
   gap: 6px;
   color: var(--ink-3);
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   flex-wrap: wrap;
 }
 .tk .qc .qf .who {
   color: var(--ink-2);
-  font-weight: 600;
+  font-weight: 500;
 }
 .tk .qc .bot {
   display: inline-flex;
   align-items: center;
   gap: 3px;
   font-size: 10.5px;
-  font-weight: 700;
+  font-weight: 500;
   padding: 0 6px;
   border-radius: 99px;
   background: var(--route-bg);
-  color: var(--route);
+  color: var(--route-ink);
 }
 .tk .qempty {
   text-align: center;
   color: var(--ink-3);
-  font-size: 12.5px;
+  font-size: var(--fs-s);
   padding: 18px 8px;
 }
 .tk .qempty svg {
@@ -1037,8 +1038,8 @@ svg.tg .lane-band.alt {
 }
 svg.tg .lane-name {
   font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-weight: 600;
+  letter-spacing: 0.07em;
   fill: var(--ink-2);
   pointer-events: none;
 }
@@ -1057,7 +1058,7 @@ svg.tg .ms-label.changed {
   stroke-linejoin: round;
 }
 svg.tg .row-label.sel {
-  font-weight: 700;
+  font-weight: 600;
 }
 svg.tg .label-hit {
   fill: transparent;
@@ -1134,15 +1135,14 @@ svg.tg .hit {
   cursor: pointer;
 }
 svg.tg .hit:hover {
-  fill: color-mix(in srgb, var(--ink) 4%, transparent);
+  fill: var(--hover);
 }
-/* Yellow marks changes, so the picked row and a revealed row use a neutral band with an ink edge.
-   The band sits over the row line, so it stays see-through: a light grey on the light theme. */
+/* Yellow marks changes, so the picked row and a revealed row use a see-through focus-blue band. */
 svg.tg .hit.flash,
 svg.tg .hit.focus {
-  fill: color-mix(in srgb, var(--ink) 7%, transparent) !important;
-  stroke: var(--ink);
-  stroke-width: 1.5px;
+  fill: color-mix(in srgb, var(--focus) 10%, transparent) !important;
+  stroke: color-mix(in srgb, var(--focus) 55%, transparent);
+  stroke-width: 1px;
   vector-effect: non-scaling-stroke;
 }
 svg.tg .hit.rail-row {
@@ -1269,7 +1269,7 @@ svg.tg .handoff > g {
   pointer-events: none;
   background: var(--ink);
   color: var(--panel);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   line-height: 1.35;
   padding: 5px 9px;
@@ -1316,7 +1316,7 @@ svg.tg .handoff > g {
   background: var(--sunk);
 }
 .tk .ft-node.on .tt b {
-  font-weight: 700;
+  font-weight: 600;
 }
 .tk .ft-node.up {
   justify-content: flex-start;
@@ -1344,12 +1344,12 @@ svg.tg .plus {
 }
 svg.tg .plus circle {
   fill: var(--panel);
-  stroke: var(--ink);
-  stroke-width: 1.5;
+  stroke: var(--rule);
+  stroke-width: 1;
 }
 svg.tg .plus path {
-  stroke: var(--ink);
-  stroke-width: 2;
+  stroke: var(--ink-2);
+  stroke-width: 1.5;
   stroke-linecap: round;
 }
 svg.tg .plus:hover circle {
@@ -1363,7 +1363,7 @@ svg.tg .pill {
 }
 svg.tg .pill rect {
   fill: var(--panel);
-  stroke: var(--ink);
+  stroke: var(--rule);
   stroke-width: 1;
 }
 svg.tg .pill:hover rect {
@@ -1371,8 +1371,8 @@ svg.tg .pill:hover rect {
 }
 svg.tg .pill text {
   font-size: 10.5px;
-  font-weight: 600;
-  fill: var(--ink);
+  font-weight: 500;
+  fill: var(--ink-2);
 }
 svg.tg .goal {
   cursor: pointer;
@@ -1407,12 +1407,12 @@ svg.tg .goal-date {
   z-index: 6;
   background: var(--panel);
   border: 1px solid var(--rule);
-  border-radius: 12px;
+  border-radius: var(--r-pop);
   box-shadow: var(--shadow);
-  padding: 12px;
+  padding: 12px 14px;
   width: 312px;
   max-width: calc(100% - 16px);
-  font-size: 14px;
+  font-size: var(--fs);
 }
 .tk .pop:focus {
   outline: none;
@@ -1426,31 +1426,31 @@ svg.tg .goal-date {
 .tk .pop-h > div {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
+  font-size: var(--fs);
   line-height: 1.35;
 }
 .tk .pop-h small {
   display: block;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--fs-xs);
 }
 .tk .pi {
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  border: 2px solid currentColor;
   display: grid;
   place-items: center;
   flex: none;
+  background: color-mix(in srgb, currentColor 12%, var(--panel));
 }
 .tk blockquote {
   margin: 0 0 10px;
-  padding: 6px 10px;
-  border-left: 3px solid var(--mark);
+  padding: 8px 12px;
+  border-radius: var(--r-ctl);
   background: var(--sunk);
-  font-size: 13px;
+  border: 1px solid var(--rule-2);
+  font-size: var(--fs-s);
   color: var(--ink-2);
-  border-radius: 0 6px 6px 0;
 }
 .tk .pop-btns {
   display: grid;
@@ -1460,17 +1460,17 @@ svg.tg .goal-date {
   justify-content: flex-start;
 }
 .tk .tip {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-3);
   margin: 8px 0 0;
 }
 .tk .badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 2px 9px;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  padding: 1px 9px;
   border: 0;
   border-radius: 99px;
 }
@@ -1480,19 +1480,19 @@ svg.tg .goal-date {
 }
 .tk .st-early {
   background: var(--teal-bg);
-  color: var(--teal);
+  color: var(--teal-ink);
 }
 .tk .st-ontime {
   background: var(--proceed-bg);
-  color: var(--proceed);
+  color: var(--proceed-ink);
 }
 .tk .st-late {
   background: var(--danger-bg);
-  color: var(--danger);
+  color: var(--danger-ink);
 }
 .tk .st-flate {
   background: var(--caution-bg);
-  color: var(--caution);
+  color: var(--caution-ink);
 }
 .tk .moves {
   list-style: none;
@@ -1504,64 +1504,68 @@ svg.tg .goal-date {
 .tk .moves li {
   border-left: 2px solid var(--rule);
   padding: 2px 0 2px 10px;
-  font-size: 12.5px;
+  font-size: var(--fs-s);
   display: grid;
   gap: 1px;
 }
 .tk .moves li small {
   color: var(--ink-3);
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
 }
 .tk .stack-list {
   list-style: none;
   padding: 0;
   margin: 0;
   display: grid;
-  gap: 4px;
+  gap: 0;
   max-height: 320px;
   overflow-y: auto;
 }
 .tk .stack-list li {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 4px;
+}
+.tk .stack-list li + li,
+.tk .ev-list li + li {
+  border-top: 1px solid var(--rule-2);
 }
 .tk .stack-ev {
   flex: 1;
   min-width: 0;
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: flex-start;
-  padding: 6px 8px;
-  border: 1px solid var(--rule);
-  border-radius: 9px;
-  background: var(--panel);
+  padding: 8px 6px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
   color: var(--ink);
   text-align: left;
   font: inherit;
   cursor: pointer;
 }
 .tk .stack-ev:hover {
-  border-color: var(--ink-3);
+  background: var(--hover);
 }
 .tk .stack-ev .sk {
   flex: none;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  border: 1.5px solid currentColor;
+  background: color-mix(in srgb, currentColor 12%, var(--panel));
 }
 .tk .stack-ev .st {
   min-width: 0;
   display: grid;
-  font-size: 12.5px;
+  font-size: var(--fs-s);
   line-height: 1.35;
 }
 .tk .stack-ev .st small {
   color: var(--ink-3);
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
 }
 .tk .stack-ev .st > span {
   color: var(--ink-2);
@@ -1579,24 +1583,24 @@ svg.tg .goal-date {
   place-items: center;
   width: 26px;
   height: 22px;
-  border: 1px solid var(--rule);
-  border-radius: 7px;
-  background: var(--panel);
-  color: var(--ink-2);
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink-3);
   cursor: pointer;
 }
 .tk .stack-acts .ib:hover {
-  border-color: var(--ink-3);
+  background: var(--hover);
   color: var(--ink);
 }
 .tk .stack-acts .ib.danger {
-  color: var(--danger);
+  color: var(--danger-ink);
 }
 .tk .drawer-slot {
   position: absolute;
-  inset: 0 0 0 auto;
+  inset: 8px 8px 8px auto;
   width: 380px;
-  max-width: 100%;
+  max-width: calc(100% - 16px);
   z-index: 7;
   pointer-events: none;
 }
@@ -1608,46 +1612,47 @@ svg.tg .goal-date {
   pointer-events: auto;
   display: block;
   background: var(--panel);
-  border: 0;
-  border-left: 1px solid var(--rule);
-  border-radius: 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sheet);
   box-shadow: var(--shadow);
   z-index: 7;
-  padding: 14px;
+  padding: 14px 16px;
   overflow: auto;
-  font-size: 14px;
+  font-size: var(--fs);
 }
-.tk .drawer:focus {
+.tk .drawer:focus,
+:root .tk .drawer:focus-visible {
   outline: none;
 }
 .tk .drawer h4 {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
 }
 .tk .q-label {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 10.5px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.07em;
   color: var(--ink-3);
-  margin: 14px 0 6px;
+  margin: 16px 0 6px;
 }
 .tk .field input {
   border: 1px solid var(--rule);
   background: var(--panel);
-  border-radius: 8px;
-  padding: 7px 9px;
-  font-size: 13px;
+  border-radius: var(--r-ctl);
+  padding: 6px 10px;
+  font-size: var(--fs-s);
   width: 100%;
   font-weight: 400;
   min-width: 0;
+  min-height: 32px;
 }
 .tk .field {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   margin-top: 10px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  font-weight: 500;
   color: var(--ink-2);
 }
 .tk .field input:disabled {
@@ -1665,14 +1670,14 @@ svg.tg .goal-date {
 .tk .facts {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
-  gap: 5px 14px;
+  gap: 7px 16px;
   margin: 12px 0 0;
-  font-size: 13px;
+  font-size: var(--fs-s);
 }
 .tk .facts dt {
   color: var(--ink-3);
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: inherit;
+  line-height: inherit;
 }
 .tk .facts dd {
   margin: 0;
@@ -1706,15 +1711,17 @@ svg.tg .goal-date {
   padding: 0;
   margin: 0;
   display: grid;
-  gap: 4px;
+  gap: 0;
 }
 .tk .ev-list .stack-ev {
   width: 100%;
 }
 .tk .stack-ev.off {
   cursor: default;
-  background: var(--sunk);
   color: var(--ink-3);
+}
+.tk .stack-ev.off:hover {
+  background: none;
 }
 .tk .stack-ev.off .st > span {
   color: var(--ink-3);
@@ -1724,29 +1731,27 @@ svg.tg .goal-date {
   gap: 8px;
   align-items: center;
   justify-content: space-between;
-  border: 1px solid var(--rule);
-  border-radius: 10px;
-  padding: 8px 10px;
-  margin-bottom: 6px;
+  padding: 10px 0;
+  margin-bottom: 0;
+  border-top: 1px solid var(--rule-2);
 }
 .tk .mem b {
-  font-size: 13px;
+  font-size: var(--fs-s);
   display: block;
   line-height: 1.3;
 }
 .tk .mem small {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-3);
 }
 .tk .chg-row {
   display: flex;
   gap: 8px;
   align-items: flex-start;
-  border: 1px solid var(--rule);
-  border-radius: 10px;
-  padding: 8px 10px;
-  margin-bottom: 6px;
-  font-size: 13px;
+  padding: 10px 0;
+  margin-bottom: 0;
+  font-size: var(--fs-s);
+  border-top: 1px solid var(--rule-2);
 }
 .tk .chg-row > div {
   flex: 1;
@@ -1755,55 +1760,53 @@ svg.tg .goal-date {
 .tk .chg-row small {
   display: block;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--fs-xs);
 }
 .tk .chg-row.dropped {
   opacity: 0.55;
 }
 .tk .chg-row.skipped {
-  background: var(--gray-bg);
-  color: var(--ink-2);
+  color: var(--ink-3);
 }
 .tk .chg-by {
   display: inline-flex;
   gap: 5px;
   align-items: center;
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   color: var(--ink-3);
   margin-top: 3px;
 }
 .tk .before {
-  color: var(--danger);
+  color: var(--danger-ink);
   text-decoration: line-through;
 }
 .tk .after {
-  color: var(--proceed);
+  color: var(--proceed-ink);
 }
 .tk .drawer-foot {
   position: sticky;
   bottom: -14px;
   background: var(--panel);
-  padding: 10px 0 0;
+  padding: 12px 0;
   display: flex;
   gap: 8px;
   border-top: 1px solid var(--rule);
-  margin-top: 12px;
+  margin-top: 14px;
 }
 .tk .drawer-foot .btn-ink {
   flex: 1;
 }
 .tk .req {
-  border: 1px solid var(--rule);
-  border-radius: 12px;
-  padding: 10px 12px;
-  margin-bottom: 8px;
+  padding: 12px 0;
+  margin-bottom: 0;
+  border-top: 1px solid var(--rule-2);
 }
 .tk .req header {
   display: flex;
   justify-content: space-between;
   gap: 8px;
   align-items: baseline;
-  font-size: 13px;
+  font-size: var(--fs-s);
 }
 .tk .req.done {
   opacity: 0.6;
@@ -1817,7 +1820,7 @@ svg.tg .goal-date {
 }
 .tk .cr-meta small {
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--fs-xs);
 }
 .tk .hist {
   display: block;
@@ -1838,12 +1841,12 @@ svg.tg .goal-date {
 }
 .tk .hist > li {
   position: relative;
-  margin-bottom: 10px;
+  margin-bottom: 16px;
 }
 .tk .hist .hdot {
   position: absolute;
   left: -19px;
-  top: 12px;
+  top: 4px;
   width: 12px;
   height: 12px;
   border-radius: 50%;
@@ -1851,11 +1854,8 @@ svg.tg .goal-date {
   border: 2.5px solid var(--trunk);
 }
 .tk .hist .hcard {
-  border: 1px solid var(--rule);
-  border-radius: 12px;
-  padding: 9px 11px;
-  font-size: 13px;
-  background: var(--panel);
+  padding: 0;
+  font-size: var(--fs-s);
 }
 .tk .hist .hcard header {
   display: flex;
@@ -1868,14 +1868,14 @@ svg.tg .goal-date {
   gap: 6px;
   align-items: center;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   margin-top: 3px;
   flex-wrap: wrap;
 }
 .tk .hist .hcard ul {
   margin: 6px 0;
   padding-left: 18px;
-  font-size: 12.5px;
+  font-size: var(--fs-s);
   color: var(--ink-2);
 }
 .tk .resolved {
@@ -1883,11 +1883,11 @@ svg.tg .goal-date {
   gap: 6px;
   align-items: flex-start;
   background: var(--caution-bg);
-  color: var(--caution);
+  color: var(--caution-ink);
   border-radius: 8px;
   padding: 6px 8px;
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: var(--fs-s);
+  font-weight: 500;
   margin: 6px 0;
 }
 .tk .resolved svg {
@@ -1898,21 +1898,20 @@ svg.tg .goal-date {
   display: flex;
   align-items: center;
   gap: 10px;
-  border: 1px solid var(--rule);
-  border-radius: 10px;
-  padding: 8px 10px;
-  margin-bottom: 6px;
+  padding: 10px 0;
+  margin-bottom: 0;
+  border-top: 1px solid var(--rule-2);
 }
 .tk .grow-item > div {
   flex: 1;
   min-width: 0;
 }
 .tk .grow-item b {
-  font-size: 13px;
+  font-size: var(--fs-s);
   display: block;
 }
 .tk .grow-item small {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-3);
 }
 
@@ -1923,14 +1922,14 @@ svg.tg .goal-date {
   transform: translate(-50%, 0);
   background: var(--ink);
   color: var(--panel);
-  padding: 10px 14px;
-  border-radius: 12px;
-  font-size: 14px;
+  padding: 9px 14px;
+  border-radius: var(--r-pop);
+  font-size: var(--fs);
   display: flex;
   gap: 12px;
   align-items: center;
   z-index: 50;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-lg);
   max-width: calc(100% - 32px);
 }
 .tk-toast:empty {
@@ -1968,8 +1967,14 @@ svg.tg .goal-date {
     flex-direction: row;
     overflow-x: auto;
   }
+  .tk .qlist {
+    margin: 0;
+    border-top: 0;
+  }
   .tk .qlist .qc {
     flex: 0 0 210px;
+    border-bottom: 0;
+    border-right: 1px solid var(--rule-2);
   }
   .tk .qempty {
     flex: 1;
@@ -2065,21 +2070,22 @@ svg.tg .lane-drop.glow {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border: 2px solid var(--rule);
-  border-radius: 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-pop);
   background: var(--panel);
   color: var(--ink-2);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   z-index: 3;
   visibility: hidden;
   pointer-events: none;
+  box-shadow: var(--shadow);
 }
 /* The bin shows only while something is dragged, so it never covers the row names below it. */
 .tk.dragging .bin {
   visibility: visible;
   border-color: var(--danger);
-  color: var(--danger);
+  color: var(--danger-ink);
   pointer-events: auto;
 }
 .tk .bin.glow {
@@ -2099,11 +2105,12 @@ svg.tg .lane-drop.glow {
   transform: translateX(-50%);
   background: var(--ink);
   color: var(--panel);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-s);
+  font-weight: 500;
   padding: 7px 14px;
   border-radius: 99px;
   white-space: nowrap;
+  box-shadow: var(--shadow);
 }
 .tk .move-hint:empty {
   display: none;
@@ -2117,8 +2124,11 @@ svg.tg .lane-drop.glow {
   transform: translate(10px, 10px) rotate(-2deg);
 }
 .tk .ghost .qc {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-pop);
   box-shadow: var(--shadow);
-  border-color: var(--ink);
+  width: 228px;
 }
 .tk .ghost .gact {
   width: 30px;
@@ -2137,11 +2147,11 @@ svg.tg .lane-drop.glow {
   gap: 6px;
   white-space: nowrap;
   background: var(--panel);
-  border: 2px solid var(--ink);
-  border-radius: 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-ctl);
   padding: 4px 10px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  font-weight: 500;
   box-shadow: var(--shadow);
 }
 
@@ -2149,13 +2159,12 @@ svg.tg .lane-drop.glow {
 .tk-modal {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, var(--page) 65%, transparent);
-  backdrop-filter: blur(2px);
+  background: var(--scrim);
   z-index: 70;
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 18px 12px;
+  padding: 48px 12px 18px;
   overflow: auto;
 }
 .tk .m-card {
@@ -2163,10 +2172,10 @@ svg.tg .lane-drop.glow {
   max-width: 100%;
   background: var(--panel);
   border: 1px solid var(--rule);
-  border-radius: 16px;
-  box-shadow: var(--shadow);
-  padding: 16px;
-  font-size: 14px;
+  border-radius: var(--r-sheet);
+  box-shadow: var(--shadow-lg);
+  padding: 18px;
+  font-size: var(--fs);
 }
 .tk .m-card:focus {
   outline: none;
@@ -2181,30 +2190,36 @@ svg.tg .lane-drop.glow {
   margin-bottom: 8px;
 }
 .tk .m-top b {
-  font-size: 18px;
+  font-size: 15px;
   flex: 1;
+  font-weight: 600;
 }
 .tk .m-foot {
   flex-wrap: wrap;
 }
 .tk .srcs {
   display: inline-flex;
-  border: 1px solid var(--rule);
-  border-radius: 10px;
-  overflow: hidden;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-ctl);
+  background: var(--gray-bg);
 }
 .tk .srcs button {
   border: 0;
-  background: var(--panel);
-  color: var(--ink);
-  padding: 6px 12px;
-  font-size: 13px;
-  font-weight: 600;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink-2);
+  padding: 4px 12px;
+  font-size: var(--fs-s);
+  font-weight: 500;
   cursor: pointer;
 }
 .tk .srcs button.on {
-  background: var(--ink);
-  color: var(--panel);
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow:
+    var(--shadow-sm),
+    0 0 0 1px var(--rule);
 }
 .tk .kinds {
   display: grid;
@@ -2218,12 +2233,12 @@ svg.tg .lane-drop.glow {
   gap: 3px;
   padding: 8px 4px;
   border: 1px solid var(--rule);
-  border-radius: 10px;
+  border-radius: var(--r-ctl);
   background: var(--panel);
   color: var(--ink);
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  font-weight: 500;
 }
 .tk .kind:hover {
   border-color: var(--ink-3);
@@ -2247,11 +2262,12 @@ svg.tg .lane-drop.glow {
   background: var(--panel);
   color: var(--ink);
   border-radius: 8px;
-  padding: 7px 9px;
-  font-size: 13px;
+  padding: 6px 10px;
+  font-size: var(--fs-s);
   font-weight: 400;
   font-family: inherit;
   min-width: 0;
+  min-height: 32px;
 }
 .tk .field select,
 .tk .field textarea,
@@ -2261,7 +2277,16 @@ svg.tg .lane-drop.glow {
 .tk .field textarea {
   min-height: 64px;
   resize: vertical;
-  font-size: 14px;
+  font-size: var(--fs);
+}
+.tk .field input:focus-visible,
+.tk .field select:focus-visible,
+.tk .field textarea:focus-visible,
+.tk .tsearch input:focus-visible,
+.tk .qsearch input:focus-visible {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 18%, transparent);
 }
 .tk .pick {
   display: grid;
@@ -2273,10 +2298,10 @@ svg.tg .lane-drop.glow {
   align-items: center;
   border: 1px solid var(--rule);
   background: var(--panel);
-  border-radius: 10px;
+  border-radius: var(--r-ctl);
   padding: 8px 10px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--fs-s);
   line-height: 1.4;
 }
 .tk .pcard.on {
@@ -2288,7 +2313,7 @@ svg.tg .lane-drop.glow {
   gap: 6px;
   align-items: center;
   border: 1px solid var(--rule);
-  border-radius: 10px;
+  border-radius: var(--r-ctl);
   padding: 4px 4px 4px 10px;
   margin-top: 10px;
   color: var(--ink-3);
@@ -2313,12 +2338,12 @@ svg.tg .lane-drop.glow {
 }
 .tk .share-row b {
   display: block;
-  font-size: 13.5px;
+  font-size: var(--fs);
 }
 .tk .share-row small {
   display: block;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--fs-xs);
 }
 .tk .share-add {
   display: flex;
@@ -2347,9 +2372,9 @@ svg.tg .lane-drop.glow {
   border: 1px solid color-mix(in srgb, var(--panel) 40%, transparent);
   background: none;
   color: var(--panel);
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 4px 10px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
 }
 
@@ -2364,9 +2389,15 @@ svg.tg .lane-drop.glow {
   .tk .move-hint-slot {
     top: 66px;
   }
+  .tk .drawer-slot {
+    inset: 0 0 0 auto;
+    max-width: 100%;
+  }
   .tk .drawer {
     top: 66px;
     height: min(calc(100vh - 66px), 100%);
+    border-width: 0 0 0 1px;
+    border-radius: 0;
   }
   .tk .move-hint {
     white-space: normal;

@@ -65,6 +65,8 @@ type Props = {
 };
 
 const color = (tone: Tone) => `var(--${tone})`;
+// Status colours are tuned for lines; text takes the darker -ink step where one exists, for AA contrast.
+const ink = (tone: Tone) => `var(--${tone}-ink, var(--${tone}))`;
 const path = ({ from, c1, c2, to }: Curve) =>
   `M${from.x} ${from.y} C${c1.x} ${c1.y} ${c2.x} ${c2.y} ${to.x} ${to.y}`;
 const cls = (...names: Array<string | false | null | undefined>) => names.filter(Boolean).join(' ');
@@ -510,7 +512,7 @@ export function TrackerGraph(props: Props) {
                 x={g.dateAnchor === 'end' ? -6 : 6}
                 y={-6}
                 textAnchor={g.dateAnchor}
-                style={{ fill: color(g.tone) }}
+                style={{ fill: ink(g.tone) }}
               >
                 {g.dateLabel}
               </text>
@@ -636,7 +638,7 @@ export function TrackerGraph(props: Props) {
               x={m.labelX - m.x}
               y={m.labelY - m.y}
               textAnchor={m.anchor}
-              style={m.changed ? undefined : { fill: color(m.labelTone) }}
+              style={m.changed ? undefined : { fill: ink(m.labelTone) }}
             >
               {moved?.label ?? m.label}
             </text>
