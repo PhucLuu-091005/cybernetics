@@ -26,9 +26,10 @@ export function isUniqueViolation(error: unknown, constraint: string): boolean {
   }
   return false;
 }
-/** A person opens a project through its workspace, or through a member row of their own that is not removed. */
+/** A person opens a project through its workspace, or through a member row of their own; a removed member row closes it either way. */
 export function projectOpenTo(userId: string): SQL {
-  return sql`(exists (select 1 from ${workspaceMembers} where ${workspaceMembers.workspaceId} = ${projects.workspaceId} and ${workspaceMembers.userId} = ${userId}) or exists (select 1 from ${trackerMembers} where ${trackerMembers.projectId} = ${projects.id} and ${trackerMembers.userId} = ${userId} and ${trackerMembers.removedAt} is null))`;
+  const own = sql`select 1 from ${trackerMembers} where ${trackerMembers.projectId} = ${projects.id} and ${trackerMembers.userId} = ${userId}`;
+  return sql`((exists (select 1 from ${workspaceMembers} where ${workspaceMembers.workspaceId} = ${projects.workspaceId} and ${workspaceMembers.userId} = ${userId}) and not exists (${own} and ${trackerMembers.removedAt} is not null)) or exists (${own} and ${trackerMembers.removedAt} is null))`;
 }
 /** Membership decides access; callers write with the returned row's workspaceId, never ctx.workspaceId. */
 export async function findProjectForActor(

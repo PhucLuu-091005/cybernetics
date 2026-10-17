@@ -1137,6 +1137,7 @@ export function TrackerScreen({
       <TopBar
         session={session}
         account={account}
+        userId={userId}
         view={view}
         cr={cr}
         state={state}

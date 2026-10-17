@@ -23,24 +23,46 @@ export type UserCreatedHook = (
   tx: Tx,
   ctx: { userId: string; workspaceId: string },
 ) => Promise<void>;
-/** An invite to this email becomes the person's member, unless they already have one in that project. */
+/** An invite to this email becomes the person's member; a person who was removed from that project gets their old member back. */
 async function linkInvites(
   tx: Tx,
   user: { id: string; name: string; email: string | null },
 ): Promise<void> {
   const email = user.email?.trim().toLowerCase();
   if (!email) return;
-  await tx
-    .update(trackerMembers)
-    .set({ userId: user.id, name: user.name })
+  const invites = await tx
+    .select()
+    .from(trackerMembers)
     .where(
       and(
         isNull(trackerMembers.userId),
         isNull(trackerMembers.removedAt),
         eq(trackerMembers.email, email),
-        sql`not exists (select 1 from tracker_members own where own.project_id = tracker_members.project_id and own.user_id = ${user.id})`,
       ),
-    );
+    )
+    .for('update');
+  for (const invite of invites) {
+    const [old] = await tx
+      .select()
+      .from(trackerMembers)
+      .where(
+        and(eq(trackerMembers.projectId, invite.projectId), eq(trackerMembers.userId, user.id)),
+      )
+      .limit(1);
+    if (!old) {
+      await tx
+        .update(trackerMembers)
+        .set({ userId: user.id, name: user.name })
+        .where(eq(trackerMembers.id, invite.id));
+    } else if (old.removedAt !== null) {
+      // Change requests and history name the old member, so it comes back instead of the invite.
+      await tx.delete(trackerMembers).where(eq(trackerMembers.id, invite.id));
+      await tx
+        .update(trackerMembers)
+        .set({ removedAt: null, access: invite.access, email, name: user.name })
+        .where(eq(trackerMembers.id, old.id));
+    }
+  }
 }
 export class DbIdentityStore implements HttpIdentityStore {
   constructor(

@@ -15,6 +15,7 @@ const members: Member[] = [
   { id: 'minh', name: 'Minh Trần', roleLabel: 'Owner', color: '#111', userId: 'u1', active: true },
   { id: 'lan', name: 'Lan Phạm', roleLabel: 'Lead', color: '#222', userId: null, active: true },
   { id: 'gone', name: 'Bảo Ngô', roleLabel: '', color: '#333', userId: null, active: false },
+  { id: 'mai', name: 'Mai Vũ', roleLabel: '', color: '#444', userId: 'u2', active: true },
 ];
 const draft = (num: number, status: Cr['status'], author = 'lan'): Cr => ({
   id: `cr${num}`,
@@ -98,6 +99,7 @@ function render(
     createElement(TopBar, {
       session,
       account: { name: 'Signed In', detail: 'signed@example.com' },
+      userId: 'u1',
       view: cr ? cr.num : 'main',
       cr,
       state: { ...base, queue },
@@ -198,10 +200,12 @@ describe('TopBar', () => {
     expect(count(render(members[1], NONE, NO_FILTER, [cr], cr))).toBe(1);
   });
 
-  it('lists only the members who can act in the Demo select', () => {
+  it('lists only the seeded members who can act and your own member in the Demo select', () => {
     const html = render(members[1]);
     expect(html).toContain('>Lan Phạm</option>');
     expect(html).not.toContain('Bảo Ngô</option>');
+    expect(html).not.toContain('Mai Vũ</option>');
+    expect(html).toContain('>Minh Trần</option>');
   });
 
   it('opens a menu with the theme and Sign out from the acting member, or from the signed-in person', () => {

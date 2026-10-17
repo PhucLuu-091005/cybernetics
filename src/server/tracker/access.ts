@@ -34,7 +34,11 @@ export function resolveActing(
     throw new AppError('FORBIDDEN', 'Working as another person works only in a demo project');
   if (!canSwitch)
     throw new AppError('FORBIDDEN', 'Only the person of this sandbox can work as another person');
-  const member = members.find((item) => item.id === actAs && item.active);
+  // A real person speaks only for themself, so the sandbox plays the seeded people and its own member.
+  const member = members.find(
+    (item) =>
+      item.id === actAs && item.active && (item.userId === null || item.userId === ctx.userId),
+  );
   if (!member) throw new AppError('FORBIDDEN', 'That person is not a member of this project');
   return member;
 }
