@@ -1,5 +1,4 @@
-/* The change request page: the clash picks in its side panel and the Before / After switch.
-   The rules sit under .tk because the global .seg rules stay loaded. */
+/* The rules sit under .tk because the global .seg rules stay loaded. */
 .tk .res-box {
   padding: 10px 0 4px;
 }
