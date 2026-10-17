@@ -33,7 +33,6 @@ export type NewProjectBody = {
 
 const teamsOf = (form: NewProjectForm) => ProjectTeamsSchema.safeParse(form.teams);
 
-/** Adds a typed team to the list, or says why it cannot go in; a blank name changes nothing. */
 export function addTeamName(
   teams: readonly string[],
   raw: string,

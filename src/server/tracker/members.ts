@@ -60,7 +60,6 @@ export type ProjectMember = {
   you: boolean;
   projectLead: boolean;
   grants: Grants;
-  /** The grants plus the project lead and team lead rules. */
   rights: Rights;
   teamIds: string[];
 };
@@ -70,7 +69,6 @@ export type ProjectTeam = {
   name: string;
   leadId: string | null;
   memberIds: string[];
-  /** Work items of this team in Main. */
   workItems: number;
   /** Why the team cannot be deleted, or null. */
   keep: string | null;
@@ -293,7 +291,6 @@ function liveRow(rows: Row[], memberId: string): Row {
   return row;
 }
 
-/** A person without the create right hands each open change request they edit back to its author, or to the project lead. */
 async function releaseEditing(tx: Tx, scope: Scope) {
   const projectId = scope.project.id;
   const canAct = new Set(
