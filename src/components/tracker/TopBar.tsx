@@ -13,6 +13,7 @@ type Props = HiddenMenuProps & {
   session: Session;
   /** The signed-in person, for the menu when they act as no member. */
   account: Account;
+  userId: string;
   view: TrackerView;
   cr: Cr | null;
   state: TrackerState;
@@ -168,7 +169,7 @@ export function TopBar(props: Props) {
             onChange={(event) => onActAs(event.target.value)}
           >
             {payload.members
-              .filter((m) => m.active)
+              .filter((m) => m.active && (m.userId === null || m.userId === props.userId))
               .map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name}

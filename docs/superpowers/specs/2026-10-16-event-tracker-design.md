@@ -123,16 +123,16 @@ Every write locks the project row (existing `lockProject`) or the CR row, checks
 ### 3.6 Members, acting member and permissions (`src/server/tracker/access.ts`)
 
 - The project creator gets a member linked to their user id; it is `owner_member_id`.
-- Access: a person opens a project through its workspace or through a member row of their own that is not removed (`projectOpenTo` in `src/server/db/tx.ts`, also in the identity store and the project list). Agent tokens follow the same rule.
+- Access: a person opens a project through its workspace or through a member row of their own that is not removed; a removed member row closes the project, also to a person of its workspace (`projectOpenTo` in `src/server/db/tx.ts`, also in the identity store and the project list). Agent tokens follow the same rule.
 - Acting member: in a demo project, the cookie `pg_act_<projectId>` names a member of that project, and only a member of the project's workspace may set it; otherwise the member linked to the session user. Only an active member acts: not a viewer, not removed and not a pending invite. With no member, the person can read but not write.
 - Rules (server side, inside the transaction):
   - create CR, comment, add to Queue, dismiss a Queue card: any member.
   - add op, undo, remove op, share, mark ready, edit again: the CR's current editor, and the status allows it (draft for ops and ready; ready for edit again).
   - ask: a member with edit right (author or share `edit`) who is not the editor; cancel ask: the asker; hand over: the editor, to a member with edit right; not now: the editor.
   - merge, request changes, close without merging: the owner member; merge needs status `ready` and a pick for every clash; the server recomputes clashes and rejects stale picks.
-  - act as: only in demo projects, only active members of that project, only for a person of the project's workspace.
-  - list the members: anyone who opens the project. Invite, change a role, make another member the owner, remove: the owner member (`src/server/tracker/members.ts`). Removing a member or making them a viewer hands each open CR they edit back to its author, or to the owner, and drops their asks.
-  - sign-in: an invite whose email matches the signed-in email becomes that person's member, unless they already have one in that project.
+  - act as: only in demo projects, only for a person of the project's workspace, and only as an active seeded member (no user) or as their own member, never as an invited person.
+  - list the members: anyone who opens the project. Invite, change a role, make another member the owner, remove: the owner member (`src/server/tracker/members.ts`). Removing a member or making them a viewer hands each open CR they edit back to its author, or to the owner, and drops their asks and shares; removal also revokes their agent tokens for the project.
+  - sign-in: an invite whose email matches the signed-in email becomes that person's member. If the person has a removed member in that project, that member comes back with the role of the invite, and the invite goes away.
 - Agents (MCP tokens) act as the token user's member and may only read and add to the Queue.
 
 ### 3.7 API (`src/app/api/v1/projects/[projectId]/tracker/...`)

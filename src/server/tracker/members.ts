@@ -1,7 +1,15 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { IdSchema, type ActorContext } from '../../contracts';
-import { trackerCrAsks, trackerCrs, trackerMembers, trackerProjects, users } from '../db/schema';
+import {
+  agentTokens,
+  trackerCrAsks,
+  trackerCrShares,
+  trackerCrs,
+  trackerMembers,
+  trackerProjects,
+  users,
+} from '../db/schema';
 import { isUniqueViolation, withTransaction, type Db, type Tx } from '../db/tx';
 import { AppError, invalidInput } from '../errors';
 import { requireScope } from '../http/scopes';
@@ -205,6 +213,10 @@ async function releaseEditing(tx: Tx, scope: Scope, rows: Row[], memberId: strin
   await tx
     .delete(trackerCrAsks)
     .where(and(eq(trackerCrAsks.projectId, projectId), eq(trackerCrAsks.memberId, memberId)));
+  // A later invite brings the member back, and must not bring back old edit rights.
+  await tx
+    .delete(trackerCrShares)
+    .where(and(eq(trackerCrShares.projectId, projectId), eq(trackerCrShares.memberId, memberId)));
 }
 
 const NEEDS_NEW_OWNER = 'Make another member the owner first';
@@ -260,5 +272,16 @@ export async function removeMember(
       .set({ removedAt: sql`now()` })
       .where(and(eq(trackerMembers.projectId, scope.project.id), eq(trackerMembers.id, target.id)));
     await releaseEditing(tx, scope, rows, target.id);
+    if (target.userId)
+      await tx
+        .update(agentTokens)
+        .set({ revokedAt: sql`now()` })
+        .where(
+          and(
+            eq(agentTokens.projectId, scope.project.id),
+            eq(agentTokens.userId, target.userId),
+            isNull(agentTokens.revokedAt),
+          ),
+        );
   });
 }

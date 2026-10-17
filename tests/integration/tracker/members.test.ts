@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { and, eq } from 'drizzle-orm';
 import { DbIdentityStore } from '../../../src/server/db/identity-store';
+import { agentTokens, trackerCrShares } from '../../../src/server/db/schema';
 import { createEmptyProject, listProjects } from '../../../src/server/domain/projects';
 import {
   changeMemberRole,
@@ -306,5 +308,126 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
     expect(
       (results.find((r) => r.status === 'rejected') as PromiseRejectedResult).reason,
     ).toMatchObject({ code: 'CONFLICT' });
+  });
+  it('lets the sandbox person work as a seeded member, never as an invited person', async () => {
+    await fresh();
+    const address = email();
+    const person = await signIn(address);
+    const invited = await inviteMember(t.db, demo.owner, {
+      ...own(),
+      email: address,
+      role: 'member',
+    });
+    const id = invited.members.find((m) => m.email === address)!.id;
+    await expect(
+      getTrackerPayload(t.db, demo.owner, { ...own(), actAs: id }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await changeMemberRole(t.db, demo.owner, { ...own(), memberId: id, role: 'owner' });
+    await expect(
+      changeMemberRole(t.db, demo.owner, {
+        ...own(),
+        actAs: id,
+        memberId: demo.ids.minh,
+        role: 'owner',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect((await listProjectMembers(t.db, person, own())).canManage).toBe(true);
+  });
+
+  it('closes the project to a removed person even through the workspace', async () => {
+    await fresh();
+    const address = email();
+    const person = await signIn(address);
+    const invited = await inviteMember(t.db, demo.owner, {
+      ...own(),
+      email: address,
+      role: 'member',
+    });
+    const id = invited.members.find((m) => m.email === address)!.id;
+    await changeMemberRole(t.db, demo.owner, { ...own(), memberId: id, role: 'owner' });
+    await removeMember(t.db, person, { ...own(), memberId: demo.ids.minh });
+    await expect(getTrackerPayload(t.db, demo.owner, own())).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    expect((await listProjects(t.db, demo.owner)).map((p) => p.id)).not.toContain(demo.projectId);
+  });
+
+  it('revokes the agent tokens and drops the shares of a removed member', async () => {
+    await fresh();
+    const address = email();
+    const person = await signIn(address);
+    const invited = await inviteMember(t.db, demo.owner, {
+      ...own(),
+      email: address,
+      role: 'member',
+    });
+    const id = invited.members.find((m) => m.email === address)!.id;
+    await crAction(t.db, demo.owner, {
+      ...as('ha'),
+      num: 4,
+      action: 'share',
+      memberId: id,
+      permission: 'edit',
+    });
+    await t.db.insert(agentTokens).values({
+      workspaceId: demo.workspaceId,
+      projectId: demo.projectId,
+      userId: person.userId,
+      prefix: 'inv_test',
+      hash: randomUUID(),
+      label: 'Agent',
+      scopes: ['project:read'],
+      idempotencyKey: randomUUID(),
+      expiresAt: '2099-01-01T00:00:00Z',
+    });
+    await removeMember(t.db, demo.owner, { ...own(), memberId: id });
+    const tokens = await t.db
+      .select()
+      .from(agentTokens)
+      .where(and(eq(agentTokens.projectId, demo.projectId), eq(agentTokens.userId, person.userId)));
+    expect(tokens.every((token) => token.revokedAt !== null)).toBe(true);
+    expect(
+      await t.db.select().from(trackerCrShares).where(eq(trackerCrShares.memberId, id)),
+    ).toEqual([]);
+  });
+
+  it('hands the drafts of a new viewer back to the author or the owner', async () => {
+    await fresh();
+    await crAction(t.db, demo.owner, {
+      ...as('ha'),
+      num: 4,
+      action: 'share',
+      memberId: demo.ids.lan,
+      permission: 'edit',
+    });
+    await crAction(t.db, demo.owner, { ...as('ha'), num: 4, action: 'handover', to: demo.ids.lan });
+    await changeMemberRole(t.db, demo.owner, { ...own(), memberId: demo.ids.lan, role: 'viewer' });
+    const payload = await getTrackerPayload(t.db, demo.owner, own());
+    const cr = payload.crs.find((c) => c.num === 4)!;
+    expect(cr.editor).toBe(demo.ids.ha);
+    expect(cr.shares.map((share) => share.memberId)).not.toContain(demo.ids.lan);
+  });
+
+  it('links a new email of a person who was removed, by bringing back their old member', async () => {
+    await fresh();
+    const first = email();
+    const subject = `google:${randomUUID()}`;
+    const store = new DbIdentityStore(t.db);
+    await store.provisionUser({ subject, email: first, name: 'Moving Person' });
+    const invited = await inviteMember(t.db, demo.owner, {
+      ...own(),
+      email: first,
+      role: 'member',
+    });
+    const id = invited.members.find((m) => m.email === first)!.id;
+    await removeMember(t.db, demo.owner, { ...own(), memberId: id });
+    const second = email();
+    await inviteMember(t.db, demo.owner, { ...own(), email: second, role: 'viewer' });
+    await store.provisionUser({ subject, email: second, name: 'Moving Person' });
+    const list = await listProjectMembers(t.db, demo.owner, own());
+    const rows = list.members.filter((m) => m.email === second || m.id === id);
+    expect(rows).toEqual([
+      expect.objectContaining({ id, email: second, role: 'viewer', pending: false }),
+    ]);
   });
 });
