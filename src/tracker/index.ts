@@ -12,3 +12,4 @@ export * from './search';
 export * from './offsets';
 export * from './focus';
 export * from './filter';
+export * from './deadline';

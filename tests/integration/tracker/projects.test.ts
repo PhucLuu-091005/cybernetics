@@ -129,6 +129,36 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker projects', () => {
     ).rejects.toMatchObject({ code: 'VALIDATION' });
   });
 
+  it('keeps an optional time on the first milestone and refuses a time that is not HH:mm', async () => {
+    const ctx = await testActor(t.db);
+    const project = await createEmptyProject(t.db, ctx, {
+      title: 'Timed',
+      clientName: 'T',
+      teams: ['QA'],
+      milestone: { name: 'Client call', date: '2026-11-02', time: '17:00' },
+    });
+    const payload = await getTrackerPayload(t.db, ctx, { projectId: project.id });
+    expect(payload.base.milestones).toEqual([
+      {
+        id: expect.any(String),
+        name: 'Client call',
+        planned: '2026-11-02',
+        plannedTime: '17:00',
+        firstPlanned: '2026-11-02',
+        firstPlannedTime: '17:00',
+        moves: [],
+      },
+    ]);
+    await expect(
+      createEmptyProject(t.db, ctx, {
+        title: 'Late',
+        clientName: 'L',
+        teams: ['QA'],
+        milestone: { name: 'Client call', date: '2026-11-02', time: '5pm' },
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+  });
+
   it('reads a project without a tracker as NOT_FOUND with a clear message', async () => {
     const ctx = await testActor(t.db);
     const project = await createProject(t.db, ctx, { title: 'Old', clientName: 'O' });

@@ -2,11 +2,13 @@ import {
   KIND_LABEL,
   STATUS_LABEL,
   type EventKind,
+  type Milestone,
   type Status,
   type TrackerEvent,
   type TrackerState,
   type WorkItem,
 } from './model';
+import { deadlinesByItem, formatDeadline, milestoneDeadline } from './deadline';
 import { descendantsOf } from './focus';
 import { drawnTimes, type Offsets } from './offsets';
 import type { Marks } from './ops';
@@ -129,6 +131,7 @@ export type LayoutDeadline = {
   workItemId: string;
   milestoneId: string;
   date: string;
+  time: string | null;
   x: number;
   y: number;
   tone: Tone;
@@ -260,7 +263,9 @@ type Ctx = {
   rows: Map<string, LayoutRow>;
   name: (id: string) => string;
   dayStart: (date: string) => number;
-  noonX: (date: string) => number;
+  /** The milestone deadline of each member work item. */
+  deadlines: Map<string, number>;
+  deadlineX: (m: Milestone) => number;
   lateFrom: (w: WorkItem) => number;
 };
 
@@ -500,12 +505,12 @@ function handoffsOf(c: Ctx): LayoutHandoff[] {
   });
 }
 
-/** Owner rule: done after the milestone day, or open while today or its own date is past that day. */
-function makesLate(c: Ctx, w: WorkItem, planned: string): boolean {
+/** Owner rule: done after the deadline, or open while now or its own planned day is past it. */
+function makesLate(c: Ctx, w: WorkItem, m: Milestone): boolean {
   const info = c.infos.get(w.id)!;
-  const after = (day: string) => compareDay(day, planned) > 0;
-  if (info.finishedAt) return after(dayOf(info.finishedAt, c.tz));
-  return after(c.today) || after(w.plannedFinish);
+  const deadline = milestoneDeadline(m, c.tz);
+  if (info.finishedAt) return Date.parse(info.finishedAt) > deadline;
+  return Date.parse(c.view.asOf) > deadline || compareDay(w.plannedFinish, m.planned) > 0;
 }
 
 type Span = [number, number];
@@ -548,20 +553,16 @@ function deadlinesOf(
     const m = r.milestoneId ? byId.get(r.milestoneId) : undefined;
     if (!m) return [];
     // A deadline left of the window would sit on the edge and look like the start of the row.
-    if (c.dayStart(m.planned) + 12 * HOUR < c.startMs) return [];
+    if (milestoneDeadline(m, c.tz) < c.startMs) return [];
     const first = !named.has(`${r.teamId}|${m.id}`);
     named.add(`${r.teamId}|${m.id}`);
     const w = c.items.get(r.id)!;
     const { status } = statusOf.get(m.id)!;
     const tone = STATUS_TONE[status];
     const changed = !!c.marks?.dates.has(`ms:${m.id}`);
-    const reason = makesLate(c, w, m.planned)
-      ? r.done
-        ? 'finished after it'
-        : 'makes it late'
-      : null;
-    const x = c.noonX(m.planned);
-    const text = `${m.name} · deadline ${formatDay(m.planned)} · ${STATUS_LABEL[status]}`;
+    const reason = makesLate(c, w, m) ? (r.done ? 'finished after it' : 'makes it late') : null;
+    const x = c.deadlineX(m);
+    const text = `${m.name} · deadline ${formatDeadline(m.planned, m.plannedTime)} · ${STATUS_LABEL[status]}`;
     const width = m.name.length * LABEL_CHAR;
     const free = ([a, b]: Span) =>
       a >= X0 && b <= c.width - 2 && (busy.get(r.id) ?? []).every(([p, q]) => b < p || a > q);
@@ -573,6 +574,7 @@ function deadlinesOf(
         workItemId: r.id,
         milestoneId: m.id,
         date: m.planned,
+        time: m.plannedTime ?? null,
         x,
         y: r.y,
         tone,
@@ -593,7 +595,7 @@ function deadlinesOf(
 function trunkSegmentsOf(c: Ctx, statusOf: Map<string, MsStatus>): LayoutTrunkSegment[] {
   return c.state.milestones.flatMap((m): LayoutTrunkSegment[] => {
     const { status, finishedAt } = statusOf.get(m.id)!;
-    const mx = c.noonX(m.planned);
+    const mx = c.deadlineX(m);
     const seg = (x1: number, x2: number, tone: Tone) => [
       { milestoneId: m.id, x1, x2, y: TRUNK_Y, tone },
     ];
@@ -656,7 +658,7 @@ function ticksOf(c: Ctx, start: string, endMs: number): LayoutTick[] {
 }
 
 function groupsOf(c: Ctx, w: WorkItem, r: LayoutRow, info: ItemInfo): LayoutEventGroup[] {
-  const times = drawnTimes(info.events, c.view.offsets ?? {}, c.tz);
+  const times = drawnTimes(info.events, c.view.offsets ?? {}, c.tz, c.deadlines);
   const real = new Map(info.events.map((e, i) => [e.id, i]));
   const drawn = info.events
     .map((e) => ({ e, at: times.get(e.id)! }))
@@ -698,16 +700,18 @@ const MS_GAP = 14;
 
 function placeMilestones(c: Ctx, statusOf: Map<string, MsStatus>): LayoutMilestone[] {
   const placed: LayoutMilestone[] = [];
-  const sorted = [...c.state.milestones].sort((a, b) => compareDay(a.planned, b.planned));
+  const sorted = [...c.state.milestones].sort(
+    (a, b) => milestoneDeadline(a, c.tz) - milestoneDeadline(b, c.tz),
+  );
   for (const m of sorted) {
     const { status } = statusOf.get(m.id)!;
     const tone = STATUS_TONE[status];
     const changed = !!c.marks?.milestones.has(m.id);
-    const mx = c.noonX(m.planned);
+    const mx = c.deadlineX(m);
     const right = mx > c.x1 - 280;
     const previous = c.marks?.dates.has(`ms:${m.id}`) ? m.moves.at(-1) : undefined;
-    const was = previous ? ` (was ${formatDay(previous.from)})` : '';
-    const label = `${m.name} · ${formatDay(m.planned)} · ${STATUS_LABEL[status]}${was}`;
+    const was = previous ? ` (was ${formatDeadline(previous.from, previous.fromTime)})` : '';
+    const label = `${m.name} · ${formatDeadline(m.planned, m.plannedTime)} · ${STATUS_LABEL[status]}${was}`;
     const w = label.length * 5.9;
     const x0 = right ? mx - MS_GAP - w : mx + MS_GAP;
     const x1 = x0 + w;
@@ -804,7 +808,8 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     rows: new Map(),
     name: (id) => (id === 'agent' ? 'Agent' : (people.get(id) ?? id)),
     dayStart,
-    noonX: (date) => Math.min(x1 - 4, x(dayStart(date) + 12 * HOUR)),
+    deadlines: deadlinesByItem(state, tz),
+    deadlineX: (m) => Math.min(x1 - 4, x(milestoneDeadline(m, tz))),
     lateFrom: (w) => dayStart(addDays(w.plannedFinish, 1)),
   };
   const { lanes, height } = placeRows(c);

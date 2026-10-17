@@ -15,23 +15,28 @@ export type NewProjectForm = {
   teams: string;
   milestoneName: string;
   milestoneDate: string;
+  /** HH:mm, or empty for the end of the day. */
+  milestoneTime?: string;
 };
 export type NewProjectBody = {
   title: string;
   clientName: string;
   teams: string[];
-  milestone?: { name: string; date: string };
+  milestone?: { name: string; date: string; time?: string };
 };
 
 const teamsOf = (form: NewProjectForm) => ProjectTeamsSchema.safeParse(form.teams.split(/\r?\n/));
 
 /** null: no first milestone; a string: why the server would refuse it. */
-function milestoneOf(form: NewProjectForm): { name: string; date: string } | null | string {
+function milestoneOf(
+  form: NewProjectForm,
+): NonNullable<NewProjectBody['milestone']> | null | string {
   const name = form.milestoneName.trim(),
-    date = form.milestoneDate;
+    date = form.milestoneDate,
+    time = form.milestoneTime ?? '';
   if (!name && !date) return null;
   if (!name || !date) return MILESTONE_PROBLEM;
-  const parsed = FirstMilestoneSchema.safeParse({ name, date });
+  const parsed = FirstMilestoneSchema.safeParse({ name, date, ...(time ? { time } : {}) });
   return parsed.success ? (parsed.data ?? null) : parsed.error.issues[0].message;
 }
 

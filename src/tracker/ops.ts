@@ -9,6 +9,7 @@ import {
 } from './model';
 import type { QueueRow } from './payload';
 import type { OpDescriptionSchema, OpSchema } from './schemas';
+import { formatDeadline } from './deadline';
 import { DEFAULT_TIME_ZONE, formatDay, formatStamp } from './time';
 
 export type Op = z.infer<typeof OpSchema>;
@@ -225,17 +226,28 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
       };
     }
     case 'msDate': {
-      const { milestoneId, date, why, by, at } = op.a;
+      const { milestoneId, date, time, why, by, at } = op.a;
       assertReason(why);
       const m = find(s.milestones, milestoneId, 'milestone');
       const old = m.planned;
-      m.moves.push({ from: old, to: date, why, by, at });
+      const oldTime = m.plannedTime;
+      m.moves.push({
+        from: old,
+        ...(oldTime ? { fromTime: oldTime } : {}),
+        to: date,
+        ...(time ? { toTime: time } : {}),
+        why,
+        by,
+        at,
+      });
       m.planned = date;
+      if (time) m.plannedTime = time;
+      else delete m.plannedTime;
       return {
         item: m.name,
         change: 'planned date moved',
-        before: `planned ${formatDay(old)}`,
-        after: `planned ${formatDay(date)}`,
+        before: `planned ${formatDeadline(old, oldTime)}`,
+        after: `planned ${formatDeadline(date, time)}`,
         why,
       };
     }
@@ -272,15 +284,23 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
       };
     }
     case 'newMs': {
-      const { id, name, planned, members } = op.a;
+      const { id, name, planned, time, members } = op.a;
       assertNew(s.milestones, id, 'milestone');
-      s.milestones.push({ id, name, planned, firstPlanned: planned, moves: [] });
+      s.milestones.push({
+        id,
+        name,
+        planned,
+        ...(time ? { plannedTime: time } : {}),
+        firstPlanned: planned,
+        ...(time ? { firstPlannedTime: time } : {}),
+        moves: [],
+      });
       for (const item of s.workItems) if (members.includes(item.id)) item.milestoneId = id;
       return {
         item: name,
         change: 'added',
         before: '',
-        after: `planned ${formatDay(planned)}, ${plural(members.length, 'work item')}`,
+        after: `planned ${formatDeadline(planned, time)}, ${plural(members.length, 'work item')}`,
       };
     }
     case 'rename': {
@@ -454,7 +474,7 @@ function canonical(value: unknown): unknown {
 function compared(x: Pick<Op, 'op' | 'a'>): unknown {
   const op = x as Op;
   if (op.op === 'due') return [op.op, op.a.workItemId, op.a.date];
-  if (op.op === 'msDate') return [op.op, op.a.milestoneId, op.a.date];
+  if (op.op === 'msDate') return [op.op, op.a.milestoneId, op.a.date, op.a.time ?? null];
   return [op.op, op.a];
 }
 

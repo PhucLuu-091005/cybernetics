@@ -27,7 +27,7 @@ Replace `<host>` with the application host. The server rejects a request with a 
 | Tool | Scope | Result |
 |---|---|---|
 | `get_project` | `project:read` | The project title, client name and time zone. |
-| `get_tracker` | `project:read` | Main: people (id and name), teams, work items with status and planned finish, milestones with status, the open change requests, `asOf` and the Main `revision`. |
+| `get_tracker` | `project:read` | Main: people (id and name), teams, work items with status and planned finish, milestones with status and deadline (`planned`, and `plannedTime` as `HH:mm` in the project time zone, or `null` when the deadline is the end of that day), the open change requests, `asOf` and the Main `revision`. |
 | `list_queue` | `project:read` | The events and work items that wait in the Queue, newest first. `agent` is true on a card that an agent added. Pages (section 5). |
 | `add_queue_event` | `queue:add` | Adds one event to the Queue and returns it. |
 | `add_queue_item` | `queue:add` | Adds one work item to the Queue and returns it. |

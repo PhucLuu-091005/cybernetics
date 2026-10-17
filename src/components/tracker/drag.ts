@@ -2,6 +2,7 @@ import {
   addDays,
   compareDay,
   dayOf,
+  deadlineMs,
   startOfDayInstant,
   type Point,
   type TrackerLayout,
@@ -136,9 +137,34 @@ export function noonX(layout: TrackerLayout, date: string, tz: string): number {
   return Math.min(layout.x1 - 4, layout.x(Date.parse(startOfDayInstant(date, tz)) + 12 * HOUR));
 }
 
-/** The first and last day of the window stay out of reach, as in the prototype. */
-export function dayAtX(layout: TrackerLayout, x: number, tz: string): string {
-  const day = dayOf(new Date(layout.t(x)).toISOString(), tz);
+export function deadlineX(
+  layout: TrackerLayout,
+  date: string,
+  time: string | null | undefined,
+  tz: string,
+): number {
+  return Math.min(layout.x1 - 4, layout.x(deadlineMs(date, time, tz)));
+}
+
+const dayPart = (at: 'noon' | 'end' | string) => {
+  if (at === 'noon') return 12 * HOUR;
+  if (at === 'end') return 24 * HOUR;
+  const [h, m] = at.split(':').map(Number);
+  return h * HOUR + m * 60_000;
+};
+
+/**
+ * `at` is where the mark sits inside its day (noon, the end, or a time), so the day changes halfway
+ * between two marks. The first and last day of the window stay out of reach, as in the prototype.
+ */
+export function dayAtX(
+  layout: TrackerLayout,
+  x: number,
+  tz: string,
+  at: 'noon' | 'end' | string = 'noon',
+): string {
+  const t = layout.t(x) - dayPart(at) + 12 * HOUR;
+  const day = dayOf(new Date(t).toISOString(), tz);
   const first = addDays(layout.window.start, 1);
   const last = addDays(layout.window.end, -1);
   if (compareDay(day, first) < 0) return first;

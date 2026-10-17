@@ -6,6 +6,7 @@ import {
   dayOf,
   focusTree,
   formatDay,
+  formatDeadline,
   formatStamp,
   itemInfo,
   itemStatus,
@@ -38,6 +39,7 @@ import {
   type Session,
 } from './ContextBar';
 import { Icon, KIND_COLOR, KindIcon } from './icons';
+import { TimeInput } from './Modals';
 import { Moves } from './Pops';
 import type { TrackerActions, TrackerView } from './TrackerScreen';
 
@@ -111,14 +113,15 @@ export function MilestoneDrawer({
   const { dir, tz } = session;
   const m = state.milestones.find((x) => x.id === milestoneId);
   // Null until the editor types, so a hand-over or a poll shows the current milestone, not a stale copy.
-  const [draft, setDraft] = useState<{ name: string; date: string } | null>(null);
+  const [draft, setDraft] = useState<{ name: string; date: string; time: string } | null>(null);
   const [adding, setAdding] = useState('');
   if (!m) return null;
   const { status, members } = milestoneStatus(m, state.workItems, state.events, asOf, tz);
   const team = (id: string) => state.teams.find((t) => t.id === id)?.name ?? '';
   const name = edit && draft ? draft.name : m.name;
   const date = edit && draft ? draft.date : m.planned;
-  const unchanged = name === m.name && date === m.planned;
+  const time = edit && draft ? draft.time : (m.plannedTime ?? '');
+  const unchanged = name === m.name && date === m.planned && time === (m.plannedTime ?? '');
   const outside = state.workItems.filter((w) => w.milestoneId !== m.id);
   const pick = adding && outside.some((w) => w.id === adding) ? adding : (outside[0]?.id ?? '');
   return (
@@ -150,7 +153,7 @@ export function MilestoneDrawer({
             Name
             <input
               value={name}
-              onChange={(event) => setDraft({ name: event.target.value, date })}
+              onChange={(event) => setDraft({ name: event.target.value, date, time })}
             />
           </label>
           <label className="field">
@@ -159,16 +162,20 @@ export function MilestoneDrawer({
               type="date"
               value={date}
               onChange={(event) =>
-                event.target.value && setDraft({ name, date: event.target.value })
+                event.target.value && setDraft({ name, date: event.target.value, time })
               }
             />
+          </label>
+          <label className="field">
+            Time (optional)
+            <TimeInput value={time} onChange={(next) => setDraft({ name, date, time: next })} />
           </label>
           <div className="m-foot">
             <button
               className="btn btn-ink"
               type="button"
               disabled={unchanged || !name.trim() || busy}
-              onClick={() => actions.saveMilestone(m.id, name.trim(), date)}
+              onClick={() => actions.saveMilestone(m.id, name.trim(), date, time || null)}
             >
               <Icon name="check" /> Save milestone
             </button>
@@ -177,10 +184,15 @@ export function MilestoneDrawer({
       ) : (
         <dl className="facts">
           <dt>Planned date</dt>
-          <dd>{formatDay(m.planned)}</dd>
+          <dd>{formatDeadline(m.planned, m.plannedTime)}</dd>
         </dl>
       )}
-      <Moves moves={m.moves} first={m.firstPlanned} dir={dir} tz={tz} />
+      <Moves
+        moves={m.moves}
+        first={formatDeadline(m.firstPlanned, m.firstPlannedTime)}
+        dir={dir}
+        tz={tz}
+      />
       <p className="q-label">Work items in this milestone ({members.length})</p>
       {members.map((w) => {
         const finishedAt = itemInfo(w, state.events).finishedAt;
@@ -384,7 +396,7 @@ export function WorkItemDrawer({
               <button className="lnk" type="button" onClick={() => onMilestone(ms.id)}>
                 {ms.name}
               </button>{' '}
-              · {formatDay(ms.planned)}{' '}
+              · {formatDeadline(ms.planned, ms.plannedTime)}{' '}
               <span className={`badge st-${msStat}`}>{STATUS_LABEL[msStat]}</span>
             </>
           ) : (
@@ -418,7 +430,7 @@ export function WorkItemDrawer({
           </>
         )}
       </dl>
-      <Moves moves={item.moves} first={item.firstPlannedFinish} dir={dir} tz={tz} />
+      <Moves moves={item.moves} first={formatDay(item.firstPlannedFinish)} dir={dir} tz={tz} />
       <p className="q-label">Events ({events.length})</p>
       {!events.length && <p className="tip">No events yet.</p>}
       <ul className="ev-list">

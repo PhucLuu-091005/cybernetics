@@ -58,6 +58,17 @@ describe('new project body', () => {
       'milestone',
     );
   });
+  it('adds an optional time to the first milestone', () => {
+    expect(
+      newProjectBody(
+        form({ milestoneName: 'Go-live', milestoneDate: '2026-12-01', milestoneTime: '17:00' }),
+      ),
+    ).toMatchObject({ milestone: { name: 'Go-live', date: '2026-12-01', time: '17:00' } });
+    expect(
+      newProjectBody(form({ milestoneName: 'Go-live', milestoneDate: '2026-12-01' }))!.milestone,
+    ).not.toHaveProperty('time');
+    expect(newProjectBody(form({ milestoneName: 'Go-live', milestoneTime: '17:00' }))).toBeNull();
+  });
   it('names the team or milestone problem in plain words', () => {
     expect(newProjectProblem(form())).toBeNull();
     expect(newProjectProblem(form({ teams: '\n' }))).toBe('Add at least one team');
