@@ -168,6 +168,15 @@ test.describe('the tracker walkthrough', () => {
       await expect(drawer).toContainText('6 Oct → 10 Oct 17:00');
       await page.keyboard.press('Escape');
       await expect(drawer).toHaveCount(0);
+
+      const undo = side.getByRole('button', { name: 'Undo the last change' });
+      await page.getByRole('button', { name: 'Before', exact: true }).click();
+      await expect(undo).toHaveCount(0);
+      await expect(side.getByRole('button', { name: /^Undo this change/ })).toHaveCount(0);
+      await expect(side.getByRole('button', { name: /^Queue/ })).toHaveCount(0);
+      await page.getByRole('button', { name: 'After', exact: true }).click();
+      await side.getByRole('button', { name: /^Changes/ }).click();
+      await expect(undo).toBeVisible();
     });
 
     await test.step('4. Lan shares #5 with Khoa, Can edit', async () => {

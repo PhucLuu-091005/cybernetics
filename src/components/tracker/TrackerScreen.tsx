@@ -1266,7 +1266,7 @@ export function TrackerScreen({
           <CrSide
             session={session}
             model={model}
-            edit={mayEdit}
+            edit={edit}
             tab={sideTab}
             sel={sel}
             canPick={model.cr.status === 'ready' && can(payload, 'merge') && !frozen.changed}
