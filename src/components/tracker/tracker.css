@@ -3050,3 +3050,42 @@ svg.tg .lane-drop.glow {
     text-align: center;
   }
 }
+.tk .date-in {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.tk .date-in input[type='text'] {
+  width: 9.5em;
+}
+.tk .date-in input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+.tk .date-in .ib {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.tk .date-in .ib:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+/* The browser's calendar opens from this box, so it stays in the layout without showing. */
+.tk .date-in .date-pick {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}

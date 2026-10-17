@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { dayOf, startOfDayInstant, wallTimeInstant } from '../../../src/tracker/time';
+import {
+  dayOf,
+  formatDayYear,
+  parseDayText,
+  startOfDayInstant,
+  wallTimeInstant,
+} from '../../../src/tracker/time';
 
 describe('wallTimeInstant: a wall time in a time zone', () => {
   it('keeps the wall time in a zone without daylight saving', () => {
@@ -54,5 +60,38 @@ describe('startOfDayInstant: the first moment of a day', () => {
     expect(startOfDayInstant('2026-10-04', 'Australia/Lord_Howe')).toBe(
       '2026-10-04T00:00:00+10:30',
     );
+  });
+});
+
+describe('formatDayYear and parseDayText: the app date format in a text box', () => {
+  it('writes a day with its year', () => {
+    expect(formatDayYear('2026-10-06')).toBe('6 Oct 2026');
+    expect(formatDayYear('2027-09-30')).toBe('30 Sept 2027');
+  });
+
+  it('reads the app format, a short or long month name, any case, and an ISO day', () => {
+    expect(parseDayText('6 Oct 2026', 2026)).toBe('2026-10-06');
+    expect(parseDayText('  30 sept 2027 ', 2026)).toBe('2027-09-30');
+    expect(parseDayText('30 Sep 2027', 2026)).toBe('2027-09-30');
+    expect(parseDayText('1 January 2027', 2026)).toBe('2027-01-01');
+    expect(parseDayText('2026-10-10', 2020)).toBe('2026-10-10');
+  });
+
+  it('takes the given year when the text has none', () => {
+    expect(parseDayText('12 Nov', 2026)).toBe('2026-11-12');
+  });
+
+  it('refuses a day that does not exist and text that is not a day', () => {
+    for (const text of [
+      '31 Sept 2026',
+      '29 Feb 2026',
+      '2026-02-30',
+      '',
+      'soon',
+      '6 Octo 2026',
+      '6 Oct 26',
+    ])
+      expect(parseDayText(text, 2026)).toBeNull();
+    expect(parseDayText('29 Feb 2028', 2026)).toBe('2028-02-29');
   });
 });

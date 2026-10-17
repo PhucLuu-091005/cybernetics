@@ -151,7 +151,9 @@ test.describe('the tracker walkthrough', () => {
       );
       await expect(drawer).toContainText(/Events \(\d+\)/);
       await expect(drawer.getByRole('button', { name: 'Move the date' })).toHaveCount(0);
-      await drawer.getByLabel('Planned finish').fill('2026-10-10');
+      const planned = drawer.getByLabel('Planned finish');
+      await expect(planned).toHaveValue('6 Oct 2026');
+      await planned.fill('10 Oct 2026');
       await drawer.getByLabel('Time (optional)').fill('17:00');
       const save = drawer.getByRole('button', { name: 'Move the date' });
       await expect(save).toBeDisabled();
@@ -164,6 +166,7 @@ test.describe('the tracker walkthrough', () => {
       await expect(bar).toContainText('2 changes');
       await expect(why).toHaveCount(0);
       await expect(drawer.getByLabel('Time (optional)')).toHaveValue('17:00');
+      await expect(planned).toHaveValue('10 Oct 2026');
       await drawer.getByRole('button', { name: /Date moves/ }).click();
       await expect(drawer).toContainText('6 Oct → 10 Oct 17:00');
       await page.keyboard.press('Escape');
