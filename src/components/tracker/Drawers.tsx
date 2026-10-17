@@ -134,7 +134,7 @@ export function MilestoneDrawer({
           <h4>{m.name}</h4>
           <span className={`badge st-${status}`}>{STATUS_LABEL[status]}</span>
           {status === 'late' && (
-            <small style={{ display: 'inline', color: 'var(--danger)' }}>
+            <small style={{ display: 'inline', color: 'var(--danger-ink)' }}>
               {' '}
               late {daysBetween(m.planned, dayOf(asOf, tz))} days
             </small>
