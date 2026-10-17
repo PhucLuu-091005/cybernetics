@@ -549,6 +549,7 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  scroll-padding-top: var(--tk-axis-h, 0px);
 }
 
 /* Two columns share one scale: the label column stays put while the time line scrolls. The frame
@@ -645,7 +646,7 @@
 .tk .zoombar .full {
   margin-left: 2px;
   box-shadow: -1px 0 0 var(--rule);
-  border-radius: 0 7px 7px 0;
+  border-radius: 0 var(--r-ctl) var(--r-ctl) 0;
 }
 .tk .zoombar .full[aria-pressed='true'] {
   color: var(--ink);
@@ -765,7 +766,7 @@
 .tk .tfilter {
   position: absolute;
   right: 4px;
-  top: 4px;
+  top: 2px;
 }
 .tk .tfilter > summary {
   list-style: none;
@@ -781,11 +782,14 @@
   min-width: 28px;
   justify-content: center;
   padding: 0 6px;
-  border-radius: 7px;
+  border-radius: var(--r-ctl);
   color: var(--ink-3);
   cursor: pointer;
 }
-.tk .tfilter-btn:hover,
+.tk .tfilter-btn:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
 .tk .tfilter[open] > .tfilter-btn {
   background: var(--gray-bg);
   color: var(--ink);
@@ -797,7 +801,7 @@
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   background: var(--ink);
   color: var(--panel);
@@ -813,10 +817,10 @@
   overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--rule);
-  border-radius: 12px;
+  border-radius: var(--r-pop);
   box-shadow: var(--shadow);
   padding: 10px 12px;
-  font-size: 13px;
+  font-size: var(--fs-s);
 }
 .tk .fgroup {
   border: 0;
@@ -829,7 +833,7 @@
 .tk .fgroup legend {
   padding: 0;
   margin-bottom: 6px;
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--ink-3);
 }
@@ -856,6 +860,7 @@
 }
 .tk .fchip:hover span {
   border-color: var(--ink-3);
+  background: var(--hover);
 }
 .tk .fchip input:checked + span {
   background: var(--gray-bg);
@@ -1295,13 +1300,15 @@ svg.tg .hit {
 svg.tg .hit:hover {
   fill: var(--hover);
 }
-/* The row with its details open, and a row with keyboard focus, get a quiet band and no lines. */
+/* The row with its details open gets a quiet band and no lines; keyboard focus keeps a ring. */
 svg.tg .hit.sel {
   fill: color-mix(in srgb, var(--ink) 6%, transparent);
 }
 :root .tk svg.tg .hit:focus-visible {
   outline: none;
-  fill: color-mix(in srgb, var(--ink) 8%, transparent);
+  stroke: var(--focus);
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
 }
 svg.tg .dim {
   opacity: 0.35;
@@ -1422,10 +1429,10 @@ svg.tg .hand-n {
   padding: 6px;
   background: var(--panel);
   border: 1px solid var(--rule);
-  border-radius: 10px;
+  border-radius: var(--r-pop);
   box-shadow: var(--shadow);
   transform: translate(-50%, 6px);
-  font-size: 13px;
+  font-size: var(--fs-s);
 }
 .tk .hand-menu.start {
   transform: translate(-12px, 6px);
@@ -1435,7 +1442,7 @@ svg.tg .hand-n {
 }
 .tk .hand-menu p {
   margin: 2px 8px 4px;
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--ink-3);
 }
@@ -1445,7 +1452,7 @@ svg.tg .hand-n {
   text-align: left;
   padding: 6px 8px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--r-ctl);
   background: none;
   color: var(--ink);
   font: inherit;
@@ -1453,14 +1460,14 @@ svg.tg .hand-n {
   cursor: pointer;
 }
 .tk .hand-menu button:hover {
-  background: var(--gray-bg);
+  background: var(--hover);
 }
 .tk .hand-menu b {
   font-weight: 600;
 }
 .tk .hand-menu small {
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--fs-xs);
 }
 .tk .hand-tip {
   position: absolute;
@@ -2587,9 +2594,12 @@ svg.tg .lane-drop.glow {
   .tk .grid2 {
     grid-template-columns: minmax(0, 1fr);
   }
-  /* The rail becomes a sticky top bar at this width. */
+  /* The rail becomes a sticky top bar at this width; the graph measures its height into --tk-top. */
+  html:has(.tk.board) {
+    scroll-padding-top: calc(var(--tk-top, 66px) + var(--tk-axis-h, 0px));
+  }
   .tk .ghead {
-    top: 66px;
+    top: var(--tk-top, 66px);
   }
   .tk.board.fullview .ghead {
     top: 0;
@@ -2598,15 +2608,15 @@ svg.tg .lane-drop.glow {
     overflow: auto;
   }
   .tk .move-hint-slot {
-    top: 66px;
+    top: var(--tk-top, 66px);
   }
   .tk .drawer-slot {
     inset: 0 0 0 auto;
     max-width: 100%;
   }
   .tk .drawer {
-    top: 66px;
-    height: min(calc(100vh - 66px), 100%);
+    top: var(--tk-top, 66px);
+    height: min(calc(100vh - var(--tk-top, 66px)), 100%);
     border-width: 0 0 0 1px;
     border-radius: 0;
   }

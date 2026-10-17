@@ -60,7 +60,8 @@ type Props = {
   /** A click on a row label or its line; without it a row click does nothing. */
   onRow?: (workItemId: string) => void;
   onPop: (kind: PopKind, id: string, anchor: Element) => void;
-  onMilestone: (milestoneId: string) => void;
+  /** Without it, the milestone circles and the deadline diamonds show information only. */
+  onMilestone?: (milestoneId: string) => void;
   onAddEvent: (workItemId: string) => void;
   onNewMilestone: () => void;
   onNewTeam: () => void;
@@ -193,6 +194,35 @@ export function TrackerGraph(props: Props) {
   }, [syncHead]);
   useLayoutEffect(syncHead);
 
+  // Scrolls that bring a row into view (focus, scrollIntoView) must stop below the pinned axis,
+  // and on a phone the axis pins below the rail, whose height depends on its content.
+  useLayoutEffect(() => {
+    const pinned = head.current;
+    if (!pinned) return;
+    const doc = document.documentElement;
+    const measure = () => {
+      doc.style.setProperty('--tk-axis-h', `${pinned.offsetHeight}px`);
+      const rail = document.querySelector<HTMLElement>('.rail');
+      const sticky =
+        rail &&
+        /sticky|fixed/.test(getComputedStyle(rail).position) &&
+        rail.offsetWidth >= window.innerWidth - 1;
+      doc.style.setProperty('--tk-top', `${sticky ? rail.offsetHeight : 0}px`);
+    };
+    measure();
+    const watch = new ResizeObserver(measure);
+    watch.observe(pinned);
+    const rail = document.querySelector('.rail');
+    if (rail) watch.observe(rail);
+    window.addEventListener('resize', measure);
+    return () => {
+      watch.disconnect();
+      window.removeEventListener('resize', measure);
+      doc.style.removeProperty('--tk-axis-h');
+      doc.style.removeProperty('--tk-top');
+    };
+  }, []);
+
   const [revealed, setRevealed] = useState<{ id: string; key: number } | null>(null);
   const pendingReveal = useRef<Reveal | null>(null);
   const showRow = useCallback((target: Reveal) => {
@@ -260,6 +290,8 @@ export function TrackerGraph(props: Props) {
   );
   const menuRef = useRef<HTMLDivElement>(null);
   const menuMark = menu ? L.handoffs.find((h) => h.fromId === menu.fromId) : undefined;
+  // A poll, a hide or a filter can take the source mark away while its list is open.
+  if (menu && !menuMark) setMenu(null);
   const closeMenu = (refocus: boolean) => {
     const from = menu?.fromId;
     setMenu(null);
@@ -324,8 +356,8 @@ export function TrackerGraph(props: Props) {
       return openMenu(el, h);
     }
     if (d.act) return props.onPop(d.stack ? 'stack' : 'act', d.stack ?? d.act, el);
-    if (d.ms) return props.onMilestone(d.ms);
-    if (d.goal) return props.onMilestone(d.goal);
+    if (d.ms) return props.onMilestone?.(d.ms);
+    if (d.goal) return props.onMilestone?.(d.goal);
     if (d.plus) return props.onAddEvent(d.plus);
     if (d.newms) return props.onNewMilestone();
     if (d.newteam) return props.onNewTeam();
@@ -610,7 +642,9 @@ export function TrackerGraph(props: Props) {
             y={r.y - 15}
             width={L.width - SIDE}
             height={30}
-            {...button(`${r.title}, ${STATUS_LABEL[r.status]}. Open the details`)}
+            {...(props.onRow
+              ? button(`${r.title}, ${STATUS_LABEL[r.status]}. Open the details`)
+              : {})}
           />
           {(deadlines.get(r.id) ?? []).map((d) => (
             <g
@@ -618,7 +652,9 @@ export function TrackerGraph(props: Props) {
               className={cls('deadline', dimCls(r.id), selectedMs === d.milestoneId && 'sel')}
               data-goal={d.milestoneId}
               transform={`translate(${d.x} ${d.y})`}
-              {...button(d.ariaLabel)}
+              {...(props.onMilestone
+                ? button(d.ariaLabel)
+                : { role: 'img', 'aria-label': d.ariaLabel })}
               onPointerEnter={(event) => showTip(event.currentTarget, d.tooltip)}
               onPointerLeave={hideTip}
               onFocus={(event) => showTip(event.currentTarget, d.tooltip)}
@@ -637,7 +673,7 @@ export function TrackerGraph(props: Props) {
                 <text
                   className="deadline-name"
                   x={d.labelX - d.x}
-                  y={-7}
+                  y={d.labelY - d.y}
                   textAnchor={d.labelAnchor}
                   style={{ fill: ink(d.tone === 'ink-3' ? 'ink-2' : d.tone) }}
                 >
@@ -763,7 +799,7 @@ export function TrackerGraph(props: Props) {
   const onMenuKey = (event: KeyboardEvent<HTMLDivElement>) => {
     const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('button') ?? []);
     const at = items.indexOf(document.activeElement as HTMLElement);
-    if (event.key === 'Escape') {
+    if (event.key === 'Escape' || event.key === 'Tab') {
       event.preventDefault();
       event.stopPropagation();
       closeMenu(true);
@@ -805,6 +841,9 @@ export function TrackerGraph(props: Props) {
           aria-label={`Handoffs from ${L.rows.find((r) => r.id === menu.fromId)?.title ?? ''}`}
           style={{ left: menu.x, top: menu.y }}
           onKeyDown={onMenuKey}
+          onBlur={(event) => {
+            if (!menuRef.current?.contains(event.relatedTarget as Node | null)) setMenu(null);
+          }}
         >
           <p>{menuMark.wait ? 'Hands over when done to' : 'Handed over to'}</p>
           {menuMark.targets.map((t) => (
@@ -857,7 +896,7 @@ export function TrackerGraph(props: Props) {
           <button
             type="button"
             className="full"
-            aria-label={props.full ? 'Leave full view' : 'Full view'}
+            aria-label="Full view"
             aria-pressed={!!props.full}
             title={props.full ? 'Leave full view (Esc)' : 'Full view'}
             onClick={props.onFull}
