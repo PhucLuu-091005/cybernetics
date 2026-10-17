@@ -1,16 +1,9 @@
 'use client';
 import type { Cr, RowFilter, TrackerState } from '../../tracker';
+import { AccountMenu, type Account } from '../shell/AccountMenu';
 import { useDismissibleDetails } from '../shell/Popover';
 import { Avatar } from './avatar';
-import {
-  asksForMe,
-  byNumDesc,
-  CR_STATUS,
-  isOpen,
-  myDrafts,
-  trunc,
-  type Session,
-} from './ContextBar';
+import { byNumDesc, CR_STATUS, isOpen, trunc, type Session } from './ContextBar';
 import { HiddenMenu, type HiddenMenuProps } from './HiddenMenu';
 import { Icon } from './icons';
 import { WorkSearch } from './Search';
@@ -18,6 +11,8 @@ import type { DrawerMode, TrackerActions, TrackerView } from './TrackerScreen';
 
 type Props = HiddenMenuProps & {
   session: Session;
+  /** The signed-in person, for the menu when they act as no member. */
+  account: Account;
   view: TrackerView;
   cr: Cr | null;
   state: TrackerState;
@@ -46,11 +41,19 @@ function ViewMenu({ session, view, cr, actions, onView, onDrawer }: Props) {
     <details ref={ref} className="gpick">
       <summary
         className="graph-btn"
-        aria-label={`View: ${cr ? `#${cr.num} ${cr.title}` : 'Main'}. Switch view`}
+        aria-label={`View: ${cr ? `#${cr.num} ${cr.title}` : `Main, read-only, owner ${dir.name(owner)}`}. Switch view`}
       >
         <span className="gdot" style={{ background: cr ? dir.color(cr.author) : 'var(--ink)' }} />
         <span>{cr ? `#${cr.num} ${trunc(cr.title, 22)}` : 'Main'}</span>
-        {!cr && <span className="chipx">read-only</span>}
+        {!cr && (
+          <>
+            <span className="chipx">read-only</span>
+            <span className="gowner">
+              <Avatar id={owner} dir={dir} sm />
+              <span>Owner: {dir.name(owner)}</span>
+            </span>
+          </>
+        )}
         <Icon name="chev" size={14} />
       </summary>
       <div className="gmenu">
@@ -107,20 +110,18 @@ function ViewMenu({ session, view, cr, actions, onView, onDrawer }: Props) {
 }
 
 export function TopBar(props: Props) {
-  const { session, state, asOf, drawer, onDrawer, onActAs, onPick, filter, onFilter } = props;
-  const { payload, me, isOwner, dir, tz } = session;
-  const waiting =
-    (isOwner
-      ? payload.crs.filter((c) => c.status === 'ready').length
-      : myDrafts(payload.crs, me).length) +
-    asksForMe(payload.crs, me).reduce((n, c) => n + c.asks.length, 0);
+  const { session, cr, state, asOf, drawer, actions, onDrawer, onActAs, onPick } = props;
+  const { payload, me, dir, tz } = session;
+  const ready = payload.crs.filter((c) => c.status === 'ready').length;
+  const account: Account = me
+    ? { name: dir.name(me), detail: dir.role(me) || undefined, color: dir.color(me) }
+    : { ...props.account, detail: 'Can view' };
   return (
     <header className="p-head">
       <h1 className="sr">
         {payload.project.clientName}, {payload.project.title}
       </h1>
       <ViewMenu {...props} />
-      <span className="sp" />
       <HiddenMenu
         hidden={props.hidden}
         onUnhideTeam={props.onUnhideTeam}
@@ -131,8 +132,8 @@ export function TopBar(props: Props) {
         state={state}
         asOf={asOf}
         tz={tz}
-        filter={filter}
-        onFilter={onFilter}
+        filter={props.filter}
+        onFilter={props.onFilter}
         onPick={onPick}
       />
       <button
@@ -144,40 +145,39 @@ export function TopBar(props: Props) {
         <Icon name="history" /> History
       </button>
       <button
-        className={`btn js-req${isOwner && waiting > 0 ? ' btn-ink' : ''}`}
+        className="btn crs-btn"
         type="button"
         aria-expanded={drawer === 'crs'}
-        aria-label={`Change requests, ${waiting} waiting for you`}
+        title="All change requests"
         onClick={() => onDrawer('crs')}
       >
-        <Icon name="pr" /> <span className="lbl">Change requests</span>{' '}
-        <span className="cnt">{waiting}</span>
+        <Icon name="pr" /> {ready > 0 ? `${ready} ready to merge` : 'Change requests'}
       </button>
-      {payload.project.demo && me && (
+      {!cr && (
+        <button className="btn btn-ink" type="button" onClick={actions.newCr}>
+          <Icon name="plus" /> New change request
+        </button>
+      )}
+      {payload.canActAs && me && (
         <label className="demo">
-          Demo
+          <span className="demo-word">Demo</span>
           <select
+            title="Demo: work as another member"
             aria-label="Demo: act as"
             value={me}
             onChange={(event) => onActAs(event.target.value)}
           >
-            {payload.members.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
+            {payload.members
+              .filter((m) => m.active)
+              .map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
           </select>
         </label>
       )}
-      {me && (
-        <span className="me">
-          <Avatar id={me} dir={dir} />
-          <span>
-            <b>{dir.name(me)}</b>
-            <small>{dir.role(me)}</small>
-          </span>
-        </span>
-      )}
+      <AccountMenu {...account} />
     </header>
   );
 }

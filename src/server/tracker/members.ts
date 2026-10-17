@@ -15,6 +15,8 @@ export type MemberRole = (typeof MEMBER_ROLES)[number];
 export type ProjectMember = {
   id: string;
   name: string;
+  /** What the person does in the project, for example "Digitization lead". */
+  label: string;
   email: string | null;
   role: MemberRole;
   /** An invite that waits until a person signs in with this email. */
@@ -63,6 +65,7 @@ function toPayload(ctx: ActorContext, scope: Scope, rows: Row[]): MembersPayload
       .map((row) => ({
         id: row.id,
         name: row.name,
+        label: row.roleLabel,
         email: row.email ?? row.userEmail?.toLowerCase() ?? null,
         role: row.id === owner ? 'owner' : row.access,
         pending: isInvite(row),

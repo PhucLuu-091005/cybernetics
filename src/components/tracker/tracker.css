@@ -179,7 +179,7 @@
 .tk .p-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--rule);
   flex-wrap: wrap;
@@ -214,6 +214,17 @@
 }
 .tk .graph-btn:hover {
   background: var(--sunk);
+}
+/* The owner sits inside the Main selector, so Main needs no second row to say who merges. */
+.tk .gowner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 8px;
+  border-left: 1px solid var(--rule);
+  color: var(--ink-2);
+  font-weight: 500;
+  white-space: nowrap;
 }
 .tk .gdot {
   width: 10px;
@@ -379,26 +390,14 @@
   text-transform: none;
   letter-spacing: 0;
   color: var(--ink);
-  max-width: 160px;
+  max-width: 140px;
   box-shadow: var(--shadow-sm);
 }
-.tk .me {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-left: 10px;
-  border-left: 1px solid var(--rule);
-}
-.tk .me b {
-  font-size: var(--fs-s);
-  display: block;
-  line-height: 1.2;
-}
-.tk .me small {
-  font-size: var(--fs-xs);
-  color: var(--ink-3);
-  display: block;
-  line-height: 1.2;
+/* The search gets the room of the word on a laptop; the select keeps its name and title. */
+@media (min-width: 761px) and (max-width: 1720px) {
+  .tk .demo-word {
+    display: none;
+  }
 }
 .tk .av {
   width: 28px;
@@ -741,10 +740,12 @@
   position: relative;
   display: flex;
   align-items: center;
-  /* A wrapping bar breaks lines by the base size, so the search starts small and grows to 260 px. */
-  flex: 1 1 150px;
-  min-width: 120px;
-  max-width: 260px;
+  /* A wrapping bar breaks lines by the base size, so the search starts small and grows to 440 px;
+     the auto margin keeps the controls on the right once it stops growing. */
+  flex: 1 1 200px;
+  margin-left: auto;
+  min-width: 160px;
+  max-width: 440px;
 }
 .tk .tsearch > svg {
   position: absolute;
@@ -2188,8 +2189,26 @@ svg.tg .deadline-name {
   .tk .qempty {
     flex: 1;
   }
-  .tk .me small,
-  .tk .js-req .lbl {
+  /* Phone: the view and the account share the first line; the actions wrap below; the search is last. */
+  .tk .p-head:not(.pg-head) > * {
+    order: 2;
+  }
+  .tk .p-head:not(.pg-head) > .gpick {
+    order: 0;
+  }
+  .tk .p-head:not(.pg-head) > .acct {
+    order: 1;
+    margin-left: auto;
+  }
+  .tk .p-head:not(.pg-head) > .tsearch {
+    order: 10;
+  }
+  .tk .p-head:not(.pg-head)::after {
+    content: '';
+    order: 1;
+    flex-basis: 100%;
+  }
+  .tk .gowner > span:not(.av) {
     display: none;
   }
   .tk .tsearch {

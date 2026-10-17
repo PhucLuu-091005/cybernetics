@@ -110,6 +110,7 @@ function payload(crs: Cr[], commits: Commit[], me = LARKSPUR_OWNER): TrackerPayl
     },
     members,
     me: members.find((m) => m.id === me) ?? null,
+    canActAs: true,
     base,
     queue,
     commits,

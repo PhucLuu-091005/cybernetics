@@ -119,7 +119,7 @@ test.describe('the tracker walkthrough', () => {
 
     await test.step('2. Lan presses New change request, then drags a Queue event onto a work item', async () => {
       await actAs(page, 'Lan Phạm');
-      await bar.getByRole('button', { name: 'New change request' }).click();
+      await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
       await dialog.getByRole('button', { name: 'Create', exact: true }).click();
       await page.waitForURL(/cr=5$/);
       await expect(bar).toContainText('#5');
@@ -296,6 +296,66 @@ test.describe('the tracker walkthrough', () => {
   });
 });
 
+test.describe('the top bar', () => {
+  test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
+
+  test('Main shows read-only and its owner in the selector, and one button opens the change requests', async ({
+    page,
+  }) => {
+    const { projectId, graph } = await signIn(page, 'tracker-top-bar');
+    const head = page.locator('.p-head');
+    const view = head.locator('.gpick > summary');
+    await expect(view).toContainText('Main');
+    await expect(view).toContainText('read-only');
+    await expect(view).toContainText('Owner: Minh Trần');
+    await expect(view.locator('.av')).toHaveText('MT');
+    await expect(page.getByText('Every change goes through a change request')).toHaveCount(0);
+    await expect(page.locator('.bbar')).toHaveCount(0);
+
+    const ready = (await readTracker(page, projectId)).crs.filter((c) => c.status === 'ready');
+    const requests = head.getByRole('button', { name: `${ready.length} ready to merge` });
+    await expect(requests).toHaveCount(1);
+    await expect(page.getByRole('button', { name: /Change requests, \d+ waiting/ })).toHaveCount(0);
+    await requests.click();
+    const drawer = page.locator('.drawer', { hasText: 'Change requests' });
+    await expect(drawer).toBeVisible();
+    await expect(requests).toHaveAttribute('aria-expanded', 'true');
+    await requests.click();
+    await expect(drawer).toHaveCount(0);
+
+    const search = head.locator('.tsearch');
+    expect((await search.boundingBox())!.width).toBeGreaterThan(260);
+    const box = await head.boundingBox();
+    expect(box!.height).toBeLessThan(60);
+
+    await actAs(page, 'Hà Đỗ');
+    await page.waitForURL(/cr=4$/);
+    const bar = page.locator('.bbar');
+    await expect(bar).toContainText('You are editing');
+    for (const name of ['Share', 'Mark as ready'])
+      await expect(bar.getByRole('button', { name })).toBeVisible();
+    await expect(head.getByRole('button', { name: 'New change request' })).toHaveCount(0);
+    await expect(head.getByRole('button', { name: /ready to merge|Change requests/ })).toHaveCount(
+      1,
+    );
+
+    await visit(page, graph);
+    await expect(bar).toHaveCount(1);
+    await bar.getByRole('button', { name: 'Open #4 (draft)' }).click();
+    await page.waitForURL(/cr=4$/);
+    await visit(page, graph);
+    await actAs(page, 'Minh Trần');
+    await head.getByRole('button', { name: 'New change request' }).click();
+    const dialog = page.locator('.m-card');
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/cr=5$/);
+    await expect(bar).toContainText('#5');
+    await page.goto(`/projects/${projectId}/changes/2`);
+    await expect(page.locator('.pr-tabs')).toBeVisible();
+    await expect(page.locator('.cs-crumb details.acct summary b')).toHaveText('Minh Trần');
+  });
+});
+
 test.describe('milestone deadlines, hiding and the time zoom', () => {
   test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
 
@@ -339,7 +399,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     ]);
     await page.keyboard.press('Escape');
 
-    await page.locator('.bbar').getByRole('button', { name: 'New change request' }).click();
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
     await dialog.getByRole('button', { name: 'Create', exact: true }).click();
     await page.waitForURL(/cr=\d+$/);
     for (const [id, title] of [
@@ -836,5 +896,11 @@ test.describe('the tracker at phone width', () => {
     await page.goto(graph.replace(/graph$/, 'changes/2'));
     await expect(page.locator('.pr-tabs')).toBeVisible();
     await noHorizontalScroll(page);
+
+    for (const path of ['members', 'settings/tokens']) {
+      await page.goto(graph.replace(/graph$/, path));
+      await expect(page.locator('.pg-head h1')).toBeVisible();
+      await noHorizontalScroll(page);
+    }
   });
 });

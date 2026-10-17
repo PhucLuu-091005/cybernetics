@@ -271,4 +271,16 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
     await removeMember(t.db, demo.owner, { ...own(), memberId: id });
     expect(await store.resolveProject(person.userId, demo.projectId)).toBeNull();
   });
+  it('lets only the person of the sandbox work as another member; an invited person works as themself', async () => {
+    await fresh();
+    const address = email();
+    const person = await signIn(address);
+    await inviteMember(t.db, demo.owner, { ...own(), email: address, role: 'member' });
+    expect((await getTrackerPayload(t.db, demo.owner, own())).canActAs).toBe(true);
+    const payload = await getTrackerPayload(t.db, person, own());
+    expect(payload.canActAs).toBe(false);
+    await expect(getTrackerPayload(t.db, person, as('minh'))).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
 });

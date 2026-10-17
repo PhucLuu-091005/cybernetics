@@ -14,8 +14,8 @@ export default async function HomePage() {
       <section className="screen">
         <h1>No projects yet</h1>
         <p className="muted" style={{ marginTop: 8 }}>
-          Your workspace has no projects. A first sign-in creates the Larkspur sandbox; ask a
-          workspace owner to add you to a project.
+          You have no projects. A first sign-in creates the Larkspur sandbox; ask the owner of a
+          project to invite your email.
         </p>
       </section>
     </main>

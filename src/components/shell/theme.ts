@@ -1,11 +1,15 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { RailIcon } from './icons';
 
-const THEMES = ['system', 'light', 'dark'] as const;
-type Theme = (typeof THEMES)[number];
+export const THEMES = ['system', 'light', 'dark'] as const;
+export type Theme = (typeof THEMES)[number];
+export const THEME_LABEL: Record<Theme, string> = {
+  system: 'System',
+  light: 'Light',
+  dark: 'Dark',
+};
 
-export function ThemeToggle() {
+export function useTheme(): [Theme, (theme: Theme) => void] {
   const [theme, setTheme] = useState<Theme>('system');
   useEffect(() => {
     const stored = document.documentElement.dataset.theme;
@@ -13,8 +17,7 @@ export function ThemeToggle() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (stored === 'light' || stored === 'dark') setTheme(stored);
   }, []);
-  const next = () => {
-    const value = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+  const choose = (value: Theme) => {
     setTheme(value);
     if (value === 'system') delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = value;
@@ -22,19 +25,8 @@ export function ThemeToggle() {
       if (value === 'system') localStorage.removeItem('pg-theme');
       else localStorage.setItem('pg-theme', value);
     } catch {
-      /* storage can be unavailable; the toggle still works for this page */
+      /* storage can be unavailable; the choice still works for this page */
     }
   };
-  return (
-    <button
-      className="rail-item"
-      type="button"
-      onClick={next}
-      aria-label={`Colour theme: ${theme}. Switch theme`}
-      data-label={`Theme: ${theme}`}
-    >
-      <RailIcon name="theme" />
-      <span className="rail-label">Theme: {theme}</span>
-    </button>
-  );
+  return [theme, choose];
 }
