@@ -1,6 +1,6 @@
 import type { RowMatch } from './layout';
 import type { Status, TrackerState } from './model';
-import { foldText } from './search';
+import { foldText, searchWorkItems } from './search';
 import { itemStatus } from './status';
 
 export const NO_MILESTONE = 'none';
@@ -35,14 +35,31 @@ export const isFiltering = (f: RowFilter): boolean =>
 const among = <T>(chosen: readonly T[], ...values: T[]) =>
   !chosen.length || values.some((v) => chosen.includes(v));
 
+/** A team, milestone or person of one change request view can be missing in another view. */
+export function pruneFilter(state: TrackerState, f: RowFilter): RowFilter {
+  const teams = new Set(state.teams.map((t) => t.id));
+  const milestones = new Set([...state.milestones.map((m) => m.id), NO_MILESTONE]);
+  const people = new Set(state.people.map((p) => p.id));
+  const next = {
+    ...f,
+    teams: f.teams.filter((id) => teams.has(id)),
+    milestones: f.milestones.filter((id) => milestones.has(id)),
+    people: f.people.filter((id) => people.has(id)),
+  };
+  return filterCount(next) === filterCount(f) ? f : next;
+}
+
 export function matchRows(
   state: TrackerState,
-  f: RowFilter,
+  chosen: RowFilter,
   asOf: string,
   timeZone: string,
 ): RowMatch | null {
+  const f = pruneFilter(state, chosen);
   if (!isFiltering(f)) return null;
-  const terms = termsOf(f.text);
+  const found = termsOf(f.text).length
+    ? new Set(searchWorkItems(state, f.text).map((w) => w.id))
+    : null;
   const match = new Set(
     state.workItems
       .filter(
@@ -50,7 +67,7 @@ export function matchRows(
           among(f.teams, w.teamId) &&
           among(f.milestones, w.milestoneId ?? NO_MILESTONE) &&
           among(f.people, w.doneBy, w.requestedBy) &&
-          terms.every((t) => foldText(w.title).includes(t)) &&
+          (!found || found.has(w.id)) &&
           among(f.statuses, itemStatus(w, state.events, asOf, timeZone)),
       )
       .map((w) => w.id),

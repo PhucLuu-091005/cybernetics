@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   GEOMETRY,
   layoutTracker,
-  shortName,
   type LayoutSegment,
   type TrackerLayout,
   type View,
@@ -681,55 +680,81 @@ describe('layoutTracker: milestone deadlines on member rows', () => {
     expect(M.deadlines[0].tooltip).toBe('Portal live · deadline 12 Oct · Planned');
   });
 
-  it('writes a short milestone name beside the mark when the row has room', () => {
+  const labelled = (over: { [id: string]: Partial<Parameters<typeof workItem>[0]> } = {}) => {
+    const ms = (id: string, name: string, planned: string) => ({
+      id,
+      name,
+      planned,
+      firstPlanned: planned,
+      moves: [],
+    });
+    return buildState({
+      teams: [
+        { id: 't', name: 'Team', leadId: null },
+        { id: 'u', name: 'Other', leadId: null },
+      ],
+      milestones: [
+        ms('m', 'Portal live and first close', '2026-10-12'),
+        ms('z', 'Final sign off', '2026-10-16'),
+      ],
+      workItems: [
+        workItem({ id: 'first', teamId: 't', milestoneId: 'm', ...over.first }),
+        workItem({ id: 'second', teamId: 't', milestoneId: 'm' }),
+        workItem({ id: 'other', teamId: 'u', milestoneId: 'm' }),
+        workItem({ id: 'edge', teamId: 'u', milestoneId: 'z' }),
+      ],
+    });
+  };
+
+  it('names the milestone in full once per team, on the first member row of that team', () => {
+    const M = layoutTracker(labelled(), view({ zoom: 4 }));
+    const d = (id: string) => M.deadlines.find((x) => x.workItemId === id)!;
+    expect(d('first')).toMatchObject({
+      label: 'Portal live and first close',
+      labelAnchor: 'start',
+      labelX: d('first').x + 9,
+    });
+    expect(d('second').label).toBeNull();
+    expect(d('other').label).toBe('Portal live and first close');
+  });
+
+  it('puts the name left of the mark when the right side has no room', () => {
+    const M = layoutTracker(labelled(), view({ zoom: 4 }));
+    const edge = M.deadlines.find((x) => x.workItemId === 'edge')!;
+    expect(edge).toMatchObject({ label: 'Final sign off', labelAnchor: 'end', labelX: edge.x - 9 });
+  });
+
+  it('keeps the name inside its own row band', () => {
+    const M = layoutTracker(labelled(), view({ zoom: 4 }));
+    for (const d of M.deadlines) {
+      expect(d.labelY - 9).toBeGreaterThanOrEqual(d.y - GEOMETRY.ROW / 2);
+      expect(d.labelY).toBeLessThanOrEqual(d.y);
+    }
+  });
+
+  it('gives no name when the first member row has no free room, and no other row takes it', () => {
+    const s = labelled();
+    s.events.push(
+      event({ id: 'b1', workItemId: 'first', at: at('2026-10-12T04:00') }),
+      event({ id: 'b2', workItemId: 'first', at: at('2026-10-12T21:00') }),
+    );
+    const M = layoutTracker(s, view({ zoom: 4 }));
+    expect(M.deadlines.find((x) => x.workItemId === 'first')!.label).toBeNull();
+    expect(M.deadlines.find((x) => x.workItemId === 'second')!.label).toBeNull();
+  });
+
+  it('draws no deadline for a milestone before the window', () => {
     const s = buildState({
       teams: [{ id: 't', name: 'Team', leadId: null }],
       milestones: [
-        {
-          id: 'm',
-          name: 'Portal live',
-          planned: '2026-10-12',
-          firstPlanned: '2026-10-12',
-          moves: [],
-        },
-        {
-          id: 'z',
-          name: 'Final sign off',
-          planned: '2026-10-16',
-          firstPlanned: '2026-10-16',
-          moves: [],
-        },
+        { id: 'old', name: 'Old', planned: '2026-09-01', firstPlanned: '2026-09-01', moves: [] },
       ],
-      workItems: [
-        workItem({ id: 'free', teamId: 't', milestoneId: 'm' }),
-        workItem({ id: 'busy', teamId: 't', milestoneId: 'm' }),
-        workItem({ id: 'edge', teamId: 't', milestoneId: 'z' }),
-      ],
-      events: [
-        event({ id: 'b1', workItemId: 'busy', at: at('2026-10-12T06:00') }),
-        event({ id: 'b2', workItemId: 'busy', at: at('2026-10-12T20:00') }),
-      ],
+      workItems: [workItem({ id: 'a', teamId: 't', milestoneId: 'old' })],
+      events: [event({ id: 'a1', workItemId: 'a', at: at('2026-09-20T09:00') })],
     });
-    const M = layoutTracker(s, view({ zoom: 4 }));
-    const d = (id: string) => M.deadlines.find((x) => x.workItemId === id)!;
-    expect(d('free')).toMatchObject({
-      label: 'Portal live',
-      labelAnchor: 'start',
-      labelX: d('free').x + 9,
-    });
-    expect(d('busy').label).toBeNull();
-    expect(d('edge')).toMatchObject({
-      label: 'Final sign off',
-      labelAnchor: 'end',
-      labelX: d('edge').x - 9,
-    });
-  });
-
-  it('cuts a long milestone name at a word', () => {
-    expect(shortName('Go-live and first close')).toBe('Go-live…');
-    expect(shortName('CRM integration live')).toBe('CRM integration…');
-    expect(shortName('Portal live')).toBe('Portal live');
-    expect(shortName('Supercalifragilistic')).toBe('Supercalifragil…');
+    const M = layoutTracker(s, view());
+    expect(M.rows.map((r) => r.id)).toEqual(['a']);
+    expect(M.deadlines).toEqual([]);
   });
 
   it('keeps the mark inside the time line', () => {

@@ -190,6 +190,36 @@ describe('clampDrag: a sideways drag stops at the events before and after', () =
     expect(clampDrag(b, 120, more, { other: -600 }, TIME_ZONE)).toBe(120);
   });
 
+  it('keeps two events with the same time in id order', () => {
+    const same = [
+      event({ id: 'x', workItemId: 'w', at: at('2026-09-24T09:00') }),
+      event({ id: 'y', workItemId: 'w', at: at('2026-09-24T09:00') }),
+    ];
+    expect(clampDrag(same[0], 30, same, {}, TIME_ZONE)).toBe(0);
+    expect(clampDrag(same[1], -30, same, {}, TIME_ZONE)).toBe(0);
+    expect(clampDrag(same[1], 30, same, {}, TIME_ZONE)).toBe(30);
+  });
+
+  it('rounds to whole minutes inside the room that seconds leave', () => {
+    const near = [
+      event({ id: 'a', workItemId: 'w', at: '2026-09-24T09:00:40+07:00' }),
+      event({ id: 'b', workItemId: 'w', at: '2026-09-24T09:01:20+07:00' }),
+      event({ id: 'c', workItemId: 'w', at: '2026-09-24T09:02:30+07:00' }),
+    ];
+    expect(clampDrag(near[1], 5, near, {}, TIME_ZONE)).toBe(1);
+    expect(clampDrag(near[1], -5, near, {}, TIME_ZONE)).toBe(0);
+  });
+
+  it('takes the side of the earlier event when no whole minute fits between the two', () => {
+    const tight = [
+      event({ id: 'a', workItemId: 'w', at: '2026-09-24T09:00:00+07:00' }),
+      event({ id: 'b', workItemId: 'w', at: '2026-09-24T09:00:30+07:00' }),
+      event({ id: 'c', workItemId: 'w', at: '2026-09-24T09:01:20+07:00' }),
+    ];
+    expect(clampDrag(tight[1], 5, tight, { a: 1 }, TIME_ZONE)).toBe(1);
+    expect(clampDrag(tight[1], -5, tight, { a: 1 }, TIME_ZONE)).toBe(1);
+  });
+
   it('measures the next event at its normalised position', () => {
     expect(clampDrag(day[0], 600, day, { b: -300 }, TIME_ZONE)).toBe(0);
   });
