@@ -81,7 +81,6 @@ export type View = {
   /** 1 fits the window to `fitSpan`; more widens the time line. Used only without `dayWidth`. */
   zoom?: number;
   focus?: string | null;
-  /** A focus on a team shows its rows and the work that comes from them. */
   focusTeam?: string | null;
   filter?: RowMatch | null;
   /** Rows carry a focus button next to the eye, so their labels are cut shorter. */

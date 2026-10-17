@@ -127,7 +127,6 @@ export type TrackerActions = {
   markDone: (workItemId: string) => void;
   moveDate: (target: DateTarget) => void;
   saveRename: (workItemId: string, title: string) => void;
-  /** One change of the work item detail panel, as change request ops. */
   editItem: (ops: OpInput[]) => void;
   changeKind: (eventId: string) => void;
   setKind: (eventId: string, kind: EventKind) => void;

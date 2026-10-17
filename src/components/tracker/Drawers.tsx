@@ -260,7 +260,6 @@ type Dates = { date: string; time: string; why: string };
 // The server stamps the move again with its own clock; this only fills the op.
 const nowIn = (tz: string) => toInstant(Date.now(), tz);
 
-/** The date moves fold away; a person opens them to read each move with its reason. */
 function MoveHistory({
   moves,
   first,
