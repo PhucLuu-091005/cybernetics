@@ -38,7 +38,7 @@
   --f-ui: var(--font-geist), 'Geist', system-ui, sans-serif;
   --f-doc: var(--font-geist), 'Geist', system-ui, sans-serif;
   --f-id: var(--font-geist-mono), 'Geist Mono', ui-monospace, monospace;
-  --change: #d5ae39; --change-text: var(--ink); --change-bg: #ffe770; --edit-bg: #fefce9;
+  --change: #e0a800; --change-text: var(--ink); --change-bg: #ffe14d; --edit-bg: #fefce9;
   --k-message: #0c67b6; --k-task: #6550b9; --k-handoff: #0e738c; --k-decision: #975800;
   --k-meeting: #ba2784; --k-delivery: #54722b; --k-issue: #be282d; --k-done: #1e744e;
 }
@@ -57,7 +57,7 @@
   --shadow-lg: 0 28px 70px -12px rgb(0 0 0 / 0.7);
   --scrim: rgb(0 0 0 / 0.62);
   color-scheme: dark;
-  --change: #ffe629; --change-text: var(--ink); --change-bg: #524202; --edit-bg: #1b180f;
+  --change: #ffe629; --change-text: var(--ink); --change-bg: #6e5a00; --edit-bg: #1b180f;
   --k-message: #70b8ff; --k-task: #baa7ff; --k-handoff: #4ccce6; --k-decision: #ffca16;
   --k-meeting: #ff8dcc; --k-delivery: #d4ff70; --k-issue: #ff9592; --k-done: #3dd68c;
 }
@@ -77,7 +77,7 @@
     --shadow-lg: 0 28px 70px -12px rgb(0 0 0 / 0.7);
     --scrim: rgb(0 0 0 / 0.62);
     color-scheme: dark;
-    --change: #ffe629; --change-text: var(--ink); --change-bg: #524202; --edit-bg: #1b180f;
+    --change: #ffe629; --change-text: var(--ink); --change-bg: #6e5a00; --edit-bg: #1b180f;
     --k-message: #70b8ff; --k-task: #baa7ff; --k-handoff: #4ccce6; --k-decision: #ffca16;
     --k-meeting: #ff8dcc; --k-delivery: #d4ff70; --k-issue: #ff9592; --k-done: #3dd68c;
   }
@@ -335,7 +335,7 @@ svg.tg .lane-band.alt { fill: var(--sunk); }
 svg.tg .lane-band { fill: transparent; }
 svg.tg .lane-name { font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; fill: var(--ink-2); }
 svg.tg .row-label { font-size: 12px; fill: var(--ink); }
-svg.tg .row-label.changed, svg.tg .ms-label.changed { fill: var(--change-text); paint-order: stroke; stroke: var(--change-bg); stroke-width: 9px; stroke-linejoin: round; }
+svg.tg .row-label.changed, svg.tg .ms-label.changed { fill: var(--change-text); paint-order: stroke; stroke: var(--change-bg); stroke-width: 11px; stroke-linejoin: round; }
 svg.tg .row-label.dim { opacity: 0.5; }
 svg.tg .tick { font-size: 11px; fill: var(--ink-3); text-anchor: middle; }
 svg.tg .grid { stroke: var(--rule-2); }
@@ -353,10 +353,10 @@ svg.tg .hit { fill: transparent; }
 svg.tg .hit.sel { fill: color-mix(in srgb, var(--ink) 6%, transparent); }
 svg.tg .hit.flash { fill: color-mix(in srgb, var(--ink) 8%, transparent); }
 svg.tg .hit.glow { fill: color-mix(in srgb, var(--ink) 9%, transparent); stroke: var(--ink); stroke-width: 2; }
-svg.tg .hit.kfocus { stroke: var(--focus); stroke-width: 2px; vector-effect: non-scaling-stroke; }
+svg.tg .hit.kfocus { stroke: var(--focus); stroke-width: 1px; vector-effect: non-scaling-stroke; }
 svg.tg .act .bg { fill: var(--panel); stroke-width: 2; }
 svg.tg .act .layer { stroke-width: 1.5; }
-svg.tg .act .halo { fill: color-mix(in srgb, var(--change) 16%, transparent); stroke: var(--change); stroke-width: 2; }
+svg.tg .act .halo { fill: color-mix(in srgb, var(--change) 30%, transparent); stroke: var(--change); stroke-width: 3; }
 svg.tg .ms-c { stroke-width: 2; }
 svg.tg .ms.sel .ms-c { stroke-width: 3.5; }
 svg.tg .ms-i { fill: none; stroke: var(--panel); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -365,7 +365,7 @@ svg.tg .ms-label { font-size: 11px; font-weight: 600; }
 svg.tg .eye { color: var(--ink-3); }
 svg.tg .eye rect { fill: transparent; }
 svg.tg .focus-btn.on { color: var(--panel); }
-svg.tg .focus-btn.on rect { fill: var(--ink); }
+svg.tg .focus-btn.on rect { fill: var(--focus); }
 svg.tg .handoff rect { fill: var(--panel); stroke: var(--ink-3); }
 svg.tg .handoff.open rect { fill: var(--gray-bg); stroke: var(--ink); }
 svg.tg .hand-n { font-size: 9.5px; font-weight: 700; fill: var(--ink-2); }
@@ -449,9 +449,9 @@ svg.tg .note { font-size: 10px; fill: var(--ink-3); }
       <span class="badge st-planned">Planned</span><span class="badge st-early">Finished early</span><span class="badge st-ontime">Finished on time</span><span class="badge st-late">Late</span><span class="badge st-flate">Finished late</span>
     </div>
     <div class="legend2" style="padding:12px 0 0">
-      <span><i class="ln" style="background:var(--route)"></i>Open</span>
+      <span><i class="ln" style="background:var(--route)"></i>Not finished</span>
       <span><i class="ln" style="background:var(--proceed)"></i>Done</span>
-      <span><i class="ln" style="background:var(--danger)"></i>Open after its planned finish</span>
+      <span><i class="ln" style="background:var(--danger)"></i>Not finished after its planned finish</span>
       <span><i class="ln" style="background:var(--caution)"></i>Done after its planned finish</span>
       <span><svg width="12" height="12" viewBox="-7 -7 14 14" aria-hidden="true"><path d="M0 -6 L6 0 L0 6 L-6 0 Z" fill="var(--ink-3)" stroke="var(--ink-3)" stroke-width="1.5"/></svg>Milestone deadline on its work items</span>
       <span style="color:var(--ink-3)"><i class="ms-sw"></i><span style="color:var(--ink-2)">Planned</span></span>
@@ -470,9 +470,9 @@ svg.tg .note { font-size: 10px; fill: var(--ink-3); }
     <svg class="tg" viewBox="0 0 560 70" width="560" style="max-width:100%;height:auto" role="img" aria-label="Change marks: a highlighted name, a ringed event, a milestone with a yellow stroke and a moved deadline diamond">
       <text class="row-label changed" x="10" y="38">PG-203 Country list field type</text>
       <g transform="translate(250 34)" class="act"><circle class="halo" r="15"/><circle class="bg" r="10" style="stroke:var(--route)"/><g data-kind="meeting" data-x="0" data-y="0" data-s="13" style="color:var(--route)"></g></g>
-      <g transform="translate(330 34)"><circle class="ms-c" r="8" style="stroke:var(--change);fill:var(--panel)"/></g>
+      <g transform="translate(330 34)"><circle class="ms-c" r="8" style="stroke:var(--change);stroke-width:3;fill:var(--panel)"/></g>
       <text class="ms-label changed" x="346" y="38">Go-live and first close</text>
-      <g transform="translate(520 34)"><path class="deadline-mark" d="M0 -6 L6 0 L0 6 L-6 0 Z" style="stroke:var(--change);fill:var(--route)"/></g>
+      <g transform="translate(520 34)"><path class="deadline-mark" d="M0 -6 L6 0 L0 6 L-6 0 Z" style="stroke:var(--change);stroke-width:3;fill:var(--route)"/></g>
     </svg>
     <div class="row" style="margin-top:12px">
       <span class="chipx pen">Changed</span>
@@ -494,7 +494,7 @@ svg.tg .note { font-size: 10px; fill: var(--ink-3); }
       <tr><td><code>--ink-2</code> on <code>--panel</code></td><td>5.94</td><td>8.45</td></tr>
       <tr><td><code>--ink-3</code> on panel / sunk / gray-bg</td><td>5.25 / 5.00 / 4.62</td><td>5.79 / 6.20 / 4.75</td></tr>
       <tr><td>-ink on its -bg (route, proceed, danger, caution, teal)</td><td>4.85, 4.85, 4.85, 4.90, 4.67</td><td>7.08, 7.91, 7.75, 7.83, 8.07</td></tr>
-      <tr><td><code>--ink</code> on <code>--change-bg</code></td><td>13.20</td><td>8.46</td></tr>
+      <tr><td><code>--ink</code> on <code>--change-bg</code></td><td>12.59</td><td>5.79</td></tr>
       <tr><td>Line step on panel (route, proceed, danger, caution, teal)</td><td>3.26, 3.03, 3.91, 3.33, 3.46</td><td>5.39, 5.80, 4.49, 5.28, 5.73</td></tr>
       <tr><td><code>--focus</code> on <code>--panel</code></td><td>4.77</td><td>8.37</td></tr>
     </tbody>
@@ -652,7 +652,7 @@ Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fiel
           <dt>Milestone</dt><dd>Go-live and first close · 30 Sept · Late</dd>
           <dt>Started</dt><dd>12 Sept</dd>
           <dt>Planned finish</dt><dd>15 Oct</dd>
-          <dt>Finished</dt><dd>Open</dd>
+          <dt>Finished</dt><dd>Not yet</dd>
           <dt>Time spent</dt><dd>654 h (27.3 days)</dd>
         </dl>
         <div class="q-label">Planned finish moves</div>
@@ -908,8 +908,8 @@ Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fiel
   ];
   put('sw-base', BASE.map(function (r) { return swatch.apply(null, r); }).join(''));
   put('sw-change', [
-    ['--change', '#d5ae39', '#ffe629', 'Ring around a changed event; stroke of a changed milestone or moved date.'],
-    ['--change-bg', '#ffe770', '#524202', 'Highlighter behind a changed name; .chipx.pen; draft count.'],
+    ['--change', '#e0a800', '#ffe629', '3-unit ring around a changed event; 3-unit stroke of a changed milestone or moved date.'],
+    ['--change-bg', '#ffe14d', '#6e5a00', 'Highlighter behind a changed name; .chipx.pen; draft count.'],
     ['--change-text', 'var(--ink)', 'var(--ink)', 'Text on --change-bg.'],
     ['--edit-bg', '#fefce9', '#1b180f', 'Context bar of a change request that you edit.']
   ].map(function (r) { return swatch.apply(null, r); }).join(''));
