@@ -469,7 +469,6 @@ const MARK_AFTER_OPEN = 32;
 const BADGE_DX = 5;
 const BADGE_RISE = 16;
 
-/** The latest visible Handoff event of a row that the graph draws, with the x of its icon. */
 function handoffEventOf(
   c: Ctx,
   id: string,

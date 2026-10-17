@@ -39,7 +39,6 @@ const byTime = (a: Timed, b: Timed) =>
 
 const sameRowAndDay = (e: Timed, timeZone: string) => `${e.workItemId}|${dayOf(e.at, timeZone)}`;
 
-/** The milestone deadline of a row, by work item id, as `deadlinesByItem` gives it. */
 export type Deadlines = ReadonlyMap<string, number>;
 
 /** An event keeps its side of the deadline of its row, so a moved icon never tells a wrong story. */
