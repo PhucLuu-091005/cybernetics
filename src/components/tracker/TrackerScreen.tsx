@@ -92,6 +92,7 @@ import { Pop, type PopTarget } from './Pops';
 import { QueuePanel, type QueueTab } from './QueuePanel';
 import { Toast, type ToastState } from './Toast';
 import { TopBar } from './TopBar';
+import type { Account } from '../shell/AccountMenu';
 import { Legend, TrackerGraph, type DatePreview, type Reveal } from './TrackerGraph';
 import {
   browserStore,
@@ -286,12 +287,14 @@ export function TrackerScreen({
   payload: initial,
   projectId,
   userId,
+  account,
   serverNow,
 }: {
   payload: TrackerPayload;
   projectId: string;
   /** The signed-in user, so "Don't show again" on the Main notice holds for that person only. */
   userId: string;
+  account: Account;
   /** The server's time rounded down to the minute, for a project without a demo clock. */
   serverNow: number;
 }) {
@@ -1158,6 +1161,8 @@ export function TrackerScreen({
     >
       <TopBar
         session={session}
+        account={account}
+        userId={userId}
         view={view}
         cr={cr}
         state={state}
@@ -1184,7 +1189,6 @@ export function TrackerScreen({
         busy={busy}
         onView={openView}
         onChanges={() => toggleDrawer('changes')}
-        onRequests={() => toggleDrawer('crs')}
       />
       {showNotice && (
         <MainNotice

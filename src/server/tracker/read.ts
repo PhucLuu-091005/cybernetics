@@ -28,6 +28,7 @@ export async function buildPayload(db: Reader, scope: Scope): Promise<TrackerPay
     },
     members,
     me,
+    canActAs: scope.canActAs,
     base: tracker.base,
     queue: queueFromRows(queue),
     commits,

@@ -31,6 +31,7 @@ import {
   type ReviewChange,
   type ReviewModel,
 } from '../../tracker/review';
+import { AccountMenu, type Account } from '../shell/AccountMenu';
 import { crAction, getTracker, type CrAction } from './api';
 import { Avatar, Avatars, makeDirectory, type Directory } from './avatar';
 import { editorsOf, isOpen, plural, StatusChip, trunc } from './ContextBar';
@@ -399,12 +400,15 @@ export function ReviewScreen({
   projectId,
   num,
   initialTab,
+  account,
   serverNow,
 }: {
   payload: TrackerPayload;
   projectId: string;
   num: number;
   initialTab: ReviewTab;
+  /** The signed-in person, for the menu when they act as no member. */
+  account: Account;
   serverNow: number;
 }) {
   const router = useRouter();
@@ -652,10 +656,21 @@ export function ReviewScreen({
     <div className="tk rv-page">
       <div className="rv">
         <div className="cs-crumb">
-          <Link className="lnk" href={graphHref}>
-            ← Back
-          </Link>{' '}
-          · Change requests · #{cr.num}
+          <span>
+            <Link className="lnk" href={graphHref}>
+              ← Back
+            </Link>{' '}
+            · Change requests · #{cr.num}
+          </span>
+          <AccountMenu
+            {...(payload.me
+              ? {
+                  name: payload.me.name,
+                  detail: payload.me.roleLabel || undefined,
+                  color: payload.me.color,
+                }
+              : { ...account, detail: 'Can view' })}
+          />
         </div>
         <div className="cs-head">
           <div>

@@ -6,8 +6,6 @@ import { useHydrated } from './hydrated';
 import { RailIcon, type RailIconName } from './icons';
 import { ProjectSwitcher, type RailProject } from './ProjectSwitcher';
 import { railCookie, type RailState } from './rail-state';
-import { SignOutButton } from './SignOutButton';
-import { ThemeToggle } from './ThemeToggle';
 
 type Props = { projectId: string; projects: RailProject[]; initial: RailState };
 
@@ -44,14 +42,10 @@ export function Rail({ projectId, projects, initial }: Props) {
       <ProjectSwitcher current={current} projects={projects} />
       <nav className="rail-nav" aria-label="Project">
         {item('graph', 'graph', 'Graph')}
+        {item('members', 'members', 'Members')}
+        {item('settings/tokens', 'settings', 'Settings')}
       </nav>
       <div className="rail-foot">
-        <p className="rail-note rail-label">
-          Main changes only when its owner merges a change request.
-        </p>
-        {item('settings/tokens', 'settings', 'Settings')}
-        <ThemeToggle />
-        <SignOutButton />
         <button
           className="rail-item rail-fold"
           type="button"
@@ -61,7 +55,7 @@ export function Rail({ projectId, projects, initial }: Props) {
           aria-label={folded ? 'Expand sidebar' : 'Collapse sidebar'}
           data-label={folded ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          <RailIcon name="panel" />
+          <RailIcon name={folded ? 'panelOpen' : 'panelClose'} />
           <span className="rail-label">Collapse sidebar</span>
         </button>
       </div>

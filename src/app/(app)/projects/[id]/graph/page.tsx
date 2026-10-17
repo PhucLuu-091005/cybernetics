@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { IdSchema, type ActorContext } from '../../../../../contracts';
 import { TrackerScreen } from '../../../../../components/tracker/TrackerScreen';
 import { getApp } from '../../../../../server/app';
+import { signedInAccount } from '../../../../../server/domain/account';
 import { AppError } from '../../../../../server/errors';
 import { requireActor } from '../../../../../server/http/rsc';
 import { getTrackerPayload } from '../../../../../server/tracker';
@@ -33,6 +34,7 @@ export default async function GraphPage({ params }: { params: Promise<{ id: stri
       payload={payload}
       projectId={id}
       userId={actor.userId}
+      account={await signedInAccount(getApp().db, actor.userId)}
       serverNow={serverMinute()}
     />
   );

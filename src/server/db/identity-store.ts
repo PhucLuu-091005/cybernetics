@@ -1,13 +1,69 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
 import type { AgentToken } from '../../contracts';
 import { AppError } from '../errors';
 import type { HttpIdentityStore, Membership, StoredToken } from '../http/identity-store';
-import { agentTokens, projects, users, workspaceMembers, workspaces } from './schema';
-import { isId, isUniqueViolation, toIso, withTransaction, type Db, type Tx } from './tx';
+import {
+  agentTokens,
+  projects,
+  trackerMembers,
+  users,
+  workspaceMembers,
+  workspaces,
+} from './schema';
+import {
+  isId,
+  isUniqueViolation,
+  projectOpenTo,
+  toIso,
+  withTransaction,
+  type Db,
+  type Tx,
+} from './tx';
 export type UserCreatedHook = (
   tx: Tx,
   ctx: { userId: string; workspaceId: string },
 ) => Promise<void>;
+/** An invite to this email becomes the person's member; a person who was removed from that project gets their old member back. */
+async function linkInvites(
+  tx: Tx,
+  user: { id: string; name: string; email: string | null },
+): Promise<void> {
+  const email = user.email?.trim().toLowerCase();
+  if (!email) return;
+  const invites = await tx
+    .select()
+    .from(trackerMembers)
+    .where(
+      and(
+        isNull(trackerMembers.userId),
+        isNull(trackerMembers.removedAt),
+        eq(trackerMembers.email, email),
+      ),
+    )
+    .for('update');
+  for (const invite of invites) {
+    const [old] = await tx
+      .select()
+      .from(trackerMembers)
+      .where(
+        and(eq(trackerMembers.projectId, invite.projectId), eq(trackerMembers.userId, user.id)),
+      )
+      .limit(1);
+    if (!old) {
+      await tx
+        .update(trackerMembers)
+        .set({ userId: user.id, name: user.name })
+        .where(eq(trackerMembers.id, invite.id));
+    } else if (old.removedAt !== null) {
+      // Change requests and history name the old member, so it comes back instead of the invite.
+      await tx.delete(trackerMembers).where(eq(trackerMembers.id, invite.id));
+      await tx
+        .update(trackerMembers)
+        .set({ removedAt: null, access: invite.access, email, name: user.name })
+        .where(eq(trackerMembers.id, old.id));
+    }
+  }
+}
 export class DbIdentityStore implements HttpIdentityStore {
   constructor(
     private readonly db: Db,
@@ -32,6 +88,9 @@ export class DbIdentityStore implements HttpIdentityStore {
           .where(eq(users.subject, profile.subject))
           .limit(1);
         if (!existing) throw new AppError('CONFLICT', 'User provisioning raced; retry sign-in');
+        if (profile.email)
+          await tx.update(users).set({ email: profile.email }).where(eq(users.id, existing.id));
+        await linkInvites(tx, { id: existing.id, ...profile });
         return { userId: existing.id, created: false };
       }
       const [workspace] = await tx
@@ -40,6 +99,7 @@ export class DbIdentityStore implements HttpIdentityStore {
         .returning({ id: workspaces.id });
       await tx.insert(workspaceMembers).values({ workspaceId: workspace.id, userId: inserted.id });
       await this.options.onUserCreated?.(tx, { userId: inserted.id, workspaceId: workspace.id });
+      await linkInvites(tx, { id: inserted.id, ...profile });
       return { userId: inserted.id, created: true };
     });
   }
@@ -74,14 +134,7 @@ export class DbIdentityStore implements HttpIdentityStore {
     const [row] = await this.db
       .select({ workspaceId: projects.workspaceId })
       .from(projects)
-      .innerJoin(
-        workspaceMembers,
-        and(
-          eq(workspaceMembers.workspaceId, projects.workspaceId),
-          eq(workspaceMembers.userId, userId),
-        ),
-      )
-      .where(eq(projects.id, projectId))
+      .where(and(eq(projects.id, projectId), projectOpenTo(userId)))
       .limit(1);
     return row ? { workspaceId: row.workspaceId, projectId } : null;
   }

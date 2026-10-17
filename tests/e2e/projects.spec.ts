@@ -38,8 +38,10 @@ test('a new project starts with its teams and an empty graph, and its first chan
   await expect(svg.locator('[data-loop]')).toHaveCount(0);
   await expect(page.locator('.empty')).toContainText('This project has no work yet.');
   const bar = page.locator('.bbar').first();
-  await expect(bar).toContainText('Main · read-only');
-  await expect(bar).toContainText(`Owner: ${owner}.`);
+  const view = page.locator('.gpick > summary');
+  await expect(view).toContainText('read-only');
+  await expect(view).toContainText(`Owner: ${owner}`);
+  await expect(page.locator('.bbar')).toHaveCount(0);
   await expect(page.getByLabel('Demo: act as')).toHaveCount(0);
   await expect(page.locator('.me')).toContainText('Project owner, owns Main');
 
@@ -88,7 +90,8 @@ test('a new project starts with its teams and an empty graph, and its first chan
 
   await page.goto(graph);
   await hydrated(page);
-  await expect(bar).toContainText('Main · read-only');
+  await expect(view).toContainText('read-only');
+  await expect(page.locator('.bbar')).toHaveCount(0);
   await expect(svg.locator('[data-loop]')).toHaveCount(1);
   await expect(page.locator('.empty')).toHaveCount(0);
   await page.locator('.p-head').getByRole('button', { name: 'History' }).click();

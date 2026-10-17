@@ -204,9 +204,11 @@ const askOf = (cr: CrRow, memberId: string) =>
 const asksOf = (cr: CrRow) =>
   and(eq(trackerCrAsks.projectId, cr.projectId), eq(trackerCrAsks.crId, cr.id));
 
-function memberOf(scope: Scope, id: string): Member {
+/** Taking a share back still works for a person who left the project. */
+function memberOf(scope: Scope, id: string, mustAct = true): Member {
   const member = scope.members.find((item) => item.id === id);
-  if (!member) throw new AppError('VALIDATION', `${id} is not a member of this project`);
+  if (!member || (mustAct && !member.active))
+    throw new AppError('VALIDATION', `${member?.name ?? id} is not a member of this project`);
   return member;
 }
 
@@ -396,7 +398,7 @@ async function share(run: Run, memberId: string, permission: 'edit' | 'view' | '
   const me = requireEditor(ctx, scope, cr);
   requireStatus(cr, OPEN);
   requireSeen(run);
-  const member = memberOf(scope, memberId);
+  const member = memberOf(scope, memberId, permission !== 'remove');
   if (member.id === cr.author || member.id === cr.editor)
     throw new AppError('VALIDATION', `${member.name} already can edit #${cr.num}`);
   const row = and(

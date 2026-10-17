@@ -45,6 +45,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker projects', () => {
         roleLabel: 'Project owner, owns Main',
         color: '#0f766e',
         userId: ctx.userId,
+        active: true,
       },
     ]);
     expect(payload.me).toEqual(payload.members[0]);
