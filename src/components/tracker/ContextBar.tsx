@@ -67,7 +67,6 @@ type Props = {
   busy?: boolean;
   onView: (view: TrackerView) => void;
   onDrawer: (mode: 'crs') => void;
-  /** Only the change request page passes it: the merge check and a review that went stale. */
   review?: { canMerge: boolean; changed: boolean; onReviewAgain: () => void };
 };
 

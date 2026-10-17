@@ -205,7 +205,6 @@
 .tk .gpick > summary::-webkit-details-marker {
   display: none;
 }
-/* The title of the view is the selector: it reads as a heading and opens the view menu. */
 .tk .vsel {
   display: flex;
   align-items: center;
@@ -239,7 +238,6 @@
 .tk .crs-btn {
   position: relative;
 }
-/* An app icon badge: the number of ready change requests, gone at 0. */
 .tk .nbadge {
   position: absolute;
   top: -7px;
@@ -2385,7 +2383,6 @@ svg.tg .deadline-name {
   .tk .qempty {
     flex: 1;
   }
-  /* First line: History, Change requests and the account; then the rest; the search last. */
   .tk .p-head:not(.pg-head) > * {
     order: 2;
   }

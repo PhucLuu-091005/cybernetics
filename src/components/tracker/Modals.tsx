@@ -891,7 +891,6 @@ function NewCrModal({ session, busy, on, onClose }: PropsOf<'newcr'>) {
 export const shareLink = (origin: string, projectId: string, num: number) =>
   `${origin}/projects/${projectId}/changes/${num}`;
 
-/** One text box and a decision: the reason to cancel, or the note that sends a change request back. */
 function NoteModal({
   title,
   label,

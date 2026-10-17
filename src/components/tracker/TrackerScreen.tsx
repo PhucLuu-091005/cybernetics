@@ -303,7 +303,6 @@ export function TrackerScreen({
 }: {
   payload: TrackerPayload;
   projectId: string;
-  /** The change request of this page; without it the screen shows Main. */
   num?: number | null;
   /** The signed-in user, so "Don't show again" on the Main notice holds for that person only. */
   userId: string;
