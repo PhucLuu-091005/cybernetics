@@ -47,6 +47,7 @@ import {
   type Session,
 } from './ContextBar';
 import { Icon, KIND_COLOR, KindIcon } from './icons';
+import { DateInput } from './DateInput';
 import { TimeInput } from './TimeInput';
 import { Moves } from './Pops';
 import type { TrackerActions, TrackerView } from './TrackerScreen';
@@ -574,12 +575,10 @@ export function WorkItemDrawer({
           {edit ? (
             <div className="wi-when">
               <span className="wi-date">
-                <input
-                  type="date"
-                  aria-label="Planned finish"
-                  required
+                <DateInput
+                  label="Planned finish"
                   value={plan.date}
-                  onChange={(e) => e.target.value && setDates({ ...plan, date: e.target.value })}
+                  onChange={(date) => setDates({ ...plan, date })}
                 />
                 <TimeInput value={plan.time} onChange={(time) => setDates({ ...plan, time })} />
               </span>

@@ -120,6 +120,48 @@ export function formatDay(date: string): string {
   return `${day} ${MONTHS[month - 1]}`;
 }
 
+export function formatDayYear(date: string): string {
+  return `${formatDay(date)} ${parseDay(date)[0]}`;
+}
+
+const MONTH_NAMES = [
+  'january',
+  'february',
+  'march',
+  'april',
+  'may',
+  'june',
+  'july',
+  'august',
+  'september',
+  'october',
+  'november',
+  'december',
+];
+
+function monthOf(word: string): number | null {
+  const w = word.toLowerCase();
+  const i = MONTH_NAMES.findIndex(
+    (name) => w === name || w === name.slice(0, 3) || (name === 'september' && w === 'sept'),
+  );
+  return i < 0 ? null : i + 1;
+}
+
+/** Reads "6 Oct 2026", "6 October", or "2026-10-06"; without a year the day takes `year`. */
+export function parseDayText(text: string, year: number): string | null {
+  const t = text.trim();
+  let y: number, m: number | null, d: number;
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+  const words = /^(\d{1,2})\s+([A-Za-z]+)(?:\s+(\d{4}))?$/.exec(t);
+  if (iso) [y, m, d] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
+  else if (words)
+    [d, m, y] = [Number(words[1]), monthOf(words[2]), words[3] ? Number(words[3]) : year];
+  else return null;
+  if (!m || m > 12 || d < 1) return null;
+  const date = `${y}-${pad(m)}-${pad(d)}`;
+  return dayOf(`${date}T12:00:00Z`, 'UTC') === date ? date : null;
+}
+
 export function formatStamp(instant: string, timeZone: string): string {
   const p = zoned(Date.parse(instant), timeZone);
   return `${p.day} ${MONTHS[p.month - 1]} ${pad(p.hour)}:${pad(p.minute)}`;
