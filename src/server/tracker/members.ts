@@ -430,20 +430,15 @@ function requireTeam(teams: TeamRow[], teamId: string): TeamRow {
   return team;
 }
 
-/** A merged New team becomes a project team, so the Members page can rename it and give it people. */
+/**
+ * A merged New team becomes a project team, so the Members page can rename it and give it people.
+ * A team lead gets the create right, so only the project lead names one there, never a merge.
+ */
 export async function addMergedTeams(tx: Tx, scope: Scope, ops: readonly Op[]) {
   const known = new Set(scope.tracker.base.teams.map((team) => team.id));
-  const members = new Set(scope.members.filter((m) => m.active).map((m) => m.id));
   const added = ops.flatMap((op) =>
     op.op === 'addTeam' && !known.has(op.a.id)
-      ? [
-          {
-            id: op.a.id,
-            name: op.a.name,
-            leadId: op.a.leadId && members.has(op.a.leadId) ? op.a.leadId : null,
-            memberIds: [],
-          },
-        ]
+      ? [{ id: op.a.id, name: op.a.name, leadId: null, memberIds: [] }]
       : [],
   );
   await insertTeams(tx, scope.tenant, added);
