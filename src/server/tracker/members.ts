@@ -2,7 +2,7 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { IdSchema, type ActorContext } from '../../contracts';
 import { trackerCrAsks, trackerCrs, trackerMembers, trackerProjects, users } from '../db/schema';
-import { withTransaction, type Db, type Tx } from '../db/tx';
+import { isUniqueViolation, withTransaction, type Db, type Tx } from '../db/tx';
 import { AppError, invalidInput } from '../errors';
 import { requireScope } from '../http/scopes';
 import { ProjectScopeSchema, readScope, requireOwner, writeScope, type Scope } from './access';
@@ -42,6 +42,7 @@ const ChangeRoleInputSchema = z.strictObject({
 });
 const RemoveMemberInputSchema = z.strictObject({ ...ProjectScopeSchema, memberId: IdSchema });
 
+const UNIQUE = ['tracker_members_project_email_unique', 'tracker_members_project_user_unique'];
 const COLORS = ['#2563eb', '#0f766e', '#d97706', '#0891b2', '#65a30d', '#dc2626', '#4f46e5'];
 
 type Row = typeof trackerMembers.$inferSelect & { userEmail: string | null };
@@ -118,46 +119,52 @@ export async function inviteMember(
   raw: z.input<typeof InviteMemberInputSchema>,
 ): Promise<MembersPayload> {
   const input = parse(InviteMemberInputSchema, raw, 'Invalid invite');
-  return ownerWrite(db, ctx, input, async (tx, scope, rows) => {
-    const { email, role } = input;
-    const [user] = await tx
-      .select({ id: users.id, name: users.name })
-      .from(users)
-      .where(sql`lower(${users.email}) = ${email}`)
-      .orderBy(asc(users.createdAt))
-      .limit(1);
-    const linked = user && rows.find((row) => row.userId === user.id);
-    const byEmail = rows.find(
-      (row) => row.email === email || row.userEmail?.toLowerCase() === email,
-    );
-    const match = linked ?? byEmail;
-    if (match && match.removedAt === null)
-      throw new AppError('CONFLICT', `${email} is already in this project`);
-    if (match) {
-      await tx
-        .update(trackerMembers)
-        .set({
-          removedAt: null,
-          access: role,
-          email: match.email ?? email,
-          userId: match.userId ?? user?.id ?? null,
-          name: user?.name ?? match.name,
-        })
-        .where(
-          and(eq(trackerMembers.projectId, scope.project.id), eq(trackerMembers.id, match.id)),
-        );
-      return;
-    }
-    await tx.insert(trackerMembers).values({
-      ...scope.tenant,
-      name: user?.name ?? email,
-      roleLabel: '',
-      color: COLORS[rows.length % COLORS.length],
-      userId: user?.id ?? null,
-      email,
-      access: role,
+  const taken = () => new AppError('CONFLICT', `${input.email} is already in this project`);
+  try {
+    return await ownerWrite(db, ctx, input, async (tx, scope, rows) => {
+      const { email, role } = input;
+      const [user] = await tx
+        .select({ id: users.id, name: users.name })
+        .from(users)
+        .where(sql`lower(${users.email}) = ${email}`)
+        .orderBy(asc(users.createdAt))
+        .limit(1);
+      const linked = user && rows.find((row) => row.userId === user.id);
+      const byEmail = rows.find(
+        (row) => row.email === email || row.userEmail?.toLowerCase() === email,
+      );
+      const match = linked ?? byEmail;
+      if (match && match.removedAt === null) throw taken();
+      if (match) {
+        await tx
+          .update(trackerMembers)
+          .set({
+            removedAt: null,
+            access: role,
+            email: match.email ?? email,
+            userId: match.userId ?? user?.id ?? null,
+            name: user?.name ?? match.name,
+          })
+          .where(
+            and(eq(trackerMembers.projectId, scope.project.id), eq(trackerMembers.id, match.id)),
+          );
+        return;
+      }
+      await tx.insert(trackerMembers).values({
+        ...scope.tenant,
+        name: user?.name ?? email,
+        roleLabel: '',
+        color: COLORS[rows.length % COLORS.length],
+        userId: user?.id ?? null,
+        email,
+        access: role,
+      });
     });
-  });
+  } catch (error) {
+    // The project lock orders invites, so a clash here comes from another removed row with this email.
+    if (UNIQUE.some((name) => isUniqueViolation(error, name))) throw taken();
+    throw error;
+  }
 }
 
 function liveRow(rows: Row[], memberId: string): Row {

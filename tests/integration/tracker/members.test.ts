@@ -5,6 +5,7 @@ import { createEmptyProject, listProjects } from '../../../src/server/domain/pro
 import {
   changeMemberRole,
   createCr,
+  crAction,
   getTrackerPayload,
   inviteMember,
   listProjectMembers,
@@ -282,5 +283,28 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
     await expect(getTrackerPayload(t.db, person, as('minh'))).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
+  });
+  it('refuses to share a change request with a viewer, and answers a double invite with CONFLICT', async () => {
+    await fresh();
+    await changeMemberRole(t.db, demo.owner, { ...own(), memberId: demo.ids.khoa, role: 'viewer' });
+    await expect(
+      crAction(t.db, demo.owner, {
+        ...as('ha'),
+        num: 4,
+        action: 'share',
+        memberId: demo.ids.khoa,
+        permission: 'view',
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+    const address = email();
+    const results = await Promise.allSettled(
+      [1, 2].map(() =>
+        inviteMember(t.db, demo.owner, { ...own(), email: address, role: 'member' }),
+      ),
+    );
+    expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected']);
+    expect(
+      (results.find((r) => r.status === 'rejected') as PromiseRejectedResult).reason,
+    ).toMatchObject({ code: 'CONFLICT' });
   });
 });
