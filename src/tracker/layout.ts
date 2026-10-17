@@ -135,9 +135,10 @@ export type LayoutDeadline = {
   stroke: Tone;
   filled: boolean;
   changed: boolean;
-  /** A short milestone name, or null when the row has no room for it. */
+  /** The milestone name, on the first member row of each team only, and only where it has room. */
   label: string | null;
   labelX: number;
+  labelY: number;
   labelAnchor: 'start' | 'end';
   ariaLabel: string;
   tooltip: string;
@@ -507,38 +508,10 @@ function makesLate(c: Ctx, w: WorkItem, planned: string): boolean {
   return after(c.today) || after(w.plannedFinish);
 }
 
-const SHORT = 16;
-const LINK_WORDS = new Set([
-  'a',
-  'an',
-  'and',
-  'at',
-  'for',
-  'in',
-  'of',
-  'on',
-  'or',
-  'the',
-  'to',
-  'with',
-  '&',
-]);
-
-export function shortName(name: string): string {
-  const words = name.split(/\s+/).filter(Boolean);
-  const kept: string[] = [];
-  for (const word of words) {
-    if ([...kept, word].join(' ').length > SHORT) break;
-    kept.push(word);
-  }
-  while (kept.length > 1 && LINK_WORDS.has(kept.at(-1)!.toLowerCase())) kept.pop();
-  if (!kept.length) return trunc(name, SHORT);
-  const short = kept.join(' ');
-  return short.length < name.trim().length ? `${short}…` : short;
-}
-
 type Span = [number, number];
 const LABEL_GAP = 9;
+// The 9.5 px name sits just above the line and stays inside the 32-unit band of its own row.
+const LABEL_RISE = 6;
 const LABEL_CHAR = 5.4;
 const EVENT_ROOM = 11;
 const WAIT_CHAR = 5.6;
@@ -570,9 +543,14 @@ function deadlinesOf(
   busy: Map<string, Span[]>,
 ): LayoutDeadline[] {
   const byId = new Map(c.state.milestones.map((m) => [m.id, m]));
+  const named = new Set<string>();
   return shown.flatMap((r): LayoutDeadline[] => {
     const m = r.milestoneId ? byId.get(r.milestoneId) : undefined;
     if (!m) return [];
+    // A deadline left of the window would sit on the edge and look like the start of the row.
+    if (c.dayStart(m.planned) + 12 * HOUR < c.startMs) return [];
+    const first = !named.has(`${r.teamId}|${m.id}`);
+    named.add(`${r.teamId}|${m.id}`);
     const w = c.items.get(r.id)!;
     const { status } = statusOf.get(m.id)!;
     const tone = STATUS_TONE[status];
@@ -582,15 +560,14 @@ function deadlinesOf(
         ? 'finished after it'
         : 'makes it late'
       : null;
-    const x = Math.max(X0 + 4, c.noonX(m.planned));
+    const x = c.noonX(m.planned);
     const text = `${m.name} · deadline ${formatDay(m.planned)} · ${STATUS_LABEL[status]}`;
-    const name = shortName(m.name);
-    const width = name.length * LABEL_CHAR;
+    const width = m.name.length * LABEL_CHAR;
     const free = ([a, b]: Span) =>
       a >= X0 && b <= c.width - 2 && (busy.get(r.id) ?? []).every(([p, q]) => b < p || a > q);
     const right: Span = [x + LABEL_GAP, x + LABEL_GAP + width];
     const left: Span = [x - LABEL_GAP - width, x - LABEL_GAP];
-    const side = free(right) ? 'start' : free(left) ? 'end' : null;
+    const side = !first ? null : free(right) ? 'start' : free(left) ? 'end' : null;
     return [
       {
         workItemId: r.id,
@@ -602,8 +579,9 @@ function deadlinesOf(
         stroke: changed ? 'change' : tone,
         filled: status !== 'planned',
         changed,
-        label: side ? name : null,
+        label: side ? m.name : null,
         labelX: side === 'end' ? x - LABEL_GAP : x + LABEL_GAP,
+        labelY: r.y - LABEL_RISE,
         labelAnchor: side ?? 'start',
         ariaLabel: reason ? `${text}, this work item ${reason}` : text,
         tooltip: reason ? `${text}\nThis work item ${reason}.` : text,

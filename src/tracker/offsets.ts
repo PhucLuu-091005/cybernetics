@@ -77,6 +77,7 @@ export function clampDrag(
   const at = Date.parse(event.at);
   const lo = Math.ceil((min - at) / MINUTE);
   const hi = Math.floor((max - at) / MINUTE);
+  if (lo > hi) return clampOffset(event.at, lo, timeZone);
   return clampOffset(event.at, Math.min(hi, Math.max(lo, minutes)), timeZone);
 }
 

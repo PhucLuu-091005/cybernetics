@@ -3,6 +3,7 @@ import {
   filterCount,
   isFiltering,
   matchRows,
+  pruneFilter,
   NO_FILTER,
   NO_MILESTONE,
   type RowFilter,
@@ -111,10 +112,37 @@ describe('row filters', () => {
     expect(ids(run(filter({ teams: ['t1'], milestones: ['m'] }))?.match)).toEqual([]);
   });
 
-  it('matches the text against the title only, without case or Vietnamese marks', () => {
-    expect(ids(run(filter({ text: 'pham' }))?.match)).toEqual(['leaf']);
+  it('matches the text as the search list does: title, team and people, marks ignored', () => {
     expect(ids(run(filter({ text: 'ROOT plan' }))?.match)).toEqual(['root']);
-    expect(ids(run(filter({ text: 'ann' }))?.match)).toEqual([]);
+    expect(ids(run(filter({ text: 'pham' }))?.match)).toEqual(['done', 'leaf']);
+    expect(ids(run(filter({ text: 'two' }))?.match)).toEqual(['done', 'leaf']);
+    expect(ids(run(filter({ text: 'ann middle' }))?.match)).toEqual(['mid']);
+    expect(ids(run(filter({ text: 'nobody' }))?.match)).toEqual([]);
+  });
+
+  it('drops chosen ids that the current view does not have', () => {
+    const stale = filter({
+      teams: ['t1', 'gone'],
+      milestones: ['old', NO_MILESTONE],
+      people: ['left'],
+      statuses: ['late'],
+    });
+    expect(pruneFilter(state, stale)).toEqual(
+      filter({ teams: ['t1'], milestones: [NO_MILESTONE], statuses: ['late'] }),
+    );
+    expect(pruneFilter(state, NO_FILTER)).toBe(NO_FILTER);
+  });
+
+  it('shows every row again when a change request team is gone in Main', () => {
+    const crView = buildState({
+      ...state,
+      teams: [...state.teams, { id: 'cr-team', name: 'New team', leadId: null }],
+      workItems: [...state.workItems, workItem({ id: 'new', teamId: 'cr-team' })],
+    });
+    const onlyNew = filter({ teams: ['cr-team'] });
+    expect(ids(matchRows(crView, onlyNew, AS_OF, TIME_ZONE)?.match)).toEqual(['new']);
+    expect(matchRows(state, onlyNew, AS_OF, TIME_ZONE)).toBeNull();
+    expect(filterCount(pruneFilter(state, onlyNew))).toBe(0);
   });
 
   it('keeps the parents of a match as context, up to the top', () => {
