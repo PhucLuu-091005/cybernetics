@@ -160,7 +160,9 @@ export function TrackerGraph(props: Props) {
   }, []);
 
   // Wheel events can arrive faster than renders, so the next zoom builds on the one still pending.
-  const anchor = useRef<{ dayWidth: number; t: number; clientX: number } | null>(null);
+  const anchor = useRef<{ dayWidth: number; t: number; clientX: number; open?: boolean } | null>(
+    null,
+  );
   /** A factor of 0 fits the window to the width again; zooming out stops at the fit. */
   const zoomBy = useCallback((factor: number, clientX?: number) => {
     const { L: now, onZoom, onBackground } = latest.current;
@@ -188,6 +190,8 @@ export function TrackerGraph(props: Props) {
     anchor.current = null;
     const scale = svg.getBoundingClientRect().width / (L.width - SIDE);
     el.scrollLeft = (L.x(a.t) - SIDE) * scale - (a.clientX - el.getBoundingClientRect().left);
+    // On a phone the whole graph is wider than the screen and scrolls as well, so T needs both.
+    if (a.open && body.current) body.current.scrollLeft = body.current.scrollWidth;
   }, [L]);
 
   useEffect(() => {
@@ -305,6 +309,7 @@ export function TrackerGraph(props: Props) {
       dayWidth: open.dayWidth,
       t: open.rightMs,
       clientX: el.getBoundingClientRect().right,
+      open: true,
     };
     onZoom(open.dayWidth);
   }, [opening]);
