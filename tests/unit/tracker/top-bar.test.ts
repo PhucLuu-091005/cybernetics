@@ -6,6 +6,7 @@ import type { Session } from '../../../src/components/tracker/ContextBar';
 import { TopBar } from '../../../src/components/tracker/TopBar';
 import { NO_ACTIONS } from '../../../src/components/tracker/TrackerScreen';
 import type { HiddenList } from '../../../src/components/tracker/view-state';
+import { NO_FILTER, type RowFilter } from '../../../src/tracker/filter';
 import type { Member, TrackerPayload } from '../../../src/tracker/payload';
 import { buildState } from '../../support/tracker-fixture';
 
@@ -16,8 +17,20 @@ const members: Member[] = [
 
 const NONE: HiddenList = { teams: [], items: [], count: 0 };
 
-function render(me: Member | null, hidden: HiddenList = NONE) {
-  const { queue, ...base } = buildState();
+function render(me: Member | null, hidden: HiddenList = NONE, filter: RowFilter = NO_FILTER) {
+  const { queue, ...base } = buildState({
+    teams: [{ id: 'eng', name: 'Engineering', leadId: null }],
+    people: [{ id: 'sarah', name: 'Sarah Kim' }],
+    milestones: [
+      {
+        id: 'golive',
+        name: 'Go-live',
+        planned: '2026-10-15',
+        firstPlanned: '2026-10-15',
+        moves: [],
+      },
+    ],
+  });
   const payload: TrackerPayload = {
     project: {
       id: 'p1',
@@ -62,6 +75,8 @@ function render(me: Member | null, hidden: HiddenList = NONE) {
       onUnhideAll: () => {},
       onActAs: () => {},
       onPick: () => {},
+      filter,
+      onFilter: () => {},
     }),
   );
 }
@@ -82,6 +97,28 @@ describe('TopBar', () => {
     expect(html).toContain('role="combobox"');
     expect(html).toContain('placeholder="Search work items"');
     expect(html).not.toContain('Work list');
+  });
+
+  it('has a filter control in the search box with status, team, milestone and person', () => {
+    const html = render(members[1]);
+    expect(html).toContain('aria-label="Filters"');
+    expect(html).toContain('aria-label="Filter the graph"');
+    for (const legend of ['Status', 'Team', 'Milestone', 'Person (done by or requested by)'])
+      expect(html).toContain(`<legend>${legend}</legend>`);
+    for (const option of ['Planned', 'Finished late', 'Engineering', 'Go-live', 'No milestone'])
+      expect(html).toContain(option);
+    expect(html).toContain('Sarah Kim');
+  });
+
+  it('counts the active filters on the control and offers Clear filters', () => {
+    const html = render(members[1], NONE, { ...NO_FILTER, statuses: ['late'], teams: ['eng'] });
+    expect(html).toContain('aria-label="Filters, 2 on"');
+    expect(html).toMatch(/<span class="cnt">2<\/span>/);
+    expect(html).toContain('Clear filters');
+  });
+
+  it('shows the typed text of the filter in the search box', () => {
+    expect(render(members[1], NONE, { ...NO_FILTER, text: 'pg-203' })).toContain('value="pg-203"');
   });
 
   it('shows no hidden badge when nothing is hidden', () => {

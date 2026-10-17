@@ -217,6 +217,35 @@ const SHAPES = {
       <path d="M4 20v-7a4 4 0 0 1 4-4h12" />
     </g>
   ),
+  upDown: (
+    <g {...S24}>
+      <path d="m21 16-4 4-4-4" />
+      <path d="M17 20V4" />
+      <path d="m3 8 4-4 4 4" />
+      <path d="M7 4v16" />
+    </g>
+  ),
+  filter: (
+    <g {...S}>
+      <path d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z" />
+    </g>
+  ),
+  maximize: (
+    <g {...S}>
+      <path d="M15 3h6v6" />
+      <path d="m21 3-7 7" />
+      <path d="m3 21 7-7" />
+      <path d="M9 21H3v-6" />
+    </g>
+  ),
+  minimize: (
+    <g {...S}>
+      <path d="m14 10 7-7" />
+      <path d="M20 10h-6V4" />
+      <path d="m3 21 7-7" />
+      <path d="M4 14h6v6" />
+    </g>
+  ),
   loop: (
     <g {...S}>
       <path d="M3 12h18" />

@@ -1,5 +1,5 @@
 'use client';
-import type { Cr, TrackerState } from '../../tracker';
+import type { Cr, RowFilter, TrackerState } from '../../tracker';
 import { useDismissibleDetails } from '../shell/Popover';
 import { Avatar } from './avatar';
 import {
@@ -28,6 +28,8 @@ type Props = HiddenMenuProps & {
   onDrawer: (mode: DrawerMode) => void;
   onActAs: (memberId: string) => void;
   onPick: (workItemId: string) => void;
+  filter: RowFilter;
+  onFilter: (filter: RowFilter) => void;
 };
 
 function ViewMenu({ session, view, cr, actions, onView, onDrawer }: Props) {
@@ -105,7 +107,7 @@ function ViewMenu({ session, view, cr, actions, onView, onDrawer }: Props) {
 }
 
 export function TopBar(props: Props) {
-  const { session, state, asOf, drawer, onDrawer, onActAs, onPick } = props;
+  const { session, state, asOf, drawer, onDrawer, onActAs, onPick, filter, onFilter } = props;
   const { payload, me, isOwner, dir, tz } = session;
   const waiting =
     (isOwner
@@ -125,7 +127,14 @@ export function TopBar(props: Props) {
         onUnhideItem={props.onUnhideItem}
         onUnhideAll={props.onUnhideAll}
       />
-      <WorkSearch state={state} asOf={asOf} tz={tz} onPick={onPick} />
+      <WorkSearch
+        state={state}
+        asOf={asOf}
+        tz={tz}
+        filter={filter}
+        onFilter={onFilter}
+        onPick={onPick}
+      />
       <button
         className="btn"
         type="button"

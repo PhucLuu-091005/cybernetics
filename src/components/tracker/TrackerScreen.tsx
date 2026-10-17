@@ -13,14 +13,19 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  clampDrag,
   descendantsOf,
-  drawnAt,
+  drawnTimes,
   formatDay,
   KIND_LABEL,
   layoutTracker,
+  matchRows,
+  NO_FILTER,
   offsetFor,
   toInstant,
   type Offsets,
+  type RowFilter,
+  type RowMatch,
   type Cr,
   type CrPermission,
   type EventKind,
@@ -120,7 +125,6 @@ export type TrackerActions = {
   addEvent: (workItemId: string) => void;
   markDone: (workItemId: string) => void;
   moveDate: (target: DateTarget) => void;
-  rename: (workItemId: string) => void;
   saveRename: (workItemId: string, title: string) => void;
   changeKind: (eventId: string) => void;
   setKind: (eventId: string, kind: EventKind) => void;
@@ -152,7 +156,6 @@ export const NO_ACTIONS: TrackerActions = {
   addEvent: noop,
   markDone: noop,
   moveDate: noop,
-  rename: noop,
   saveRename: noop,
   changeKind: noop,
   setKind: noop,
@@ -169,7 +172,9 @@ export const NO_ACTIONS: TrackerActions = {
 export const POLL_MS = 5000;
 // The prototype keeps a pop open for clicks in these areas; the graph closes it on its own background.
 const OUTSIDE_EXEMPT =
-  '.p-head, .bbar, .pop, .drawer, .p-side, .empty, .ro-note, svg.tg, .tk-modal, .tk-toast';
+  '.p-head, .bbar, .pop, .drawer, .p-side, .empty, .ro-note, svg.tg, .tk-modal, .tk-toast, .zoombar';
+// These layers close themselves on Esc, so the screen leaves the rest open.
+const OWN_ESCAPE = '.tk details[open], .tk .tsearch-pop:not([hidden]), .tk .hand-menu';
 const MINUTE = 60_000;
 
 export function parseView(raw: string | null, crs: readonly Cr[]): TrackerView {
@@ -339,6 +344,16 @@ export function TrackerScreen({
   }
   const showNotice = view === 'main' && noticeOff === false && !noticeClosed;
   const [queueOpen, setQueueOpen] = useState(true);
+  const [rowFilter, setRowFilter] = useState<RowFilter>(NO_FILTER);
+  const rowMatch = useMemo(
+    () => matchRows(state, rowFilter, asOf, tz),
+    [state, rowFilter, asOf, tz],
+  );
+  const [full, setFull] = useState(false);
+  const leaveFull = useCallback(() => {
+    setFull(false);
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+  }, []);
 
   const [drawer, setDrawer] = useState<Drawer | null>(null);
   const [pop, setPop] = useState<(PopTarget & { view: TrackerView }) | null>(null);
@@ -396,17 +411,26 @@ export function TrackerScreen({
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      if (document.querySelector('.tk details[open], .tk .tsearch-pop:not([hidden])')) return;
+      if (document.querySelector(OWN_ESCAPE)) return;
       if (modal) closeModal();
       else if (moving) setMoving(null);
       else if (shownPop) closePop(true);
       else if (drawer) setDrawer(null);
       else if (focused) setFocus(null);
+      else if (full) leaveFull();
     };
     // Capture runs before the view menu's own Escape handler closes it, so one Esc closes one layer.
     document.addEventListener('keydown', onKey, { capture: true });
     return () => document.removeEventListener('keydown', onKey, { capture: true });
-  }, [modal, moving, shownPop, drawer, focused, closePop, closeModal]);
+  }, [modal, moving, shownPop, drawer, focused, full, closePop, closeModal, leaveFull]);
+  useEffect(() => {
+    // The browser leaves full screen on its own Esc too, and the board follows it.
+    const onChange = () => {
+      if (!document.fullscreenElement) setFull(false);
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
   useEffect(() => {
     if (!shownPop) return;
     const onClick = (event: MouseEvent) => {
@@ -437,12 +461,13 @@ export function TrackerScreen({
           zoom,
           offsets,
           focus: focused,
+          filter: rowMatch,
           focusButtons: true,
           ...(project.windowStart ? { windowStart: project.windowStart } : {}),
         },
         current.marks,
       ),
-    [state, hidden, asOf, tz, zoom, offsets, focused, project.windowStart, current.marks],
+    [state, hidden, asOf, tz, zoom, offsets, focused, rowMatch, project.windowStart, current.marks],
   );
   // Pointer handlers outlive the render that started a drag, and a poll can land in between.
   const live = useRef<{
@@ -494,17 +519,23 @@ export function TrackerScreen({
   const toggleTeam = (id: string) =>
     hide({ ...hidden, hiddenTeams: toggleId(hidden.hiddenTeams, id) });
   const reveal = (ids: string[]) => changeHidden(revealRows(hidden, ids, teamOf));
-  const bringIn = (workItemId: string) => {
+  const filteredOut = (workItemId: string, match: RowMatch | null) =>
+    !!match && !match.match.has(workItemId) && !match.context.has(workItemId);
+  const bringIn = (workItemId: string, match = rowMatch) => {
     if (isHidden(workItemId)) reveal([workItemId]);
     if (inFocus && !inFocus.has(workItemId)) setFocus(null);
+    if (filteredOut(workItemId, match)) setRowFilter(NO_FILTER);
   };
   const find = (workItemId: string) =>
     setInView((r) => ({ rowId: workItemId, key: (r?.key ?? 0) + 1 }));
-  const openItem = (workItemId: string, { find: scroll = true }: { find?: boolean } = {}) => {
+  const openItem = (
+    workItemId: string,
+    { find: scroll = true, match = rowMatch }: { find?: boolean; match?: RowMatch | null } = {},
+  ) => {
     if (!state.workItems.some((w) => w.id === workItemId)) return;
     setPop(null);
     setMoving(null);
-    bringIn(workItemId);
+    bringIn(workItemId, match);
     if (scroll) find(workItemId);
     setDrawer({ mode: 'item', id: workItemId });
   };
@@ -523,6 +554,19 @@ export function TrackerScreen({
     setFocus({ id: workItemId, grab: true });
     // The focus panel takes the drawer's place.
     setDrawer(null);
+  };
+  /** A pick clears the typed text; the other filters stay unless they would hide the picked row. */
+  const pickItem = (workItemId: string) => {
+    const next = { ...rowFilter, text: '' };
+    const match = matchRows(state, next, asOf, tz);
+    setRowFilter(next);
+    openItem(workItemId, { match });
+  };
+  const toggleFull = () => {
+    if (full) return leaveFull();
+    setFull(true);
+    // Without the Fullscreen API, or when the browser refuses, the board still covers the window.
+    void root.current?.requestFullscreen?.().catch(() => {});
   };
   const showEvent = (eventId: string) => {
     const ev = state.events.find((e) => e.id === eventId);
@@ -726,10 +770,6 @@ export function TrackerScreen({
           : state.workItems.find((w) => w.id === id)?.plannedFinish;
       if (date) openModal({ mode: 'due', kind, id, date });
     },
-    rename: (workItemId) => {
-      const anchor = anchorOf(`[data-loop="${workItemId}"]`) ?? pop?.anchor;
-      if (anchor) setPop({ kind: 'rename', id: workItemId, anchor, view });
-    },
     saveRename: (workItemId, title) => {
       const item = state.workItems.find((w) => w.id === workItemId);
       if (!title || !item || title === item.title) return setPop(null);
@@ -899,7 +939,9 @@ export function TrackerScreen({
     const start = { clientX: event.clientX, clientY: event.clientY, pointerId: event.pointerId };
     const L0 = live.current.layout;
     const x0 = svgPoint(svg, start.clientX, start.clientY).x;
-    const drawn0 = drawnAt(ev, live.current.saved, tz);
+    const row = live.current.state.events.filter((e) => e.workItemId === from && !e.hidden);
+    const saved0 = live.current.saved;
+    const drawn0 = drawnTimes(row, saved0, tz).get(eventId) ?? Date.parse(ev.at);
     let gesture: 'day' | 'move' | null = null;
     let minutes = live.current.saved[eventId] ?? 0;
     let target: DropTarget | null = null;
@@ -928,7 +970,13 @@ export function TrackerScreen({
       onMove: (e) => {
         if (gesture === 'day') {
           const x = svgPoint(svg, e.clientX, e.clientY).x;
-          const next = offsetFor(ev.at, drawn0 + L0.t(x) - L0.t(x0), tz);
+          const next = clampDrag(
+            ev,
+            offsetFor(ev.at, drawn0 + L0.t(x) - L0.t(x0), tz),
+            row,
+            saved0,
+            tz,
+          );
           if (next === minutes) return;
           minutes = next;
           setDayDrag({ eventId, minutes });
@@ -958,7 +1006,7 @@ export function TrackerScreen({
   };
 
   const dragDate = (event: ReactPointerEvent, kind: 'item' | 'ms', id: string, el: Element) => {
-    const svg = el.closest('svg.pg');
+    const svg = el.closest('svg.tg');
     const item = state.workItems.find((w) => w.id === id);
     const ms = state.milestones.find((m) => m.id === id);
     const cur = kind === 'item' ? item?.plannedFinish : ms?.planned;
@@ -1059,7 +1107,13 @@ export function TrackerScreen({
   };
 
   const base = { session, state, asOf, busy, onClose: () => setDrawer(null) };
-  const rootCls = ['tk board', drag?.cls, drag?.items && 'dragging', moving && 'moving']
+  const rootCls = [
+    'tk board',
+    drag?.cls,
+    drag?.items && 'dragging',
+    moving && 'moving',
+    full && 'fullview',
+  ]
     .filter(Boolean)
     .join(' ');
   return (
@@ -1091,7 +1145,9 @@ export function TrackerScreen({
         onUnhideItem={(id) => reveal([id])}
         onUnhideAll={() => changeHidden(EMPTY_VIEW)}
         onActAs={(id) => void onActAs(id)}
-        onPick={(id) => openItem(id)}
+        onPick={pickItem}
+        filter={rowFilter}
+        onFilter={setRowFilter}
       />
       <ContextBar
         session={session}
@@ -1148,6 +1204,7 @@ export function TrackerScreen({
               layout={layout}
               edit={edit}
               selectedMs={drawer?.mode === 'ms' ? drawer.id : null}
+              selectedRow={drawer?.mode === 'item' ? drawer.id : null}
               flash={null}
               lifted={drag?.lifted ?? null}
               preview={preview}
@@ -1160,6 +1217,7 @@ export function TrackerScreen({
               onReveal={reveal}
               onFocusItem={toggleFocus}
               onHandoff={showRow}
+              onRow={(id) => openItem(id, { find: false })}
               onPop={(kind, id, anchor) => setPop({ kind, id, anchor, view })}
               onMilestone={(id) => {
                 setPop(null);
@@ -1169,6 +1227,8 @@ export function TrackerScreen({
               onNewMilestone={actions.newMilestone}
               onNewTeam={actions.newTeam}
               onBackground={() => setPop(null)}
+              full={full}
+              onFull={toggleFull}
             />
             {edit && (
               <div className="bin" aria-hidden="true">
@@ -1188,7 +1248,6 @@ export function TrackerScreen({
                 offsets={saved}
                 actions={actions}
                 onClose={() => closePop(true)}
-                onHideRow={toggleRow}
                 // The pop sits on the row, so the row is in view already.
                 onDetails={(id) => openItem(id, { find: false })}
               />

@@ -479,7 +479,16 @@
 }
 .tk .rv .box .gscroll {
   border: 1px solid var(--rule);
-  border-radius: 10px;
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+}
+/* The review page scrolls as a whole, and its graph is short enough to read without a pinned axis. */
+.tk .rv .box .ghead {
+  position: static;
+  box-shadow: none;
+  border: 1px solid var(--rule);
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
 }
 
 .tk .tl {

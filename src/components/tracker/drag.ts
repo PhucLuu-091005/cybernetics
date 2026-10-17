@@ -165,9 +165,7 @@ export function targetUnder(
   if (el.closest('.bin')) return { type: 'bin' };
   const svg = el.closest('svg.tg');
   if (!(svg instanceof SVGSVGElement)) return null;
-  const p = svgPoint(svg, clientX, clientY);
-  // The rail has its own x axis; any point on it lies past the right end of the time line.
-  return targetAt(layout, svg.classList.contains('pg-rail') ? { x: layout.x1, y: p.y } : p);
+  return targetAt(layout, svgPoint(svg, clientX, clientY));
 }
 
 export function markTarget(root: Element, target: DropTarget | null, from: string | null) {
@@ -177,7 +175,7 @@ export function markTarget(root: Element, target: DropTarget | null, from: strin
     target.type === 'bin'
       ? root.querySelector('.bin')
       : target.type === 'ms'
-        ? root.querySelector(`svg.pg [data-ms="${target.id}"]`)
+        ? root.querySelector(`svg.tg [data-ms="${target.id}"]`)
         : target.type === 'lane'
           ? root.querySelector(`svg.pg [data-lane="${target.teamId}"]`)
           : target.id !== from

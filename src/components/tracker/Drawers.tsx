@@ -268,6 +268,7 @@ export function WorkItemDrawer({
   const msStat = ms ? milestoneStatus(ms, state.workItems, state.events, asOf, tz).status : null;
   const parent = state.workItems.find((w) => w.id === item.parentId);
   const sources = item.after.flatMap((id) => state.workItems.filter((w) => w.id === id));
+  const receivers = state.workItems.filter((w) => w.id !== item.id && w.after.includes(item.id));
   const events = state.events
     .filter((e) => e.workItemId === item.id)
     .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
@@ -343,13 +344,18 @@ export function WorkItemDrawer({
         edit && (
           <div className="row-btns wi-acts">
             {!info.done && (
-              <button
-                className="btn sm btn-ink"
-                type="button"
-                onClick={() => actions.addEvent(item.id)}
-              >
-                <Icon name="plus" size={13} /> Add an event
-              </button>
+              <>
+                <button
+                  className="btn sm btn-ink"
+                  type="button"
+                  onClick={() => actions.addEvent(item.id)}
+                >
+                  <Icon name="plus" size={13} /> Add an event
+                </button>
+                <button className="btn sm" type="button" onClick={() => actions.markDone(item.id)}>
+                  <KindIcon kind="done" size={13} /> Mark done
+                </button>
+              </>
             )}
             <button
               className="btn sm"
@@ -385,10 +391,10 @@ export function WorkItemDrawer({
             'None'
           )}
         </dd>
-        <dt>Planned finish</dt>
-        <dd>{formatDay(item.plannedFinish)}</dd>
         <dt>Started</dt>
         <dd>{info.start ? formatStamp(info.start, tz) : 'Not started'}</dd>
+        <dt>Planned finish</dt>
+        <dd>{formatDay(item.plannedFinish)}</dd>
         <dt>Finished</dt>
         <dd>{info.finishedAt ? formatStamp(info.finishedAt, tz) : 'Open'}</dd>
         <dt>Time spent</dt>
@@ -403,6 +409,12 @@ export function WorkItemDrawer({
           <>
             <dt>Leads from</dt>
             <dd className="links">{sources.map(link)}</dd>
+          </>
+        )}
+        {receivers.length > 0 && (
+          <>
+            <dt>Leads to</dt>
+            <dd className="links">{receivers.map(link)}</dd>
           </>
         )}
       </dl>
