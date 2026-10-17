@@ -425,7 +425,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await signIn(page, 'tracker-time');
     const dialog = page.locator('.m-card');
     const drawer = page.locator('.drawer');
-    await page.locator('.bbar').getByRole('button', { name: 'New change request' }).click();
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
     await dialog.getByRole('button', { name: 'Create', exact: true }).click();
     await page.waitForURL(/cr=\d+$/);
 
