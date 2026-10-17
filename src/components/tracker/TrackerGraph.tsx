@@ -20,7 +20,7 @@ import {
   type TrackerLayout,
 } from '../../tracker';
 import { svgPoint } from './drag';
-import { zoomTarget } from './scale';
+import { openScale, zoomTarget } from './scale';
 import { Icon, SvgIcon } from './icons';
 
 const { X0, SIDE, AXIS_Y, TRUNK_Y, TOP, INDENT, MAX_DAY_WIDTH } = GEOMETRY;
@@ -54,6 +54,8 @@ type Props = {
   onZoom: (dayWidth: number) => void;
   /** The visible width of the time line, measured on every resize. */
   onSpan?: (width: number) => void;
+  /** The width is measured and nobody zoomed yet, so the graph opens at its first view. */
+  opening?: boolean;
   onMoveTo?: (workItemId: string | null) => void;
   onToggleRow: (workItemId: string) => void;
   onToggleTeam: (teamId: string) => void;
@@ -293,6 +295,20 @@ export function TrackerGraph(props: Props) {
     pendingReveal.current = null;
     showRow(target);
   }, [L, showRow]);
+  const opening = props.opening ?? false;
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!opening || !el || anchor.current || pendingReveal.current) return;
+    const { L: now, onZoom } = latest.current;
+    const open = openScale(now);
+    anchor.current = {
+      dayWidth: open.dayWidth,
+      t: open.rightMs,
+      clientX: el.getBoundingClientRect().right,
+    };
+    onZoom(open.dayWidth);
+  }, [opening]);
+
   useEffect(() => {
     if (!revealed) return;
     const timer = setTimeout(() => setRevealed(null), REVEAL_FLASH_MS);

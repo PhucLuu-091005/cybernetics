@@ -27,3 +27,25 @@ export function zoomTarget(
   const next = clampDayWidth(from * factor, L.fitDayWidth);
   return factor < 1 ? Math.max(next, Math.min(L.fitDayWidth, from)) : next;
 }
+
+const DAY = 86_400_000;
+/** The first view shows five weeks before T and one after, so recent work reads at a calm scale. */
+export const OPEN_DAYS = 42;
+const OPEN_AFTER_T = 7 * DAY;
+/** A week this wide holds its date label, also on a phone. */
+export const OPEN_MIN_DAY_WIDTH = 10;
+
+/** The day width of the first view and the moment at its right edge; Fit still shows the whole window. */
+export function openScale(
+  L: Pick<TrackerLayout, 'fitDayWidth' | 't'> & {
+    window: Pick<TrackerLayout['window'], 'startMs' | 'endMs'>;
+    tLine: Pick<TrackerLayout['tLine'], 'x'>;
+  },
+): { dayWidth: number; rightMs: number } {
+  const visible = (L.fitDayWidth * (L.window.endMs - L.window.startMs)) / DAY;
+  const want = Math.max(visible / OPEN_DAYS, OPEN_MIN_DAY_WIDTH);
+  return {
+    dayWidth: want <= L.fitDayWidth ? L.fitDayWidth : clampDayWidth(want, L.fitDayWidth),
+    rightMs: L.t(L.tLine.x) + OPEN_AFTER_T,
+  };
+}

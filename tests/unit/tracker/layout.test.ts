@@ -209,6 +209,50 @@ describe('layoutTracker: time zoom', () => {
   });
 });
 
+describe('layoutTracker: axis ticks never crowd', () => {
+  const LABEL_ROOM = 64;
+  const at = (dayWidth: number, windowStart = '2026-01-05') =>
+    layoutTracker(larkspurState(), view({ windowStart, dayWidth, span: 4000 }));
+  const gaps = (L: TrackerLayout) => L.ticks.slice(1).map((tick, i) => tick.x - L.ticks[i].x);
+
+  it('keeps every two neighbouring ticks at least one label apart, at any zoom', () => {
+    for (const dayWidth of [2, 2.5, 3, 4.5, 6, 8, 9, 9.2, 12, 20, 40, 63, 64, 120, 480]) {
+      const L = at(dayWidth);
+      expect(L.ticks.length).toBeGreaterThan(1);
+      expect(Math.min(...gaps(L))).toBeGreaterThanOrEqual(LABEL_ROOM - 0.5);
+    }
+  });
+
+  it('picks the shortest step that fits: a day, a week, two weeks, a month or three months', () => {
+    expect(
+      at(64)
+        .ticks.slice(0, 2)
+        .map((t) => t.date),
+    ).toEqual(['2026-01-06', '2026-01-07']);
+    expect(
+      at(10)
+        .ticks.slice(0, 2)
+        .map((t) => t.date),
+    ).toEqual(['2026-01-12', '2026-01-19']);
+    expect(
+      at(5)
+        .ticks.slice(0, 2)
+        .map((t) => t.date),
+    ).toEqual(['2026-01-12', '2026-01-26']);
+    expect(
+      at(3)
+        .ticks.slice(0, 3)
+        .map((t) => t.date),
+    ).toEqual(['2026-02-01', '2026-03-01', '2026-04-01']);
+    expect(
+      at(2)
+        .ticks.slice(0, 2)
+        .map((t) => t.date),
+    ).toEqual(['2026-04-01', '2026-07-01']);
+    expect(at(3).ticks[0].label).toBe('1 Feb');
+  });
+});
+
 describe('layoutTracker: a scale that does not follow the width', () => {
   const DAYS = 37;
   const plot = X1 - X0;

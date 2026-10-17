@@ -1356,6 +1356,7 @@ export function TrackerScreen({
               reveal={inView}
               onZoom={onZoom}
               onSpan={onSpan}
+              opening={scale.span !== undefined && scale.dayWidth === undefined}
               onMoveTo={onMoveTo}
               onToggleRow={toggleRow}
               onToggleTeam={toggleTeam}
