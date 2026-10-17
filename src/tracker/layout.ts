@@ -46,8 +46,8 @@ const DAY = 86_400_000;
 const HOUR = 3_600_000;
 const GROUP_GAP = 16;
 const EMPTY_LEAD = 48 * HOUR;
-// A day this wide fits its own "14 Sept" label, so the axis can tick every day.
-const DAY_TICK = 60;
+// The widest date label ("28 Sept") with a gap on each side, so two neighbouring labels never touch.
+const TICK_ROOM = 64;
 // Half the T pill (88 wide) plus half a tick label such as "12 Oct", so the pill never covers a date.
 const T_PILL_ROOM = 66;
 
@@ -717,13 +717,55 @@ function chipOf(c: Ctx, w: WorkItem, r: LayoutRow, sources: string[]): LayoutChi
   };
 }
 
+/** The first day of a month from `start` on whose month number is a multiple of `months` plus 1. */
+function nextMonthStart(start: string, months: number): string {
+  let [y, m] = start.split('-').map(Number);
+  do {
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  } while ((m - 1) % months !== 0);
+  return `${y}-${String(m).padStart(2, '0')}-01`;
+}
+
+function addMonths(date: string, months: number): string {
+  const [y, m] = date.split('-').map(Number);
+  const index = y * 12 + (m - 1) + months;
+  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}-01`;
+}
+
+/** The shortest step whose shortest gap still holds a label, so neighbouring dates never touch. */
+function tickStep(dayWidth: number): {
+  first: (start: string) => string;
+  next: (d: string) => string;
+} {
+  const weekly = (days: number) => ({
+    first: (start: string) => {
+      const weekday = new Date(`${start}T00:00:00Z`).getUTCDay();
+      return addDays(start, (8 - weekday) % 7 || 7);
+    },
+    next: (d: string) => addDays(d, days),
+  });
+  const monthly = (months: number) => ({
+    first: (start: string) => nextMonthStart(start, months),
+    next: (d: string) => addMonths(d, months),
+  });
+  // A tick on the first day would sit on the label column and lose half its date.
+  if (dayWidth >= TICK_ROOM)
+    return { first: (start) => addDays(start, 1), next: (d) => addDays(d, 1) };
+  if (7 * dayWidth >= TICK_ROOM) return weekly(7);
+  if (14 * dayWidth >= TICK_ROOM) return weekly(14);
+  if (28 * dayWidth >= TICK_ROOM) return monthly(1);
+  if (89 * dayWidth >= TICK_ROOM) return monthly(3);
+  return monthly(12);
+}
+
 function ticksOf(c: Ctx, start: string, endMs: number): LayoutTick[] {
   const ticks: LayoutTick[] = [];
-  const daily = c.x(c.dayStart(addDays(start, 1))) - c.x(c.startMs) >= DAY_TICK;
-  const weekday = new Date(`${start}T00:00:00Z`).getUTCDay();
-  // A tick on the first day would sit on the label column and lose half its date.
-  const first = daily ? addDays(start, 1) : addDays(start, (8 - weekday) % 7 || 7);
-  for (let d = first; c.dayStart(d) < endMs; d = addDays(d, daily ? 1 : 7)) {
+  const step = tickStep(c.x(c.dayStart(addDays(start, 1))) - c.x(c.startMs));
+  for (let d = step.first(start); c.dayStart(d) < endMs; d = step.next(d)) {
     const tx = c.x(c.dayStart(d));
     ticks.push({
       date: d,

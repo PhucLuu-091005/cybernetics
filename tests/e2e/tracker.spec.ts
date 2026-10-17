@@ -549,6 +549,45 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     expect(at).toBeLessThan(after);
   });
 
+  test('the first view opens at a readable scale with T and the latest events in view, and labels never touch', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-open');
+    const fit = page.getByRole('button', { name: 'Fit to width' });
+    const labelsApart = async () => {
+      const boxes = await page
+        .locator('svg.pg-top-time .tick')
+        .evaluateAll((els) =>
+          els.map((el) => el.getBoundingClientRect()).map((r) => [r.left, r.right]),
+        );
+      return boxes.slice(1).every(([left], i) => left - boxes[i][1] >= 4);
+    };
+    const inView = (selector: string) =>
+      page.evaluate((sel) => {
+        const view = document.querySelector('.gscroll .gtime')!.getBoundingClientRect();
+        const box = document.querySelector(sel)!.getBoundingClientRect();
+        return box.left >= view.left - 1 && box.right <= view.right + 1;
+      }, selector);
+    const latest = () =>
+      page.evaluate(() => {
+        const acts = Array.from(document.querySelectorAll('svg.pg [data-act]'));
+        const right = acts.sort(
+          (a, b) => b.getBoundingClientRect().right - a.getBoundingClientRect().right,
+        )[0];
+        return `svg.pg [data-act="${right.getAttribute('data-act')}"]`;
+      });
+
+    await expect(fit).toBeEnabled();
+    await expect.poll(() => inView('svg.pg-top-time .tpill')).toBe(true);
+    expect(await inView(await latest())).toBe(true);
+    expect(await labelsApart()).toBe(true);
+
+    await fit.click();
+    await expect(fit).toBeDisabled();
+    await expect.poll(labelsApart).toBe(true);
+    expect(await inView('svg.pg-top-time .tpill')).toBe(true);
+  });
+
   test('folding the rail keeps the size of the graph and shows more of the time line', async ({
     page,
   }) => {
@@ -564,6 +603,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       });
     const lastTick = () => page.locator('svg.pg-top-time .tick').last().textContent();
     const timeLine = async () => (await page.locator('svg.pg').boundingBox())?.width ?? 0;
+    await fit.click();
     await expect(fit).toBeDisabled();
     const open = await measure();
     const openEnd = await lastTick();
@@ -772,7 +812,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(pop).toContainText('Minh sends the rehearsal report.');
     await page.keyboard.press('Escape');
 
-    expect(await overflow()).toBe(0);
+    await page.getByRole('button', { name: 'Fit to width' }).click();
+    await expect.poll(overflow).toBe(0);
     const zoomIn = page.getByRole('button', { name: 'Zoom in' });
     for (let i = 0; i < 6; i += 1) await zoomIn.click();
     await expect.poll(overflow).toBeGreaterThan(1000);
@@ -987,6 +1028,7 @@ test.describe('events at their own time', () => {
 
   test('Fit shows the earliest events, and a sideways drag moves nothing', async ({ page }) => {
     const { projectId } = await signIn(page, 'tracker-day');
+    await page.getByRole('button', { name: 'Fit to width' }).click();
     // At Fit the 2 Jul and 3 Jul events stack, with the later one on top.
     const g1 = page.locator('svg.pg [data-stack*="g1"]');
     await expect(g1).toHaveCount(1);

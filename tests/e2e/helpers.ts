@@ -6,10 +6,24 @@ export type Point = { x: number; y: number };
 export const hydrated = (page: Page) =>
   expect(page.getByRole('button', { name: 'Collapse sidebar' })).toBeEnabled();
 
+/** The centre of the part that shows: a graph row is wider than its scrolling time line. */
 export async function centerOf(locator: Locator): Promise<Point> {
-  const box = await locator.boundingBox();
-  if (!box) throw new Error('The drag end has no box');
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const box = await locator.evaluate((el) => {
+    let { left, top, right, bottom } = el.getBoundingClientRect();
+    for (let up = el.parentElement; up; up = up.parentElement) {
+      const style = getComputedStyle(up);
+      if (!/auto|scroll|hidden/.test(style.overflowX + style.overflowY)) continue;
+      const r = up.getBoundingClientRect();
+      left = Math.max(left, r.left);
+      top = Math.max(top, r.top);
+      right = Math.min(right, r.right);
+      bottom = Math.min(bottom, r.bottom);
+    }
+    return { left, top, right, bottom };
+  });
+  if (box.right <= box.left || box.bottom <= box.top)
+    throw new Error('The drag end is out of view');
+  return { x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2 };
 }
 
 /** Moves the mouse in small steps, as a person does, so the drag passes the start threshold. */
