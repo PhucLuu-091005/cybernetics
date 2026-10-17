@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  can,
   clashesOf,
   dayOf,
   focusTree,
@@ -42,6 +43,7 @@ import { Avatar, Avatars, type Directory } from './avatar';
 import {
   byNumDesc,
   canEditCr,
+  mergerNames,
   clashCount,
   editorsOf,
   isOpen,
@@ -895,7 +897,7 @@ export function ChangesDrawer({
   busy = false,
 }: Omit<Base, 'state' | 'asOf'> & { cr: Cr; actions: TrackerActions }) {
   const { payload, dir, me, projectId } = session;
-  const edit = canEditCr(cr, me);
+  const edit = canEditCr(cr, me) && can(payload, 'edit', cr);
   const clashes = isOpen(cr) ? clashesOf(cr.ops, payload.commits) : [];
   const model = useMemo(() => reviewModel(payload, cr.num), [payload, cr.num]);
   const dropped = (keys: string[]) =>
@@ -1008,7 +1010,7 @@ export function RequestsDrawer({
   actions: TrackerActions;
   onView: (view: TrackerView) => void;
 }) {
-  const { payload, dir, isOwner, projectId, tz } = session;
+  const { payload, dir, canMerge, projectId, tz } = session;
   return (
     <Frame
       label="Change requests"
@@ -1016,19 +1018,21 @@ export function RequestsDrawer({
         <>
           <h4>Change requests</h4>
           <small>
-            {isOwner
-              ? 'You own Main. Review and merge the ready ones.'
-              : `${dir.name(payload.project.ownerMemberId)} merges the ready ones into Main.`}
+            {canMerge
+              ? 'You can merge. Review and merge the ready ones.'
+              : `${mergerNames(session)} merges the ready ones into Main.`}
           </small>
         </>
       }
       onClose={onClose}
     >
-      <div className="m-foot" style={{ justifyContent: 'flex-start', marginTop: 4 }}>
-        <button className="btn btn-ink" type="button" onClick={actions.newCr}>
-          <Icon name="plus" /> New change request
-        </button>
-      </div>
+      {session.canCreate && (
+        <div className="m-foot" style={{ justifyContent: 'flex-start', marginTop: 4 }}>
+          <button className="btn btn-ink" type="button" onClick={actions.newCr}>
+            <Icon name="plus" /> New change request
+          </button>
+        </div>
+      )}
       {GROUPS.map(([status, label]) => {
         const crs = payload.crs.filter((c) => c.status === status).sort(byNumDesc);
         if (!crs.length) return null;
@@ -1039,7 +1043,7 @@ export function RequestsDrawer({
             </p>
             {crs.map((c) => {
               const clashes = clashCount(c, payload.commits);
-              const mergeIt = status === 'ready' && isOwner;
+              const mergeIt = status === 'ready' && canMerge;
               return (
                 <div className={`req${isOpen(c) ? '' : ' done'}`} key={c.num}>
                   <header>
@@ -1114,10 +1118,7 @@ export function HistoryDrawer({
       head={
         <>
           <h4>Main history</h4>
-          <small>
-            Each step is a change request that {dir.name(payload.project.ownerMemberId)} merged into
-            Main.
-          </small>
+          <small>Each step is a change request merged into Main, newest first.</small>
         </>
       }
       onClose={onClose}

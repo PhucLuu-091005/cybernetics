@@ -220,6 +220,76 @@
   flex: 1;
   min-width: 0;
 }
+.np-teams {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.np-teams legend {
+  margin-bottom: 6px;
+  padding: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-s);
+  font-weight: 500;
+}
+.np-teams ul {
+  max-height: 248px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border-top: 1px solid var(--rule-2);
+}
+.np-teams li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 2px 0 4px;
+  border-bottom: 1px solid var(--rule-2);
+  font-size: var(--fs-s);
+}
+.np-teams li span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.np-remove {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.np-remove:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.np-add {
+  display: flex;
+  gap: 6px;
+}
+.np-add input {
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-ctl);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-s);
+}
 .new-project-problem {
   font-size: var(--fs-xs);
   color: var(--ink-2);

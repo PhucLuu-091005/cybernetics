@@ -13,3 +13,4 @@ export * from './offsets';
 export * from './focus';
 export * from './filter';
 export * from './deadline';
+export * from './permissions';

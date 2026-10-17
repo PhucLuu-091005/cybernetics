@@ -25,6 +25,8 @@ const expectedRoutes = [
   '/projects/:projectId/agent-tokens/:tokenId',
   '/projects/:projectId/members',
   '/projects/:projectId/members/:memberId',
+  '/projects/:projectId/teams',
+  '/projects/:projectId/teams/:teamId',
   '/projects/:projectId/tracker',
   '/projects/:projectId/tracker/act-as',
   '/projects/:projectId/tracker/queue',

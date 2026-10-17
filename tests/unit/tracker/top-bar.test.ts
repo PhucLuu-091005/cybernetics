@@ -9,13 +9,46 @@ import { NO_ACTIONS } from '../../../src/components/tracker/TrackerScreen';
 import type { HiddenList } from '../../../src/components/tracker/view-state';
 import { NO_FILTER, type RowFilter } from '../../../src/tracker/filter';
 import type { Cr, Member, TrackerPayload } from '../../../src/tracker/payload';
+import { DEFAULT_GRANTS } from '../../../src/tracker/permissions';
 import { buildState } from '../../support/tracker-fixture';
 
 const members: Member[] = [
-  { id: 'minh', name: 'Minh Trần', roleLabel: 'Owner', color: '#111', userId: 'u1', active: true },
-  { id: 'lan', name: 'Lan Phạm', roleLabel: 'Lead', color: '#222', userId: null, active: true },
-  { id: 'gone', name: 'Bảo Ngô', roleLabel: '', color: '#333', userId: null, active: false },
-  { id: 'mai', name: 'Mai Vũ', roleLabel: '', color: '#444', userId: 'u2', active: true },
+  {
+    id: 'minh',
+    name: 'Minh Trần',
+    roleLabel: 'Owner',
+    color: '#111',
+    userId: 'u1',
+    active: true,
+    grants: DEFAULT_GRANTS,
+  },
+  {
+    id: 'lan',
+    name: 'Lan Phạm',
+    roleLabel: 'Lead',
+    color: '#222',
+    userId: null,
+    active: true,
+    grants: DEFAULT_GRANTS,
+  },
+  {
+    id: 'gone',
+    name: 'Bảo Ngô',
+    roleLabel: '',
+    color: '#333',
+    userId: null,
+    active: false,
+    grants: DEFAULT_GRANTS,
+  },
+  {
+    id: 'mai',
+    name: 'Mai Vũ',
+    roleLabel: '',
+    color: '#444',
+    userId: 'u2',
+    active: true,
+    grants: DEFAULT_GRANTS,
+  },
 ];
 const draft = (num: number, status: Cr['status'], author = 'lan'): Cr => ({
   id: `cr${num}`,
@@ -65,7 +98,7 @@ function sessionOf(me: Member | null, crs: Cr[] = []): Session {
       windowStart: null,
       asOf: null,
       demo: true,
-      ownerMemberId: 'minh',
+      leadMemberId: 'minh',
     },
     members,
     me,
@@ -80,7 +113,9 @@ function sessionOf(me: Member | null, crs: Cr[] = []): Session {
     projectId: 'p1',
     payload,
     me: me?.id ?? null,
-    isOwner: me?.id === 'minh',
+    canMerge: me?.id === 'minh',
+    canCreate: !!me,
+    mergers: ['minh'],
     dir: makeDirectory(members, []),
     tz: 'Asia/Ho_Chi_Minh',
   };
@@ -178,11 +213,13 @@ describe('TopBar', () => {
     expect(html).not.toContain('Show all');
   });
 
-  it('shows on Main that it is read-only and who owns it, in the view selector', () => {
+  it('shows on Main that it is read-only and who leads the project, in the view selector', () => {
     const html = render(members[1]);
     expect(html).toContain('read-only</span>');
-    expect(html).toContain('Owner: Minh Trần');
-    expect(html).toContain('aria-label="View: Main, read-only, owner Minh Trần. Switch view"');
+    expect(html).toContain('Lead: Minh Trần');
+    expect(html).toContain(
+      'aria-label="View: Main, read-only, project lead Minh Trần. Switch view"',
+    );
   });
 
   it('has one change requests button that reads Change requests, or the number ready to merge', () => {

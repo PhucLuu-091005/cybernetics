@@ -18,7 +18,7 @@ test('the rail folds to icons, keeps the state after a reload, and opens again',
   const rail = page.locator('.rail');
   await expect(rail.locator('.rail-foot').getByRole('button')).toHaveCount(1);
   await expect(rail.getByRole('button', { name: /theme|sign out/i })).toHaveCount(0);
-  await expect(rail).not.toContainText('Main changes only when its owner merges');
+  await expect(rail).not.toContainText('Main changes only when a person with the');
 
   const fold = page.getByRole('button', { name: 'Collapse sidebar' });
   await expect(fold.locator('path')).toHaveAttribute('d', /M9 3v18M16 15l-3-3 3-3$/);
