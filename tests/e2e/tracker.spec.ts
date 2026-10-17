@@ -528,7 +528,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
   test('the axis stays pinned while the rows scroll, and follows the sideways scroll', async ({
     page,
   }) => {
-    await page.setViewportSize({ width: 1440, height: 700 });
+    // The graph draws one pixel per unit, so a 600 px window leaves room to scroll 300 px.
+    await page.setViewportSize({ width: 1440, height: 600 });
     await signIn(page, 'tracker-pin');
     const canvas = page.locator('.gcanvas');
     const head = page.locator('.ghead');
