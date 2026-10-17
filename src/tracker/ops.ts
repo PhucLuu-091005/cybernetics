@@ -16,7 +16,7 @@ export type Op = z.infer<typeof OpSchema>;
 export type OpName = Op['op'];
 export type OpOf<N extends OpName> = Extract<Op, { op: N }>;
 export type OpDescription = z.infer<typeof OpDescriptionSchema>;
-export type OpEntry = OpDescription & { i: number; skipped?: boolean };
+export type OpEntry = OpDescription & { i: number; skipped?: boolean; loop?: boolean };
 export type Marks = {
   workItems: Set<string>;
   events: Set<string>;
@@ -31,6 +31,8 @@ export class OpError extends Error {
     this.name = 'OpError';
   }
 }
+
+export class LoopError extends OpError {}
 
 type Ctx = { by: string; timeZone: string };
 
@@ -52,6 +54,21 @@ function assertNew(list: Array<{ id: string }>, id: string, what: string) {
 
 function assertReason(why: string) {
   if (!why.trim()) throw new OpError('Write why the date moves.');
+}
+
+/** Parents and sources together form one tree for focus and layout, so a link must not close a loop. */
+function assertNoLoop(s: TrackerState, item: { id: string; title: string }, start: string[]) {
+  const seen = new Set<string>();
+  const todo = [...start];
+  while (todo.length) {
+    const id = todo.pop()!;
+    if (id === item.id)
+      throw new LoopError(`${item.title}: this link would make a loop of parents and sources.`);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const next = s.workItems.find((w) => w.id === id);
+    if (next) todo.push(...(next.parentId ? [next.parentId] : []), ...next.after);
+  }
 }
 
 function visibleEvent(s: TrackerState, id: string): TrackerEvent {
@@ -375,6 +392,7 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
       const item = find(s.workItems, op.a.workItemId, 'work item');
       const parent = op.a.parentId ? find(s.workItems, op.a.parentId, 'work item') : null;
       if (parent?.id === item.id) throw new OpError('A work item cannot be its own parent');
+      if (parent) assertNoLoop(s, item, [parent.id]);
       const old = s.workItems.find((w) => w.id === item.parentId);
       item.parentId = parent?.id ?? null;
       return {
@@ -389,6 +407,11 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
       const sources = [...new Set(op.a.after)].map((id) => find(s.workItems, id, 'work item'));
       if (sources.some((w) => w.id === item.id))
         throw new OpError('A work item cannot lead from itself');
+      assertNoLoop(
+        s,
+        item,
+        sources.map((w) => w.id),
+      );
       const titles = (ids: string[]) =>
         ids.map((id) => s.workItems.find((w) => w.id === id)?.title ?? id).join(', ') || 'Nothing';
       const before = titles(item.after);
@@ -500,6 +523,7 @@ export function replayOps(
         before: '',
         after: '',
         skipped: true,
+        ...(err instanceof LoopError ? { loop: true } : {}),
       });
     }
   });

@@ -11,6 +11,7 @@ import {
   mainState,
   noNul,
   onlyMainNote,
+  LoopError,
   OpError,
   OpSchema,
   replayOps,
@@ -136,6 +137,11 @@ function stillApplying(state: TrackerState, ops: readonly Op[], tz: string): Op[
       state = applied.state;
       kept.push({ ...op, d: applied.entry });
     } catch (error) {
+      if (error instanceof LoopError)
+        throw new AppError(
+          'CONFLICT',
+          `${error.message} Main changed its links after this change request. Request changes, or cancel it.`,
+        );
       if (!(error instanceof OpError)) throw error;
     }
   }

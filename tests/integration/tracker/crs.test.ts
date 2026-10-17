@@ -9,6 +9,7 @@ import {
   removeOp,
 } from '../../../src/server/tracker';
 import { clashesOf, mainState, type TrackerPayload } from '../../../src/tracker';
+import { reviewModel } from '../../../src/tracker/review';
 import { createTestDatabase, testActor, type TestDb } from '../../support/db';
 import { seedDemo, type Demo } from '../../support/tracker-db';
 
@@ -179,6 +180,19 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       ).rejects.toMatchObject({ code: 'VALIDATION' });
       const payload = await getTrackerPayload(t.db, demo.owner, as('lan'));
       expect(crOf(payload, num)).toMatchObject({ ops: [], revision: 0 });
+    });
+
+    it('rejects a parent or a source that would make a loop of links', async () => {
+      await fresh();
+      const { num } = await createCr(t.db, demo.owner, { ...as('lan'), title: 'Loop' });
+      const append = (op: unknown) =>
+        appendOp(t.db, demo.owner, { ...as('lan'), num, expectedRevision: 0, op } as never);
+      await expect(
+        append({ op: 'parent', a: { workItemId: 'crs', parentId: 'pg203' } }),
+      ).rejects.toMatchObject({ code: 'VALIDATION', message: expect.stringMatching(/loop/) });
+      await expect(
+        append({ op: 'after', a: { workItemId: 'analyse', after: ['pg203'] } }),
+      ).rejects.toMatchObject({ code: 'VALIDATION', message: expect.stringMatching(/loop/) });
     });
 
     it('records the acting member and the server time for a date move', async () => {
@@ -669,6 +683,30 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       const payload = await getTrackerPayload(t.db, demo.owner, as('minh'));
       expect(payload.commits).toHaveLength(2);
       expect(crOf(payload, x.num).status).toBe('ready');
+    });
+
+    it('refuses a merge whose link makes a loop with a link that Main took later', async () => {
+      await fresh();
+      const link = async (title: string, workItemId: string, parentId: string) => {
+        const { num } = await createCr(t.db, demo.owner, {
+          ...as('lan'),
+          title,
+          ops: [{ op: 'parent', a: { workItemId, parentId } }],
+        });
+        await action('lan', num, { action: 'ready' });
+        return num;
+      };
+      const first = await link('Go-live under CRS', 'golive', 'crs');
+      const second = await link('CRS under go-live', 'crs', 'golive');
+      await review(second, { action: 'merge', picks: {} });
+      await expect(review(first, { action: 'merge', picks: {} })).rejects.toMatchObject({
+        code: 'CONFLICT',
+        message: expect.stringMatching(/loop/),
+      });
+      const payload = await getTrackerPayload(t.db, demo.owner, as('minh'));
+      expect(crOf(payload, first).status).toBe('ready');
+      expect(reviewModel(payload, first)?.changes[0].skipReason).toBe('loop');
+      expect(reviewModel(payload, first)?.canMerge).toBe(false);
     });
 
     it('merges only a ready change request', async () => {

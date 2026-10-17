@@ -37,13 +37,14 @@ export type ReviewChange = {
   clash: ReviewClash | null;
 };
 
-export type SkipReason = 'queue' | 'main' | 'removed' | 'skipped';
+export type SkipReason = 'queue' | 'main' | 'removed' | 'skipped' | 'loop';
 
 export const SKIP_REASON: Record<SkipReason, string> = {
   queue: 'The queue card was removed.',
   main: 'Main changed this spot after the change was made.',
   removed: 'It needs an earlier change that was removed.',
   skipped: 'It needs an earlier change that no longer applies.',
+  loop: 'With the links Main has now, it would make a loop of parents and sources.',
 };
 
 export type ReviewModel = {
@@ -256,16 +257,18 @@ export function reviewModel(
   const after = shape.after.state;
   const closedClashes = closedClashIndexes(cr, payload.commits);
   const skippedOps: Op[] = [];
-  const changes = shape.described.entries.map(({ i, skipped, ...d }): ReviewChange => {
+  const changes = shape.described.entries.map(({ i, skipped, loop, ...d }): ReviewChange => {
     const op = shape.ops[i];
     const opIndex = shape.opIndexes[i];
     const workItemId = workItemIdOf(op, after);
     const eventId = eventIdOf(op);
     const clash = clashes.find((k) => k.index === opIndex) ?? null;
     const mainTookIt = !!clash || (opIndex !== null && closedClashes.has(opIndex));
-    const skipReason = skipped
-      ? skipReasonOf(op, mainTookIt, shape.before, payload.queue, skippedOps)
-      : null;
+    const skipReason = !skipped
+      ? null
+      : loop && !mainTookIt
+        ? 'loop'
+        : skipReasonOf(op, mainTookIt, shape.before, payload.queue, skippedOps);
     if (skipped) skippedOps.push(op);
     return {
       op,
@@ -294,6 +297,7 @@ export function reviewModel(
       cr.status === 'ready' &&
       merger &&
       shape.after.entries.some((entry) => !entry.skipped) &&
+      !changes.some((change) => change.skipReason === 'loop') &&
       clashes.every(
         (clash) =>
           current[clash.key] === 'main' || (current[clash.key] === 'cr' && clash.crApplies),

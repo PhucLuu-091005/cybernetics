@@ -576,6 +576,38 @@ describe('applyOp', () => {
   });
 });
 
+describe('links without loops', () => {
+  const loop = /would make a loop/;
+
+  it('refuses a parent whose own parents or sources reach the work item', () => {
+    expect(() =>
+      applyOp(larkspurState(), makeOp('parent', { workItemId: 'crs', parentId: 'pg203' })),
+    ).toThrow(loop);
+    expect(() =>
+      applyOp(larkspurState(), makeOp('parent', { workItemId: 'crs', parentId: 'pg203' })),
+    ).toThrow(OpError);
+  });
+
+  it('refuses a source whose own sources or parents reach the work item', () => {
+    expect(() =>
+      applyOp(larkspurState(), makeOp('after', { workItemId: 'analyse', after: ['pg203'] })),
+    ).toThrow(loop);
+    expect(() =>
+      applyOp(larkspurState(), makeOp('after', { workItemId: 'crs', after: ['pg201'] })),
+    ).toThrow(loop);
+  });
+
+  it('accepts links that make no loop', () => {
+    const s = applyOp(
+      larkspurState(),
+      makeOp('after', { workItemId: 'pg203', after: ['analyse', 'pg201'] }),
+    ).state;
+    expect(s.workItems.find((w) => w.id === 'pg203')?.after).toEqual(['analyse', 'pg201']);
+    const p = applyOp(larkspurState(), makeOp('parent', { workItemId: 'golive', parentId: 'crs' }));
+    expect(p.state.workItems.find((w) => w.id === 'golive')?.parentId).toBe('crs');
+  });
+});
+
 describe('replayOps', () => {
   const ops = [
     makeOp('attach', { eventId: 'qe3', workItemId: 'golive' }),
