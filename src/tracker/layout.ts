@@ -156,6 +156,8 @@ export type LayoutHandoffTarget = {
 export type LayoutHandoff = {
   fromId: string;
   targets: LayoutHandoffTarget[];
+  /** The Handoff event the mark sits on, or null when it sits after the finish or the T line. */
+  eventId: string | null;
   x: number;
   y: number;
   width: number;
@@ -446,8 +448,25 @@ const MARK_WIDE = 24;
 // A done source ends in its Done icon (radius 10); an open one ends at the T line, where an editor has the + button.
 const MARK_AFTER_DONE = 12;
 const MARK_AFTER_OPEN = 32;
+// On a Handoff event the mark is a badge on the top right of its icon (radius 10), inside the row band.
+const BADGE_DX = 5;
+const BADGE_RISE = 16;
 
-function handoffsOf(c: Ctx): LayoutHandoff[] {
+/** The latest visible Handoff event of a row that the graph draws, with the x of its icon. */
+function handoffEventOf(
+  c: Ctx,
+  id: string,
+  groups: LayoutEventGroup[],
+): { id: string; x: number } | null {
+  const ev = c.infos
+    .get(id)!
+    .events.filter((e) => e.kind === 'handoff')
+    .at(-1);
+  const group = ev && groups.find((g) => g.workItemId === id && g.eventIds.includes(ev.id));
+  return ev && group ? { id: ev.id, x: group.x } : null;
+}
+
+function handoffsOf(c: Ctx, groups: LayoutEventGroup[]): LayoutHandoff[] {
   const teamIndex = new Map(c.state.teams.map((t, i) => [t.id, i]));
   const teamName = new Map(c.state.teams.map((t) => [t.id, t.name]));
   const itemIndex = new Map(c.state.workItems.map((w, i) => [w.id, i]));
@@ -471,12 +490,15 @@ function handoffsOf(c: Ctx): LayoutHandoff[] {
     const source = c.items.get(src)!;
     const sr = c.rows.get(src)!;
     const finishedAt = c.infos.get(src)!.finishedAt;
-    const wait = !finishedAt;
-    const end = wait ? c.xt : c.x(Date.parse(finishedAt));
+    const handoff = handoffEventOf(c, src, groups);
+    const wait = !finishedAt && !handoff;
+    const end = handoff ? handoff.x : wait ? c.xt : c.x(Date.parse(finishedAt!));
     const width = list.length > 1 ? MARK_WIDE : MARK;
-    const after = end + (wait ? MARK_AFTER_OPEN : MARK_AFTER_DONE);
+    const gap = handoff ? BADGE_DX : wait ? MARK_AFTER_OPEN : MARK_AFTER_DONE;
+    const after = end + gap;
     // Near the right edge the mark goes left of the end, so the graph never cuts it.
-    const x = after + width <= c.width - 2 ? after : end - MARK_AFTER_DONE - width;
+    const x =
+      after + width <= c.width - 2 ? after : end - (handoff ? BADGE_DX : MARK_AFTER_DONE) - width;
     const targets = list.map((w) => {
       const team = teamName.get(w.teamId)!;
       const text = wait
@@ -489,8 +511,9 @@ function handoffsOf(c: Ctx): LayoutHandoff[] {
     return {
       fromId: src,
       targets,
+      eventId: handoff?.id ?? null,
       x,
-      y: sr.y - MARK / 2,
+      y: handoff ? sr.y - BADGE_RISE : sr.y - MARK / 2,
       width,
       height: MARK,
       dir: ups.every(Boolean) ? 'up' : ups.some(Boolean) ? 'both' : 'down',
@@ -527,14 +550,13 @@ function busyOf(
   groups: LayoutEventGroup[],
   handoffs: LayoutHandoff[],
   chips: LayoutChip[],
-  rowOf: Map<number, string>,
 ): Map<string, Span[]> {
   const busy = new Map<string, Span[]>();
   const add = (id: string | undefined, span: Span) => {
     if (id) busy.set(id, [...(busy.get(id) ?? []), span]);
   };
   for (const g of groups) add(g.workItemId, [g.x - EVENT_ROOM, g.x + EVENT_ROOM]);
-  for (const h of handoffs) add(rowOf.get(h.y + h.height / 2), [h.x - 2, h.x + h.width + 2]);
+  for (const h of handoffs) add(h.fromId, [h.x - 2, h.x + h.width + 2]);
   for (const ch of chips) add(ch.workItemId, [ch.x - 2, ch.x + ch.size + 2]);
   for (const s of segments)
     if (s.kind === 'wait') add(s.workItemId, [s.textX - 2, s.textX + s.text.length * WAIT_CHAR]);
@@ -815,7 +837,6 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
   const { lanes, height } = placeRows(c);
   const shown = [...c.rows.values()].sort((a, b) => a.y - b.y);
   const segments = linesOf(c, shown);
-  const handoffs = handoffsOf(c);
   const statusOf = new Map(
     state.milestones.map((m) => [
       m.id,
@@ -830,13 +851,8 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     return sources.length ? [chipOf(c, w, r, sources)] : [];
   });
   const eventGroups = shown.flatMap((r) => groupsOf(c, item(r), r, infos.get(r.id)!));
-  const busy = busyOf(
-    segments,
-    eventGroups,
-    handoffs,
-    chips,
-    new Map(shown.map((r) => [r.y, r.id])),
-  );
+  const handoffs = handoffsOf(c, eventGroups);
+  const busy = busyOf(segments, eventGroups, handoffs, chips);
   return {
     zoom,
     width: c.width,

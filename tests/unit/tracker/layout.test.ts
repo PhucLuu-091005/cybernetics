@@ -862,8 +862,8 @@ describe('layoutTracker: handoff marks and chips', () => {
       events: events.map(event),
     });
 
-  it('puts one mark at the finish of a source for all the work items it leads to', () => {
-    const fx = L.x(ms('2026-09-22T16:40'));
+  it('puts one mark on the Handoff event of a source for all the work items it leads to', () => {
+    const handoff = L.eventGroups.find((g) => g.eventIds.includes('a3'))!;
     const marks = L.handoffs.filter((h) => h.fromId === 'analyse');
     expect(marks).toHaveLength(1);
     const lines = [
@@ -896,8 +896,9 @@ describe('layoutTracker: handoff marks and chips', () => {
           text: lines[2],
         },
       ],
-      x: fx + 12,
-      y: 226 - 7,
+      eventId: 'a3',
+      x: handoff.x + 5,
+      y: 226 - 16,
       width: 24,
       height: 14,
       dir: 'down',
@@ -914,6 +915,7 @@ describe('layoutTracker: handoff marks and chips', () => {
       'Hands over to Digitization QA when done · received in Test the CRS section end to end';
     expect(L.handoffs.find((h) => h.fromId === 'pg203')).toMatchObject({
       targets: [{ id: 'test', text }],
+      eventId: null,
       x: xt + 32,
       y: 474 - 7,
       width: 14,
@@ -922,6 +924,82 @@ describe('layoutTracker: handoff marks and chips', () => {
       ariaLabel: text,
       tooltip: text,
     });
+  });
+
+  it('puts the mark at the finish when the source has no Handoff event, and none next to Done otherwise', () => {
+    const s = twoTeams(
+      [
+        { id: 'src', teamId: 't1' },
+        { id: 'x', teamId: 't2', after: ['src'] },
+      ],
+      [{ id: 's1', workItemId: 'src', kind: 'done', at: at('2026-09-22T16:40') }],
+    );
+    const P = layoutTracker(s, view());
+    expect(P.handoffs[0]).toMatchObject({
+      eventId: null,
+      x: P.x(ms('2026-09-22T16:40')) + 12,
+      y: P.rows[0].y - 7,
+    });
+    s.events.push(
+      event({ id: 'h1', workItemId: 'src', kind: 'handoff', at: at('2026-09-20T10:00') }),
+    );
+    const M = layoutTracker(s, view({ zoom: 4 }));
+    const marks = M.handoffs.filter((h) => h.fromId === 'src');
+    expect(marks).toHaveLength(1);
+    const h1 = M.eventGroups.find((g) => g.eventIds.includes('h1'))!;
+    expect(marks[0]).toMatchObject({ eventId: 'h1', x: h1.x + 5, y: M.rows[0].y - 16 });
+  });
+
+  it('takes the latest visible Handoff event, and counts an open source as handed over', () => {
+    const s = twoTeams(
+      [
+        { id: 'src', teamId: 't1' },
+        { id: 'x', teamId: 't2', after: ['src'] },
+      ],
+      [
+        { id: 'h1', workItemId: 'src', kind: 'handoff', at: at('2026-09-20T10:00') },
+        { id: 'h2', workItemId: 'src', kind: 'handoff', at: at('2026-09-24T10:00') },
+        { id: 'h3', workItemId: 'src', kind: 'handoff', at: at('2026-09-26T10:00'), hidden: true },
+      ],
+    );
+    const M = layoutTracker(s, view({ zoom: 4 }));
+    const h2 = M.eventGroups.find((g) => g.eventIds.includes('h2'))!;
+    expect(M.handoffs[0]).toMatchObject({
+      eventId: 'h2',
+      x: h2.x + 5,
+      tone: 'proceed',
+      wait: false,
+      tooltip: 'Handed over to Two · received in x',
+    });
+  });
+
+  it('falls back to the finish when the Handoff event lies before the window', () => {
+    const s = twoTeams(
+      [
+        { id: 'src', teamId: 't1' },
+        { id: 'x', teamId: 't2', after: ['src'] },
+      ],
+      [
+        { id: 'h1', workItemId: 'src', kind: 'handoff', at: at('2026-09-05T10:00') },
+        { id: 's1', workItemId: 'src', kind: 'done', at: at('2026-09-22T16:40') },
+      ],
+    );
+    const M = layoutTracker(s, view());
+    expect(M.handoffs[0]).toMatchObject({ eventId: null, x: M.x(ms('2026-09-22T16:40')) + 12 });
+  });
+
+  it('puts the mark on a Handoff event left of it near the right edge', () => {
+    const s = twoTeams(
+      [
+        { id: 'src', teamId: 't1' },
+        { id: 'x', teamId: 't2', after: ['src'] },
+        { id: 'y', teamId: 't2', after: ['src'] },
+      ],
+      [{ id: 'h1', workItemId: 'src', kind: 'handoff', at: at('2026-10-16T22:00') }],
+    );
+    const M = layoutTracker(s, view());
+    const h1 = M.eventGroups.find((g) => g.eventIds.includes('h1'))!;
+    expect(M.handoffs[0].x).toBe(h1.x - 5 - 24);
   });
 
   it('gives a source one mark per source row, never one per receiver', () => {
