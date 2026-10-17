@@ -1,102 +1,20 @@
-import type { TrackerBase, TrackerEvent } from './model';
+import type { TrackerBase } from './model';
 import type { Op } from './ops';
 import type { QueueRow } from './payload';
 import { addDays, dayOf, startOfDayInstant } from './time';
 
-/** Minutes that one viewer moved an event inside its day, by event id; drawing only. */
-export type Offsets = Readonly<Record<string, number>>;
-
 const MINUTE = 60_000;
 
-/** Measured on the project clock, so a 23-hour or 25-hour day keeps the icon inside that day. */
+/**
+ * The server still stores day offsets per viewer, but the graph draws every event at its own time,
+ * so only the route that saves an offset reads this range.
+ */
 export function offsetRange(at: string, timeZone: string): { min: number; max: number } {
   const ms = Date.parse(at);
   const day = dayOf(at, timeZone);
   const start = Date.parse(startOfDayInstant(day, timeZone));
   const next = Date.parse(startOfDayInstant(addDays(day, 1), timeZone));
   return { min: Math.ceil((start - ms) / MINUTE) + 0, max: Math.floor((next - 1 - ms) / MINUTE) };
-}
-
-export function clampOffset(at: string, minutes: number | undefined, timeZone: string): number {
-  if (minutes === undefined || !Number.isFinite(minutes)) return 0;
-  const { min, max } = offsetRange(at, timeZone);
-  return Math.min(max, Math.max(min, Math.round(minutes))) + 0;
-}
-
-export function drawnAt(
-  event: Pick<TrackerEvent, 'id' | 'at'>,
-  offsets: Offsets,
-  timeZone: string,
-): number {
-  const minutes = Object.hasOwn(offsets, event.id) ? offsets[event.id] : undefined;
-  return Date.parse(event.at) + clampOffset(event.at, minutes, timeZone) * MINUTE;
-}
-
-type Timed = Pick<TrackerEvent, 'id' | 'at' | 'workItemId'>;
-
-const byTime = (a: Timed, b: Timed) =>
-  Date.parse(a.at) - Date.parse(b.at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-
-const sameRowAndDay = (e: Timed, timeZone: string) => `${e.workItemId}|${dayOf(e.at, timeZone)}`;
-
-export type Deadlines = ReadonlyMap<string, number>;
-
-/** An event keeps its side of the deadline of its row, so a moved icon never tells a wrong story. */
-function deadlineSide(e: Timed, deadlines: Deadlines | undefined): { min: number; max: number } {
-  const limit = deadlines?.get(e.workItemId);
-  if (limit === undefined) return { min: -Infinity, max: Infinity };
-  return Date.parse(e.at) <= limit ? { min: -Infinity, max: limit } : { min: limit, max: Infinity };
-}
-
-/** Offsets saved before the drag kept the order could put an earlier event right of a later one. */
-export function drawnTimes(
-  events: readonly Timed[],
-  offsets: Offsets,
-  timeZone: string,
-  deadlines?: Deadlines,
-): Map<string, number> {
-  const drawn = new Map<string, number>();
-  const last = new Map<string, number>();
-  for (const e of [...events].sort(byTime)) {
-    const key = sameRowAndDay(e, timeZone);
-    const side = deadlineSide(e, deadlines);
-    const at = Math.min(
-      side.max,
-      Math.max(drawnAt(e, offsets, timeZone), last.get(key) ?? -Infinity, side.min),
-    );
-    last.set(key, at);
-    drawn.set(e.id, at);
-  }
-  return drawn;
-}
-
-export function clampDrag(
-  event: Timed,
-  minutes: number,
-  events: readonly Timed[],
-  offsets: Offsets,
-  timeZone: string,
-  deadlines?: Deadlines,
-): number {
-  const key = sameRowAndDay(event, timeZone);
-  const row = events.filter((e) => sameRowAndDay(e, timeZone) === key);
-  const drawn = drawnTimes(row, offsets, timeZone, deadlines);
-  let { min, max } = deadlineSide(event, deadlines);
-  for (const e of row) {
-    if (e.id === event.id) continue;
-    const t = drawn.get(e.id)!;
-    if (byTime(e, event) < 0) min = Math.max(min, t);
-    else max = Math.min(max, t);
-  }
-  const at = Date.parse(event.at);
-  const lo = Math.ceil((min - at) / MINUTE);
-  const hi = Math.floor((max - at) / MINUTE);
-  if (lo > hi) return clampOffset(event.at, lo, timeZone);
-  return clampOffset(event.at, Math.min(hi, Math.max(lo, minutes)), timeZone);
-}
-
-export function offsetFor(at: string, drawnMs: number, timeZone: string): number {
-  return clampOffset(at, (drawnMs - Date.parse(at)) / MINUTE, timeZone);
 }
 
 /** No operation changes the time of an event, so any view that has the event gives the same time. */

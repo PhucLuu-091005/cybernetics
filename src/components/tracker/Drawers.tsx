@@ -1,6 +1,14 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   clashesOf,
   dayOf,
@@ -20,13 +28,17 @@ import {
   SKIP_REASON,
   STATUS_LABEL,
   STATUS_TONE,
+  teamFocusTree,
   timeSpent,
+  toInstant,
   type Commit,
   type Cr,
+  type DateMove,
   type FocusNode,
   type TrackerState,
 } from '../../tracker';
-import { Avatar, Avatars } from './avatar';
+import type { OpInput } from './api';
+import { Avatar, Avatars, type Directory } from './avatar';
 import {
   byNumDesc,
   canEditCr,
@@ -199,7 +211,7 @@ export function MilestoneDrawer({
             <div>
               <b>{w.title}</b>
               <small>
-                {finishedAt ? `Done ${formatDay(dayOf(finishedAt, tz))}` : 'Open'} ·{' '}
+                {finishedAt ? `Done ${formatDay(dayOf(finishedAt, tz))}` : 'Not finished'} ·{' '}
                 {team(w.teamId)}
               </small>
             </div>
@@ -243,6 +255,79 @@ export function MilestoneDrawer({
   );
 }
 
+type Dates = { date: string; time: string; why: string };
+
+// The server stamps the move again with its own clock; this only fills the op.
+const nowIn = (tz: string) => toInstant(Date.now(), tz);
+
+/** The date moves fold away; a person opens them to read each move with its reason. */
+function MoveHistory({
+  moves,
+  first,
+  dir,
+  tz,
+}: {
+  moves: readonly DateMove[];
+  first: string;
+  dir: Directory;
+  tz: string;
+}) {
+  // A button, not <details>: an open <details> keeps Esc for itself, and Esc must close the panel.
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+  if (!moves.length)
+    return (
+      <div className="wi-never">
+        <span>Date moves</span>
+        <span>The date never moved.</span>
+      </div>
+    );
+  return (
+    <div className={`wi-moves${open ? ' open' : ''}`}>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="k">Date moves</span>
+        <span>
+          First planned {first} · moved {moves.length}×
+        </span>
+        <Icon name="chev" size={13} />
+      </button>
+      {open && (
+        <ol id={listId}>
+          {[...moves].reverse().map((mv, i) => (
+            <li key={`${mv.at}-${i}`}>
+              <Avatar id={mv.by} dir={dir} sm />
+              <b>
+                {formatDeadline(mv.from, mv.fromTime)} → {formatDeadline(mv.to, mv.toTime)}
+              </b>
+              <span>{mv.why}</span>
+              <small>
+                {dir.name(mv.by)} · {formatStamp(mv.at, tz)}
+              </small>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+function Who({ id, dir }: { id: string; dir: Directory }) {
+  return (
+    <span className="who">
+      <Avatar id={id} dir={dir} sm /> {dir.name(id)}
+    </span>
+  );
+}
+
+/**
+ * The detail panel of a work item. With `edit` the same rows turn into controls, and each change is
+ * one change request op through `actions.editItem`, so a host page needs only the actions.
+ */
 export function WorkItemDrawer({
   session,
   state,
@@ -269,16 +354,24 @@ export function WorkItemDrawer({
 }) {
   const { dir, tz } = session;
   const item = state.workItems.find((w) => w.id === itemId);
+  // Null until the editor types, so a hand-over or a poll shows the current values, not a stale copy.
   const [title, setTitle] = useState<string | null>(null);
+  const [dates, setDates] = useState<Dates | null>(null);
+  const [adding, setAdding] = useState('');
   if (!item) return null;
   const info = itemInfo(item, state.events, asOf);
   const status = itemStatus(item, state.events, asOf, tz);
+  const late = status === 'late';
+  const lateText = late
+    ? lateBy({ planned: item.plannedFinish, plannedTime: item.plannedFinishTime }, asOf, tz)
+    : null;
   const team = state.teams.find((t) => t.id === item.teamId)?.name ?? '';
   const ms = state.milestones.find((m) => m.id === item.milestoneId);
   const msStat = ms ? milestoneStatus(ms, state.workItems, state.events, asOf, tz).status : null;
   const parent = state.workItems.find((w) => w.id === item.parentId);
   const sources = item.after.flatMap((id) => state.workItems.filter((w) => w.id === id));
   const receivers = state.workItems.filter((w) => w.id !== item.id && w.after.includes(item.id));
+  const others = state.workItems.filter((w) => w.id !== item.id);
   const events = state.events
     .filter((e) => e.workItemId === item.id)
     .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
@@ -288,11 +381,48 @@ export function WorkItemDrawer({
       {w.title}
     </button>
   );
+  const change = (op: OpInput) => actions.editItem([op]);
+  const name = title ?? item.title;
+  const renamed = name.trim() !== '' && name.trim() !== item.title;
   const rename = () => {
-    const next = title?.trim() ?? '';
     setTitle(null);
-    if (next) actions.saveRename(item.id, next);
+    if (renamed) change({ op: 'rename', a: { workItemId: item.id, title: name.trim() } });
   };
+  const plan = dates ?? { date: item.plannedFinish, time: item.plannedFinishTime ?? '', why: '' };
+  const moved = plan.date !== item.plannedFinish || plan.time !== (item.plannedFinishTime ?? '');
+  const moveDate = () => {
+    if (!plan.why.trim() || !moved) return;
+    setDates(null);
+    change({
+      op: 'due',
+      a: {
+        workItemId: item.id,
+        date: plan.date,
+        ...(plan.time ? { time: plan.time } : {}),
+        why: plan.why.trim(),
+        by: session.me ?? 'nobody',
+        at: nowIn(tz),
+      },
+    });
+  };
+  const people = (value: string, label: string, onPick: (id: string) => void) => (
+    <span className="wi-pick">
+      <Avatar id={value} dir={dir} sm />
+      <select
+        aria-label={label}
+        value={value}
+        disabled={busy}
+        onChange={(e) => onPick(e.target.value)}
+      >
+        {state.people.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+    </span>
+  );
+  const finish = formatDeadline(item.plannedFinish, item.plannedFinishTime);
   return (
     <Frame
       label={item.title}
@@ -303,16 +433,47 @@ export function WorkItemDrawer({
       }
       head={
         <>
-          <h4>{item.title}</h4>
+          {edit ? (
+            <input
+              className="wi-title"
+              aria-label="Name"
+              value={name}
+              onChange={(event) => setTitle(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                rename();
+              }}
+            />
+          ) : (
+            <h4>{item.title}</h4>
+          )}
           <small>{team}</small>
         </>
       }
       onClose={onClose}
     >
+      {edit && title !== null && (
+        <div className="wi-inline">
+          <button className="btn sm" type="button" onClick={() => setTitle(null)}>
+            Cancel
+          </button>
+          <button
+            className="btn sm btn-ink"
+            type="button"
+            disabled={!renamed || busy}
+            onClick={rename}
+          >
+            <Icon name="check" size={13} /> Save name
+          </button>
+        </div>
+      )}
       <div className="wi-top">
         <span className={`badge st-${status}`}>{STATUS_LABEL[status]}</span>
+        {lateText && <span className="late-by">{lateText}</span>}
+        <span className="sp" />
         <button
-          className={`btn sm${hidden ? ' btn-draft' : ''}`}
+          className="btn sm btn-quiet"
           type="button"
           aria-pressed={hidden}
           onClick={() => onToggleRow(item.id)}
@@ -321,75 +482,86 @@ export function WorkItemDrawer({
           {hidden ? 'Show on the graph' : 'Hide from the graph'}
         </button>
       </div>
-      {edit && title !== null ? (
-        <div className="wi-rename">
-          <label className="field">
-            New name
-            <input
-              autoFocus
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter') return;
-                event.preventDefault();
-                rename();
-              }}
-            />
-          </label>
-          <div className="m-foot">
-            <button className="btn" type="button" onClick={() => setTitle(null)}>
-              Cancel
-            </button>
-            <button
-              className="btn btn-ink"
-              type="button"
-              disabled={!title.trim() || title.trim() === item.title || busy}
-              onClick={rename}
-            >
-              <Icon name="check" /> Save name
-            </button>
-          </div>
+      {edit && !info.done && (
+        <div className="row-btns wi-acts">
+          <button
+            className="btn sm btn-ink"
+            type="button"
+            onClick={() => actions.addEvent(item.id)}
+          >
+            <Icon name="plus" size={13} /> Add an event
+          </button>
+          <button className="btn sm" type="button" onClick={() => actions.markDone(item.id)}>
+            <KindIcon kind="done" size={13} /> Mark done
+          </button>
         </div>
-      ) : (
-        edit && (
-          <div className="row-btns wi-acts">
-            {!info.done && (
-              <>
-                <button
-                  className="btn sm btn-ink"
-                  type="button"
-                  onClick={() => actions.addEvent(item.id)}
-                >
-                  <Icon name="plus" size={13} /> Add an event
-                </button>
-                <button className="btn sm" type="button" onClick={() => actions.markDone(item.id)}>
-                  <KindIcon kind="done" size={13} /> Mark done
-                </button>
-              </>
-            )}
-            <button
-              className="btn sm"
-              type="button"
-              onClick={() => actions.moveDate({ kind: 'item', id: item.id })}
-            >
-              <Icon name="cal" size={13} /> Move the date
-            </button>
-            <button className="btn sm" type="button" onClick={() => setTitle(item.title)}>
-              <Icon name="pencil" size={13} /> Rename
-            </button>
-          </div>
-        )
       )}
-      <dl className="facts">
+      <dl className="facts wi-facts">
         <dt>Team</dt>
-        <dd>{team}</dd>
+        <dd>
+          {edit ? (
+            <select
+              aria-label="Team"
+              value={item.teamId}
+              disabled={busy}
+              onChange={(e) =>
+                change({ op: 'team', a: { workItemId: item.id, teamId: e.target.value } })
+              }
+            >
+              {state.teams.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            team
+          )}
+        </dd>
         <dt>Done by</dt>
-        <dd>{dir.name(item.doneBy)}</dd>
+        <dd>
+          {edit ? (
+            people(item.doneBy, 'Done by', (personId) =>
+              change({ op: 'doneBy', a: { workItemId: item.id, personId } }),
+            )
+          ) : (
+            <Who id={item.doneBy} dir={dir} />
+          )}
+        </dd>
         <dt>Requested by</dt>
-        <dd>{dir.name(item.requestedBy)}</dd>
+        <dd>
+          {edit ? (
+            people(item.requestedBy, 'Requested by', (personId) =>
+              change({ op: 'requestedBy', a: { workItemId: item.id, personId } }),
+            )
+          ) : (
+            <Who id={item.requestedBy} dir={dir} />
+          )}
+        </dd>
+        <span className="gap" role="presentation" />
         <dt>Milestone</dt>
         <dd>
-          {ms && msStat ? (
+          {edit ? (
+            <select
+              aria-label="Milestone"
+              value={item.milestoneId ?? ''}
+              disabled={busy}
+              onChange={(e) =>
+                change(
+                  e.target.value
+                    ? { op: 'msAdd', a: { workItemId: item.id, milestoneId: e.target.value } }
+                    : { op: 'msRemove', a: { workItemId: item.id } },
+                )
+              }
+            >
+              <option value="">None</option>
+              {state.milestones.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} · {formatDeadline(m.planned, m.plannedTime)}
+                </option>
+              ))}
+            </select>
+          ) : ms && msStat ? (
             <>
               <button className="lnk" type="button" onClick={() => onMilestone(ms.id)}>
                 {ms.name}
@@ -404,21 +576,142 @@ export function WorkItemDrawer({
         <dt>Started</dt>
         <dd>{info.start ? formatStamp(info.start, tz) : 'Not started'}</dd>
         <dt>Planned finish</dt>
-        <dd>{formatDay(item.plannedFinish)}</dd>
+        <dd className={late && !edit ? 'late' : undefined}>
+          {edit ? (
+            <div className="wi-when">
+              <span className="wi-date">
+                <input
+                  type="date"
+                  aria-label="Planned finish"
+                  required
+                  value={plan.date}
+                  onChange={(e) => e.target.value && setDates({ ...plan, date: e.target.value })}
+                />
+                <TimeInput value={plan.time} onChange={(time) => setDates({ ...plan, time })} />
+              </span>
+              {late && !moved && <span className="late-by">{lateText}</span>}
+              {moved && (
+                <div className="wi-why">
+                  <label className="field">
+                    Why does the date move? (required)
+                    <textarea
+                      value={plan.why}
+                      required
+                      placeholder="For example: Lan sends the country list on 10 October."
+                      onChange={(e) => setDates({ ...plan, why: e.target.value })}
+                    />
+                  </label>
+                  <div className="wi-inline">
+                    <button className="btn sm" type="button" onClick={() => setDates(null)}>
+                      Cancel
+                    </button>
+                    <button
+                      className="btn sm btn-ink"
+                      type="button"
+                      disabled={!plan.why.trim() || busy}
+                      onClick={moveDate}
+                    >
+                      <Icon name="cal" size={13} /> Move the date
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              {finish}
+              {lateText && ` · ${lateText}`}
+            </>
+          )}
+        </dd>
         <dt>Finished</dt>
-        <dd>{info.finishedAt ? formatStamp(info.finishedAt, tz) : 'Open'}</dd>
+        <dd>{info.finishedAt ? formatStamp(info.finishedAt, tz) : 'Not yet'}</dd>
         <dt>Time spent</dt>
         <dd>{spent ?? 'Not started'}</dd>
-        {parent && (
+        {(edit || parent || sources.length > 0 || receivers.length > 0) && (
+          <span className="gap" role="presentation" />
+        )}
+        {(edit || parent) && (
           <>
             <dt>Parent</dt>
-            <dd>{link(parent)}</dd>
+            <dd>
+              {edit ? (
+                <select
+                  aria-label="Parent"
+                  value={item.parentId ?? ''}
+                  disabled={busy}
+                  onChange={(e) =>
+                    change({
+                      op: 'parent',
+                      a: { workItemId: item.id, parentId: e.target.value || null },
+                    })
+                  }
+                >
+                  <option value="">None</option>
+                  {others.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {trunc(w.title, 44)}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                parent && link(parent)
+              )}
+            </dd>
           </>
         )}
-        {sources.length > 0 && (
+        {(edit || sources.length > 0) && (
           <>
             <dt>Leads from</dt>
-            <dd className="links">{sources.map(link)}</dd>
+            <dd className="links">
+              {sources.map((w) =>
+                edit ? (
+                  <span key={w.id} className="wi-chip">
+                    {link(w)}
+                    <button
+                      className="x"
+                      type="button"
+                      aria-label={`Remove ${w.title} from Leads from`}
+                      disabled={busy}
+                      onClick={() =>
+                        change({
+                          op: 'after',
+                          a: { workItemId: item.id, after: item.after.filter((id) => id !== w.id) },
+                        })
+                      }
+                    >
+                      ×
+                    </button>
+                  </span>
+                ) : (
+                  link(w)
+                ),
+              )}
+              {edit && (
+                <select
+                  aria-label="Add to Leads from"
+                  value={adding}
+                  disabled={busy}
+                  onChange={(e) => {
+                    setAdding('');
+                    if (e.target.value)
+                      change({
+                        op: 'after',
+                        a: { workItemId: item.id, after: [...item.after, e.target.value] },
+                      });
+                  }}
+                >
+                  <option value="">{sources.length ? 'Add another…' : 'Nothing · add…'}</option>
+                  {others
+                    .filter((w) => !item.after.includes(w.id))
+                    .map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {trunc(w.title, 44)}
+                      </option>
+                    ))}
+                </select>
+              )}
+            </dd>
           </>
         )}
         {receivers.length > 0 && (
@@ -428,7 +721,12 @@ export function WorkItemDrawer({
           </>
         )}
       </dl>
-      <Moves moves={item.moves} first={formatDay(item.firstPlannedFinish)} dir={dir} tz={tz} />
+      <MoveHistory
+        moves={item.moves}
+        first={formatDeadline(item.firstPlannedFinish, item.firstPlannedFinishTime)}
+        dir={dir}
+        tz={tz}
+      />
       <p className="q-label">Events ({events.length})</p>
       {!events.length && <p className="tip">No events yet.</p>}
       <ul className="ev-list">
@@ -472,25 +770,32 @@ export function FocusDrawer({
   state,
   asOf,
   onClose,
-  focusId,
+  focus,
   isHidden,
   grab,
   onGrabbed,
   onFocus,
   onShow,
 }: Base & {
-  focusId: string;
+  focus: { kind: 'item' | 'team'; id: string };
   isHidden: (workItemId: string) => boolean;
   grab: boolean;
   onGrabbed: () => void;
   onFocus: (workItemId: string) => void;
   onShow: (workItemId: string) => void;
 }) {
-  const tree = useMemo(() => focusTree(state, focusId), [state, focusId]);
+  const tree = useMemo(
+    () => (focus.kind === 'item' ? focusTree(state, focus.id) : null),
+    [state, focus.kind, focus.id],
+  );
+  const teamTree = useMemo(
+    () => (focus.kind === 'team' ? teamFocusTree(state, focus.id) : null),
+    [state, focus.kind, focus.id],
+  );
   useEffect(() => {
     if (grab) onGrabbed();
   }, [grab, onGrabbed]);
-  if (!tree) return null;
+  if (!tree && !teamTree) return null;
   const { tz } = session;
   const team = (id: string) => state.teams.find((t) => t.id === id)?.name ?? '';
   const size = (n: FocusNode): number => n.children.reduce((sum, c) => sum + size(c), 1);
@@ -518,9 +823,10 @@ export function FocusDrawer({
       </li>
     );
   };
+  const count = tree ? size(tree.root) : teamTree!.roots.reduce((sum, r) => sum + size(r), 0);
   return (
     <Frame
-      label={`Focus on ${tree.root.title}`}
+      label={`Focus on ${tree ? tree.root.title : teamTree!.team.name}`}
       takeFocus={grab}
       icon={
         <span className="pi" style={{ color: 'var(--ink)' }}>
@@ -530,7 +836,7 @@ export function FocusDrawer({
       head={
         <>
           <h4>Focus</h4>
-          <small>{plural(size(tree.root), 'work item')} · only on your screen</small>
+          <small>{plural(count, 'work item')} · only on your screen</small>
         </>
       }
       onClose={onClose}
@@ -541,7 +847,7 @@ export function FocusDrawer({
         </button>
         <span className="tip">Esc also leaves focus.</span>
       </div>
-      {tree.parent && (
+      {tree?.parent && (
         <>
           <p className="q-label">Parent</p>
           <button
@@ -558,8 +864,26 @@ export function FocusDrawer({
           </button>
         </>
       )}
-      <p className="q-label">Focused work</p>
-      <ul className="ft">{node(tree.root, true)}</ul>
+      {tree && (
+        <>
+          <p className="q-label">Focused work</p>
+          <ul className="ft">{node(tree.root, true)}</ul>
+        </>
+      )}
+      {teamTree && (
+        <>
+          <p className="q-label">Team</p>
+          <p className="ft-team">
+            <b>{teamTree.team.name}</b>
+            <small>Its work items and the work that comes from them</small>
+          </p>
+          {teamTree.roots.length ? (
+            <ul className="ft">{teamTree.roots.map((r) => node(r))}</ul>
+          ) : (
+            <p className="tip">This team has no work items yet.</p>
+          )}
+        </>
+      )}
     </Frame>
   );
 }

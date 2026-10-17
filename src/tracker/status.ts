@@ -1,5 +1,5 @@
 import type { Milestone, Status, TrackerEvent, WorkItem } from './model';
-import { milestoneDeadline } from './deadline';
+import { itemDeadline, milestoneDeadline } from './deadline';
 import { compareDay, dayOf } from './time';
 
 export type ItemInfo = {
@@ -32,9 +32,6 @@ function byFinish(finishDay: string, planned: string): Status {
   return order < 0 ? 'early' : order === 0 ? 'ontime' : 'flate';
 }
 
-const lateOrPlanned = (asOf: string, planned: string, timeZone: string): Status =>
-  compareDay(dayOf(asOf, timeZone), planned) > 0 ? 'late' : 'planned';
-
 export function itemStatus(
   item: WorkItem,
   events: readonly TrackerEvent[],
@@ -42,8 +39,12 @@ export function itemStatus(
   timeZone: string,
 ): Status {
   const info = itemInfo(item, events);
-  if (info.finishedAt) return byFinish(dayOf(info.finishedAt, timeZone), item.plannedFinish);
-  return lateOrPlanned(asOf, item.plannedFinish, timeZone);
+  const deadline = itemDeadline(item, timeZone);
+  if (info.finishedAt)
+    return time(info.finishedAt) > deadline
+      ? 'flate'
+      : byFinish(dayOf(info.finishedAt, timeZone), item.plannedFinish);
+  return time(asOf) > deadline ? 'late' : 'planned';
 }
 
 export function milestoneStatus(

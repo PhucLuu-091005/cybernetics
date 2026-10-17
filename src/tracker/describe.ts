@@ -20,6 +20,11 @@ export const FIELD: Record<OpName, string> = {
   newMs: 'New milestone',
   rename: 'Name',
   addTeam: 'New team',
+  doneBy: 'Done by',
+  requestedBy: 'Requested by',
+  team: 'Team',
+  parent: 'Parent',
+  after: 'Leads from',
 };
 
 export function describeOp(
@@ -61,6 +66,11 @@ const LOOP_FIELD: Record<string, string> = {
   title: 'name',
   due: 'planned finish',
   ms: 'milestone',
+  doneBy: 'done by',
+  requestedBy: 'requested by',
+  team: 'team',
+  parent: 'parent',
+  after: 'leads from',
 };
 
 export function clashLabel(clash: Pick<Clash, 'key' | 'x'>, state: TrackerState): string {

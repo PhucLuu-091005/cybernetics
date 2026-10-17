@@ -12,7 +12,6 @@ import {
   addDays,
   dayOf,
   EVENT_KINDS,
-  formatDay,
   formatDeadline,
   formatStamp,
   itemInfo,
@@ -39,7 +38,7 @@ export type ModalState =
   | { mode: 'fromEvent'; eventId: string; teamId: string }
   | { mode: 'ms' }
   | { mode: 'team' }
-  /** `time` only for a milestone; absent keeps its current time. */
+  /** Absent `time` keeps the current time of the milestone or the planned finish. */
   | { mode: 'due'; kind: 'item' | 'ms'; id: string; date: string; time?: string | null }
   | { mode: 'newcr' }
   | { mode: 'share' };
@@ -302,6 +301,7 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
   const [requestedBy, setRequestedBy] = useState(me);
   const [after, setAfter] = useState('');
   const [planned, setPlanned] = useState(weekAfter(asOf, tz));
+  const [plannedTime, setPlannedTime] = useState('');
   const create = () => {
     if (what === 'event') {
       const at = fromLocalInput(when, tz);
@@ -319,6 +319,7 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
         milestoneId: null,
         after: after || null,
         plannedFinish: planned,
+        ...(plannedTime ? { plannedFinishTime: plannedTime } : {}),
       },
     });
   };
@@ -404,6 +405,13 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
               <DateInput value={planned} onChange={setPlanned} />
             </label>
           </div>
+          <div className="grid2">
+            <label className="field">
+              Time (optional)
+              <TimeInput value={plannedTime} onChange={setPlannedTime} />
+            </label>
+            <p className="tip">Without a time, the planned finish is the end of the day.</p>
+          </div>
           <p className="tip">The work item waits in the Queue. Drag it onto a team to place it.</p>
           <Foot label="Add work item" busy={busy} onCancel={onClose} onCreate={create} />
         </>
@@ -480,17 +488,20 @@ function PlaceModal({ modal, state, busy, on, onClose }: PropsOf<'placeItem'>) {
   const [teamId, setTeamId] = useState(state.teams[0]?.id ?? '');
   const [ms, setMs] = useState(item?.milestoneId ?? '');
   const [planned, setPlanned] = useState(item?.plannedFinish ?? '');
+  const [plannedTime, setPlannedTime] = useState(item?.plannedFinishTime ?? '');
   if (!item) return <Gone onClose={onClose} />;
   const create = () => {
     const ops: OpInput[] = [];
     if (ms && ms !== item.milestoneId)
       ops.push({ op: 'qms', a: { itemId: item.id, milestoneId: ms } });
+    const moved = planned !== item.plannedFinish || plannedTime !== (item.plannedFinishTime ?? '');
     ops.push({
       op: 'place',
       a: {
         itemId: item.id,
         teamId,
-        ...(planned !== item.plannedFinish ? { plannedFinish: planned } : {}),
+        ...(moved ? { plannedFinish: planned } : {}),
+        ...(moved && plannedTime ? { plannedFinishTime: plannedTime } : {}),
       },
     });
     on.commit(ops);
@@ -527,6 +538,10 @@ function PlaceModal({ modal, state, busy, on, onClose }: PropsOf<'placeItem'>) {
         <label className="field">
           Planned finish
           <DateInput value={planned} onChange={setPlanned} />
+        </label>
+        <label className="field">
+          Time (optional)
+          <TimeInput value={plannedTime} onChange={setPlannedTime} />
         </label>
       </div>
       <Foot
@@ -601,6 +616,7 @@ function FromEventModal({ modal, session, state, asOf, busy, on, onClose }: Prop
   const [requestedBy, setRequestedBy] = useState(personOr(state, ev?.by));
   const [after, setAfter] = useState('');
   const [planned, setPlanned] = useState(weekAfter(asOf, tz));
+  const [plannedTime, setPlannedTime] = useState('');
   const team = state.teams.find((t) => t.id === teamId);
   if (!ev || !team) return <Gone onClose={onClose} />;
   const create = () => {
@@ -617,6 +633,7 @@ function FromEventModal({ modal, session, state, asOf, busy, on, onClose }: Prop
           requestedBy,
           after: after || null,
           plannedFinish: planned,
+          ...(plannedTime ? { plannedFinishTime: plannedTime } : {}),
         },
       },
     ]);
@@ -659,6 +676,13 @@ function FromEventModal({ modal, session, state, asOf, busy, on, onClose }: Prop
           Planned finish
           <DateInput value={planned} onChange={setPlanned} />
         </label>
+      </div>
+      <div className="grid2">
+        <label className="field">
+          Time (optional)
+          <TimeInput value={plannedTime} onChange={setPlannedTime} />
+        </label>
+        <p className="tip">Without a time, the planned finish is the end of the day.</p>
       </div>
       <Foot label="Create work item" busy={busy} onCancel={onClose} onCreate={create} />
     </ModalFrame>
@@ -773,7 +797,9 @@ function DueModal({ modal, session, state, busy, on, onClose }: PropsOf<'due'>) 
   const item = isMs ? undefined : state.workItems.find((w) => w.id === modal.id);
   const [date, setDate] = useState(modal.date);
   const [time, setTime] = useState(
-    modal.time === undefined ? (ms?.plannedTime ?? '') : (modal.time ?? ''),
+    modal.time === undefined
+      ? ((ms ? ms.plannedTime : item?.plannedFinishTime) ?? '')
+      : (modal.time ?? ''),
   );
   const [why, setWhy] = useState('');
   const target = ms
@@ -786,24 +812,25 @@ function DueModal({ modal, session, state, busy, on, onClose }: PropsOf<'due'>) 
     : item
       ? {
           name: item.title,
-          cur: formatDay(item.plannedFinish),
-          first: formatDay(item.firstPlannedFinish),
-          same: date === item.plannedFinish,
+          cur: formatDeadline(item.plannedFinish, item.plannedFinishTime),
+          first: formatDeadline(item.firstPlannedFinish, item.firstPlannedFinishTime),
+          same: date === item.plannedFinish && time === (item.plannedFinishTime ?? ''),
         }
       : null;
   if (!target) return <Gone onClose={onClose} />;
   const create = () => {
     if (!why.trim()) return on.toast('Write why the date moves.');
-    if (target.same) return on.toast(isMs ? 'Pick a new date or time.' : 'Pick a new date.');
+    if (target.same) return on.toast('Pick a new date or time.');
     const move = {
       date,
+      ...(time ? { time } : {}),
       why: why.trim(),
       by: session.me ?? 'nobody',
       at: toInstant(Date.now(), session.tz),
     };
     on.commit([
       isMs
-        ? { op: 'msDate', a: { milestoneId: modal.id, ...move, ...(time ? { time } : {}) } }
+        ? { op: 'msDate', a: { milestoneId: modal.id, ...move } }
         : { op: 'due', a: { workItemId: modal.id, ...move } },
     ]);
   };
@@ -823,14 +850,10 @@ function DueModal({ modal, session, state, busy, on, onClose }: PropsOf<'due'>) 
           New date
           <DateInput value={date} onChange={setDate} />
         </label>
-        {isMs ? (
-          <label className="field">
-            Time (optional)
-            <TimeInput value={time} onChange={setTime} />
-          </label>
-        ) : (
-          <span />
-        )}
+        <label className="field">
+          Time (optional)
+          <TimeInput value={time} onChange={setTime} />
+        </label>
       </div>
       <label className="field">
         Why does the date move? (required)

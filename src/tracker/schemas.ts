@@ -78,7 +78,9 @@ export const WorkItemSchema = z.strictObject({
   parentId: Id.nullable(),
   after: z.array(Id),
   plannedFinish: DateString,
+  plannedFinishTime: TimeOfDay.optional(),
   firstPlannedFinish: DateString,
+  firstPlannedFinishTime: TimeOfDay.optional(),
   moves: z.array(DateMoveSchema),
   since: Instant.nullable(),
 }) satisfies z.ZodType<WorkItem>;
@@ -110,6 +112,7 @@ export const QueueItemInputSchema = z.strictObject({
   milestoneId: Id.nullable().default(null),
   after: Id.nullable().default(null),
   plannedFinish: DateString,
+  plannedFinishTime: TimeOfDay.optional(),
 });
 export type QueueItemInput = z.infer<typeof QueueItemInputSchema>;
 
@@ -148,6 +151,8 @@ export const PlaceArgsSchema = z.strictObject({
   itemId: Id,
   teamId: Id,
   plannedFinish: DateString.optional(),
+  /** Read only with plannedFinish; absent means the end of that day. */
+  plannedFinishTime: TimeOfDay.optional(),
 });
 export const QmsArgsSchema = z.strictObject({ itemId: Id, milestoneId: Id });
 export const FromEventArgsSchema = z.strictObject({
@@ -159,6 +164,7 @@ export const FromEventArgsSchema = z.strictObject({
   requestedBy: Id,
   after: Id.nullable(),
   plannedFinish: DateString,
+  plannedFinishTime: TimeOfDay.optional(),
 });
 export const NewEventSchema = z.strictObject({ id: Id, ...QueueEventInputSchema.shape });
 export const AddEventArgsSchema = z.strictObject({ workItemId: Id, ev: NewEventSchema });
@@ -182,7 +188,16 @@ export const NewMsArgsSchema = z.strictObject({
   members: z.array(Id).max(500),
 });
 export const RenameArgsSchema = z.strictObject({ workItemId: Id, title: Title });
-export const DueArgsSchema = z.strictObject({ workItemId: Id, ...dateMoveArgs });
+export const DueArgsSchema = z.strictObject({
+  workItemId: Id,
+  ...dateMoveArgs,
+  time: TimeOfDay.optional(),
+});
+export const DoneByArgsSchema = z.strictObject({ workItemId: Id, personId: Id });
+export const RequestedByArgsSchema = z.strictObject({ workItemId: Id, personId: Id });
+export const TeamArgsSchema = z.strictObject({ workItemId: Id, teamId: Id });
+export const ParentArgsSchema = z.strictObject({ workItemId: Id, parentId: Id.nullable() });
+export const AfterArgsSchema = z.strictObject({ workItemId: Id, after: z.array(Id).max(50) });
 export const AddTeamArgsSchema = z.strictObject({ id: Id, name: Title, leadId: Id.nullable() });
 
 export const OpDescriptionSchema = z.strictObject({
@@ -220,6 +235,11 @@ export const OpSchema = z.discriminatedUnion('op', [
   opOf('rename', RenameArgsSchema),
   opOf('due', DueArgsSchema),
   opOf('addTeam', AddTeamArgsSchema),
+  opOf('doneBy', DoneByArgsSchema),
+  opOf('requestedBy', RequestedByArgsSchema),
+  opOf('team', TeamArgsSchema),
+  opOf('parent', ParentArgsSchema),
+  opOf('after', AfterArgsSchema),
 ]);
 
 const TeamName = noNul(z.string().trim().max(200, 'Keep each team name to 200 characters'));

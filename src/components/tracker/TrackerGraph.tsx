@@ -60,6 +60,8 @@ type Props = {
   onReveal: (workItemIds: string[]) => void;
   /** Without it, rows have no focus button. */
   onFocusItem?: (workItemId: string) => void;
+  /** Without it, team heads have no focus button. */
+  onFocusTeam?: (teamId: string) => void;
   onHandoff?: (workItemId: string) => void;
   /** A click on a row label or its line; without it a row click does nothing. */
   onRow?: (workItemId: string) => void;
@@ -89,7 +91,7 @@ function groupBy<T extends { workItemId: string }>(list: readonly T[]): Map<stri
 }
 
 const TARGETS =
-  '[data-eyerow],[data-eyeteam],[data-focusitem],[data-show],[data-handoff],[data-act],[data-ms],[data-goal],[data-plus],[data-newms],[data-newteam],[data-rowlabel],[data-loop]';
+  '[data-eyerow],[data-eyeteam],[data-focusitem],[data-focusteam],[data-show],[data-handoff],[data-act],[data-ms],[data-goal],[data-plus],[data-newms],[data-newteam],[data-rowlabel],[data-loop]';
 const HAND_ICON = { up: 'cornerUp', down: 'cornerDown', both: 'upDown' } as const;
 const DIAMOND = 'M0 -6 L6 0 L0 6 L-6 0 Z';
 const ROWS = '[data-loop],[data-act],[data-rowlabel],[data-plus]';
@@ -116,6 +118,7 @@ function MilestoneMark({ m }: { m: LayoutMilestone }) {
 export function TrackerGraph(props: Props) {
   const { layout: L, edit, selectedMs, focusRow, focusMs, lifted, preview } = props;
   const events = groupBy(L.eventGroups);
+  const handByGroup = new Map(L.handoffs.flatMap((h) => (h.groupId ? [[h.groupId, h]] : [])));
   const deadlines = groupBy(L.deadlines);
   const chips = groupBy(L.chips);
   const dim = new Set(L.rows.filter((r) => r.dimmed).map((r) => r.id));
@@ -317,6 +320,10 @@ export function TrackerGraph(props: Props) {
   const menuMark = menu ? L.handoffs.find((h) => h.fromId === menu.fromId) : undefined;
   // A poll, a hide or a filter can take the source mark away while its list is open.
   if (menu && !menuMark) setMenu(null);
+  const menuGroup = menuMark?.groupId
+    ? L.eventGroups.find((g) => g.topId === menuMark.groupId)
+    : undefined;
+  const menuStack = menuGroup && menuGroup.eventIds.length > 1 ? menuGroup : undefined;
   const closeMenu = (refocus: boolean) => {
     const from = menu?.fromId;
     setMenu(null);
@@ -363,6 +370,7 @@ export function TrackerGraph(props: Props) {
     if (d?.eyerow) return props.onToggleRow(d.eyerow);
     if (d?.eyeteam) return props.onToggleTeam(d.eyeteam);
     if (d?.focusitem) return props.onFocusItem?.(d.focusitem);
+    if (d?.focusteam) return props.onFocusTeam?.(d.focusteam);
     if (d?.show) return props.onReveal(d.show.split(','));
     // In move mode the graph background and any other target end the move, as in the prototype.
     if (props.moving) {
@@ -376,7 +384,8 @@ export function TrackerGraph(props: Props) {
       setTip(null);
       const h = L.handoffs.find((x) => x.fromId === d.handoff);
       if (!h) return;
-      if (h.targets.length === 1) return props.onHandoff?.(h.targets[0].id);
+      // A stack also needs a way to its events, so it always opens the list.
+      if (h.targets.length === 1 && !d.stack) return props.onHandoff?.(h.targets[0].id);
       if (menu?.fromId === h.fromId) return setMenu(null);
       return openMenu(el, h);
     }
@@ -457,6 +466,20 @@ export function TrackerGraph(props: Props) {
       </clipPath>
       {L.lanes.map((lane) => (
         <Fragment key={lane.teamId}>
+          {props.onFocusTeam && (
+            <g
+              className={cls('eye', 'focus-btn', lane.focused && 'on')}
+              data-focusteam={lane.teamId}
+              aria-pressed={lane.focused}
+              {...button(lane.focusLabel)}
+            >
+              <rect x={X0 - 52} y={lane.top + 2} width={18} height={18} rx={4} />
+              <SvgIcon name="focus" x={X0 - 43} y={lane.top + 11} size={12} />
+              <title>
+                {lane.focused ? 'Leave focus' : 'Focus: show only this team and the work from it'}
+              </title>
+            </g>
+          )}
           <g className="eye" data-eyeteam={lane.teamId} {...button(lane.eyeLabel)}>
             <rect x={X0 - 34} y={lane.top + 2} width={20} height={18} />
             <SvgIcon name="eye" x={X0 - 24} y={lane.top + 11} size={13} />
@@ -603,7 +626,12 @@ export function TrackerGraph(props: Props) {
         return (
           <g
             key={m.id}
-            className={cls('ms', selectedMs === m.id && 'sel', focusMs === m.id && 'glow')}
+            className={cls(
+              'ms',
+              m.changed && 'changed',
+              selectedMs === m.id && 'sel',
+              focusMs === m.id && 'glow',
+            )}
             data-ms={m.id}
             transform={`translate(${mx} ${m.y})`}
             {...button(m.ariaLabel)}
@@ -674,7 +702,12 @@ export function TrackerGraph(props: Props) {
           {(deadlines.get(r.id) ?? []).map((d) => (
             <g
               key={`deadline-${d.workItemId}`}
-              className={cls('deadline', dimCls(r.id), selectedMs === d.milestoneId && 'sel')}
+              className={cls(
+                'deadline',
+                d.changed && 'changed',
+                dimCls(r.id),
+                selectedMs === d.milestoneId && 'sel',
+              )}
               data-goal={d.milestoneId}
               transform={`translate(${d.x} ${d.y})`}
               {...(props.onMilestone
@@ -710,15 +743,36 @@ export function TrackerGraph(props: Props) {
           {(events.get(r.id) ?? []).map((g) => {
             const n = g.eventIds.length;
             const stroke = color(g.tone);
+            // The Handoff event icon is the handoff mark itself, so its group takes the mark's hover and click.
+            const hand = handByGroup.get(g.topId);
+            const tipText = hand && `${hand.tooltip}\n${g.tooltip}`;
+            const opens = !!hand && (hand.targets.length > 1 || n > 1);
             return (
               <g
                 key={g.topId}
-                className={cls('act', lifted === g.topId && 'lift', dimCls(r.id))}
+                className={cls(
+                  'act',
+                  hand && 'hand-act',
+                  hand && menu?.fromId === hand.fromId && 'open',
+                  lifted === g.topId && 'lift',
+                  dimCls(r.id),
+                )}
                 data-act={g.topId}
                 data-stack={n > 1 ? g.eventIds.join(',') : undefined}
                 data-in={g.workItemId}
+                data-handoff={hand?.fromId}
                 transform={`translate(${g.x} ${g.y})`}
-                {...button(g.ariaLabel)}
+                {...button(hand ? `${g.ariaLabel}. ${hand.ariaLabel}` : g.ariaLabel)}
+                aria-haspopup={opens ? 'menu' : undefined}
+                aria-expanded={opens ? menu?.fromId === hand.fromId : undefined}
+                {...(tipText
+                  ? {
+                      onPointerEnter: (event) => !menu && showTip(event.currentTarget, tipText),
+                      onPointerLeave: hideTip,
+                      onFocus: (event) => !menu && showTip(event.currentTarget, tipText),
+                      onBlur: hideTip,
+                    }
+                  : {})}
               >
                 <g>
                   {g.changed && <circle className="halo" r={15} />}
@@ -738,7 +792,12 @@ export function TrackerGraph(props: Props) {
                     ))}
                   <circle className="bg" r={10} style={{ stroke }} />
                   <SvgIcon kind={g.kind} x={0} y={0} size={13} color={stroke} />
-                  <title>{g.tooltip}</title>
+                  {hand && hand.targets.length > 1 && (
+                    <text className="hand-count" x={8} y={-6}>
+                      {hand.targets.length}
+                    </text>
+                  )}
+                  {!hand && <title>{g.tooltip}</title>}
                 </g>
               </g>
             );
@@ -771,6 +830,7 @@ export function TrackerGraph(props: Props) {
         </Fragment>
       ))}
       {L.handoffs.map((h) => {
+        if (h.groupId) return null;
         const many = h.targets.length > 1;
         return (
           <g
@@ -885,6 +945,22 @@ export function TrackerGraph(props: Props) {
               <small>{t.team}</small>
             </button>
           ))}
+          {menuStack && (
+            <button
+              type="button"
+              role="menuitem"
+              className="hand-events"
+              onClick={() => {
+                const anchor = root.current?.querySelector(
+                  `svg.pg [data-act="${menuStack.topId}"]`,
+                );
+                setMenu(null);
+                if (anchor) props.onPop('stack', menuStack.eventIds.join(','), anchor);
+              }}
+            >
+              <b>Show the {menuStack.eventIds.length} events here</b>
+            </button>
+          )}
         </div>
       )}
       <div className="zoombar" role="group" aria-label="Time zoom">
@@ -943,9 +1019,9 @@ export function Legend() {
   );
   return (
     <div className="legend2">
-      {line('var(--route)', 'Open')}
+      {line('var(--route)', 'Not finished')}
       {line('var(--proceed)', 'Done')}
-      {line('var(--danger)', 'Open after its planned finish')}
+      {line('var(--danger)', 'Not finished after its planned finish')}
       {line('var(--caution)', 'Done after its planned finish')}
       <span>
         <svg width="12" height="12" viewBox="-7 -7 14 14" aria-hidden="true">

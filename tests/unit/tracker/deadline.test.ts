@@ -2,13 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { clashesOf, type Commit } from '../../../src/tracker/clash';
 import {
   deadlineMs,
-  deadlinesByItem,
   formatDeadline,
   lateBy,
   milestoneDeadline,
 } from '../../../src/tracker/deadline';
 import { describeOp, diffLines } from '../../../src/tracker/describe';
-import { clampDrag, drawnTimes } from '../../../src/tracker/offsets';
 import { applyOp, sameOp } from '../../../src/tracker/ops';
 import {
   FirstMilestoneSchema,
@@ -125,25 +123,6 @@ describe('milestone deadline time: the instant and the label', () => {
   it('shows the time only when it is set', () => {
     expect(formatDeadline('2026-10-15')).toBe('15 Oct');
     expect(formatDeadline('2026-10-15', '17:00')).toBe('15 Oct 17:00');
-  });
-
-  it('gives each member work item the deadline of its milestone', () => {
-    const s = buildState({
-      milestones: [
-        {
-          id: 'm',
-          name: 'M',
-          planned: '2026-10-15',
-          plannedTime: '17:00',
-          firstPlanned: '2026-10-15',
-          moves: [],
-        },
-      ],
-      workItems: [workItem({ id: 'a', milestoneId: 'm' }), workItem({ id: 'b' })],
-    });
-    expect([...deadlinesByItem(s, TIME_ZONE)]).toEqual([
-      ['a', Date.parse('2026-10-15T17:00:00+07:00')],
-    ]);
   });
 });
 
@@ -301,28 +280,5 @@ describe('milestone deadline time: status', () => {
     expect(status(undefined, '2026-10-16T00:00')).toBe('flate');
     expect(status(undefined, null, '2026-10-15T23:59')).toBe('planned');
     expect(status(undefined, null, '2026-10-16T00:00')).toBe('late');
-  });
-});
-
-describe('milestone deadline time: order inside a day', () => {
-  const deadline = Date.parse(at('2026-10-15T17:00'));
-  const events = [
-    event({ id: 'e1', workItemId: 'a', at: at('2026-10-15T16:00') }),
-    event({ id: 'e2', workItemId: 'a', at: at('2026-10-15T18:00') }),
-    event({ id: 'o1', workItemId: 'other', at: at('2026-10-15T18:00') }),
-  ];
-  const limits = new Map([['a', deadline]]);
-
-  it('never draws an event on the other side of the deadline of its row', () => {
-    const drawn = drawnTimes(events, { e1: 120, e2: -180, o1: -180 }, TIME_ZONE, limits);
-    expect(drawn.get('e1')).toBe(deadline);
-    expect(drawn.get('e2')).toBe(deadline);
-    expect(drawn.get('o1')).toBe(Date.parse(at('2026-10-15T15:00')));
-  });
-
-  it('stops a sideways drag at the deadline of the row', () => {
-    expect(clampDrag(events[0], 300, events, {}, TIME_ZONE, limits)).toBe(60);
-    expect(clampDrag(events[1], -300, events, {}, TIME_ZONE, limits)).toBe(-60);
-    expect(clampDrag(events[1], 120, events, {}, TIME_ZONE, limits)).toBe(120);
   });
 });

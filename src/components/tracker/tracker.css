@@ -2,9 +2,9 @@
    stylesheet stays loaded after client navigation; svg.tg is unique to the tracker graph. */
 /* C2 highlighter: --change-bg marks what a change request changed, --edit-bg tints the bar of a request you edit. */
 :root {
-  --change: #d5ae39;
+  --change: #e0a800;
   --change-text: var(--ink);
-  --change-bg: #ffe770;
+  --change-bg: #ffe14d;
   --edit-bg: #fefce9;
   --k-message: #0c67b6;
   --k-task: #6550b9;
@@ -18,7 +18,7 @@
 :root[data-theme='dark'] {
   --change: #ffe629;
   --change-text: var(--ink);
-  --change-bg: #524202;
+  --change-bg: #6e5a00;
   --edit-bg: #1b180f;
   --k-message: #70b8ff;
   --k-task: #baa7ff;
@@ -33,7 +33,7 @@
   :root:not([data-theme='light']) {
     --change: #ffe629;
     --change-text: var(--ink);
-    --change-bg: #524202;
+    --change-bg: #6e5a00;
     --edit-bg: #1b180f;
     --k-message: #70b8ff;
     --k-task: #baa7ff;
@@ -694,19 +694,6 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.tk .pop .moved {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 8px 0 0;
-  color: var(--ink-2);
-  font-size: var(--fs-xs);
-}
-.tk .pop .moved svg {
-  flex: none;
-  color: var(--ink-3);
-}
 .tk .ro-acts {
   display: inline-flex;
   align-items: center;
@@ -1230,7 +1217,7 @@ svg.tg .ms-label.changed {
   fill: var(--change-text);
   paint-order: stroke;
   stroke: var(--change-bg);
-  stroke-width: 9px;
+  stroke-width: 11px;
   stroke-linejoin: round;
 }
 svg.tg .row-label.sel {
@@ -1307,7 +1294,7 @@ svg.tg .hit.sel {
 :root .tk svg.tg .hit:focus-visible {
   outline: none;
   stroke: var(--focus);
-  stroke-width: 2px;
+  stroke-width: 1px;
   vector-effect: non-scaling-stroke;
 }
 svg.tg .dim {
@@ -1343,9 +1330,13 @@ svg.tg .act .layer {
   stroke-width: 1.5;
 }
 svg.tg .act .halo {
-  fill: color-mix(in srgb, var(--change) 16%, transparent);
+  fill: color-mix(in srgb, var(--change) 30%, transparent);
   stroke: var(--change);
-  stroke-width: 2;
+  stroke-width: 3;
+}
+svg.tg .ms.changed .ms-c,
+svg.tg .deadline.changed .deadline-mark {
+  stroke-width: 3;
 }
 svg.tg .ms {
   cursor: pointer;
@@ -1397,7 +1388,7 @@ svg.tg .focus-btn.on {
   color: var(--panel);
 }
 svg.tg .focus-btn.on rect {
-  fill: var(--ink);
+  fill: var(--focus);
 }
 svg.tg .handoff {
   cursor: pointer;
@@ -1420,6 +1411,22 @@ svg.tg .hand-n {
   font-size: 9.5px;
   font-weight: 700;
   fill: var(--ink-2);
+}
+/* The receiver count belongs to the Handoff icon: a small figure on its ring, haloed by the panel. */
+svg.tg .hand-count {
+  font-size: 8.5px;
+  font-weight: 700;
+  fill: var(--ink-2);
+  stroke: var(--panel);
+  stroke-width: 3px;
+  paint-order: stroke;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+svg.tg .hand-act:hover .bg,
+svg.tg .hand-act:focus .bg,
+svg.tg .hand-act.open .bg {
+  fill: var(--gray-bg);
 }
 .tk .hand-menu {
   position: absolute;
@@ -1458,6 +1465,15 @@ svg.tg .hand-n {
   font: inherit;
   line-height: 1.3;
   cursor: pointer;
+}
+.tk .hand-menu .hand-events {
+  margin-top: 4px;
+  border-top: 1px solid var(--rule);
+  border-radius: 0 0 var(--r-ctl) var(--r-ctl);
+}
+.tk .hand-menu .hand-events b {
+  font-weight: 500;
+  color: var(--ink-2);
 }
 .tk .hand-menu button:hover {
   background: var(--hover);
@@ -1530,6 +1546,15 @@ svg.tg .hand-n {
 }
 .tk .ft-node .badge {
   flex: none;
+}
+.tk .ft-team {
+  display: grid;
+  gap: 2px;
+  margin: 0 8px 6px;
+}
+.tk .ft-team small {
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
 }
 svg.tg .chip {
   cursor: pointer;
@@ -1923,6 +1948,190 @@ svg.tg .deadline-name {
 .tk .wi-acts {
   margin-top: 10px;
 }
+/* O1 work item panel: a label and value list in three groups, the same in read and edit views. */
+.tk .wi-top .sp {
+  flex: 1;
+}
+.tk .late-by {
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--danger-ink);
+}
+.tk .btn-quiet {
+  border-color: transparent;
+  box-shadow: none;
+  background: none;
+  color: var(--ink-2);
+}
+.tk .btn-quiet:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--ink);
+}
+.tk .wi-facts {
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 0;
+}
+.tk .wi-facts dt,
+.tk .wi-facts dd {
+  padding: 5px 0;
+  line-height: 20px;
+}
+.tk .wi-facts dd.late {
+  color: var(--danger-ink);
+}
+.tk .wi-facts .gap {
+  grid-column: 1 / -1;
+  height: 1px;
+  background: var(--rule-2);
+  margin: 6px 0;
+}
+.tk .wi-facts .who,
+.tk .wi-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.tk .wi-facts select,
+.tk .wi-facts input,
+.tk .wi-title {
+  max-width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  margin: -4px 0 -4px -7px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-s);
+}
+.tk .wi-facts select:hover,
+.tk .wi-facts input:hover,
+.tk .wi-title:hover {
+  border-color: var(--rule);
+}
+.tk .wi-facts select:focus-visible,
+.tk .wi-facts input:focus-visible,
+.tk .wi-title:focus-visible {
+  outline: none;
+  border-color: var(--focus);
+  background: var(--panel);
+}
+.tk .wi-pick select {
+  margin-left: -4px;
+}
+.tk .wi-title {
+  width: calc(100% + 7px);
+  margin: -3px 0 -3px -7px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.tk .wi-when {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.tk .wi-date {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+.tk .wi-date .time-in input {
+  margin: -4px 0;
+}
+.tk .wi-why .field {
+  margin-top: 4px;
+}
+.tk .wi-inline {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin: 6px 0 2px;
+}
+.tk .wi-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.tk .wi-chip .x {
+  font-size: 15px;
+}
+.tk .wi-moves,
+.tk .wi-never {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--rule-2);
+  font-size: var(--fs-s);
+  line-height: 20px;
+}
+.tk .wi-never {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  padding-bottom: 5px;
+}
+.tk .wi-never span {
+  padding-top: 5px;
+}
+.tk .wi-never span:first-child,
+.tk .wi-moves .k {
+  color: var(--ink-3);
+}
+.tk .wi-moves > button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding-bottom: 5px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.tk .wi-moves > button:hover {
+  background: var(--hover);
+}
+.tk .wi-moves .k {
+  width: 112px;
+  flex: none;
+}
+.tk .wi-moves > button svg {
+  margin-left: auto;
+  color: var(--ink-3);
+  transition: transform 0.15s;
+}
+.tk .wi-moves.open > button svg {
+  transform: rotate(180deg);
+}
+.tk .wi-moves ol {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.tk .wi-moves li {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 2px 10px;
+  line-height: 1.4;
+}
+.tk .wi-moves li .av {
+  grid-row: span 3;
+  margin-top: 1px;
+}
+.tk .wi-moves li > span:not(.av) {
+  color: var(--ink-2);
+}
+.tk .wi-moves li small {
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+}
 .tk .ev-list {
   list-style: none;
   padding: 0;
@@ -2269,9 +2478,7 @@ svg.tg .act.lift {
   opacity: 0.3;
 }
 .tk.drag-due,
-.tk.drag-due svg.tg .ms,
-.tk.drag-day,
-.tk.drag-day svg.tg .act {
+.tk.drag-due svg.tg .ms {
   cursor: ew-resize;
 }
 .tk.moving svg.tg .hit {

@@ -66,7 +66,7 @@ test.describe('the tracker walkthrough', () => {
       await search.fill(text);
       await expect(page.getByRole('option').first()).toContainText(title);
       await page.keyboard.press('Enter');
-      await expect(drawer.locator('h4')).toHaveText(title);
+      await expect(drawer).toHaveAttribute('aria-label', title);
     };
     const openReview = async (num: number) => {
       await visit(page, `${graph}?cr=${num}`);
@@ -103,6 +103,8 @@ test.describe('the tracker walkthrough', () => {
       await expect(page.locator('.pop')).toHaveCount(0);
       for (const name of ['Add an event', 'Move the date', 'Rename', 'Mark done'])
         await expect(drawer.getByRole('button', { name })).toHaveCount(0);
+      await expect(drawer.locator('select, input, textarea')).toHaveCount(0);
+      await expect(drawer.locator('.facts')).toContainText('Not yet');
       await page.keyboard.press('Escape');
       await expect(drawer).toHaveCount(0);
     });
@@ -110,6 +112,8 @@ test.describe('the tracker walkthrough', () => {
     await test.step('1. Search finds the Go-live date; its details show the first date, the move and its reason', async () => {
       await find('go-live', 'Go-live date');
       await expect(drawer).toContainText(/First planned 30 Sept/i);
+      await expect(drawer).not.toContainText('30 Sept → 15 Oct');
+      await drawer.getByRole('button', { name: /Date moves/ }).click();
       await expect(drawer).toContainText('30 Sept → 15 Oct');
       await expect(drawer).toContainText('The CRS section is not ready.');
       await expect(drawer.getByRole('button', { name: 'Move the date' })).toHaveCount(0);
@@ -129,23 +133,28 @@ test.describe('the tracker walkthrough', () => {
       await expect(bar).toContainText('1 change');
     });
 
-    await test.step('3. Lan finds PG-203 with the search and moves its date, with a reason', async () => {
+    await test.step('3. Lan finds PG-203 with the search and moves its date in place, with a reason', async () => {
       await find('PG-203', 'PG-203 Country list field type');
-      await expect(drawer).toContainText('Quang Nguyễn');
+      await expect(drawer.getByLabel('Done by').locator('option:checked')).toHaveText(
+        'Quang Nguyễn',
+      );
       await expect(drawer).toContainText(/Events \(\d+\)/);
-      await drawer.getByRole('button', { name: 'Move the date' }).click();
-      await expect(dialog).toContainText('Move the planned finish');
-      await dialog.locator('input[type=date]').fill('2026-10-10');
-      const save = dialog.getByRole('button', { name: 'Move the date' });
+      await expect(drawer.getByRole('button', { name: 'Move the date' })).toHaveCount(0);
+      await drawer.getByLabel('Planned finish').fill('2026-10-10');
+      await drawer.getByLabel('Time (optional)').fill('17:00');
+      const save = drawer.getByRole('button', { name: 'Move the date' });
       await expect(save).toBeDisabled();
-      await dialog.locator('textarea').fill('   ');
+      const why = drawer.getByLabel(/Why does the date move/);
+      await why.fill('   ');
       await expect(save).toBeDisabled();
-      await dialog
-        .locator('textarea')
-        .fill('Lan sends the country list on 10 October, so the field ships later.');
+      await why.fill('Lan sends the country list on 10 October, so the field ships later.');
       await save.click();
       await expect(toast).toContainText('PG-203 Country list field type: planned finish moved.');
       await expect(bar).toContainText('2 changes');
+      await expect(why).toHaveCount(0);
+      await expect(drawer.getByLabel('Time (optional)')).toHaveValue('17:00');
+      await drawer.getByRole('button', { name: /Date moves/ }).click();
+      await expect(drawer).toContainText('6 Oct → 10 Oct 17:00');
       await page.keyboard.press('Escape');
       await expect(drawer).toHaveCount(0);
     });
@@ -374,7 +383,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     );
 
     await expect(goLive).toHaveCount(5);
-    await expect(crm).toHaveCount(3);
+    await expect(crm).toHaveCount(4);
     await expect(page.locator('svg.pg-rail, svg.tg .ms-chip, svg.tg .goal')).toHaveCount(0);
     await expect(page.locator('svg.tg [data-ms="crm"] .ms-c')).toHaveCount(1);
 
@@ -409,11 +418,11 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await page.locator(`svg.pg [data-loop="${id}"]`).focus();
       await page.keyboard.press('Enter');
       await expect(drawer).toContainText(/Finished (early|on time)/);
-      await drawer.getByRole('button', { name: 'Move the date' }).click();
-      await expect(dialog).toContainText('Move the planned finish');
-      await expect(dialog).toContainText(new RegExp(title, 'i'));
-      await page.keyboard.press('Escape');
-      await expect(dialog).toHaveCount(0);
+      await expect(drawer).toHaveAttribute('aria-label', new RegExp(title, 'i'));
+      await drawer.getByLabel('Planned finish').fill('2026-10-20');
+      await expect(drawer.getByLabel(/Why does the date move/)).toBeVisible();
+      await drawer.getByRole('button', { name: 'Cancel' }).click();
+      await expect(drawer.getByLabel(/Why does the date move/)).toHaveCount(0);
       await page.keyboard.press('Escape');
       await expect(drawer).toHaveCount(0);
     }
@@ -441,7 +450,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
 
     await expect(
       page.locator('svg.pg .deadline[aria-label^="CRM integration live · deadline 18 Sept 12:00"]'),
-    ).toHaveCount(3);
+    ).toHaveCount(4);
     await expect(page.locator('svg.tg [data-ms="crm"]')).toHaveAttribute(
       'aria-label',
       /CRM integration live · 18 Sept 12:00 · Late \(was 18 Sept\)/,
@@ -450,8 +459,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
 
     await page.keyboard.press('Escape');
     const zoomIn = page.getByRole('button', { name: 'Zoom in' });
-    for (let i = 0; i < 4; i += 1) await zoomIn.click();
-    const mark = page.locator('svg.pg .deadline[data-goal="crm"]').nth(2);
+    for (let i = 0; i < 6; i += 1) await zoomIn.click();
+    const mark = page.locator('svg.pg .deadline[data-goal="crm"]').nth(3);
     await mark.scrollIntoViewIfNeeded();
     const x = async (locator: ReturnType<typeof page.locator>) => {
       const box = await locator.boundingBox();
@@ -475,8 +484,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       page.evaluate(() => {
         const box = (id: string) =>
           document.querySelector(`svg.pg [data-act="${id}"] circle.bg`)!.getBoundingClientRect();
-        const a = box('a1');
-        return { width: a.width, height: a.height, gap: box('a2').x - a.x };
+        const a = box('g2');
+        return { width: a.width, height: a.height, gap: box('g4').x - a.x };
       });
     const lastTick = () => page.locator('svg.pg-top-time .tick').last().textContent();
     const timeLine = async () => (await page.locator('svg.pg').boundingBox())?.width ?? 0;
@@ -548,7 +557,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     const rows = page.locator('svg.pg [data-loop]');
     const control = page.locator('.tfilter-btn');
     const search = page.getByRole('combobox', { name: 'Search work items' });
-    await expect(rows).toHaveCount(13);
+    await expect(rows).toHaveCount(14);
 
     await control.click();
     const panel = page.getByRole('group', { name: 'Filter the graph' });
@@ -573,7 +582,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(rows).toHaveCount(5);
     await control.click();
     await page.getByRole('button', { name: 'Clear filters' }).click();
-    await expect(rows).toHaveCount(13);
+    await expect(rows).toHaveCount(14);
     await expect(page.locator('summary[aria-label="Filters"]')).toHaveCount(1);
     await page.keyboard.press('Escape');
 
@@ -585,7 +594,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(drawer).toBeFocused();
     expect(await drawer.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('none');
     await expect(search).toHaveValue('');
-    await expect(rows).toHaveCount(13);
+    await expect(rows).toHaveCount(14);
   });
 
   test('the axis stays pinned while the rows scroll, and follows the sideways scroll', async ({
@@ -690,7 +699,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
 
     expect(await overflow()).toBe(0);
     const zoomIn = page.getByRole('button', { name: 'Zoom in' });
-    for (let i = 0; i < 4; i += 1) await zoomIn.click();
+    for (let i = 0; i < 6; i += 1) await zoomIn.click();
     await expect.poll(overflow).toBeGreaterThan(1000);
     await expect(page.locator('svg.pg [data-act="r1"]')).toHaveCount(1);
     await expect(page.locator('svg.pg-side .row-label').first()).toBeInViewport();
@@ -727,7 +736,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     const side = page.locator('svg.pg-side');
     const tip = page.getByRole('tooltip');
     const fit = page.getByRole('button', { name: 'Fit to width' });
-    await expect(rows).toHaveCount(13);
+    await expect(rows).toHaveCount(14);
 
     await test.step('one mark per source lists every handoff, and a click on a receiver shows it', async () => {
       await expect(page.locator('svg.tg path.link, svg.tg path.stem')).toHaveCount(0);
@@ -739,26 +748,24 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       const marks = page.locator('svg.pg [data-handoff="analyse"]');
       await expect(marks).toHaveCount(1);
       const mark = marks.first();
-      await expect(mark).toHaveText('3');
-      const onEvent = await page.locator('svg.pg .act[data-stack*="a3"] circle.bg').boundingBox();
-      const badge = await mark.boundingBox();
-      if (!onEvent || !badge) throw new Error('No box');
-      expect(badge.x).toBeGreaterThan(onEvent.x);
-      expect(badge.x).toBeLessThan(onEvent.x + onEvent.width);
-      expect(badge.y).toBeLessThan(onEvent.y + onEvent.height / 2);
+      // The Handoff event icon is the mark: one symbol, with the receiver count on it.
+      await expect(mark).toHaveAttribute('data-stack', /a3/);
+      await expect(mark.locator('.hand-count')).toHaveText('3');
+      await expect(page.locator('svg.pg .handoff[data-handoff="analyse"]')).toHaveCount(0);
       await mark.hover();
-      await expect(tip).toHaveText(lines.join('\n'));
+      for (const line of lines) await expect(tip).toContainText(line);
       await page.mouse.move(5, 5);
       await expect(tip).toHaveCount(0);
       await side.locator('[data-eyerow="pg203"]').click();
       await expect(row('pg203')).toHaveCount(0);
       await mark.focus();
-      await expect(tip).toHaveText(lines.join('\n'));
+      for (const line of lines) await expect(tip).toContainText(line);
       await page.keyboard.press('Enter');
       const menu = page.getByRole('menu', {
         name: 'Handoffs from Analyse the CRS and FATCA rules',
       });
-      await expect(menu.getByRole('menuitem')).toHaveCount(3);
+      await expect(menu.getByRole('menuitem')).toHaveCount(4);
+      await expect(menu.getByRole('menuitem').last()).toHaveText(/Show the \d events here/);
       await page.keyboard.press('Escape');
       await expect(menu).toHaveCount(0);
       await expect(mark).toBeFocused();
@@ -788,6 +795,19 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await fit.click();
     });
 
+    await test.step('a team focus shows its rows and the work from them', async () => {
+      const teamFocus = side.getByRole('button', { name: 'Focus on Digitization', exact: true });
+      await teamFocus.click();
+      await expect(teamFocus).toHaveAttribute('aria-pressed', 'true');
+      await expect(rows).toHaveCount(6);
+      const panel = page.getByRole('complementary', { name: 'Focus on Digitization' });
+      await expect(panel).toContainText('6 work items');
+      await expect(panel).toContainText('Legal review routing');
+      await page.keyboard.press('Escape');
+      await expect(rows).toHaveCount(14);
+      await expect(teamFocus).toHaveAttribute('aria-pressed', 'false');
+    });
+
     await test.step('focus shows the work item and its descendants, with a tree in the side panel', async () => {
       await side.getByRole('button', { name: 'Focus on Analyse the CRS and FATCA rules' }).click();
       await expect(rows).toHaveCount(5);
@@ -809,17 +829,17 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
         }),
       ).toBeVisible();
       await page.keyboard.press('Escape');
-      await expect(rows).toHaveCount(13);
+      await expect(rows).toHaveCount(14);
       const focusPg201 = side.getByRole('button', { name: 'Focus on PG-201 CRS form logic' });
       await focusPg201.click();
       await expect(rows).toHaveCount(2);
       await expect(focusPg201).toHaveAttribute('aria-pressed', 'true');
       await focusPg201.click();
-      await expect(rows).toHaveCount(13);
+      await expect(rows).toHaveCount(14);
       await expect(focusPg201).toHaveAttribute('aria-pressed', 'false');
       await focusPg201.click();
       await page.getByRole('complementary').getByRole('button', { name: 'Leave focus' }).click();
-      await expect(rows).toHaveCount(13);
+      await expect(rows).toHaveCount(14);
     });
 
     await test.step('hiding the team of the focused row ends the focus, and the parent link shows a hidden parent', async () => {
@@ -838,7 +858,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await expect(page.getByRole('complementary')).toHaveCount(0);
       await page.locator('.hid-menu > summary').click();
       await page.getByRole('button', { name: 'Unhide Digitization' }).click();
-      await expect(rows).toHaveCount(13);
+      await expect(rows).toHaveCount(14);
       await expect(searchBox).toBeFocused();
 
       await side.locator('[data-eyerow="crs"]').click();
@@ -851,7 +871,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await expect(row('crs')).toHaveCount(1);
       await expect(rows).toHaveCount(6);
       await page.keyboard.press('Escape');
-      await expect(rows).toHaveCount(13);
+      await expect(rows).toHaveCount(14);
       await expect(page.locator('.hid-menu')).toHaveCount(0);
     });
 
@@ -861,7 +881,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await side.locator('[data-eyeteam="engineering"]').click();
       await side.locator('[data-eyerow="pg201"]').click();
       await side.locator('[data-eyerow="pg202"]').click();
-      await expect(rows).toHaveCount(7);
+      await expect(rows).toHaveCount(8);
       await expect(side.locator('[data-eyeteam="engineering"]')).toHaveCount(0);
       await expect(side.locator('[data-eyeteam="solutions-engineering"]')).toHaveCount(0);
       await expect(side.getByText(/hidden/)).toHaveCount(0);
@@ -880,68 +900,53 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await expect(row('pg201')).toHaveCount(1);
       await expect(badge).toContainText('2 hidden');
       await list.getByRole('button', { name: 'Unhide all' }).click();
-      await expect(rows).toHaveCount(13);
+      await expect(rows).toHaveCount(14);
       await expect(page.locator('.hid-menu')).toHaveCount(0);
       await expect(page.getByRole('combobox', { name: 'Search work items' })).toBeFocused();
     });
   });
 });
 
-test.describe('an event moved inside its day', () => {
+test.describe('events at their own time', () => {
   test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
 
-  test('moves sideways on Main, stays after a reload, and resets from its pop', async ({
-    page,
-  }) => {
+  test('Fit shows the earliest events, and a sideways drag moves nothing', async ({ page }) => {
     const { projectId } = await signIn(page, 'tracker-day');
+    // At Fit the 2 Jul and 3 Jul events stack, with the later one on top.
+    const g1 = page.locator('svg.pg [data-stack*="g1"]');
+    await expect(g1).toHaveCount(1);
+    await expect(g1).toBeInViewport();
+    const side = await page.locator('svg.pg-side').boundingBox();
+    const first = await g1.boundingBox();
+    if (!side || !first) throw new Error('No box');
+    expect(first.x).toBeGreaterThan(side.x + side.width + 4);
+    await expect(page.locator('svg.pg [data-loop="golive"]')).toHaveAttribute(
+      'aria-label',
+      /Go-live date/,
+    );
+
     const r3 = page.locator('svg.pg [data-act="r3"]');
-    const zoomIn = page.getByRole('button', { name: 'Zoom in' });
-    const zoomTwice = async () => {
-      for (let i = 0; i < 2; i += 1) await zoomIn.click();
-      await r3.scrollIntoViewIfNeeded();
-    };
-    const offsets = async () => {
-      const response = await page.request.get(`/api/v1/projects/${projectId}/tracker`);
-      return ((await response.json()) as { offsets: Record<string, number> }).offsets;
-    };
-    await zoomTwice();
     await expect(r3).toHaveAttribute('data-stack', 'r1,r2,r3');
     const before = (await r3.boundingBox())!;
+    const writes: string[] = [];
+    page.on('request', (r) => {
+      if (r.method() !== 'GET' && r.url().includes('/offsets/')) writes.push(r.url());
+    });
     const from = { x: before.x + before.width / 2, y: before.y + before.height / 2 };
-
-    const saved = page.waitForResponse(
-      (r) => r.url().endsWith('/offsets/r3') && r.request().method() === 'PUT',
-    );
     await page.mouse.move(from.x, from.y);
     await page.mouse.down();
     await page.mouse.move(from.x + 12, from.y + 1, { steps: 3 });
     await page.mouse.move(from.x + 40, from.y + 2, { steps: 8 });
     await page.mouse.up();
-    expect((await saved).status()).toBe(200);
-    await expect(r3).not.toHaveAttribute('data-stack', /./);
-    await expect(page.locator('.pop')).toHaveCount(0);
-    const moved = (await offsets()).r3;
-    expect(moved).toBeGreaterThan(0);
-
-    await page.reload();
-    await hydrated(page);
-    await zoomTwice();
-    await expect(r3).not.toHaveAttribute('data-stack', /./);
-    const after = (await r3.boundingBox())!;
-    expect(after.x + after.width / 2).toBeGreaterThan(from.x + 10);
-    await expect(r3.locator('title')).toContainText('24 Sept 16:40');
-
+    await expect(r3).toHaveAttribute('data-stack', 'r1,r2,r3');
+    expect((await r3.boundingBox())!.x).toBeCloseTo(before.x, 0);
+    expect(writes).toEqual([]);
     await r3.click();
     const pop = page.locator('.pop');
-    await expect(pop).toContainText('24 Sept 16:40');
-    await expect(pop).toContainText('Moved inside its day in your view.');
-    const reset = page.waitForResponse(
-      (r) => r.url().endsWith('/offsets/r3') && r.request().method() === 'PUT',
-    );
-    await pop.getByRole('button', { name: 'Reset position' }).click();
-    expect((await reset).status()).toBe(200);
-    await expect(r3).toHaveAttribute('data-stack', 'r1,r2,r3');
-    expect(await offsets()).toEqual({});
+    await expect(pop).toContainText('3 events here');
+    await expect(pop.getByRole('button', { name: 'Reset position' })).toHaveCount(0);
+    const read = await page.request.get(`/api/v1/projects/${projectId}/tracker`);
+    expect(read.status()).toBe(200);
   });
 });
 

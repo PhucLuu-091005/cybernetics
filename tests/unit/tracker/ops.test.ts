@@ -233,6 +233,56 @@ const CASES: Array<[string, Op, OpDescription]> = [
     makeOp('addTeam', { id: 'legal-team', name: 'Legal', leadId: 'priya' }),
     { item: 'Legal', change: 'added', before: '', after: 'lead Priya Shah' },
   ],
+  [
+    'doneBy',
+    makeOp('doneBy', { workItemId: 'pg203', personId: 'lan' }),
+    {
+      item: 'PG-203 Country list field type',
+      change: 'done by changed',
+      before: 'Quang Nguyễn',
+      after: 'Lan Phạm',
+    },
+  ],
+  [
+    'requestedBy',
+    makeOp('requestedBy', { workItemId: 'pg203', personId: 'sarah' }),
+    {
+      item: 'PG-203 Country list field type',
+      change: 'requested by changed',
+      before: 'Lan Phạm',
+      after: 'Sarah Kim',
+    },
+  ],
+  [
+    'team',
+    makeOp('team', { workItemId: 'pg203', teamId: 'it' }),
+    {
+      item: 'PG-203 Country list field type',
+      change: 'team changed',
+      before: 'Engineering',
+      after: 'IT',
+    },
+  ],
+  [
+    'parent',
+    makeOp('parent', { workItemId: 'pg203', parentId: null }),
+    {
+      item: 'PG-203 Country list field type',
+      change: 'parent changed',
+      before: 'CRS tax residency section with DealCloud sync',
+      after: 'No parent',
+    },
+  ],
+  [
+    'after',
+    makeOp('after', { workItemId: 'pg203', after: [] }),
+    {
+      item: 'PG-203 Country list field type',
+      change: 'leads from changed',
+      before: 'Analyse the CRS and FATCA rules',
+      after: 'Nothing',
+    },
+  ],
 ];
 
 describe('the Larkspur fixture', () => {
@@ -596,6 +646,11 @@ describe('keysOf', () => {
     ['rename', ['loop:pg203:title']],
     ['due', ['loop:pg203:due']],
     ['addTeam', []],
+    ['doneBy', ['loop:pg203:doneBy']],
+    ['requestedBy', ['loop:pg203:requestedBy']],
+    ['team', ['loop:pg203:team']],
+    ['parent', ['loop:pg203:parent']],
+    ['after', ['loop:pg203:after']],
   ])('%s', (name, keys) => {
     const op = CASES.find(([n]) => n === name)?.[1] as Op;
     expect(keysOf(op)).toEqual(keys);
