@@ -20,6 +20,7 @@ import {
   toInstant,
   wallTimeInstant,
   type Cr,
+  type Member,
   type CrPermission,
   type EventKind,
   type TrackerState,
@@ -992,6 +993,15 @@ function RequestChangesModal({ cr, session, busy, on, onClose }: PropsOf<'reques
   );
 }
 
+export const shareCandidates = (members: readonly Member[], cr: Cr) =>
+  members.filter(
+    (m) =>
+      m.active &&
+      m.id !== cr.author &&
+      m.id !== cr.editor &&
+      !cr.shares.some((s) => s.memberId === m.id),
+  );
+
 function ShareModal({ session, cr, busy, on, onClose }: PropsOf<'share'>) {
   const { dir, payload, projectId } = session;
   const [who, setWho] = useState('');
@@ -999,9 +1009,7 @@ function ShareModal({ session, cr, busy, on, onClose }: PropsOf<'share'>) {
   const linkRef = useRef<HTMLInputElement>(null);
   if (!cr) return <Gone onClose={onClose} />;
   const link = shareLink(window.location.origin, projectId, cr.num);
-  const others = payload.members.filter(
-    (m) => m.active && m.id !== cr.author && !cr.shares.some((s) => s.memberId === m.id),
-  );
+  const others = shareCandidates(payload.members, cr);
   const pick = who && others.some((m) => m.id === who) ? who : (others[0]?.id ?? '');
   const creates = (id: string) => {
     const member = payload.members.find((m) => m.id === id);
