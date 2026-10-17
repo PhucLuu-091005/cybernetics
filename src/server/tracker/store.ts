@@ -44,8 +44,12 @@ export async function loadMembers(db: Reader, projectId: string): Promise<Member
     roleLabel: row.roleLabel,
     color: row.color,
     userId: row.userId,
+    active: row.removedAt === null && row.access === 'member' && !isInvite(row),
   }));
 }
+
+export const isInvite = (row: { userId: string | null; email: string | null }) =>
+  row.userId === null && row.email !== null;
 
 export function toQueueRow(row: QueueDbRow): QueueRow {
   const meta = {

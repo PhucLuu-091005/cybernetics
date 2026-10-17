@@ -3,12 +3,16 @@ import type { TrackerBase, TrackerQueue } from './model';
 import type { Op } from './ops';
 import type { QueueEventInput, QueueItemInput } from './schemas';
 
+export type MemberAccess = 'member' | 'viewer';
+
 export type Member = {
   id: string;
   name: string;
   roleLabel: string;
   color: string;
   userId: string | null;
+  /** Can act: a member who is not a viewer, not removed and not a pending invite. */
+  active: boolean;
 };
 
 export type CrStatus = 'draft' | 'ready' | 'merged' | 'closed';

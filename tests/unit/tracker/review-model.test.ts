@@ -24,6 +24,7 @@ const members: Member[] = LARKSPUR_MEMBERS.map((m) => ({
   roleLabel: m.roleLabel,
   color: m.color,
   userId: null,
+  active: true,
 }));
 
 function described(commits: readonly Commit[], ops: readonly Op[], upto?: number): Op[] {

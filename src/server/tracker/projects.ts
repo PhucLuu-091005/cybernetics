@@ -30,7 +30,8 @@ import {
 } from './seed/larkspur';
 import { addComment } from './store';
 
-const OWNER = { roleLabel: 'Project owner, owns Main', color: '#0f766e' };
+export const OWNER_ROLE_LABEL = 'Project owner, owns Main';
+const OWNER = { roleLabel: OWNER_ROLE_LABEL, color: '#0f766e' };
 
 export type CreateTrackerProjectInput = {
   workspaceId: string;

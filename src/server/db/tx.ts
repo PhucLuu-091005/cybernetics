@@ -1,9 +1,9 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql, type SQL } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { IdSchema, type ActorContext } from '../../contracts';
 import { AppError } from '../errors';
 import * as schema from './schema';
-import { projects, workspaceMembers } from './schema';
+import { projects, trackerMembers, workspaceMembers } from './schema';
 export type Db = NodePgDatabase<typeof schema>;
 export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 export type ProjectRow = typeof projects.$inferSelect;
@@ -26,6 +26,10 @@ export function isUniqueViolation(error: unknown, constraint: string): boolean {
   }
   return false;
 }
+/** A person opens a project through its workspace, or through a member row of their own that is not removed. */
+export function projectOpenTo(userId: string): SQL {
+  return sql`(exists (select 1 from ${workspaceMembers} where ${workspaceMembers.workspaceId} = ${projects.workspaceId} and ${workspaceMembers.userId} = ${userId}) or exists (select 1 from ${trackerMembers} where ${trackerMembers.projectId} = ${projects.id} and ${trackerMembers.userId} = ${userId} and ${trackerMembers.removedAt} is null))`;
+}
 /** Membership decides access; callers write with the returned row's workspaceId, never ctx.workspaceId. */
 export async function findProjectForActor(
   db: Db | Tx,
@@ -37,23 +41,16 @@ export async function findProjectForActor(
   const query = db
     .select()
     .from(projects)
-    .innerJoin(
-      workspaceMembers,
-      and(
-        eq(workspaceMembers.workspaceId, projects.workspaceId),
-        eq(workspaceMembers.userId, ctx.userId),
-      ),
-    )
-    .where(eq(projects.id, projectId))
+    .where(and(eq(projects.id, projectId), projectOpenTo(ctx.userId)))
     .limit(1);
-  const rows = lock ? await query.for('update', { of: projects }) : await query;
+  const rows = lock ? await query.for('update') : await query;
   if (
     !rows.length ||
     (ctx.kind === 'agent' &&
-      (ctx.projectId !== projectId || ctx.workspaceId !== rows[0].projects.workspaceId))
+      (ctx.projectId !== projectId || ctx.workspaceId !== rows[0].workspaceId))
   )
     throw new AppError('NOT_FOUND', 'Project not found');
-  return rows[0].projects;
+  return rows[0];
 }
 export function lockProject(tx: Tx, ctx: ActorContext, projectId: string): Promise<ProjectRow> {
   return findProjectForActor(tx, ctx, projectId, true);
