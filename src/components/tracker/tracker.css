@@ -254,24 +254,6 @@
   text-align: center;
   box-shadow: 0 0 0 2px var(--panel);
 }
-.tk .graph-btn {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  border: 1px solid var(--rule);
-  background: var(--panel);
-  border-radius: var(--r-ctl);
-  padding: 0 10px;
-  cursor: pointer;
-  font-size: var(--fs-s);
-  font-weight: 600;
-  max-width: 100%;
-  min-height: 32px;
-  box-shadow: var(--shadow-sm);
-}
-.tk .graph-btn:hover {
-  background: var(--sunk);
-}
 .tk .gowner {
   display: inline-flex;
   align-items: center;
@@ -2403,8 +2385,13 @@ svg.tg .deadline-name {
   .tk .qempty {
     flex: 1;
   }
+  /* First line: History, Change requests and the account; then the rest; the search last. */
   .tk .p-head:not(.pg-head) > * {
     order: 2;
+  }
+  .tk .p-head:not(.pg-head) > .hist-btn,
+  .tk .p-head:not(.pg-head) > .crs-btn {
+    order: 0;
   }
   .tk .p-head:not(.pg-head) > .acct {
     order: 1;

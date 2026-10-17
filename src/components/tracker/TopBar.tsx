@@ -51,7 +51,7 @@ export function TopBar(props: Props) {
         onUnhideAll={props.onUnhideAll}
       />
       <button
-        className="btn"
+        className="btn hist-btn"
         type="button"
         aria-expanded={drawer === 'history'}
         onClick={() => onDrawer('history')}
