@@ -359,6 +359,85 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     }
   });
 
+  test('a milestone deadline with a time sits at that time inside its busy day', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-time');
+    const dialog = page.locator('.m-card');
+    const drawer = page.locator('.drawer');
+    await page.locator('.bbar').getByRole('button', { name: 'New change request' }).click();
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/cr=\d+$/);
+
+    await page.locator('svg.tg [data-ms="crm"] .ms-hit').click();
+    await expect(drawer.locator('h4')).toHaveText('CRM integration live');
+    await drawer.getByLabel('Time (optional)').fill('12:00');
+    await drawer.getByRole('button', { name: 'Save milestone' }).click();
+    await expect(dialog).toContainText('Move the milestone date');
+    await expect(dialog.getByLabel('Time (optional)')).toHaveValue('12:00');
+    await dialog.getByLabel(/Why does the date move/).fill('The go-live call is at noon.');
+    await dialog.getByRole('button', { name: 'Move the date' }).click();
+    await expect(dialog).toHaveCount(0);
+
+    await expect(
+      page.locator('svg.pg .deadline[aria-label^="CRM integration live · deadline 18 Sept 12:00"]'),
+    ).toHaveCount(3);
+    await expect(page.locator('svg.tg [data-ms="crm"]')).toHaveAttribute(
+      'aria-label',
+      /CRM integration live · 18 Sept 12:00 · Late \(was 18 Sept\)/,
+    );
+    await expect(drawer).toContainText('18 Sept → 18 Sept 12:00');
+
+    await page.keyboard.press('Escape');
+    const zoomIn = page.getByRole('button', { name: 'Zoom in' });
+    for (let i = 0; i < 4; i += 1) await zoomIn.click();
+    const mark = page.locator('svg.pg .deadline[data-goal="crm"]').nth(2);
+    await mark.scrollIntoViewIfNeeded();
+    const x = async (locator: ReturnType<typeof page.locator>) => {
+      const box = await locator.boundingBox();
+      if (!box) throw new Error('No box');
+      return box.x + box.width / 2;
+    };
+    const before = await x(page.locator('svg.pg [data-act="m1"]'));
+    const at = await x(mark.locator('.deadline-mark'));
+    const after = await x(page.locator('svg.pg [data-act="m3"]'));
+    expect(before).toBeLessThan(at);
+    expect(at).toBeLessThan(after);
+  });
+
+  test('folding the rail keeps the size of the graph and shows more of the time line', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-fold');
+    const icon = page.locator('svg.pg [data-act="a1"] circle.bg');
+    const other = page.locator('svg.pg [data-act="a2"] circle.bg');
+    const fit = page.getByRole('button', { name: 'Fit to width' });
+    const measure = async () => {
+      const a = await icon.boundingBox();
+      const b = await other.boundingBox();
+      if (!a || !b) throw new Error('No box');
+      return { width: a.width, height: a.height, gap: b.x - a.x };
+    };
+    const lastTick = () => page.locator('svg.pg-top-time .tick').last().textContent();
+    await expect(fit).toBeDisabled();
+    const open = await measure();
+    const openEnd = await lastTick();
+
+    await page.getByRole('button', { name: 'Collapse sidebar' }).click();
+    await expect.poll(async () => (await measure()).gap).toBeCloseTo(open.gap, 1);
+    const folded = await measure();
+    expect(folded.width).toBeCloseTo(open.width, 1);
+    expect(folded.height).toBeCloseTo(open.height, 1);
+    expect(await lastTick()).not.toBe(openEnd);
+    await expect(page.locator('.gscroll .gtime')).toHaveJSProperty('scrollLeft', 0);
+
+    await expect(fit).toBeEnabled();
+    await fit.click();
+    await expect.poll(async () => (await measure()).gap).toBeGreaterThan(open.gap + 1);
+    expect((await measure()).width).toBeCloseTo(open.width, 1);
+    await expect(fit).toBeDisabled();
+  });
+
   test('a click on a row opens its details, and an event brief leads to its work item', async ({
     page,
   }) => {
@@ -597,6 +676,12 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await expect(marks).toHaveCount(1);
       const mark = marks.first();
       await expect(mark).toHaveText('3');
+      const onEvent = await page.locator('svg.pg .act[data-stack*="a3"] circle.bg').boundingBox();
+      const badge = await mark.boundingBox();
+      if (!onEvent || !badge) throw new Error('No box');
+      expect(badge.x).toBeGreaterThan(onEvent.x);
+      expect(badge.x).toBeLessThan(onEvent.x + onEvent.width);
+      expect(badge.y).toBeLessThan(onEvent.y + onEvent.height / 2);
       await mark.hover();
       await expect(tip).toHaveText(lines.join('\n'));
       await page.mouse.move(5, 5);
