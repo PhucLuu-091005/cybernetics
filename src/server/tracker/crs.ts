@@ -64,7 +64,7 @@ const RouteNumber = z
 const MemberId = z.string().max(100);
 const Target = { ...ProjectScopeSchema, num: RouteNumber.pipe(z.number().positive()) };
 const Seen = { ...Target, expectedRevision: RevisionSchema.optional() };
-/** The merger decides on what they saw, so merge, close and request changes must name that revision. */
+/** A decision acts on what the person saw, so merge, close and request changes must name that revision. */
 const Reviewed = { ...Target, expectedRevision: RevisionSchema };
 
 const CreateCrInputSchema = z.strictObject({
@@ -107,7 +107,7 @@ const CrActionInputSchema = z.discriminatedUnion('action', [
     picks: z.record(z.string().max(300), z.enum(['main', 'cr'])).default({}),
   }),
   z.strictObject({ ...Reviewed, action: z.literal('request-changes'), note: Text(4000) }),
-  z.strictObject({ ...Reviewed, action: z.literal('close') }),
+  z.strictObject({ ...Reviewed, action: z.literal('close'), reason: Text(1000) }),
 ]);
 export type CrActionInput = z.input<typeof CrActionInputSchema>;
 type Action = z.infer<typeof CrActionInputSchema>;
@@ -336,8 +336,7 @@ async function ask(run: Run) {
   requireStatus(cr, OPEN);
   requireSeen(run);
   if (cr.editor === me.id) throw new AppError('VALIDATION', `You already edit #${cr.num}`);
-  if (!hasEditRight(cr, await loadShares(tx, cr), me.id))
-    throw new AppError('FORBIDDEN', `You can only view #${cr.num}`);
+  // Without edit right the ask is for access; the editor grants it with a share.
   const added = await tx
     .insert(trackerCrAsks)
     .values({ ...scope.tenant, crId: cr.id, memberId: me.id })
@@ -435,11 +434,10 @@ async function share(run: Run, memberId: string, permission: 'edit' | 'view' | '
       });
     return;
   }
-  const [current] = await tx
-    .select({ permission: trackerCrShares.permission })
-    .from(trackerCrShares)
-    .where(row);
-  if (current?.permission === permission) return;
+  const shares = await loadShares(tx, cr);
+  if (shares.find((s) => s.memberId === member.id)?.permission === permission) return;
+  if (!hasEditRight(cr, shares, member.id))
+    await tx.delete(trackerCrAsks).where(askOf(cr, member.id));
   await tx
     .insert(trackerCrShares)
     .values({ ...scope.tenant, crId: cr.id, memberId: member.id, permission })
@@ -562,10 +560,15 @@ async function requestChanges(run: Run, note: string) {
   });
 }
 
-async function close(run: Run) {
+async function close(run: Run, reason: string) {
   const { tx, ctx, scope, cr } = run;
-  const me = requireRight(ctx, scope, 'merge');
-  requireStatus(cr, ['ready']);
+  const me = requireRight(ctx, scope, 'viewMain');
+  if (![cr.author, cr.editor].includes(me.id) && !rightsIn(scope, me).merge)
+    throw new AppError(
+      'FORBIDDEN',
+      `Only the author, the person who edits #${cr.num} or a person who can merge can cancel it`,
+    );
+  requireStatus(cr, OPEN);
   requireSeen(run);
   const commits = await loadCommits(tx, scope.project.id);
   await updateCr(tx, cr, {
@@ -575,7 +578,12 @@ async function close(run: Run) {
     closedRev: mainRevision(commits),
   });
   await tx.delete(trackerCrAsks).where(asksOf(cr));
-  await addComment(tx, scope.tenant, { crId: cr.id, memberId: me.id, kind: 'closed' });
+  await addComment(tx, scope.tenant, {
+    crId: cr.id,
+    memberId: me.id,
+    kind: 'closed',
+    body: reason,
+  });
 }
 
 function run(context: Run, input: Action): Promise<void> {
@@ -601,7 +609,7 @@ function run(context: Run, input: Action): Promise<void> {
     case 'request-changes':
       return requestChanges(context, input.note);
     case 'close':
-      return close(context);
+      return close(context, input.reason);
   }
 }
 

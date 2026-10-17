@@ -71,6 +71,7 @@ export type Rights = {
   manage: boolean;
 };
 export type Right = keyof Rights | 'edit';
+export type CrRight = 'edit' | 'share' | 'cancel' | 'ask';
 
 export type PermissionSubject = {
   me: { id: string; grants: Grants } | null;
@@ -116,24 +117,35 @@ export function rightsOf(subject: PermissionSubject): Rights {
 type CrPart = {
   author: string;
   editor: string;
+  status: string;
   shares: ReadonlyArray<{ memberId: string; permission: string }>;
 };
 
+const isOpenCr = (cr: CrPart) => cr.status === 'draft' || cr.status === 'ready';
+
 /**
- * `can(payload, 'merge')`. With a change request, `edit` also needs a part in it: its author,
- * its editor or an edit share.
+ * `can(payload, 'merge')`, or a right on one change request: `edit` changes it now (a draft, you
+ * edit it), `share` and `ask` belong to edit access, `cancel` to its author, its editor or a merger.
+ * The server checks the same rules on each write.
  */
-export function can(subject: PermissionSubject, right: Right, cr?: CrPart): boolean {
+export function can(subject: PermissionSubject, right: Right): boolean;
+export function can(subject: PermissionSubject, right: CrRight, cr: CrPart): boolean;
+export function can(subject: PermissionSubject, right: Right | CrRight, cr?: CrPart): boolean {
   const rights = rightsOf(subject);
-  if (right !== 'edit') return rights[right];
-  if (!rights.create || !subject.me) return false;
-  if (!cr) return true;
-  const id = subject.me.id;
-  return (
-    cr.author === id ||
-    cr.editor === id ||
-    cr.shares.some((share) => share.memberId === id && share.permission === 'edit')
-  );
+  const me = subject.me?.id;
+  if (!cr) return right === 'edit' ? !!me && rights.create : rights[right as keyof Rights];
+  if (!me || !isOpenCr(cr)) return false;
+  switch (right) {
+    case 'edit':
+      return rights.create && cr.status === 'draft' && cr.editor === me;
+    case 'share':
+      return rights.create && cr.editor === me;
+    case 'ask':
+      return rights.create && cr.editor !== me;
+    case 'cancel':
+      return cr.author === me || cr.editor === me || rights.merge;
+  }
+  return false;
 }
 
 /** A merged change request is part of Main's history; a share or a part in one also shows it. */

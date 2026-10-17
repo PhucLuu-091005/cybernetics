@@ -153,7 +153,7 @@ test('the project lead invites, sets grants, edits a team, removes a member and 
   await test.step('in the demo, working as the new lead manages the members again', async () => {
     await page.goto(`/projects/${projectId}/graph`);
     await hydrated(page);
-    await expect(page.locator('.gpick > summary')).toContainText('Lead: Quang Nguyễn');
+    await expect(page.locator('.bbar .gowner')).toContainText('Lead: Quang Nguyễn');
     await page.getByLabel('Demo: act as').selectOption({ label: 'Quang Nguyễn' });
     await expect(page.locator('.p-head details.acct summary b')).toHaveText('Quang Nguyễn');
     await page.goto(`/projects/${projectId}/members`);
@@ -186,6 +186,8 @@ test('an invited person with no grant sees why the graph is closed', async ({ pa
   await other.goto('/signin?label=members-blind');
   await other.getByRole('button', { name: /continue/i }).click();
   await other.waitForURL(new RegExp(`/projects/${projectId}/graph$`));
+  await expect(other.getByRole('status')).toContainText('You cannot see Main of this project yet.');
+  await other.goto(`/projects/${projectId}/changes/2`);
   await expect(other.getByRole('status')).toContainText('You cannot see Main of this project yet.');
   await other.getByRole('link', { name: 'Members page' }).click();
   await other.waitForURL(/\/members$/);

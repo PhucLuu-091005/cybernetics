@@ -1,5 +1,4 @@
 'use client';
-import Link from 'next/link';
 import {
   useEffect,
   useId,
@@ -10,8 +9,6 @@ import {
   type ReactNode,
 } from 'react';
 import {
-  can,
-  clashesOf,
   dayOf,
   focusTree,
   formatDay,
@@ -20,13 +17,10 @@ import {
   itemInfo,
   itemStatus,
   KIND_LABEL,
-  keysOf,
   lateBy,
   mainState,
   milestoneStatus,
   replayOps,
-  reviewModel,
-  SKIP_REASON,
   STATUS_LABEL,
   STATUS_TONE,
   teamFocusTree,
@@ -42,13 +36,12 @@ import type { OpInput } from './api';
 import { Avatar, Avatars, type Directory } from './avatar';
 import {
   byNumDesc,
-  canEditCr,
   mergerNames,
   clashCount,
   editorsOf,
   isOpen,
   plural,
-  reviewHref,
+  closeReason,
   StatusChip,
   trunc,
   type Session,
@@ -889,111 +882,6 @@ export function FocusDrawer({
   );
 }
 
-export function ChangesDrawer({
-  session,
-  cr,
-  onClose,
-  actions,
-  busy = false,
-}: Omit<Base, 'state' | 'asOf'> & { cr: Cr; actions: TrackerActions }) {
-  const { payload, dir, me, projectId } = session;
-  const edit = canEditCr(cr, me) && can(payload, 'edit', cr);
-  const clashes = isOpen(cr) ? clashesOf(cr.ops, payload.commits) : [];
-  const model = useMemo(() => reviewModel(payload, cr.num), [payload, cr.num]);
-  const dropped = (keys: string[]) =>
-    cr.status === 'merged' &&
-    cr.resolutions.some((x) => x.chose === 'main' && keys.includes(x.key));
-  return (
-    <Frame
-      label={`Changes in #${cr.num}`}
-      head={
-        <>
-          <h4>Changes in #{cr.num}</h4>
-          <small>{cr.title}</small>
-        </>
-      }
-      onClose={onClose}
-    >
-      {!cr.ops.length && (
-        <p className="tip">
-          No changes yet. Drag an event or a work item from the Queue onto the graph.
-        </p>
-      )}
-      {cr.ops.map((op, i) => {
-        const d = op.d ?? { item: op.op, change: 'changed', before: '', after: '' };
-        const clash = clashes.find((k) => k.index === i);
-        const gone = dropped(keysOf(op));
-        const skip = model?.changes.find((c) => c.opIndex === i)?.skipReason ?? null;
-        return (
-          <div className={`chg-row${gone ? ' dropped' : ''}${skip ? ' skipped' : ''}`} key={i}>
-            <span className="pi" style={{ width: 26, height: 26 }}>
-              {d.icon ? <KindIcon kind={d.icon} size={13} /> : <Icon name="pencil" size={13} />}
-            </span>
-            <div>
-              <b>{d.item}</b>: {d.change}
-              {skip ? (
-                <small>{SKIP_REASON[skip]}</small>
-              ) : (
-                <small>
-                  {d.before && (
-                    <>
-                      <span className="before">{d.before}</span> →{' '}
-                    </>
-                  )}
-                  <span className="after">{d.after}</span>
-                </small>
-              )}
-              {d.why && <small>Why: {d.why}</small>}
-              <span className="chg-by">
-                <Avatar id={op.by} dir={dir} sm /> {dir.name(op.by)}
-              </span>
-              {clash && <span className="chipx warn"> Clash with #{clash.commit.crNum}</span>}
-              {gone && <span className="chipx"> Not merged</span>}
-              {skip && <span className="chipx"> No longer applies</span>}
-            </div>
-            {edit && (
-              <button
-                className="x"
-                type="button"
-                aria-label="Remove this change"
-                disabled={busy}
-                onClick={() => actions.removeChange(i)}
-              >
-                ×
-              </button>
-            )}
-          </div>
-        );
-      })}
-      <div className="drawer-foot">
-        {edit && (
-          <button
-            className="btn"
-            type="button"
-            disabled={!cr.ops.length || busy}
-            onClick={actions.undo}
-          >
-            <Icon name="undo" /> Undo
-          </button>
-        )}
-        <Link className="btn" href={reviewHref(projectId, cr.num)}>
-          Open review
-        </Link>
-        {edit && (
-          <button
-            className="btn btn-ink"
-            type="button"
-            disabled={!cr.ops.length || busy}
-            onClick={actions.markReady}
-          >
-            <Icon name="check" /> Mark as ready
-          </button>
-        )}
-      </div>
-    </Frame>
-  );
-}
-
 const GROUPS: Array<[Cr['status'], string]> = [
   ['ready', 'Ready to merge'],
   ['draft', 'Drafts'],
@@ -1010,7 +898,7 @@ export function RequestsDrawer({
   actions: TrackerActions;
   onView: (view: TrackerView) => void;
 }) {
-  const { payload, dir, canMerge, projectId, tz } = session;
+  const { payload, dir, canMerge, tz } = session;
   return (
     <Frame
       label="Change requests"
@@ -1063,21 +951,19 @@ export function RequestsDrawer({
                     {clashes > 0 && <span className="chipx warn">{plural(clashes, 'clash')}</span>}
                   </div>
                   <div className="row-btns">
-                    <button className="btn sm" type="button" onClick={() => onView(c.num)}>
-                      Open
-                    </button>
-                    <Link
+                    <button
                       className={`btn sm${mergeIt ? ' btn-ink' : ''}`}
-                      href={reviewHref(projectId, c.num)}
+                      type="button"
+                      onClick={() => onView(c.num)}
                     >
                       {mergeIt ? (
                         <>
                           <Icon name="merge" size={13} /> Review and merge
                         </>
                       ) : (
-                        'Review'
+                        'Open'
                       )}
-                    </Link>
+                    </button>
                   </div>
                 </div>
               );
@@ -1100,7 +986,7 @@ export function HistoryDrawer({
   onClose,
   onView,
 }: Omit<Base, 'state' | 'asOf'> & { onView: (view: TrackerView) => void }) {
-  const { payload, dir, projectId, tz } = session;
+  const { payload, dir, tz } = session;
   const commits = useMemo(
     () => [...payload.commits].sort((a, b) => b.rev - a.rev),
     [payload.commits],
@@ -1164,11 +1050,8 @@ export function HistoryDrawer({
                   </div>
                 )}
                 <div className="row-btns">
-                  <Link className="btn sm" href={reviewHref(projectId, commit.crNum)}>
-                    See changes
-                  </Link>
                   <button className="btn sm" type="button" onClick={() => onView(commit.crNum)}>
-                    Open graph
+                    Open #{commit.crNum}
                   </button>
                 </div>
               </div>
@@ -1185,21 +1068,28 @@ export function HistoryDrawer({
       </ol>
       {closed.length > 0 && (
         <>
-          <p className="q-label">Closed without merging ({closed.length})</p>
-          {closed.map((c) => (
-            <div className="grow-item" key={c.num}>
-              <Avatar id={c.author} dir={dir} sm />
-              <div>
-                <b>
-                  #{c.num} {c.title}
-                </b>
-                <small>Closed by {dir.name(c.closedBy ?? '')}</small>
+          <p className="q-label">Cancelled ({closed.length})</p>
+          {closed.map((c) => {
+            const reason = closeReason(c);
+            return (
+              <div className="grow-item" key={c.num}>
+                <Avatar id={c.author} dir={dir} sm />
+                <div>
+                  <b>
+                    #{c.num} {c.title}
+                  </b>
+                  <small>
+                    Cancelled by {dir.name(c.closedBy ?? '')}
+                    {c.closedAt && `, ${formatStamp(c.closedAt, tz)}`}
+                  </small>
+                  {reason && <span className="grow-note multi">Reason: {reason}</span>}
+                </div>
+                <button className="btn sm" type="button" onClick={() => onView(c.num)}>
+                  Open
+                </button>
               </div>
-              <Link className="btn sm" href={reviewHref(projectId, c.num)}>
-                Review
-              </Link>
-            </div>
-          ))}
+            );
+          })}
         </>
       )}
     </Frame>

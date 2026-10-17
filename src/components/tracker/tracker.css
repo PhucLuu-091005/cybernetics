@@ -133,6 +133,14 @@
 .tk .btn-danger {
   color: var(--danger-ink);
 }
+.tk .btn-stop {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+.tk .btn-stop:hover:not(:disabled) {
+  background: var(--danger-ink);
+}
 .tk .btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -197,23 +205,52 @@
 .tk .gpick > summary::-webkit-details-marker {
   display: none;
 }
-.tk .graph-btn {
+.tk .vsel {
   display: flex;
-  gap: 8px;
   align-items: center;
-  border: 1px solid var(--rule);
-  background: var(--panel);
-  border-radius: var(--r-ctl);
-  padding: 0 10px;
-  cursor: pointer;
-  font-size: var(--fs-s);
-  font-weight: 600;
-  max-width: 100%;
+  gap: 7px;
   min-height: 32px;
-  box-shadow: var(--shadow-sm);
+  max-width: 56ch;
+  padding: 0 8px;
+  margin-left: -8px;
+  border-radius: var(--r-ctl);
+  cursor: pointer;
+  font-size: var(--fs);
+  font-weight: 600;
 }
-.tk .graph-btn:hover {
-  background: var(--sunk);
+.tk .vsel:hover,
+.tk .gpick[open] > .vsel {
+  background: var(--hover);
+}
+.tk .vsel > svg {
+  flex: none;
+  color: var(--ink-3);
+}
+.tk .vtitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tk .gpick {
+  min-width: 0;
+}
+.tk .crs-btn {
+  position: relative;
+}
+.tk .nbadge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: var(--danger);
+  color: #fff;
+  font: 600 10.5px/18px var(--f-ui);
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--panel);
 }
 .tk .gowner {
   display: inline-flex;
@@ -230,6 +267,7 @@
   height: 10px;
   border-radius: 50%;
   flex: none;
+  background: var(--ink);
 }
 .tk .gmenu {
   position: absolute;
@@ -462,6 +500,13 @@
 .tk .bbar .muted {
   font-size: var(--fs-s);
 }
+.tk .bnote {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--fs-s);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
 .tk .chipx {
   display: inline-flex;
   align-items: center;
@@ -531,6 +576,140 @@
 .tk .p-side .qlist {
   flex: 1;
   min-height: 0;
+}
+.tk .cr-side {
+  width: 320px;
+}
+.tk .side-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tk .side-top > .qseg {
+  flex: 1;
+}
+.tk .side-top h4 {
+  flex: 1;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs);
+}
+.tk .side-top .n {
+  font: 500 10.5px var(--f-id);
+  color: var(--ink-3);
+}
+.tk .side-top .ib {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.tk .side-top .ib:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.tk .qpanel,
+.tk .side-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+.tk .side-list {
+  overflow-y: auto;
+  margin: 0 -12px;
+  padding: 0 12px;
+  border-top: 1px solid var(--rule);
+  gap: 0;
+}
+.tk .chg-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tk .chg-list .chg-row {
+  margin: 0 -12px;
+  padding: 0 12px 0 0;
+  border-top: 0;
+  border-bottom: 1px solid var(--rule-2);
+}
+.tk .chg-row.on {
+  background: var(--gray-bg);
+}
+.tk .chg-pick {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  flex: 1;
+  min-width: 0;
+  padding: 10px 0 10px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tk .chg-row:hover:not(.on) {
+  background: var(--hover);
+}
+.tk .chg-pick .pi,
+.tk .chg-list .pi {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+.tk .chg-txt {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tk .chg-txt small {
+  display: block;
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+}
+.tk .chg-txt .chg-by {
+  display: flex;
+  flex-wrap: wrap;
+}
+.tk .chg-list .chg-row > .x {
+  align-self: flex-start;
+  margin-top: 8px;
+}
+.tk .chg-list .chg-row:not(:has(.chg-pick)) {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+}
+.tk .side-list > .qempty {
+  align-items: center;
+  gap: 8px;
+}
+.tk .side-foot {
+  position: sticky;
+  bottom: 0;
+  margin-top: auto;
+  padding: 10px 0 12px;
+  background: var(--panel);
+  border-top: 1px solid var(--rule);
+}
+.tk .gtools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--rule);
+  min-height: 42px;
 }
 .tk .gwrap {
   position: relative;
@@ -726,12 +905,9 @@
   position: relative;
   display: flex;
   align-items: center;
-  /* A wrapping bar breaks lines by the base size, so the search starts small and grows to 440 px;
-     the auto margin keeps the controls on the right once it stops growing. */
-  flex: 1 1 200px;
-  margin-left: auto;
+  /* The search takes all the room the buttons leave; a wrapping bar breaks lines by the base size. */
+  flex: 1 1 240px;
   min-width: 160px;
-  max-width: 440px;
 }
 .tk .tsearch > svg {
   position: absolute;
@@ -966,6 +1142,11 @@
   padding: 16px;
   z-index: 4;
   font-size: var(--fs);
+  /* The card floats over the lanes, so a drag still finds the lane under it. */
+  pointer-events: none;
+}
+.tk .empty button {
+  pointer-events: auto;
 }
 .tk .empty h4 {
   margin: 0 0 6px;
@@ -2336,6 +2517,12 @@ svg.tg .deadline-name {
   font-size: var(--fs-s);
   display: block;
 }
+.tk .grow-note {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+}
 .tk .grow-item small {
   font-size: var(--fs-xs);
   color: var(--ink-3);
@@ -2408,7 +2595,8 @@ svg.tg .deadline-name {
   .tk .p-head:not(.pg-head) > * {
     order: 2;
   }
-  .tk .p-head:not(.pg-head) > .gpick {
+  .tk .p-head:not(.pg-head) > .hist-btn,
+  .tk .p-head:not(.pg-head) > .crs-btn {
     order: 0;
   }
   .tk .p-head:not(.pg-head) > .acct {
@@ -2454,6 +2642,9 @@ svg.tg .deadline-name {
   }
   .tk .gmenu {
     width: min(320px, calc(100vw - 32px));
+  }
+  .tk .vsel {
+    max-width: calc(100vw - 32px);
   }
 }
 

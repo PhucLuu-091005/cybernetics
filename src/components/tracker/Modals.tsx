@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  can,
   addDays,
   dayOf,
   EVENT_KINDS,
@@ -41,7 +42,9 @@ export type ModalState =
   /** Absent `time` keeps the current time of the milestone or the planned finish. */
   | { mode: 'due'; kind: 'item' | 'ms'; id: string; date: string; time?: string | null }
   | { mode: 'newcr' }
-  | { mode: 'share' };
+  | { mode: 'share' }
+  | { mode: 'cancelCr' }
+  | { mode: 'requestChanges' };
 
 export type ModalHandlers = {
   toast: (text: string) => void;
@@ -52,6 +55,8 @@ export type ModalHandlers = {
   createCr: (title: string) => void;
   share: (memberId: string, permission: CrPermission | 'remove') => void;
   handOver: (memberId: string) => void;
+  cancelCr: (reason: string) => void;
+  requestChanges: (note: string) => void;
 };
 
 type Props = {
@@ -908,7 +913,97 @@ function NewCrModal({ session, busy, on, onClose }: PropsOf<'newcr'>) {
 }
 
 export const shareLink = (origin: string, projectId: string, num: number) =>
-  `${origin}/projects/${projectId}/graph?cr=${num}`;
+  `${origin}/projects/${projectId}/changes/${num}`;
+
+function NoteModal({
+  title,
+  label,
+  placeholder,
+  tip,
+  action,
+  keep,
+  danger,
+  busy,
+  onClose,
+  onSend,
+}: {
+  title: string;
+  label: string;
+  placeholder: string;
+  tip: string;
+  action: string;
+  keep: string;
+  danger?: boolean;
+  busy: boolean;
+  onClose: () => void;
+  onSend: (text: string) => void;
+}) {
+  const [text, setText] = useState('');
+  const value = text.trim();
+  return (
+    <ModalFrame title={title} onClose={onClose}>
+      <label className="field">
+        {label}
+        <textarea
+          value={text}
+          maxLength={1000}
+          required
+          placeholder={placeholder}
+          onChange={(event) => setText(event.target.value)}
+        />
+      </label>
+      <p className="tip">{tip}</p>
+      <div className="m-foot">
+        <button className="btn big" type="button" onClick={onClose}>
+          {keep}
+        </button>
+        <button
+          className={`btn big ${danger ? 'btn-stop' : 'btn-ink'}`}
+          type="button"
+          disabled={busy || !value}
+          onClick={() => onSend(value)}
+        >
+          {action}
+        </button>
+      </div>
+    </ModalFrame>
+  );
+}
+
+function CancelCrModal({ cr, busy, on, onClose }: PropsOf<'cancelCr'>) {
+  if (!cr) return <Gone onClose={onClose} />;
+  return (
+    <NoteModal
+      title={`Cancel #${cr.num}?`}
+      label="Reason"
+      placeholder="For example: Main has these dates already."
+      tip="Nothing from it goes into Main. Everyone sees the reason in its header and in History."
+      action="Cancel change request"
+      keep="Keep it"
+      danger
+      busy={busy}
+      onClose={onClose}
+      onSend={on.cancelCr}
+    />
+  );
+}
+
+function RequestChangesModal({ cr, session, busy, on, onClose }: PropsOf<'requestChanges'>) {
+  if (!cr) return <Gone onClose={onClose} />;
+  return (
+    <NoteModal
+      title={`Request changes on #${cr.num}`}
+      label="What should change?"
+      placeholder="For example: add the date Daniel promised for the report."
+      tip={`#${cr.num} goes back to draft, and ${session.dir.name(cr.editor)} sees your note in its header.`}
+      action="Send back to draft"
+      keep="Cancel"
+      busy={busy}
+      onClose={onClose}
+      onSend={on.requestChanges}
+    />
+  );
+}
 
 function ShareModal({ session, cr, busy, on, onClose }: PropsOf<'share'>) {
   const { dir, payload, projectId } = session;
@@ -921,6 +1016,11 @@ function ShareModal({ session, cr, busy, on, onClose }: PropsOf<'share'>) {
     (m) => m.active && m.id !== cr.author && !cr.shares.some((s) => s.memberId === m.id),
   );
   const pick = who && others.some((m) => m.id === who) ? who : (others[0]?.id ?? '');
+  const creates = (id: string) => {
+    const member = payload.members.find((m) => m.id === id);
+    return !!member && can({ ...payload, me: member }, 'create');
+  };
+  const access: CrPermission = perm === 'edit' && creates(pick) ? 'edit' : 'view';
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(link);
@@ -977,7 +1077,9 @@ function ShareModal({ session, cr, busy, on, onClose }: PropsOf<'share'>) {
                 on.share(s.memberId, event.target.value as CrPermission | 'remove')
               }
             >
-              <option value="edit">Can edit</option>
+              {(s.permission === 'edit' || creates(s.memberId)) && (
+                <option value="edit">Can edit</option>
+              )}
               <option value="view">Can view</option>
               <option value="remove">Remove</option>
             </select>
@@ -1011,17 +1113,17 @@ function ShareModal({ session, cr, busy, on, onClose }: PropsOf<'share'>) {
             </select>
             <select
               aria-label="Access"
-              value={perm}
+              value={access}
               onChange={(event) => setPerm(event.target.value as CrPermission)}
             >
-              <option value="edit">Can edit</option>
+              {creates(pick) && <option value="edit">Can edit</option>}
               <option value="view">Can view</option>
             </select>
             <button
               className="btn btn-ink"
               type="button"
               disabled={busy || !pick}
-              onClick={() => on.share(pick, perm)}
+              onClick={() => on.share(pick, access)}
             >
               Add
             </button>
@@ -1060,5 +1162,9 @@ export function Modal(props: Props) {
       return <NewCrModal {...props} modal={modal} />;
     case 'share':
       return <ShareModal {...props} modal={modal} />;
+    case 'cancelCr':
+      return <CancelCrModal {...props} modal={modal} />;
+    case 'requestChanges':
+      return <RequestChangesModal {...props} modal={modal} />;
   }
 }
