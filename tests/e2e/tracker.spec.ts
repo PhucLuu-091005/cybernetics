@@ -409,25 +409,28 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     page,
   }) => {
     await signIn(page, 'tracker-fold');
-    const icon = page.locator('svg.pg [data-act="a1"] circle.bg');
-    const other = page.locator('svg.pg [data-act="a2"] circle.bg');
     const fit = page.getByRole('button', { name: 'Fit to width' });
-    const measure = async () => {
-      const a = await icon.boundingBox();
-      const b = await other.boundingBox();
-      if (!a || !b) throw new Error('No box');
-      return { width: a.width, height: a.height, gap: b.x - a.x };
-    };
+    // One frame for both icons: the graph slides left while the rail folds.
+    const measure = () =>
+      page.evaluate(() => {
+        const box = (id: string) =>
+          document.querySelector(`svg.pg [data-act="${id}"] circle.bg`)!.getBoundingClientRect();
+        const a = box('a1');
+        return { width: a.width, height: a.height, gap: box('a2').x - a.x };
+      });
     const lastTick = () => page.locator('svg.pg-top-time .tick').last().textContent();
+    const timeLine = async () => (await page.locator('svg.pg').boundingBox())?.width ?? 0;
     await expect(fit).toBeDisabled();
     const open = await measure();
     const openEnd = await lastTick();
+    const openLine = await timeLine();
 
     await page.getByRole('button', { name: 'Collapse sidebar' }).click();
-    await expect.poll(async () => (await measure()).gap).toBeCloseTo(open.gap, 1);
+    await expect.poll(timeLine).toBeGreaterThan(openLine + 100);
     const folded = await measure();
     expect(folded.width).toBeCloseTo(open.width, 1);
     expect(folded.height).toBeCloseTo(open.height, 1);
+    expect(folded.gap).toBeCloseTo(open.gap, 1);
     expect(await lastTick()).not.toBe(openEnd);
     await expect(page.locator('.gscroll .gtime')).toHaveJSProperty('scrollLeft', 0);
 
