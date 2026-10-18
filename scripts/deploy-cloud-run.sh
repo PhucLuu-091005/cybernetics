@@ -8,6 +8,9 @@ set -euo pipefail
 SERVICE="${SERVICE:-promise-graph}"
 REGION="${REGION:-asia-southeast1}"
 UPDATE_SECRETS="${UPDATE_SECRETS:-0}"
+AVATAR_BUCKET="${AVATAR_BUCKET:-promise-graph-avatars}"
+# The Cloud Storage free tier covers Standard storage in us-east1, us-west1 and us-central1 only.
+BUCKET_LOCATION="us-central1"
 
 missing=""
 for name in GCP_PROJECT_ID NEXT_PUBLIC_APP_URL SESSION_SECRET GOOGLE_CLIENT_ID \
@@ -39,6 +42,9 @@ esac
 case "$(host_of "$MIGRATE_DATABASE_URL")" in
   *-pooler.*) problems="$problems\n- MIGRATE_DATABASE_URL must be the direct Neon URL (no -pooler in its host)" ;;
 esac
+if ! printf '%s' "$AVATAR_BUCKET" | grep -Eq '^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$'; then
+  problems="$problems\n- AVATAR_BUCKET must be a bucket name: 3 to 63 lower-case letters, digits, dots, - and _"
+fi
 if [ -n "$problems" ]; then
   printf "Wrong values:%b\n" "$problems" >&2
   exit 2
@@ -50,7 +56,7 @@ for tool in gcloud node; do
   fi
 done
 
-# The service runs as its own account, which can read these four secrets and nothing else.
+# The service runs as its own account, which can read these four secrets and use the photo bucket.
 runtime_name="$SERVICE-runtime"
 runtime_account="$runtime_name@$GCP_PROJECT_ID.iam.gserviceaccount.com"
 if ! gcloud iam service-accounts describe "$runtime_account" --project "$GCP_PROJECT_ID" > /dev/null 2>&1; then
@@ -99,6 +105,33 @@ put_secret "$SERVICE-google-client-secret" "$GOOGLE_CLIENT_SECRET"
 put_secret "$SERVICE-database-url" "$DATABASE_URL"
 put_secret "$SERVICE-migrate-database-url" "$MIGRATE_DATABASE_URL"
 
+# Profile photos live in a private bucket. An existing bucket stays as it is; a missing one gets
+# uniform access, enforced public access prevention and no soft delete, so a removed photo is gone.
+gcloud services enable storage.googleapis.com --project "$GCP_PROJECT_ID" > /dev/null
+if gcloud storage buckets describe "gs://$AVATAR_BUCKET" --project "$GCP_PROJECT_ID" > /dev/null 2>&1; then
+  echo "Kept bucket gs://$AVATAR_BUCKET"
+else
+  gcloud storage buckets create "gs://$AVATAR_BUCKET" --project "$GCP_PROJECT_ID" \
+    --location "$BUCKET_LOCATION" --default-storage-class STANDARD \
+    --uniform-bucket-level-access --public-access-prevention --soft-delete-duration 0 > /dev/null
+  echo "Created bucket gs://$AVATAR_BUCKET in $BUCKET_LOCATION"
+fi
+# objectUser is the smallest predefined role that creates, reads and deletes objects; it is
+# granted on this bucket only, never on the project.
+granted=""
+for attempt in 1 2 3 4 5; do
+  if gcloud storage buckets add-iam-policy-binding "gs://$AVATAR_BUCKET" --project "$GCP_PROJECT_ID" \
+    --member "serviceAccount:$runtime_account" --role roles/storage.objectUser --quiet > /dev/null; then
+    granted=1
+    break
+  fi
+  [ "$attempt" = 5 ] || sleep 5
+done
+if [ -z "$granted" ]; then
+  echo "Could not let $runtime_account use gs://$AVATAR_BUCKET" >&2
+  exit 4
+fi
+
 # One instance: the rate limits live in process memory. Request-based billing (the default CPU
 # throttling) and no minimum instance keep an idle service at zero cost.
 gcloud run deploy "$SERVICE" \
@@ -114,7 +147,7 @@ gcloud run deploy "$SERVICE" \
   --concurrency 80 \
   --timeout 300 \
   --startup-probe "httpGet.path=/api/health,periodSeconds=5,timeoutSeconds=3,failureThreshold=24" \
-  --set-env-vars "AUTH_MODE=google,NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL,GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID" \
+  --set-env-vars "AUTH_MODE=google,NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL,GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID,AVATAR_STORE=gcs,AVATAR_BUCKET=$AVATAR_BUCKET" \
   --set-secrets "SESSION_SECRET=$SERVICE-session-secret:latest,GOOGLE_CLIENT_SECRET=$SERVICE-google-client-secret:latest,DATABASE_URL=$SERVICE-database-url:latest,MIGRATE_DATABASE_URL=$SERVICE-migrate-database-url:latest" \
   --quiet
 
