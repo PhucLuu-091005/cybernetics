@@ -1523,4 +1523,30 @@ test.describe('row height and collapsible teams', () => {
       page.locator('.legend2').getByRole('group', { name: 'Event kinds' }),
     ).toContainText('Meeting');
   });
+
+  test('an event circle is a full kind-colour ring on a light tint, and the circles behind a stack tint more', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-kind-tint', { classic: false });
+    // The browser serialises color-mix in its own way, so a probe element computes the expected colour.
+    const mixed = (color: string, percent: number) =>
+      page.evaluate(
+        ([c, p]) => {
+          const probe = document.createElement('div');
+          probe.style.color = `color-mix(in srgb, ${c} ${p}%, #ffffff)`;
+          document.body.append(probe);
+          const value = getComputedStyle(probe).color;
+          probe.remove();
+          return value;
+        },
+        [color, percent] as const,
+      );
+    const task = page.locator('svg.pg [data-act="p31"] circle.bg');
+    await expect(task).toHaveCSS('stroke', 'rgb(96, 100, 108)');
+    await expect(task).toHaveCSS('stroke-width', '2px');
+    await expect(task).toHaveCSS('fill', await mixed('rgb(96, 100, 108)', 12));
+    const stack = page.locator('svg.pg [data-stack] circle.layer').first();
+    const kind = await stack.evaluate((el) => getComputedStyle(el).stroke);
+    await expect(stack).toHaveCSS('fill', await mixed(kind, 26));
+  });
 });
