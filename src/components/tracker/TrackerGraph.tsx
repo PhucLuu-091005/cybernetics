@@ -9,6 +9,7 @@ import {
   useState,
   type KeyboardEvent,
   type MouseEvent,
+  type SVGProps,
 } from 'react';
 import {
   GEOMETRY,
@@ -153,6 +154,37 @@ function MilestoneMark({ m }: { m: LayoutMilestone }) {
           <circle className="ms-dot" cy={4} r={1.2} />
         </>
       )}
+    </>
+  );
+}
+
+const BACK_PAD = 3;
+
+/** The T line and the grid run through the axis row, so a milestone name carries the panel behind it. */
+function BackedText({ children, ...text }: SVGProps<SVGTextElement>) {
+  const textRef = useRef<SVGTextElement>(null);
+  const backRef = useRef<SVGRectElement>(null);
+  useLayoutEffect(() => {
+    const fit = () => {
+      const label = textRef.current;
+      const back = backRef.current;
+      if (!label?.isConnected || !back || typeof label.getBBox !== 'function') return;
+      const box = label.getBBox();
+      back.setAttribute('x', String(box.x - BACK_PAD));
+      back.setAttribute('y', String(box.y));
+      back.setAttribute('width', String(box.width + 2 * BACK_PAD));
+      back.setAttribute('height', String(box.height));
+    };
+    fit();
+    // A web font that arrives later changes the width of the name.
+    void document.fonts?.ready.then(fit);
+  });
+  return (
+    <>
+      <rect ref={backRef} className="label-back" />
+      <text ref={textRef} {...text}>
+        {children}
+      </text>
     </>
   );
 }
@@ -860,7 +892,7 @@ export function TrackerGraph(props: Props) {
           >
             <rect className="ms-hit" x={-15} y={-15} width={30} height={30} />
             <MilestoneMark m={m} />
-            <text
+            <BackedText
               className={cls('ms-label', m.changed && 'changed')}
               x={m.labelX - m.x}
               y={m.labelY - m.y}
@@ -868,7 +900,7 @@ export function TrackerGraph(props: Props) {
               style={m.changed ? undefined : { fill: ink(m.labelTone) }}
             >
               {moved?.label ?? m.label}
-            </text>
+            </BackedText>
           </g>
         );
       })}

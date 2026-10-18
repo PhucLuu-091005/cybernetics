@@ -290,6 +290,7 @@ export type LayoutDeadline = {
   labelX: number;
   labelY: number;
   labelAnchor: 'start' | 'end';
+  labelBox: { x0: number; x1: number } | null;
   ariaLabel: string;
   tooltip: string;
 };
@@ -857,6 +858,56 @@ function busyOf(
   return busy;
 }
 
+const MIN_CUT = 8;
+const T_ROOM = 3;
+
+/**
+ * The full name on the right of the mark, else on its left, else the longer of the two cut with an
+ * ellipsis. The T line counts as busy, so a name never sits across it.
+ */
+function placeName(
+  c: Ctx,
+  name: string,
+  x: number,
+  rowBusy: readonly Span[],
+): { label: string; side: 'start' | 'end'; box: { x0: number; x1: number } } | null {
+  const spans: Span[] = [...rowBusy, [c.xt - T_ROOM, c.xt + T_ROOM]];
+  const char = LABEL_CHAR * c.level.nameFont;
+  const inside = (at: number) => spans.some(([p, q]) => p <= at && at <= q);
+  const a = x + LABEL_GAP;
+  const b = x - LABEL_GAP;
+  const right = inside(a)
+    ? 0
+    : Math.min(c.width - 2, ...spans.filter(([p]) => p > a).map(([p]) => p - 1)) - a;
+  const left = inside(b)
+    ? 0
+    : b - Math.max(X0, ...spans.filter(([, q]) => q < b).map(([, q]) => q + 1));
+  const fit = (room: number) => {
+    if (name.length * char <= room) return name;
+    const n = Math.floor(room / char) - 1;
+    return n >= MIN_CUT ? `${name.slice(0, n).trimEnd()}…` : null;
+  };
+  const full = name.length * char;
+  const side: 'start' | 'end' | null =
+    full <= right
+      ? 'start'
+      : full <= left
+        ? 'end'
+        : fit(Math.max(right, left))
+          ? right >= left
+            ? 'start'
+            : 'end'
+          : null;
+  if (!side) return null;
+  const label = fit(side === 'start' ? right : left)!;
+  const width = label.length * char;
+  return {
+    label,
+    side,
+    box: side === 'start' ? { x0: a, x1: a + width } : { x0: b - width, x1: b },
+  };
+}
+
 function deadlinesOf(
   c: Ctx,
   shown: LayoutRow[],
@@ -879,12 +930,8 @@ function deadlinesOf(
     const reason = makesLate(c, w, m) ? (r.done ? 'finished after it' : 'makes it late') : null;
     const x = c.deadlineX(m);
     const text = `${m.name} · deadline ${formatDeadline(m.planned, m.plannedTime)} · ${STATUS_LABEL[status]}`;
-    const width = m.name.length * LABEL_CHAR * c.level.nameFont;
-    const free = ([a, b]: Span) =>
-      a >= X0 && b <= c.width - 2 && (busy.get(r.id) ?? []).every(([p, q]) => b < p || a > q);
-    const right: Span = [x + LABEL_GAP, x + LABEL_GAP + width];
-    const left: Span = [x - LABEL_GAP - width, x - LABEL_GAP];
-    const side = !first ? null : free(right) ? 'start' : free(left) ? 'end' : null;
+    const placed = first ? placeName(c, m.name, x, busy.get(r.id) ?? []) : null;
+    const side = placed?.side ?? null;
     return [
       {
         workItemId: r.id,
@@ -897,10 +944,11 @@ function deadlinesOf(
         stroke: changed ? 'change' : tone,
         filled: status !== 'planned',
         changed,
-        label: side ? m.name : null,
+        label: placed?.label ?? null,
         labelX: side === 'end' ? x - LABEL_GAP : x + LABEL_GAP,
         labelY: r.y - c.level.nameRise,
         labelAnchor: side ?? 'start',
+        labelBox: placed?.box ?? null,
         ariaLabel: reason ? `${text}, this work item ${reason}` : text,
         tooltip: reason ? `${text}\nThis work item ${reason}.` : text,
       },
