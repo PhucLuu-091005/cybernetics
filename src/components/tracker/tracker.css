@@ -764,8 +764,8 @@
   scroll-padding-top: var(--tk-axis-h, 0px);
 }
 
-/* Two columns share one scale: the label column stays put while the time line scrolls. The frame
-   keeps 900 px so a phone scrolls the whole graph instead of squeezing it. */
+/* Two columns share one scale: the label column stays put while the time line scrolls. Above phone
+   width the frame keeps 900 px, so a narrow window scrolls the whole graph instead of squeezing it. */
 .tk .tgraph {
   position: relative;
   display: flex;

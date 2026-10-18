@@ -294,7 +294,6 @@ export type LayoutDeadline = {
   labelX: number;
   labelY: number;
   labelAnchor: 'start' | 'end';
-  labelBox: { x0: number; x1: number } | null;
   ariaLabel: string;
   tooltip: string;
 };
@@ -899,7 +898,7 @@ function placeName(
   name: string,
   x: number,
   rowBusy: readonly Span[],
-): { label: string; side: 'start' | 'end'; box: { x0: number; x1: number } } | null {
+): { label: string; side: 'start' | 'end' } | null {
   const spans: Span[] = [...rowBusy, [c.xt - T_ROOM, c.xt + T_ROOM]];
   const char = LABEL_CHAR * c.level.nameFont;
   const inside = (at: number) => spans.some(([p, q]) => p <= at && at <= q);
@@ -928,13 +927,7 @@ function placeName(
             : 'end'
           : null;
   if (!side) return null;
-  const label = fit(side === 'start' ? right : left)!;
-  const width = label.length * char;
-  return {
-    label,
-    side,
-    box: side === 'start' ? { x0: a, x1: a + width } : { x0: b - width, x1: b },
-  };
+  return { label: fit(side === 'start' ? right : left)!, side };
 }
 
 function deadlinesOf(
@@ -977,7 +970,6 @@ function deadlinesOf(
         labelX: side === 'end' ? x - LABEL_GAP : x + LABEL_GAP,
         labelY: r.y - c.level.nameRise,
         labelAnchor: side ?? 'start',
-        labelBox: placed?.box ?? null,
         ariaLabel: reason ? `${text}, this work item ${reason}` : text,
         tooltip: reason ? `${text}\nThis work item ${reason}.` : text,
       },
