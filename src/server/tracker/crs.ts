@@ -4,9 +4,12 @@ import { z } from 'zod';
 import { RevisionSchema, type ActorContext } from '../../contracts';
 import {
   applyOp,
+  applyingCount,
   clashesOf,
   clashLabel,
+  crState,
   crVersionApplies,
+  goneNamed,
   liveOps,
   mainState,
   noNul,
@@ -120,13 +123,17 @@ const parse = <S extends z.ZodType>(schema: S, raw: unknown, what: string): z.in
 };
 
 /** The server owns rev, by and d, and records who moved a date and when. */
-function candidate(raw: unknown, rev: number, by: string): Op {
+function candidate(raw: unknown, rev: number, by: string, agent: boolean): Op {
   const value = (raw ?? {}) as { op?: unknown; a?: unknown };
   const a =
     (value.op === 'due' || value.op === 'msDate') && value.a && typeof value.a === 'object'
       ? { ...value.a, by, at: new Date().toISOString() }
       : value.a;
-  return parse(OpSchema, { op: value.op, a, rev, by }, 'Invalid change');
+  return parse(
+    OpSchema,
+    { op: value.op, a, rev, by, ...(agent ? { agent } : {}) },
+    'Invalid change',
+  );
 }
 
 function stillApplying(state: TrackerState, ops: readonly Op[], tz: string): Op[] {
@@ -148,12 +155,24 @@ function stillApplying(state: TrackerState, ops: readonly Op[], tz: string): Op[
   return kept;
 }
 
-type Main = { base: Scope['tracker']['base']; queue: QueueRow[]; commits: Commit[] };
+type Main = {
+  base: Scope['tracker']['base'];
+  queue: QueueRow[];
+  commits: Commit[];
+  members: Scope['members'];
+  agent: boolean;
+};
 
 async function loadMain(tx: Tx, scope: Scope): Promise<Main> {
   const queue = await loadQueue(tx, scope.project.id);
   const commits = await loadCommits(tx, scope.project.id);
-  return { base: scope.tracker.base, queue, commits };
+  return {
+    base: scope.tracker.base,
+    queue,
+    commits,
+    members: scope.members,
+    agent: !!scope.tenant.byAgent,
+  };
 }
 
 /** Each new op must apply on the latest Main plus the live ops before it. */
@@ -171,9 +190,17 @@ function admit(
     tz,
   ).state;
   return raws.map((raw) => {
-    const op = candidate(raw, rev, by);
+    const op = candidate(raw, rev, by, main.agent);
     if (op.op === 'addTeam' && state.teams.some((team) => team.id === op.a.id))
       throw new AppError('VALIDATION', `The change does not fit: team ${op.a.id} already exists`);
+    const gone = goneNamed(state, main.members, op).map(
+      (id) => main.members.find((m) => m.id === id)?.name ?? id,
+    );
+    if (gone.length)
+      throw new AppError(
+        'VALIDATION',
+        `The change does not fit: ${gone.join(' and ')} ${gone.length > 1 ? 'are' : 'is'} no longer in this project`,
+      );
     try {
       const applied = applyOp(state, op, tz);
       state = applied.state;
@@ -184,6 +211,19 @@ function admit(
       throw error;
     }
   });
+}
+
+/**
+ * Picking Handoff and then ticking "This finishes the work item" are one decision, so a kind change
+ * right after a kind change of the same event replaces it, and a change back to the start drops it.
+ */
+function withKindChange(ops: readonly Op[], op: Op, again: (base: readonly Op[]) => Op): Op[] {
+  const last = ops.at(-1);
+  if (op.op !== 'kind' || last?.op !== 'kind' || last.a.eventId !== op.a.eventId)
+    return [...ops, op];
+  const base = ops.slice(0, -1);
+  const merged = again(base);
+  return merged.d && merged.d.before === merged.d.after ? base : [...base, merged];
 }
 
 function requireRevision(cr: CrRow, expected: number) {
@@ -271,8 +311,11 @@ export async function appendOp(
     if (cr.ops.length >= MAX_OPS)
       throw new AppError('LIMIT_EXCEEDED', `#${cr.num} already has ${MAX_OPS} changes`);
     const main = await loadMain(tx, scope);
-    const [op] = admit(main, cr.ops, [input.op], me.id, scope.tracker.timeZone);
-    await updateCr(tx, cr, { ops: [...cr.ops, op] });
+    const tz = scope.tracker.timeZone;
+    const [op] = admit(main, cr.ops, [input.op], me.id, tz);
+    await updateCr(tx, cr, {
+      ops: withKindChange(cr.ops, op, (base) => admit(main, base, [input.op], me.id, tz)[0]),
+    });
     return buildPayload(tx, scope);
   });
 }
@@ -323,6 +366,12 @@ async function ready(run: Run) {
   requireSeen(run);
   if (!cr.ops.length)
     throw new AppError('VALIDATION', 'Add at least one change before you mark it as ready');
+  const main = await loadMain(tx, scope);
+  if (!applyingCount(crState(main.base, main.queue, main.commits, cr, scope.tracker.timeZone)))
+    throw new AppError(
+      'VALIDATION',
+      'Add at least one change that applies before you mark it as ready',
+    );
   await updateCr(tx, cr, { status: 'ready' });
   await addComment(tx, scope.tenant, { crId: cr.id, memberId: me.id, kind: 'ready' });
 }
@@ -569,10 +618,17 @@ async function requestChanges(run: Run, note: string) {
 async function close(run: Run, reason: string) {
   const { tx, ctx, scope, cr } = run;
   const me = requireRight(ctx, scope, 'viewMain');
-  if (![cr.author, cr.editor].includes(me.id) && !rightsIn(scope, me).merge)
+  const own = [cr.author, cr.editor].includes(me.id);
+  if (!own && !rightsIn(scope, me).merge)
     throw new AppError(
       'FORBIDDEN',
       `Only the author, the person who edits #${cr.num} or a person who can merge can cancel it`,
+    );
+  // Cancelling someone else's change request is a merger's decision, so the token needs that scope too.
+  if (!own && ctx.kind === 'agent' && !ctx.scopes.includes('crs:merge'))
+    throw new AppError(
+      'FORBIDDEN',
+      'Scope crs:merge is also required to cancel this change request',
     );
   requireStatus(cr, OPEN);
   requireSeen(run);

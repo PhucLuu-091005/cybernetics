@@ -1,0 +1,348 @@
+.date-in,
+.time-in,
+.dt-in {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.date-in input[type='text'],
+.time-in input[type='text'] {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+.date-in input[type='text'] {
+  padding-right: 32px;
+}
+/* Beats the hover and focus borders of the drawer and modal fields, so a bad value stays marked. */
+.date-in input[type='text'][aria-invalid='true'],
+.time-in input[type='text'][aria-invalid='true'],
+.date-in input[type='text'][aria-invalid='true']:is(:hover, :focus-visible),
+.time-in input[type='text'][aria-invalid='true']:is(:hover, :focus-visible) {
+  border-color: var(--danger);
+}
+.date-in input[type='text'][aria-invalid='true']:focus-visible,
+.time-in input[type='text'][aria-invalid='true']:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
+}
+.date-in input::placeholder,
+.time-in input::placeholder {
+  color: var(--ink-3);
+}
+.date-in > .fp-ib {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.dt-in {
+  gap: 6px;
+}
+.dt-in .date-in {
+  flex: 1 1 auto;
+}
+.dt-in .time-in {
+  flex: 0 0 5.5em;
+}
+
+.fp-ib {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.fp-ib:hover,
+.fp-ib[aria-expanded='true'] {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.field-pop {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-pop);
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  font: 400 var(--fs-s) / 1.4 var(--f-ui);
+  letter-spacing: normal;
+  text-transform: none;
+  overflow: visible;
+}
+
+.cal-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: -2px 0 6px 6px;
+}
+.cal-head b {
+  flex: 1;
+  font-weight: 600;
+}
+.cal-prev svg {
+  display: block;
+  transform: rotate(90deg);
+}
+.cal-next svg {
+  display: block;
+  transform: rotate(-90deg);
+}
+.cal-grid {
+  border-collapse: collapse;
+}
+.cal-grid th {
+  width: 32px;
+  height: 24px;
+  padding: 0;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.cal-grid td {
+  padding: 1px 0;
+}
+.cal-grid button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.cal-grid button:hover {
+  background: var(--hover);
+}
+.cal-grid button.out {
+  color: var(--ink-3);
+}
+.cal-grid button.today {
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+.cal-grid button.on {
+  background: var(--ink);
+  color: var(--panel);
+  font-weight: 600;
+  box-shadow: none;
+}
+.cal-grid button:focus-visible,
+.fp-ib:focus-visible,
+.fp-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+}
+.fp-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule-2);
+}
+.fp-btn {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-ctl);
+  background: var(--panel);
+  color: var(--ink);
+  font: 500 var(--fs-xs) / 1 var(--f-ui);
+  cursor: pointer;
+}
+.fp-btn:hover {
+  background: var(--sunk);
+}
+
+.time-pop,
+.sel-pop {
+  padding: 4px;
+}
+.time-pop ul,
+.sel-pop ul {
+  min-width: 96px;
+  max-height: 232px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  overscroll-behavior: contain;
+}
+.sel-pop ul {
+  max-width: min(420px, calc(100vw - 32px));
+  max-height: 280px;
+}
+.time-pop li,
+.sel-pop li {
+  padding: 5px 10px;
+  border-radius: var(--r-ctl);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.sel-pop li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.time-pop li:hover,
+.time-pop li.act,
+.sel-pop li:hover,
+.sel-pop li.act {
+  background: var(--hover);
+}
+.time-pop li[aria-selected='true'],
+.sel-pop li[aria-selected='true'] {
+  background: var(--gray-bg);
+  font-weight: 600;
+}
+.sel-pop li[aria-disabled='true'] {
+  background: none;
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+
+/* Select: a button that reads like a text box, with the list in the field pop. */
+.sel-in {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+}
+.field .sel-in,
+.sel-in.full {
+  display: flex;
+  width: 100%;
+}
+.sel-btn {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 5px 8px 5px 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-ctl);
+  background: var(--panel);
+  color: var(--ink);
+  font: 400 var(--fs-s) / 1.3 var(--f-ui);
+  letter-spacing: normal;
+  text-align: left;
+  text-transform: none;
+  cursor: pointer;
+}
+.sel-btn:hover:not(:disabled) {
+  background: var(--sunk);
+}
+.sel-btn:focus-visible,
+.sel-btn[aria-expanded='true'] {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 18%, transparent);
+}
+.sel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sel-val {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sel-btn svg {
+  flex: none;
+  color: var(--ink-3);
+}
+/* Quiet: an inline fact that shows its box only on hover or focus. */
+.sel-in.quiet .sel-btn {
+  min-height: 28px;
+  padding: 3px 4px 3px 6px;
+  border-color: transparent;
+  background: none;
+}
+.sel-in.quiet .sel-btn:hover:not(:disabled) {
+  border-color: var(--rule);
+}
+
+/* Checkbox: the native input keeps keyboard and labels; the drawn box follows the tokens. */
+.cbx {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+span.cbx > input[type='checkbox'] {
+  box-sizing: border-box;
+  grid-area: 1 / 1;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1px solid var(--ink-3);
+  border-radius: calc(var(--r-ctl) / 2);
+  background: var(--panel);
+  appearance: none;
+  cursor: pointer;
+}
+.cbx svg {
+  grid-area: 1 / 1;
+  color: var(--panel);
+  opacity: 0;
+  pointer-events: none;
+}
+span.cbx > input[type='checkbox']:checked,
+span.cbx > input[type='checkbox']:indeterminate {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+span.cbx > input[type='checkbox']:checked + svg,
+span.cbx > input[type='checkbox']:indeterminate + svg {
+  opacity: 1;
+}
+span.cbx > input[type='checkbox']:hover:not(:disabled):not(:checked):not(:indeterminate) {
+  border-color: var(--ink-2);
+}
+span.cbx > input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+span.cbx > input[type='checkbox']:disabled {
+  border-color: var(--ink-3);
+  background: var(--sunk);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+span.cbx > input[type='checkbox']:disabled:checked {
+  background: var(--ink-3);
+  opacity: 1;
+}
+.cbx-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.cbx-row:has(input:disabled) {
+  cursor: not-allowed;
+}

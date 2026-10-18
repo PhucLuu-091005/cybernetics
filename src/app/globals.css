@@ -314,35 +314,64 @@
     min-width: 0;
   }
 
+  /* The one button of the app; the tracker adds its sizes (.sm, .big) and tones (.btn-quiet, .btn-danger). */
   .btn {
+    box-sizing: border-box;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
     min-height: 32px;
-    padding: 5px 11px;
+    padding: 6px 11px;
     border: 1px solid var(--rule);
-    background: var(--surface);
+    background: var(--panel);
+    color: var(--ink);
     border-radius: var(--r-ctl);
     cursor: pointer;
     font-weight: 500;
     font-size: var(--fs-s);
+    line-height: 1.2;
     white-space: nowrap;
+    text-decoration: none;
     box-shadow: var(--shadow-sm);
   }
-  .btn:hover {
+  .btn:hover:not(:disabled) {
     background: var(--sunk);
   }
-  .btn-ink {
+  .btn svg {
+    flex: none;
+  }
+  .btn-ink,
+  .btn-ink:hover:not(:disabled) {
     background: var(--ink);
     color: var(--panel);
     border-color: var(--ink);
   }
-  .btn-ink:hover {
+  .btn-ink:hover:not(:disabled) {
     opacity: 0.9;
   }
-  .btn[disabled],
+  .btn.big {
+    min-height: 40px;
+    padding: 8px 16px;
+    font-size: var(--fs);
+  }
+  .btn.sm {
+    min-height: 28px;
+    padding: 4px 9px;
+    font-size: var(--fs-xs);
+  }
+  .btn-block {
+    width: 100%;
+  }
+  .small {
+    font-size: var(--fs-s);
+  }
+  .xsmall {
+    font-size: var(--fs-xs);
+  }
+  .btn:disabled,
   .btn[aria-disabled='true'] {
-    opacity: 0.45;
+    opacity: 0.4;
     cursor: not-allowed;
   }
 
@@ -771,6 +800,47 @@
     opacity: 0.6;
   }
 
+  .notice {
+    display: grid;
+    place-items: center;
+    min-height: 60vh;
+    padding: 48px var(--page-x, 24px);
+  }
+  .notice-page {
+    min-height: 100vh;
+  }
+  .notice-in {
+    display: grid;
+    justify-items: start;
+    gap: 10px;
+    width: 100%;
+    max-width: 460px;
+  }
+  .notice-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    font-size: var(--fs);
+  }
+  .notice h1 {
+    font-size: 20px;
+  }
+  .notice-text {
+    color: var(--ink-2);
+    font-size: var(--fs-s);
+  }
+  .notice-text a {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .notice-acts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
   .signin {
     display: grid;
     grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
@@ -798,25 +868,6 @@
     width: 100%;
     height: auto;
     margin-top: 22px;
-  }
-  .gbtn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    width: 100%;
-    min-height: 40px;
-    padding: 9px 14px;
-    border-radius: var(--r-ctl);
-    border: 1px solid var(--rule);
-    background: var(--surface);
-    box-shadow: var(--shadow-sm);
-    font-weight: 500;
-    font-size: var(--fs);
-    cursor: pointer;
-  }
-  .gbtn:hover {
-    background: var(--sunk);
   }
   @media (prefers-reduced-motion: no-preference) {
     .draw {

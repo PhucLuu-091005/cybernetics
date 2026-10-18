@@ -14,6 +14,7 @@ import {
   type NewProjectForm,
 } from './new-project';
 import { Icon } from '../tracker/icons';
+import { DateInput } from '../tracker/DateInput';
 import { TimeInput } from '../tracker/TimeInput';
 
 export function NewProjectDialog({ onClose }: { onClose: () => void }) {
@@ -159,7 +160,12 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
           </label>
           <label className="field">
             Milestone date
-            <input type="date" value={form.milestoneDate} onChange={edit('milestoneDate')} />
+            <DateInput
+              label="Milestone date"
+              optional
+              value={form.milestoneDate}
+              onChange={(value) => setForm((current) => ({ ...current, milestoneDate: value }))}
+            />
           </label>
           <label className="field">
             Time (optional)

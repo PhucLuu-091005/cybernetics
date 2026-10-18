@@ -19,12 +19,24 @@ export type Reader = Db | Tx;
 export type TrackerRow = typeof trackerProjects.$inferSelect;
 export type CrRow = typeof trackerCrs.$inferSelect;
 export type QueueDbRow = typeof trackerQueue.$inferSelect;
-export type Tenant = { workspaceId: string; projectId: string };
+/**
+ * byAgent rides along with every tenant spread; only tables with a byAgent column keep it, so each
+ * change request comment records that an agent wrote it for its person.
+ */
+export type Tenant = { workspaceId: string; projectId: string; byAgent?: boolean };
 
 const isoOrNull = (value: string | null) => (value === null ? null : toIso(value));
 
-/** Main's team list comes from the project's teams, so a rename or a new lead shows at once in every view. */
-export async function findTracker(db: Reader, projectId: string): Promise<TrackerRow> {
+/**
+ * Main's teams and people come from the project, so a rename, a new lead or an invite shows at once
+ * in every view. Removed members stay as people, so the work they did keeps their name. The caller
+ * passes the rows of `loadMembers`, so one request reads the members once.
+ */
+export async function findTracker(
+  db: Reader,
+  projectId: string,
+  members: readonly Pick<Member, 'id' | 'name'>[],
+): Promise<TrackerRow> {
   const [row] = await db
     .select()
     .from(trackerProjects)
@@ -32,10 +44,19 @@ export async function findTracker(db: Reader, projectId: string): Promise<Tracke
     .limit(1);
   if (!row) throw new AppError('NOT_FOUND', 'This project has no tracker yet');
   const teams = await loadTeams(db, projectId);
+  const memberName = new Map(members.map((member) => [member.id, member.name]));
+  const story = new Set(row.base.people.map((person) => person.id));
   return {
     ...row,
     base: {
       ...row.base,
+      people: [
+        ...row.base.people.map((person) => ({
+          id: person.id,
+          name: memberName.get(person.id) ?? person.name,
+        })),
+        ...members.filter((member) => !story.has(member.id)).map(({ id, name }) => ({ id, name })),
+      ],
       teams: teams.map(({ id, name, leadId }) => ({ id, name, leadId })),
     },
   };
@@ -103,6 +124,7 @@ export async function loadMembers(db: Reader, projectId: string): Promise<Member
     color: row.color,
     userId: row.userId,
     active: row.removedAt === null && !isInvite(row),
+    removed: row.removedAt !== null,
     grants: grantsOf(row),
   }));
 }
@@ -232,6 +254,7 @@ export async function loadCrs(
       kind: comment.kind,
       body: comment.body,
       opIndex: comment.opIndex,
+      agent: comment.byAgent,
       createdAt: toIso(comment.createdAt),
     })),
   }));

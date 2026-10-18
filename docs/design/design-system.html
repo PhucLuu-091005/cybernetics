@@ -39,8 +39,10 @@
   --f-doc: var(--font-geist), 'Geist', system-ui, sans-serif;
   --f-id: var(--font-geist-mono), 'Geist Mono', ui-monospace, monospace;
   --change: #e0a800; --change-text: var(--ink); --change-bg: #ffe14d; --edit-bg: #fefce9;
-  --k-message: #0c67b6; --k-task: #6550b9; --k-handoff: #0e738c; --k-decision: #975800;
-  --k-meeting: #ba2784; --k-delivery: #54722b; --k-issue: #be282d; --k-done: #1e744e;
+  --k-message: #0c67b6; --k-task: #60646c; --k-handoff: #0e738c; --k-decision: #975800;
+  --k-meeting: #9e5426; --k-delivery: #54722b; --k-issue: #be282d; --k-done: #1e744e;
+  --k-idea: #3a5bc7; --k-cancelled: #60646c;
+  --k-tint: 12%; --k-tint-back: 26%;
 }
 :root[data-theme='dark'] {
   --page: #0d0d0f; --panel: #18191b; --surface: #18191b; --sunk: #111113; --gray-bg: #272a2d;
@@ -58,8 +60,10 @@
   --scrim: rgb(0 0 0 / 0.62);
   color-scheme: dark;
   --change: #ffe629; --change-text: var(--ink); --change-bg: #6e5a00; --edit-bg: #1b180f;
-  --k-message: #70b8ff; --k-task: #baa7ff; --k-handoff: #4ccce6; --k-decision: #ffca16;
-  --k-meeting: #ff8dcc; --k-delivery: #d4ff70; --k-issue: #ff9592; --k-done: #3dd68c;
+  --k-message: #70b8ff; --k-task: #b0b4ba; --k-handoff: #4ccce6; --k-decision: #ffca16;
+  --k-meeting: #dbb594; --k-delivery: #d4ff70; --k-issue: #ff9592; --k-done: #3dd68c;
+  --k-idea: #9eb1ff; --k-cancelled: #b0b4ba;
+  --k-tint: 16%; --k-tint-back: 30%;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
@@ -78,8 +82,10 @@
     --scrim: rgb(0 0 0 / 0.62);
     color-scheme: dark;
     --change: #ffe629; --change-text: var(--ink); --change-bg: #6e5a00; --edit-bg: #1b180f;
-    --k-message: #70b8ff; --k-task: #baa7ff; --k-handoff: #4ccce6; --k-decision: #ffca16;
-    --k-meeting: #ff8dcc; --k-delivery: #d4ff70; --k-issue: #ff9592; --k-done: #3dd68c;
+    --k-message: #70b8ff; --k-task: #b0b4ba; --k-handoff: #4ccce6; --k-decision: #ffca16;
+    --k-meeting: #dbb594; --k-delivery: #d4ff70; --k-issue: #ff9592; --k-done: #3dd68c;
+    --k-idea: #9eb1ff; --k-cancelled: #b0b4ba;
+    --k-tint: 16%; --k-tint-back: 30%;
   }
 }
 
@@ -311,10 +317,21 @@ table.t td.mono { font: 12px var(--f-id); white-space: nowrap; }
 .tk .zoombar button { display: grid; place-items: center; min-width: 26px; height: 24px; padding: 0 6px; border: 0; border-radius: 6px; background: none; color: var(--ink-2); font: 600 12px/1 var(--f-ui); cursor: pointer; }
 .tk .zoombar button:hover { background: var(--hover); color: var(--ink); }
 .tk .zoombar .full { margin-left: 2px; box-shadow: -1px 0 0 var(--rule); border-radius: 0 var(--r-ctl) var(--r-ctl) 0; }
-.tk .legend2 { display: flex; gap: 6px 16px; flex-wrap: wrap; padding: 9px 14px; font-size: var(--fs-xs); color: var(--ink-2); align-items: center; }
-.tk .legend2 span { display: inline-flex; align-items: center; gap: 6px; }
-.tk .legend2 i.ln { display: inline-block; width: 16px; height: 2.5px; border-radius: 2px; }
-.tk .legend2 .chg { padding: 0 5px; border-radius: 4px; background: var(--change-bg); color: var(--change-text); font-style: normal; font-weight: 600; }
+.tk .zoombar .lg-btn[aria-expanded='true'] { background: var(--hover); color: var(--ink); }
+.tk .legend-pop { position: relative; container-type: inline-size; width: min(600px, 100%); padding: 10px 14px 12px; background: var(--panel); border: 1px solid var(--rule); border-radius: var(--r-pop); box-shadow: var(--shadow); font-size: var(--fs-xs); color: var(--ink-2); }
+.tk .legend-pop .lg-x { position: absolute; top: 6px; right: 8px; border: 0; background: none; color: var(--ink-3); font-size: 20px; line-height: 1; padding: 0 2px; cursor: pointer; }
+.tk .lg-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 18px; }
+.tk .lg-sec { display: grid; gap: 5px; align-content: start; min-width: 0; }
+.tk .lg-ev { grid-column: span 2; }
+.tk .lg-ev-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
+.tk .lg-gl { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-3); margin: 0 0 1px; }
+.tk .lg-gl ~ .lg-gl { margin-top: 8px; }
+.tk .lg-it { display: flex; align-items: center; gap: 7px; min-width: 0; line-height: 18px; white-space: nowrap; }
+.tk .lg-it i.ln { flex: none; width: 16px; height: 2.5px; border-radius: 2px; }
+.tk .lg-it .ms-sw { flex: none; margin: 0 3px; }
+.tk .lg-it .chg { padding: 0 5px; border-radius: 4px; background: var(--change-bg); color: var(--change-text); font-style: normal; font-weight: 600; line-height: 16px; }
+.tk .lg-ring { flex: none; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid currentColor; background: color-mix(in srgb, currentColor var(--k-tint), var(--panel)); }
+@container (max-width: 520px) { .tk .lg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .tk .ms-sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; }
 .tk .ms-sw.fill { background: currentColor; }
 .tk .bin { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--danger); border-radius: var(--r-pop); background: var(--panel); color: var(--danger-ink); font-size: var(--fs-xs); font-weight: 600; box-shadow: var(--shadow); }
@@ -358,8 +375,8 @@ svg.tg .hit.sel { fill: color-mix(in srgb, var(--ink) 6%, transparent); }
 svg.tg .hit.flash { fill: color-mix(in srgb, var(--ink) 8%, transparent); }
 svg.tg .hit.glow { fill: color-mix(in srgb, var(--ink) 9%, transparent); stroke: var(--ink); stroke-width: 2; }
 svg.tg .hit.kfocus { stroke: var(--focus); stroke-width: 1px; vector-effect: non-scaling-stroke; }
-svg.tg .act .bg { fill: var(--panel); stroke-width: 2; }
-svg.tg .act .layer { stroke-width: 1.5; }
+svg.tg .act .bg { fill: color-mix(in srgb, var(--kc) var(--k-tint), var(--panel)); stroke-width: 2; }
+svg.tg .act .layer { fill: color-mix(in srgb, var(--kc) var(--k-tint-back), var(--panel)); stroke-width: 1.5; }
 svg.tg .act .halo { fill: color-mix(in srgb, var(--change) 30%, transparent); stroke: var(--change); stroke-width: 3; }
 svg.tg .ms-c { stroke-width: 2; }
 svg.tg .ms.sel .ms-c { stroke-width: 3.5; }
@@ -452,21 +469,36 @@ svg.tg .note { font-size: 10px; fill: var(--ink-3); }
     <div class="row">
       <span class="badge st-planned">Planned</span><span class="badge st-early">Finished early</span><span class="badge st-ontime">Finished on time</span><span class="badge st-late">Late</span><span class="badge st-flate">Finished late</span>
     </div>
-    <div class="legend2" style="padding:12px 0 0">
-      <span><i class="ln" style="background:var(--route)"></i>Not finished</span>
-      <span><i class="ln" style="background:var(--proceed)"></i>Done</span>
-      <span><i class="ln" style="background:var(--danger)"></i>Not finished after its planned finish</span>
-      <span><i class="ln" style="background:var(--caution)"></i>Done after its planned finish</span>
-      <span><svg width="12" height="12" viewBox="-7 -7 14 14" aria-hidden="true"><path d="M0 -6 L6 0 L0 6 L-6 0 Z" fill="var(--ink-3)" stroke="var(--ink-3)" stroke-width="1.5"/></svg>Milestone deadline on its work items</span>
-      <span style="color:var(--ink-3)"><i class="ms-sw"></i><span style="color:var(--ink-2)">Planned</span></span>
-      <span style="color:var(--teal)"><i class="ms-sw fill"></i><span style="color:var(--ink-2)">Finished early</span></span>
-      <span style="color:var(--proceed)"><i class="ms-sw fill"></i><span style="color:var(--ink-2)">Finished on time</span></span>
-      <span style="color:var(--danger)"><i class="ms-sw fill"></i><span style="color:var(--ink-2)">Late</span></span>
-      <span style="color:var(--caution)"><i class="ms-sw fill"></i><span style="color:var(--ink-2)">Finished late</span></span>
-      <span><i class="chg">Name</i>Changed in this change request</span>
+    <div class="legend-pop" role="dialog" aria-label="Legend" style="margin-top:14px">
+      <button type="button" class="lg-x" aria-label="Close legend">×</button>
+      <div class="lg-grid">
+        <div class="lg-sec">
+          <p class="lg-gl">Line</p>
+          <span class="lg-it"><i class="ln" style="background:var(--route)"></i>Not finished</span>
+          <span class="lg-it"><i class="ln" style="background:var(--proceed)"></i>Done</span>
+          <span class="lg-it" title="Not finished after its planned finish"><i class="ln" style="background:var(--danger)"></i>Late part</span>
+          <span class="lg-it" title="Done after its planned finish"><i class="ln" style="background:var(--caution)"></i>Done late</span>
+          <span class="lg-it"><i class="ln" style="background:var(--isolated)"></i>Cancelled</span>
+          <p class="lg-gl">Change</p>
+          <span class="lg-it" title="Changed in this change request"><i class="chg">Name</i>Changed here</span>
+        </div>
+        <div class="lg-sec">
+          <p class="lg-gl">Milestone</p>
+          <span class="lg-it" title="Milestone deadline on its work items"><svg width="12" height="12" viewBox="-7 -7 14 14" aria-hidden="true"><path d="M0 -6 L6 0 L0 6 L-6 0 Z" fill="var(--ink-3)" stroke="var(--ink-3)" stroke-width="1.5"/></svg>Deadline</span>
+          <span class="lg-it"><i class="ms-sw" style="color:var(--ink-3)"></i>Planned</span>
+          <span class="lg-it" title="Finished early"><i class="ms-sw fill" style="color:var(--teal)"></i>Early</span>
+          <span class="lg-it" title="Finished on time"><i class="ms-sw fill" style="color:var(--proceed)"></i>On time</span>
+          <span class="lg-it"><i class="ms-sw fill" style="color:var(--danger)"></i>Late</span>
+          <span class="lg-it"><i class="ms-sw fill" style="color:var(--caution)"></i>Finished late</span>
+        </div>
+        <div class="lg-sec lg-ev" role="group" aria-label="Event kinds">
+          <p class="lg-gl">Event</p>
+          <div class="lg-ev-cols"><div class="lg-sec" id="lg-ev1"></div><div class="lg-sec" id="lg-ev2"></div></div>
+        </div>
+      </div>
     </div>
   </div>
-  <p class="cap">The real legend below the graph (Legend in TrackerGraph.tsx).</p>
+  <p class="cap">The Legend popover above the zoom bar (LegendBody in TrackerGraph.tsx). It opens by default until the person closes it; 2 columns on a phone.</p>
 
   <h3>Change mark: C2 yellow highlighter</h3>
   <div class="swgrid" id="sw-change"></div>
@@ -487,7 +519,7 @@ svg.tg .note { font-size: 10px; fill: var(--ink-3); }
   <p class="cap">Highlighter behind a changed name, a yellow ring around a changed event, a yellow stroke on a changed milestone or moved date, the edit tint on your own context bar.</p>
 
   <h3>Event kinds</h3>
-  <p class="small">Kind colours appear on Queue cards, pops and event lists. On the graph, an event takes the colour of its row line.</p>
+  <p class="small">Kind colours appear on Queue cards, pops, event lists, the legend and the graph. On the graph, kinds colour the events and status colours the row lines.</p>
   <div class="swgrid" id="sw-kind"></div>
 
   <h3>Measured contrast</h3>
@@ -583,12 +615,12 @@ svg.tg .note { font-size: 10px; fill: var(--ink-3); }
       <div class="grid2" style="max-width:620px">
         <label class="field">Title<input value="PG-203 Country list field type"></label>
         <label class="field">Team<select><option>Engineering</option></select></label>
-        <label class="field">New date<input class="ring" value="2026-10-15"></label>
+        <label class="field">New date<input class="ring" value="15 Oct 2026"></label>
         <label class="field">Done by<input value="Quang Nguyễn" disabled></label>
       </div>
       <label class="field" style="max-width:620px">Why does the date move?<textarea>The DealCloud mapping needs a second review after the CRS change.</textarea></label>
     </div>
-    <p class="cap">The third input shows the focus style: the border turns <code>--focus</code> with a 3px ring at 18 %.</p>
+    <p class="cap">The third input shows the focus style: the border turns <code>--focus</code> with a 3px ring at 18 %. Dates read "15 Oct 2026" and times "17:00": the app's own calendar and time list open from the box, never the browser's date or time control.</p>
 
     <h3>Search with filter</h3>
     <div class="stage">
@@ -686,7 +718,7 @@ Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fiel
     <div class="stage">
       <div class="row" style="gap:18px">
         <div class="toast">Event placed on Sync incident report <button type="button" id="toast-undo">Undo</button></div>
-        <div class="zoombar"><button type="button" aria-label="Zoom out">−</button><button type="button" aria-label="Zoom in">+</button><button type="button">Fit</button><button type="button" class="full" aria-pressed="false" aria-label="Full view" id="zb-full"></button></div>
+        <div class="zoombar"><button type="button" class="lg-btn" aria-label="Legend" title="Legend" aria-expanded="true" id="zb-legend"></button><button type="button" aria-label="Zoom out">−</button><button type="button" aria-label="Zoom in">+</button><button type="button">Fit</button><button type="button" class="full" aria-pressed="false" aria-label="Full view" id="zb-full"></button></div>
         <div class="bin" id="bin">Drop here to hide</div>
       </div>
     </div>
@@ -814,7 +846,9 @@ Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fiel
     meeting: [S, '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'],
     delivery: [S, '<path d="M12 22V12"/><path d="m16 17 2 2 4-4"/><path d="M21 11.127V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.729l7 4a2 2 0 0 0 2 .001l1.32-.753"/><path d="M3.29 7 12 12l8.71-5"/><path d="m7.5 4.27 8.997 5.148"/>'],
     issue: [S, '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>'],
-    done: [S24, '<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>']
+    done: [S24, '<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>'],
+    idea: [S, '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>'],
+    cancelled: [S, '<circle cx="12" cy="12" r="10"/><path d="m9 15 6-6"/>']
   };
   var UI = {
     eye: [S, '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>'],
@@ -862,7 +896,7 @@ Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fiel
     panel: 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM9 3v18',
     chevron: 'm6 9 6 6 6-6'
   };
-  var KIND_LABEL = { message: 'Message', task: 'Task', handoff: 'Handoff', decision: 'Decision', meeting: 'Meeting', delivery: 'Delivery', issue: 'Issue', done: 'Done' };
+  var KIND_LABEL = { message: 'Message', task: 'Task', handoff: 'Handoff', decision: 'Decision', meeting: 'Meeting', delivery: 'Delivery', issue: 'Issue', done: 'Done', idea: 'Idea', cancelled: 'Cancelled' };
   function svg(def, size) { return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" aria-hidden="true"><g ' + def[0] + '>' + def[1] + '</g></svg>'; }
   function railSvg(name) { return '<svg class="rail-ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="' + RAIL[name] + '"/></svg>'; }
   function inner(def, x, y, size) { return '<g transform="translate(' + (x - size / 2) + ' ' + (y - size / 2) + ') scale(' + size / 24 + ')"><g ' + def[0] + '>' + def[1] + '</g></g>'; }
@@ -887,6 +921,11 @@ Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fiel
   put('sk2', svg(KIND.message, 13));
   prepend('toast-undo', svg(UI.undo, 13));
   put('zb-full', svg(UI.maximize, 14));
+  put('zb-legend', svg([S, '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 8h2"/><path d="M12 8h5"/><path d="M7 12h2"/><path d="M12 12h5"/><path d="M7 16h2"/><path d="M12 16h5"/>'], 14));
+  var LEGEND_KINDS = ['idea', 'message', 'issue', 'task', 'meeting', 'decision', 'delivery', 'handoff', 'done', 'cancelled'];
+  function legendKind(k) { return '<span class="lg-it"><span class="lg-ring" style="color:var(--k-' + k + ')">' + svg(KIND[k], 11) + '</span>' + KIND_LABEL[k] + '</span>'; }
+  put('lg-ev1', LEGEND_KINDS.slice(0, 5).map(legendKind).join(''));
+  put('lg-ev2', LEGEND_KINDS.slice(5).map(legendKind).join(''));
   prepend('bin', svg(UI.trash, 14));
   prepend('rail-graph', railSvg('graph'));
   prepend('rail-settings', railSvg('settings'));
@@ -925,7 +964,7 @@ Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fiel
     ['--change-text', 'var(--ink)', 'var(--ink)', 'Text on --change-bg.'],
     ['--edit-bg', '#fefce9', '#1b180f', 'Context bar of a change request that you edit.']
   ].map(function (r) { return swatch.apply(null, r); }).join(''));
-  var KC = { message: ['#0c67b6', '#70b8ff'], task: ['#6550b9', '#baa7ff'], handoff: ['#0e738c', '#4ccce6'], decision: ['#975800', '#ffca16'], meeting: ['#ba2784', '#ff8dcc'], delivery: ['#54722b', '#d4ff70'], issue: ['#be282d', '#ff9592'], done: ['#1e744e', '#3dd68c'] };
+  var KC = { message: ['#0c67b6', '#70b8ff'], task: ['#60646c', '#b0b4ba'], handoff: ['#0e738c', '#4ccce6'], decision: ['#975800', '#ffca16'], meeting: ['#9e5426', '#dbb594'], delivery: ['#54722b', '#d4ff70'], issue: ['#be282d', '#ff9592'], done: ['#1e744e', '#3dd68c'], idea: ['#3a5bc7', '#9eb1ff'], cancelled: ['#60646c', '#b0b4ba'] };
   put('sw-kind', Object.keys(KC).map(function (k) { return swatch('--k-' + k, KC[k][0], KC[k][1], KIND_LABEL[k] + ' icon in the Queue, pops and lists.'); }).join(''));
 
   var HUES = [
@@ -952,10 +991,10 @@ Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fiel
   var out = [];
   function ev(kind, x, y, tone, opts) {
     opts = opts || {};
-    var s = 'var(--' + tone + ')';
-    var g = '<g class="act" transform="translate(' + x + ' ' + y + ')">';
+    var s = 'var(--k-' + kind + ')';
+    var g = '<g class="act" transform="translate(' + x + ' ' + y + ')" style="--kc:' + s + '">';
     if (opts.changed) g += '<circle class="halo" r="15"/>';
-    for (var k = (opts.n || 1) - 1; k >= 1; k--) g += '<circle class="layer" cx="' + (-3.5 * k) + '" r="10" style="stroke:' + s + ';fill:color-mix(in srgb, ' + s + ' 18%, var(--panel))"/>';
+    for (var k = (opts.n || 1) - 1; k >= 1; k--) g += '<circle class="layer" cx="' + (-3.5 * k) + '" r="10" style="stroke:' + s + '"/>';
     g += '<circle class="bg" r="10" style="stroke:' + s + '"/><g style="color:' + s + '">' + inner(KIND[kind], 0, 0, 13) + '</g></g>';
     out.push(g);
   }
@@ -1025,7 +1064,9 @@ Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fiel
   function evg(kind, x, y, tone, opts) { out = []; ev(kind, x, y, tone, opts); return out.join(''); }
   var M = [
     ['Row lines', spec(260, 70, '<line class="seg" x1="10" x2="120" y1="16" y2="16" style="stroke:var(--route)"/><line class="seg" x1="120" x2="200" y1="16" y2="16" style="stroke:var(--danger)"/><line class="seg" x1="10" x2="150" y1="40" y2="40" style="stroke:var(--proceed)"/><line class="seg" x1="150" x2="200" y1="40" y2="40" style="stroke:var(--caution)"/><line class="wait-line" x1="10" x2="200" y1="62" y2="62"/><text class="wait-text" x="18" y="56">No events yet</text>'), 'Open blue, then red after the planned finish. Done green, then amber when late. A row with no events: a faint grey line.'],
-    ['Events and stacks', spec(260, 50, evg('message', 30, 25, 'route') + evg('meeting', 90, 25, 'route', { n: 3 }) + evg('issue', 150, 25, 'danger', { changed: true }) + evg('done', 210, 25, 'proceed')), 'A radius-10 circle in the row tone with the kind icon. A stack shows up to 2 circles behind. A changed event gets a yellow ring.'],
+    ['Events and stacks', spec(260, 50, evg('message', 30, 25, 'route') + evg('meeting', 90, 25, 'route', { n: 3 }) + evg('issue', 150, 25, 'danger', { changed: true }) + evg('done', 210, 25, 'proceed')), 'A radius-10 circle with a 2-unit ring in the full kind colour, a 12 % tint of the kind inside (16 % in dark) and the kind icon; the row line keeps the status colour. A stack shows up to 2 circles behind in a 26 % tint (30 % in dark) of the top kind. A changed event gets a yellow ring.'],
+    ['Row height', spec(260, 92, (function () { var h = ''; [[14, 10, 13], [44, 7, 9], [70, 3, 0]].forEach(function (r) { h += '<line class="seg" x1="10" x2="240" y1="' + r[0] + '" y2="' + r[0] + '" style="stroke:var(--route);stroke-width:' + (r[1] > 5 ? (r[1] > 8 ? 3 : 2.5) : 2) + '"/>'; ['task', 'meeting', 'done'].forEach(function (k, i) { var x = 50 + i * 70, c = 'var(--k-' + k + ')'; h += r[2] ? '<g class="act" transform="translate(' + x + ' ' + r[0] + ')" style="--kc:' + c + '"><circle class="bg" r="' + r[1] + '" style="stroke:' + c + '"/><g style="color:' + c + '">' + inner(KIND[k], 0, 0, r[2]) + '</g></g>' : '<circle cx="' + x + '" cy="' + r[0] + '" r="3" style="fill:' + c + '"/>'; }); }); return h + '<text class="note" x="10" y="88">Comfortable 32 · Compact 20 · Dense 12</text>'; })()), 'Three row heights in the view menu. Compact is the default. At Dense an event is a dot in its kind colour.'],
+    ['Team summary row', spec(260, 60, '<rect x="0" y="0" width="260" height="28" style="fill:var(--sunk)"/><path d="M10 10 l4 4 l-4 4" style="fill:none;stroke:var(--ink-3);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round"/><text class="lane-name" x="22" y="17.8" style="fill:var(--ink)">DIGITIZATION<tspan style="fill:var(--ink-3);letter-spacing:0"> · 2</tspan></text><line x1="150.5" x2="150.5" y1="0" y2="60" style="stroke:var(--rule)"/><text x="160" y="18" style="font-size:11.5px;fill:var(--proceed-ink)">2 done</text><path d="M10 37.5 l4 4 l4 -4" style="fill:none;stroke:var(--ink-3);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round"/><text class="lane-name" x="22" y="45.8" style="fill:var(--ink)">SOLUTIONS ENGI…<tspan style="fill:var(--ink-3);letter-spacing:0"> · 2</tspan></text><text x="160" y="46" style="font-size:11.5px;fill:var(--ink-3)"><tspan style="fill:var(--danger-ink);font-weight:600">1 late</tspan> · <tspan style="fill:var(--proceed-ink)">1 done</tspan></text>'), 'One 28-unit line: chevron, name and count (a long name ends with an ellipsis before the buttons). The counts above zero sit in the lane, at the left edge of the visible time line, and stay there while it scrolls. A click, Enter or Space collapses or opens the team; only keyboard focus shows a thin --ink-3 ring.'],
     ['Milestone circles', spec(260, 40, '<g transform="translate(25 20)"><circle class="ms-c" r="8" style="stroke:var(--ink-3);fill:var(--panel)"/></g><g transform="translate(75 20)"><circle class="ms-c" r="8" style="stroke:var(--teal);fill:var(--teal)"/><path class="ms-i" d="M-3.5 0 l2.5 2.5 l4.5 -5"/></g><g transform="translate(125 20)"><circle class="ms-c" r="8" style="stroke:var(--proceed);fill:var(--proceed)"/><path class="ms-i" d="M-3.5 0 l2.5 2.5 l4.5 -5"/></g><g transform="translate(175 20)"><circle class="ms-c" r="8" style="stroke:var(--danger);fill:var(--danger)"/><path class="ms-i" d="M0 -4 V1"/><circle class="ms-dot" cy="4" r="1.2"/></g><g transform="translate(225 20)"><circle class="ms-c" r="8" style="stroke:var(--caution);fill:var(--caution)"/><path class="ms-i" d="M0 -4 V1"/><circle class="ms-dot" cy="4" r="1.2"/></g>'), 'Planned, Finished early, Finished on time, Late, Finished late. Radius 8; a tick or "!".'],
     ['Milestone line slips', spec(260, 50, '<line class="trunk" x1="10" x2="250" y1="14" y2="14"/><line class="trunk-seg" x1="60" x2="140" y1="14" y2="14" style="stroke:var(--danger)"/><line class="trunk" x1="10" x2="250" y1="38" y2="38"/><line class="trunk-seg" x1="90" x2="160" y1="38" y2="38" style="stroke:var(--teal)"/>'), 'A 4-unit ink line. Red from the date to today while late, amber to the finish when finished late, teal from the finish to the date when early.'],
     ['Deadline diamonds', spec(260, 40, (function () { out = []; diamond(30, 22, 'ink-3', false, false); diamond(80, 22, 'proceed', true, false); diamond(130, 22, 'danger', true, false); diamond(180, 22, 'route', true, true, ''); diamond(220, 22, 'caution', true, false); return out.join(''); })()), 'At noon of the milestone date on every member row. Planned is an outline. A moved date gets a yellow stroke.'],

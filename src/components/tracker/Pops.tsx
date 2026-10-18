@@ -3,13 +3,17 @@ import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } fro
 import {
   formatDeadline,
   formatStamp,
+  FINISHES_NOTE,
+  isFinishingHandoff,
   KIND_LABEL,
+  kindWithArticle,
   type DateMove,
+  type EventKind,
   type TrackerState,
 } from '../../tracker';
 import type { Directory } from './avatar';
 import { Icon, KIND_COLOR, KindIcon, type IconName } from './icons';
-import { KindGrid } from './Modals';
+import { FinishesCheck, KindGrid } from './Modals';
 import type { PopKind } from './TrackerGraph';
 import type { TrackerActions } from './TrackerScreen';
 
@@ -185,6 +189,7 @@ function ActPop({
           <b>{KIND_LABEL[ev.kind]}</b> by {c.dir.name(ev.by)}
           <small>
             {stamp} · {item?.title}
+            {isFinishingHandoff(ev) && ` · ${FINISHES_NOTE}`}
           </small>
         </>
       }
@@ -307,7 +312,15 @@ function KindPop({
   ...c
 }: Common & { target: PopTarget; container: RefObject<HTMLDivElement | null> }) {
   const ev = c.state.events.find((e) => e.id === target.id);
+  // The pop stays open for a Handoff while the change saves, so it shows the pick at once.
+  const [picked, setPicked] = useState<{ kind: EventKind; finishes: boolean } | null>(null);
   if (!ev) return null;
+  const kind = picked?.kind ?? ev.kind;
+  const finishes = picked?.finishes ?? !!ev.finishes;
+  const pick = (next: EventKind, flag = false) => {
+    setPicked({ kind: next, finishes: flag });
+    c.actions.setKind(ev.id, next, flag);
+  };
   return (
     <PopFrame
       target={target}
@@ -317,7 +330,10 @@ function KindPop({
       head={<b>What kind of event is it?</b>}
       onClose={c.onClose}
     >
-      <KindGrid value={ev.kind} onPick={(kind) => c.actions.setKind(ev.id, kind)} />
+      <KindGrid value={kind} onPick={(next) => pick(next)} />
+      {kind === 'handoff' && (
+        <FinishesCheck checked={finishes} onChange={(flag) => pick('handoff', flag)} />
+      )}
     </PopFrame>
   );
 }
@@ -334,11 +350,11 @@ function AddedPop({
     <PopFrame
       target={target}
       container={container}
-      label={`Added a ${KIND_LABEL[ev.kind]}`}
+      label={`Added ${kindWithArticle(ev.kind)}`}
       icon={ring('var(--ink)', <KindIcon kind={ev.kind} size={15} />)}
       head={
         <>
-          <b>Added a {KIND_LABEL[ev.kind]}</b> by {c.dir.name(ev.by)}
+          <b>Added {kindWithArticle(ev.kind)}</b> by {c.dir.name(ev.by)}
           <small>
             {formatStamp(ev.at, c.tz)} · {item?.title}
           </small>

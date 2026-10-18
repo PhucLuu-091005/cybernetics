@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { TrackerState } from '../../tracker';
+import type { Density, TeamToggles, TrackerState } from '../../tracker';
 
 export type KeyValueStore = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 export type ViewState = { hiddenRows: string[]; hiddenTeams: string[] };
@@ -117,5 +117,84 @@ export function writeNoticeOff(store: KeyValueStore | null, userId: string): voi
     store?.setItem(noticeKey(userId), '1');
   } catch {
     // Without storage the notice stays closed for this page view only.
+  }
+}
+
+export const densityKey = (userId: string) => `promise-graph:row-height:v1:${userId}`;
+const DENSITY_VALUES: readonly Density[] = ['comfortable', 'compact', 'dense'];
+
+export function readDensity(store: KeyValueStore | null, userId: string): Density {
+  try {
+    const raw = store?.getItem(densityKey(userId));
+    return DENSITY_VALUES.find((d) => d === raw) ?? 'compact';
+  } catch {
+    return 'compact';
+  }
+}
+
+export function writeDensity(store: KeyValueStore | null, userId: string, density: Density): void {
+  try {
+    store?.setItem(densityKey(userId), density);
+  } catch {
+    // Without storage the row height holds for this page view only.
+  }
+}
+
+export const legendKey = (userId: string) => `promise-graph:legend:v1:${userId}`;
+
+/** The stored choice wins; without one the legend opens on a desktop, as it would cover a phone. */
+export function readLegendOpen(
+  store: KeyValueStore | null,
+  userId: string,
+  { phone }: { phone: boolean },
+): boolean {
+  try {
+    const raw = store?.getItem(legendKey(userId));
+    if (raw === 'open' || raw === 'closed') return raw === 'open';
+  } catch {
+    // Without storage the width decides.
+  }
+  return !phone;
+}
+
+export function writeLegendOpen(store: KeyValueStore | null, userId: string, open: boolean): void {
+  try {
+    store?.setItem(legendKey(userId), open ? 'open' : 'closed');
+  } catch {
+    // Without storage the legend holds its state for this page view only.
+  }
+}
+
+export const teamOpenKey = (projectId: string) => `promise-graph:team-open:v1:${projectId}`;
+const TeamsSchema = z.strictObject({ v: z.literal(1), open: Ids, closed: Ids });
+
+export function readTeamOpen(store: KeyValueStore | null, projectId: string): Map<string, boolean> {
+  try {
+    const raw = store?.getItem(teamOpenKey(projectId));
+    const parsed = raw ? TeamsSchema.safeParse(JSON.parse(raw)) : null;
+    if (!parsed?.success) return new Map();
+    return new Map([
+      ...parsed.data.open.map((id) => [id, true] as const),
+      ...parsed.data.closed.map((id) => [id, false] as const),
+    ]);
+  } catch {
+    return new Map();
+  }
+}
+
+export function writeTeamOpen(
+  store: KeyValueStore | null,
+  projectId: string,
+  toggles: TeamToggles,
+): void {
+  const pick = (open: boolean) =>
+    newest([...toggles].filter(([, v]) => v === open).map(([id]) => id));
+  try {
+    store?.setItem(
+      teamOpenKey(projectId),
+      JSON.stringify({ v: 1, open: pick(true), closed: pick(false) }),
+    );
+  } catch {
+    // Without storage the toggles hold for this page view only.
   }
 }

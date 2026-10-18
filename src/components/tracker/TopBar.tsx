@@ -2,12 +2,12 @@
 import { can, type RowFilter, type TrackerState } from '../../tracker';
 import { AccountMenu, type Account } from '../shell/AccountMenu';
 import type { Session } from './ContextBar';
-import { HiddenMenu, type HiddenMenuProps } from './HiddenMenu';
 import { Icon } from './icons';
 import { WorkSearch } from './Search';
+import { Select } from './Select';
 import type { DrawerMode, TrackerActions } from './TrackerScreen';
 
-type Props = HiddenMenuProps & {
+type Props = {
   session: Session;
   /** The signed-in person, for the menu when they act as no member. */
   account: Account;
@@ -22,6 +22,15 @@ type Props = HiddenMenuProps & {
   filter: RowFilter;
   onFilter: (filter: RowFilter) => void;
 };
+
+/** The demo plays the seeded people and your own member, never another signed-in person. */
+export const demoPeople = (
+  members: readonly { id: string; name: string; active: boolean; userId: string | null }[],
+  userId: string,
+) =>
+  members
+    .filter((m) => m.active && (m.userId === null || m.userId === userId))
+    .map((m) => ({ value: m.id, label: m.name }));
 
 export function TopBar(props: Props) {
   const { session, state, asOf, drawer, actions, onDrawer, onActAs, onPick } = props;
@@ -42,12 +51,6 @@ export function TopBar(props: Props) {
         filter={props.filter}
         onFilter={props.onFilter}
         onPick={onPick}
-      />
-      <HiddenMenu
-        hidden={props.hidden}
-        onUnhideTeam={props.onUnhideTeam}
-        onUnhideItem={props.onUnhideItem}
-        onUnhideAll={props.onUnhideAll}
       />
       <button
         className="btn hist-btn"
@@ -77,23 +80,16 @@ export function TopBar(props: Props) {
         </button>
       )}
       {payload.canActAs && me && (
-        <label className="demo">
+        <div className="demo">
           <span className="demo-word">Demo</span>
-          <select
+          <Select
             title="Demo: work as another member"
-            aria-label="Demo: act as"
+            label="Demo: act as"
             value={me}
-            onChange={(event) => onActAs(event.target.value)}
-          >
-            {payload.members
-              .filter((m) => m.active && (m.userId === null || m.userId === props.userId))
-              .map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-          </select>
-        </label>
+            onChange={onActAs}
+            options={demoPeople(payload.members, props.userId)}
+          />
+        </div>
       )}
       <AccountMenu {...account} />
     </header>

@@ -24,27 +24,138 @@ export const GEOMETRY = {
   X0: 236,
   X1: 1046,
   SIDE: 228,
+  /** A phone keeps the names pinned beside the time line in a column this wide, with no row buttons. */
+  NARROW_SIDE: 128,
   AXIS_Y: 15,
   MS_Y: 33,
   TRUNK_Y: 48,
   TOP: 64,
-  ROW: 32,
-  HEAD: 22,
   INDENT: 12,
   MAX_ZOOM: 12,
   MIN_DAY_WIDTH: 2,
   MAX_DAY_WIDTH: 480,
 } as const;
 
-const { VW, X0, X1, SIDE, AXIS_Y, MS_Y, TRUNK_Y, TOP, ROW, HEAD, MAX_ZOOM } = GEOMETRY;
+const { VW, X0, X1, SIDE, AXIS_Y, MS_Y, TRUNK_Y, TOP, MAX_ZOOM, INDENT } = GEOMETRY;
 const { MIN_DAY_WIDTH, MAX_DAY_WIDTH } = GEOMETRY;
 /** A window so long that its fit is under the floor can still fit. */
 export const clampDayWidth = (dayWidth: number, fitDayWidth: number) =>
   Math.min(MAX_DAY_WIDTH, Math.max(Math.min(MIN_DAY_WIDTH, fitDayWidth), dayWidth));
+export type Density = 'comfortable' | 'compact' | 'dense';
+
+/** Sizes in units that follow the row height, so no mark leaves its own row band. */
+export type RowLevel = {
+  row: number;
+  /** The height of the row's click band; never under 12, so a Dense row stays easy to hit. */
+  hit: number;
+  head: number;
+  /** Event circle radius; at Dense an event is a filled dot with no icon (`icon` 0). */
+  r: number;
+  icon: number;
+  gap: number;
+  font: number;
+  labelDy: number;
+  seg: number;
+  /** Half the diagonal of the deadline diamond. */
+  diamond: number;
+  mark: number;
+  markWide: number;
+  markIcon: number;
+  chip: number;
+  chipIcon: number;
+  btn: number;
+  btnIcon: number;
+  plus: number;
+  nameFont: number;
+  /** The milestone name baseline above the row centre; negative puts it below. */
+  nameRise: number;
+  waitText: boolean;
+  waitRise: number;
+  /** The receiver count on a Handoff icon; 0 leaves it to the tooltip and the list. */
+  count: number;
+};
+
+export const ROW_LEVELS: Record<Density, RowLevel> = {
+  comfortable: {
+    row: 32,
+    hit: 30,
+    head: 28,
+    r: 10,
+    icon: 13,
+    gap: 16,
+    font: 12,
+    labelDy: 4,
+    seg: 3,
+    diamond: 6,
+    mark: 14,
+    markWide: 24,
+    markIcon: 10,
+    chip: 14,
+    chipIcon: 10,
+    btn: 18,
+    btnIcon: 12,
+    plus: 9,
+    nameFont: 9.5,
+    nameRise: 6,
+    waitText: true,
+    waitRise: 7,
+    count: 8.5,
+  },
+  compact: {
+    row: 20,
+    hit: 18,
+    head: 28,
+    r: 7,
+    icon: 9,
+    gap: 12,
+    font: 11,
+    labelDy: 3.8,
+    seg: 2.5,
+    diamond: 4.5,
+    mark: 12,
+    markWide: 21,
+    markIcon: 8.5,
+    chip: 12,
+    chipIcon: 8.5,
+    btn: 16,
+    btnIcon: 11,
+    plus: 7,
+    nameFont: 9,
+    nameRise: 3,
+    waitText: true,
+    waitRise: 3.5,
+    count: 7.5,
+  },
+  dense: {
+    row: 12,
+    hit: 12,
+    head: 24,
+    r: 3,
+    icon: 0,
+    gap: 7,
+    font: 9.5,
+    labelDy: 3.3,
+    seg: 2,
+    diamond: 3.5,
+    mark: 10,
+    markWide: 18,
+    markIcon: 7,
+    chip: 10,
+    chipIcon: 7,
+    btn: 12,
+    btnIcon: 9,
+    plus: 5,
+    nameFont: 8,
+    nameRise: -2.8,
+    waitText: false,
+    waitRise: 0,
+    count: 0,
+  },
+};
+
 const RIGHT = VW - X1;
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
-const GROUP_GAP = 16;
 const EMPTY_LEAD = 48 * HOUR;
 // The widest date label ("28 Sept") with a gap on each side, so two neighbouring labels never touch.
 const TICK_ROOM = 64;
@@ -52,7 +163,7 @@ const TICK_ROOM = 64;
 const T_PILL_ROOM = 66;
 
 export type Tone =
-  'proceed' | 'route' | 'danger' | 'caution' | 'teal' | 'ink-2' | 'ink-3' | 'change';
+  'proceed' | 'route' | 'danger' | 'caution' | 'teal' | 'ink-2' | 'ink-3' | 'isolated' | 'change';
 
 export const STATUS_TONE: Record<Status, Tone> = {
   planned: 'ink-3',
@@ -60,6 +171,7 @@ export const STATUS_TONE: Record<Status, Tone> = {
   ontime: 'proceed',
   late: 'danger',
   flate: 'caution',
+  cancelled: 'isolated',
 };
 
 /** Rows that match the filters, and their ancestors, which show dimmed so the tree stays readable. */
@@ -85,6 +197,14 @@ export type View = {
   filter?: RowMatch | null;
   /** Rows carry a focus button next to the eye, so their labels are cut shorter. */
   focusButtons?: boolean;
+  /** Comfortable when not given. */
+  density?: Density;
+  /** An editable view draws + after the T line on each open row, so names keep off it. */
+  plusButtons?: boolean;
+  /** These teams show their summary row only. */
+  collapsedTeams?: ReadonlySet<string>;
+  /** The width of the label column; narrower than SIDE, it has no row buttons. */
+  side?: number;
 };
 
 export type Point = { x: number; y: number };
@@ -98,6 +218,16 @@ export type LayoutWindow = {
 };
 export type LayoutTick = { date: string; x: number; label: string; labelled: boolean };
 export type LayoutTLine = { x: number; y1: number; y2: number; label: string };
+export type LayoutTeamSummary = {
+  count: number;
+  late: number;
+  notYet: number;
+  done: number;
+  cancelled: number;
+  /** The team holds a change of the change request on screen. */
+  changed: boolean;
+  ariaLabel: string;
+};
 export type LayoutLane = {
   teamId: string;
   name: string;
@@ -105,6 +235,10 @@ export type LayoutLane = {
   index: number;
   top: number;
   bottom: number;
+  /** The height of the summary row at the top of the lane. */
+  head: number;
+  collapsed: boolean;
+  summary: LayoutTeamSummary;
   alt: boolean;
   guide: { y1: number; y2: number } | null;
   eyeLabel: string;
@@ -184,6 +318,8 @@ export type LayoutHandoff = {
   dir: 'up' | 'down' | 'both';
   tone: Tone;
   wait: boolean;
+  /** The source was cancelled, so the receivers get nothing from it. */
+  cancelled: boolean;
   ariaLabel: string;
   tooltip: string;
 };
@@ -237,6 +373,8 @@ export type LayoutLaneDrop = {
 };
 
 export type TrackerLayout = {
+  level: RowLevel;
+  side: number;
   /** The day width over the fit to the current `span`: 1 at fit, less when the view widened since. */
   zoom: number;
   dayWidth: number;
@@ -268,6 +406,7 @@ export type TrackerLayout = {
 type Ctx = {
   state: TrackerState;
   view: View;
+  level: RowLevel;
   marks: Marks | undefined;
   tz: string;
   today: string;
@@ -284,6 +423,8 @@ type Ctx = {
   hidden: Set<string>;
   /** Work items in the window outside the focus or the filters; they get no chip, as the focus panel lists the parent. */
   outside: Set<string>;
+  /** Shown work items of collapsed teams. */
+  folded: Set<string>;
   eventsOf: (id: string) => TrackerEvent[];
   rows: Map<string, LayoutRow>;
   name: (id: string) => string;
@@ -296,8 +437,10 @@ type MsStatus = ReturnType<typeof milestoneStatus>;
 
 const trunc = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const later = (a: string, b: string) => (compareDay(a, b) >= 0 ? a : b);
-const baseTone = (info: ItemInfo): Tone => (info.done ? 'proceed' : 'route');
-const lateTone = (info: ItemInfo): Tone => (info.done ? 'caution' : 'danger');
+const baseTone = (info: ItemInfo): Tone =>
+  info.cancelled ? 'isolated' : info.done ? 'proceed' : 'route';
+const lateTone = (info: ItemInfo): Tone =>
+  info.cancelled ? 'isolated' : info.done ? 'caution' : 'danger';
 
 function windowDays(
   state: TrackerState,
@@ -349,9 +492,61 @@ export function windowStartFor(
   return addDays(dayOf(new Date(earliest).toISOString(), timeZone), -START_MARGIN_DAYS);
 }
 
-// The lane name is 10.5 px bold capitals with letter spacing.
-const LANE_CHAR = 7.6;
+// Advance widths of Geist 10.5px weight 600 capitals with 0.07em letter spacing, as the browser
+// measured them, so the pure layout can cut a team name before the buttons of its summary row.
+const CAPS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+const CAP_W = [
+  8.2, 8, 8.4, 8.3, 7.2, 6.9, 8.4, 8.2, 3.7, 7.1, 7.7, 6.7, 10.1, 8.5, 8.8, 7.6, 8.7, 8, 7.8, 7,
+  8.2, 8.1, 11.1, 7.7, 7.4, 6.8, 8.1, 4.9, 7.5, 7.5, 7.5, 7.7, 7.2, 6.6, 7.5, 7.3,
+];
+const PUNCT_W: Record<string, number> = { ' ': 3, '·': 3.1, '.': 3.1, ',': 3.1, "'": 2.8, '…': 8 };
+const WIDE = 8.8;
+// The " · N" count after the name is weight 500 with no letter spacing.
+const COUNT_SEP = 7.5;
+const digitWidth = (d: string) => (d === '1' ? 4.1 : 6.8);
+// The name ends 6 units before the focus button (16 wide, centred 43 left of X0), or before the eye.
+const NAME_ROOM = X0 - 43 - 8 - 6 - 24;
+const FOCUS_BUTTON_ROOM = 19;
+// A Comfortable row name letter takes about 6.6 units; the names start at 28 and the lanes at 24.
+const ROW_CHAR = 6.6;
+const ROW_LABEL_X = 28;
+const LANE_LABEL_X = 24;
+const NARROW_END = 4;
 const MAX_DEPTH = 3;
+
+const segmenter =
+  typeof Intl !== 'undefined' && 'Segmenter' in Intl
+    ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+    : null;
+
+/** User-perceived characters in NFC, so a cut never splits a surrogate pair or drops a mark. */
+function graphemes(text: string): string[] {
+  const nfc = text.normalize('NFC');
+  return segmenter ? Array.from(segmenter.segment(nfc), (g) => g.segment) : Array.from(nfc);
+}
+
+function glyphWidth(g: string): number {
+  const base = g.normalize('NFD')[0];
+  const i = CAPS.indexOf(base);
+  return i >= 0 ? CAP_W[i] : (PUNCT_W[base] ?? (/[-/()]/.test(base) ? 5.1 : WIDE));
+}
+
+/** The width of a lane name in capitals, or with `count` of its " · N" part. */
+export function laneNameWidth(text: string, count = false): number {
+  if (count)
+    return [...text].reduce((w, ch) => w + (/\d/.test(ch) ? digitWidth(ch) : 0), COUNT_SEP);
+  return graphemes(text).reduce((w, g) => w + glyphWidth(g), 0);
+}
+
+/** Cuts a lane name by grapheme to `room` units, ending with an ellipsis when it is cut. */
+export function cutToWidth(text: string, room: number): string {
+  const parts = graphemes(text);
+  if (laneNameWidth(text) <= room) return parts.join('');
+  let w = PUNCT_W['…'];
+  let n = 0;
+  while (n < parts.length && w + glyphWidth(parts[n]) <= room) w += glyphWidth(parts[n++]);
+  return `${parts.slice(0, n).join('').trimEnd()}…`;
+}
 
 /** Children follow their parent inside a team, so the indent of the labels reads as a tree. */
 function treeOrder(shown: WorkItem[]): Array<{ w: WorkItem; depth: number }> {
@@ -374,54 +569,110 @@ function treeOrder(shown: WorkItem[]): Array<{ w: WorkItem; depth: number }> {
   return out;
 }
 
+function summaryOf(c: Ctx, name: string, shown: WorkItem[]): LayoutTeamSummary {
+  let late = 0;
+  let done = 0;
+  let cancelled = 0;
+  let changed = false;
+  for (const w of shown) {
+    const info = c.infos.get(w.id)!;
+    changed ||=
+      !!c.marks?.workItems.has(w.id) ||
+      !!c.marks?.dates.has(w.id) ||
+      info.events.some((e) => c.marks?.events.has(e.id));
+    if (info.cancelled) cancelled += 1;
+    else if (info.done) done += 1;
+    else if (itemStatus(w, c.eventsOf(w.id), c.view.asOf, c.tz) === 'late') late += 1;
+  }
+  const notYet = shown.length - late - done - cancelled;
+  const count = shown.length;
+  const parts = [
+    ...(late ? [`${late} late`] : []),
+    ...(notYet ? [`${notYet} not yet`] : []),
+    ...(done ? [`${done} done`] : []),
+    ...(cancelled ? [`${cancelled} cancelled`] : []),
+    ...(changed ? ['changed in this change request'] : []),
+  ];
+  return {
+    count,
+    late,
+    notYet,
+    done,
+    cancelled,
+    changed,
+    ariaLabel: `${name}, ${count} work item${count === 1 ? '' : 's'}${parts.length ? `: ${parts.join(', ')}` : ''}`,
+  };
+}
+
 function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
-  const { state, view } = c;
+  const { state, view, level } = c;
   const lanes: LayoutLane[] = [];
+  const labelChars = Math.round(
+    ((view.focusButtons ? 24 : 26) * ROW_LEVELS.comfortable.font) / level.font,
+  );
+  const narrow = view.side !== undefined && view.side < SIDE ? view.side : null;
+  const narrowChar = (ROW_CHAR * level.font) / ROW_LEVELS.comfortable.font;
   let y = TOP;
   for (const team of state.teams) {
     const members = state.workItems.filter((w) => w.teamId === team.id && c.inWindow.has(w.id));
     const shown = members.filter((w) => !c.hidden.has(w.id) && !c.outside.has(w.id));
     if (view.hiddenTeams.has(team.id)) continue;
     if (!shown.length && (members.length || view.focus || view.focusTeam || view.filter)) continue;
+    const collapsed = !!view.collapsedTeams?.has(team.id) && shown.length > 0;
     const top = y;
-    y += HEAD;
-    for (const { w, depth } of treeOrder(shown)) {
-      const info = c.infos.get(w.id)!;
-      const focused = view.focus === w.id;
-      c.rows.set(w.id, {
-        id: w.id,
-        teamId: team.id,
-        title: w.title,
-        label: trunc(w.title, (view.focusButtons ? 24 : 26) - 2 * depth),
-        y: y + ROW / 2,
-        done: info.done,
-        status: itemStatus(w, c.eventsOf(w.id), view.asOf, c.tz),
-        milestoneId: w.milestoneId,
-        changed: !!c.marks?.workItems.has(w.id),
-        eyeLabel: `Hide ${w.title}`,
-        focused,
-        focusLabel: `Focus on ${w.title}`,
-        depth,
-        dimmed: !!view.filter && !view.filter.match.has(w.id),
-      });
-      y += ROW;
-    }
+    y += level.head;
+    if (collapsed) for (const w of shown) c.folded.add(w.id);
+    else
+      for (const { w, depth } of treeOrder(shown)) {
+        const info = c.infos.get(w.id)!;
+        const focused = view.focus === w.id;
+        c.rows.set(w.id, {
+          id: w.id,
+          teamId: team.id,
+          title: w.title,
+          label: trunc(
+            w.title,
+            narrow
+              ? Math.floor((narrow - NARROW_END - ROW_LABEL_X - depth * INDENT) / narrowChar)
+              : labelChars - 2 * depth,
+          ),
+          y: y + level.row / 2,
+          done: info.done,
+          status: itemStatus(w, c.eventsOf(w.id), view.asOf, c.tz),
+          milestoneId: w.milestoneId,
+          changed: !!c.marks?.workItems.has(w.id),
+          eyeLabel: `Hide ${w.title}`,
+          focused,
+          focusLabel: `Focus on ${w.title}`,
+          depth,
+          dimmed: !!view.filter && !view.filter.match.has(w.id),
+        });
+        y += level.row;
+      }
     if (!shown.length) y += 18;
-    y += 6;
-    const lastY = Math.max(0, ...shown.map((w) => c.rows.get(w.id)!.y));
+    y += collapsed ? 2 : 6;
+    const lastY = collapsed ? 0 : Math.max(0, ...shown.map((w) => c.rows.get(w.id)!.y));
     const index = lanes.length;
+    const summary = summaryOf(c, team.name, shown);
+    const countRoom = laneNameWidth(` · ${shown.length}`, true);
+    const room =
+      (narrow
+        ? narrow - NARROW_END - LANE_LABEL_X
+        : view.focusButtons
+          ? NAME_ROOM
+          : NAME_ROOM + FOCUS_BUTTON_ROOM) - countRoom;
     lanes.push({
       teamId: team.id,
       name: team.name,
-      label: trunc(
-        team.name.toUpperCase(),
-        Math.floor((X0 - (view.focusButtons ? 58 : 40) - 12) / LANE_CHAR),
-      ),
+      label: cutToWidth(team.name.toUpperCase(), room),
       index,
       top,
       bottom: y,
+      head: level.head,
+      collapsed,
+      summary,
       alt: index % 2 === 1,
-      guide: lastY ? { y1: top + 20, y2: lastY } : null,
+      guide: lastY ? { y1: top + level.head - 4, y2: lastY } : null,
       eyeLabel: `Hide ${team.name}`,
       focused: view.focusTeam === team.id,
       focusLabel: `Focus on ${team.name}`,
@@ -433,9 +684,10 @@ function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
 function itemStartMs(w: WorkItem, infos: ReadonlyMap<string, ItemInfo>, asOfIso: string): number {
   const info = infos.get(w.id)!;
   if (info.start) return Date.parse(info.start);
+  // A cancelled source delivers nothing, so its cancel never starts the receiver.
   const ends = w.after
     .map((id) => infos.get(id))
-    .flatMap((i) => (i?.finishedAt ? [Date.parse(i.finishedAt)] : []));
+    .flatMap((i) => (i?.finishedAt && !i.cancelled ? [Date.parse(i.finishedAt)] : []));
   const sourcesDone = ends.length ? Math.max(...ends) : null;
   const asOf = Date.parse(asOfIso);
   // A demo project keeps asOf in the past while the item is placed today, so since can lie after the T line.
@@ -452,12 +704,21 @@ function linesOf(c: Ctx, shown: LayoutRow[]): LayoutSegment[] {
     const info = c.infos.get(r.id)!;
     const sx = Math.max(X0, c.x(startOf(c, w)));
     if (info.start === null) {
-      const waits = w.after
-        .map((id) => c.items.get(id))
-        .filter((p): p is WorkItem => !!p && !c.infos.get(p.id)!.done);
-      const text = waits.length
-        ? `Waiting for ${waits.map((p) => p.title.split(' ')[0]).join(', ')}`
-        : 'No events yet';
+      const sources = w.after.map((id) => c.items.get(id)).filter((p): p is WorkItem => !!p);
+      const short = (list: WorkItem[]) => list.map((p) => p.title.split(' ')[0]).join(', ');
+      const waits = sources.filter((p) => !c.infos.get(p.id)!.done);
+      const gone = sources.filter((p) => c.infos.get(p.id)!.cancelled);
+      const parts = [
+        ...(waits.length ? [`Waiting for ${short(waits)}`] : []),
+        ...(gone.length ? [`${short(gone)} ${gone.length > 1 ? 'were' : 'was'} cancelled`] : []),
+      ];
+      const text = parts.length ? parts.join(' · ') : 'No events yet';
+      const plus = c.xt + PLUS_GAP;
+      const afterPlus = plus + c.level.plus + 4;
+      const onPlus =
+        !!c.view.plusButtons &&
+        sx + 8 < afterPlus &&
+        sx + 8 + text.length * WAIT_CHAR > plus - c.level.plus - 2;
       segments.push({
         kind: 'wait',
         workItemId: w.id,
@@ -466,8 +727,9 @@ function linesOf(c: Ctx, shown: LayoutRow[]): LayoutSegment[] {
         y: r.y,
         tone: 'ink-3',
         text,
-        textX: sx + 8,
-        textY: r.y - 7,
+        // The + buttons of this row and the row above sit at the same x, so the text starts after them.
+        textX: onPlus ? afterPlus : sx + 8,
+        textY: r.y - c.level.waitRise,
       });
       continue;
     }
@@ -475,7 +737,7 @@ function linesOf(c: Ctx, shown: LayoutRow[]): LayoutSegment[] {
     const lateFrom = c.lateFrom(w);
     const line = (x1: number, x2: number, tone: Tone) =>
       segments.push({ kind: 'line', workItemId: w.id, x1, x2, y: r.y, tone });
-    if (endAt > lateFrom) {
+    if (endAt > lateFrom && !info.cancelled) {
       const lx = Math.max(sx, c.x(lateFrom));
       if (lx > sx) line(sx, lx, baseTone(info));
       line(lx, c.x(endAt), lateTone(info));
@@ -496,12 +758,10 @@ function chipSourcesOf(c: Ctx, shown: LayoutRow[]): Map<string, string[]> {
   return sources;
 }
 
-const MARK = 14;
-const MARK_WIDE = 24;
-// A done source ends in its Done icon (radius 10); an open one ends at the T line, where an editor has the + button.
-const MARK_AFTER_DONE = 12;
+// A done source ends in its Done icon; an open one ends at the T line, where an editor has the + button.
 const MARK_AFTER_OPEN = 32;
-const ICON_R = 10;
+/** The + button of an editable view sits this far right of the T line. */
+export const PLUS_GAP = 20;
 
 function handoffEventOf(
   c: Ctx,
@@ -539,20 +799,25 @@ function handoffsOf(c: Ctx, groups: LayoutEventGroup[]): LayoutHandoff[] {
   return [...bySource].map(([src, list]): LayoutHandoff => {
     const source = c.items.get(src)!;
     const sr = c.rows.get(src)!;
-    const finishedAt = c.infos.get(src)!.finishedAt;
-    const handoff = handoffEventOf(c, src, groups);
+    const { finishedAt, cancelled } = c.infos.get(src)!;
+    // A cancelled source is not a delivery, even when it had a Handoff before the cancel.
+    const handoff = cancelled ? null : handoffEventOf(c, src, groups);
     const wait = !finishedAt && !handoff;
     const end = wait ? c.xt : c.x(Date.parse(finishedAt ?? c.view.asOf));
-    const width = handoff ? 2 * ICON_R : list.length > 1 ? MARK_WIDE : MARK;
-    const after = end + (wait ? MARK_AFTER_OPEN : MARK_AFTER_DONE);
+    const { r, mark, markWide } = c.level;
+    const afterDone = r + 2;
+    const width = handoff ? 2 * r : list.length > 1 ? markWide : mark;
+    const after = end + (wait ? MARK_AFTER_OPEN : afterDone);
     // Near the right edge the mark goes left of the end, so the graph never cuts it.
-    const before = end - MARK_AFTER_DONE - width;
-    const x = handoff ? handoff.group.x - ICON_R : after + width <= c.width - 2 ? after : before;
+    const before = end - afterDone - width;
+    const x = handoff ? handoff.group.x - r : after + width <= c.width - 2 ? after : before;
     const targets = list.map((w) => {
       const team = teamName.get(w.teamId)!;
-      const text = wait
-        ? `Hands over to ${team} when done · received in ${w.title}`
-        : `Handed over to ${team} · received in ${w.title}`;
+      const text = cancelled
+        ? `Cancelled · ${w.title} no longer gets it from here`
+        : wait
+          ? `Hands over to ${team} when done · received in ${w.title}`
+          : `Handed over to ${team} · received in ${w.title}`;
       return { id: w.id, teamId: w.teamId, team, title: w.title, text };
     });
     const ups = list.map((w) => below(w, source) < 0);
@@ -563,15 +828,16 @@ function handoffsOf(c: Ctx, groups: LayoutEventGroup[]): LayoutHandoff[] {
       eventId: handoff?.id ?? null,
       groupId: handoff?.group.topId ?? null,
       x,
-      y: handoff ? sr.y - ICON_R : sr.y - MARK / 2,
+      y: handoff ? sr.y - r : sr.y - mark / 2,
       width,
-      height: handoff ? 2 * ICON_R : MARK,
+      height: handoff ? 2 * r : mark,
       dir: ups.every(Boolean) ? 'up' : ups.some(Boolean) ? 'both' : 'down',
-      tone: wait ? 'danger' : 'proceed',
+      tone: cancelled ? 'isolated' : wait ? 'danger' : 'proceed',
       wait,
+      cancelled,
       ariaLabel:
         lines.length > 1
-          ? `${lines.length} handoffs from ${source.title}: ${lines.join('; ')}`
+          ? `${cancelled ? `${source.title} was cancelled, ${lines.length} work items` : `${lines.length} handoffs from ${source.title}`}: ${lines.join('; ')}`
           : lines[0],
       tooltip: lines.join('\n'),
     };
@@ -582,20 +848,23 @@ function handoffsOf(c: Ctx, groups: LayoutEventGroup[]): LayoutHandoff[] {
 function makesLate(c: Ctx, w: WorkItem, m: Milestone): boolean {
   const info = c.infos.get(w.id)!;
   const deadline = milestoneDeadline(m, c.tz);
+  if (info.cancelled) return false;
   if (info.finishedAt) return Date.parse(info.finishedAt) > deadline;
   return Date.parse(c.view.asOf) > deadline || itemDeadline(w, c.tz) > deadline;
 }
 
 type Span = [number, number];
 const LABEL_GAP = 9;
-// The 9.5 px name sits just above the line and stays inside the 32-unit band of its own row.
-const LABEL_RISE = 6;
-const LABEL_CHAR = 5.4;
-const EVENT_ROOM = 11;
+// At 9.5 px a name letter takes about 5.4 units; smaller rows scale it with their font.
+const LABEL_CHAR = 5.4 / 9.5;
 const WAIT_CHAR = 5.6;
 
-/** What already sits on each row near the line, so the milestone name goes only where it is free. */
+/**
+ * What already sits on each row near the line, so the milestone name goes only where it is free.
+ * The Dense name sits on the row centre, so there the line itself is busy too.
+ */
 function busyOf(
+  level: RowLevel,
   segments: LayoutSegment[],
   groups: LayoutEventGroup[],
   handoffs: LayoutHandoff[],
@@ -605,12 +874,60 @@ function busyOf(
   const add = (id: string | undefined, span: Span) => {
     if (id) busy.set(id, [...(busy.get(id) ?? []), span]);
   };
-  for (const g of groups) add(g.workItemId, [g.x - EVENT_ROOM, g.x + EVENT_ROOM]);
+  const room = level.r + 1;
+  for (const g of groups) add(g.workItemId, [g.x - room, g.x + room]);
   for (const h of handoffs) add(h.fromId, [h.x - 2, h.x + h.width + 2]);
   for (const ch of chips) add(ch.workItemId, [ch.x - 2, ch.x + ch.size + 2]);
-  for (const s of segments)
-    if (s.kind === 'wait') add(s.workItemId, [s.textX - 2, s.textX + s.text.length * WAIT_CHAR]);
+  for (const s of segments) {
+    if (s.kind === 'wait' && level.waitText)
+      add(s.workItemId, [s.textX - 2, s.textX + s.text.length * WAIT_CHAR]);
+    if (level.nameRise < 0) add(s.workItemId, [s.x1 - 2, s.x2 + 2]);
+  }
   return busy;
+}
+
+const MIN_CUT = 8;
+const T_ROOM = 3;
+
+/**
+ * The full name on the right of the mark, else on its left, else the longer of the two cut with an
+ * ellipsis. The T line counts as busy, so a name never sits across it.
+ */
+function placeName(
+  c: Ctx,
+  name: string,
+  x: number,
+  rowBusy: readonly Span[],
+): { label: string; side: 'start' | 'end' } | null {
+  const spans: Span[] = [...rowBusy, [c.xt - T_ROOM, c.xt + T_ROOM]];
+  const char = LABEL_CHAR * c.level.nameFont;
+  const inside = (at: number) => spans.some(([p, q]) => p <= at && at <= q);
+  const a = x + LABEL_GAP;
+  const b = x - LABEL_GAP;
+  const right = inside(a)
+    ? 0
+    : Math.min(c.width - 2, ...spans.filter(([p]) => p > a).map(([p]) => p - 1)) - a;
+  const left = inside(b)
+    ? 0
+    : b - Math.max(X0, ...spans.filter(([, q]) => q < b).map(([, q]) => q + 1));
+  const fit = (room: number) => {
+    if (name.length * char <= room) return name;
+    const n = Math.floor(room / char) - 1;
+    return n >= MIN_CUT ? `${name.slice(0, n).trimEnd()}…` : null;
+  };
+  const full = name.length * char;
+  const side: 'start' | 'end' | null =
+    full <= right
+      ? 'start'
+      : full <= left
+        ? 'end'
+        : fit(Math.max(right, left))
+          ? right >= left
+            ? 'start'
+            : 'end'
+          : null;
+  if (!side) return null;
+  return { label: fit(side === 'start' ? right : left)!, side };
 }
 
 function deadlinesOf(
@@ -635,12 +952,8 @@ function deadlinesOf(
     const reason = makesLate(c, w, m) ? (r.done ? 'finished after it' : 'makes it late') : null;
     const x = c.deadlineX(m);
     const text = `${m.name} · deadline ${formatDeadline(m.planned, m.plannedTime)} · ${STATUS_LABEL[status]}`;
-    const width = m.name.length * LABEL_CHAR;
-    const free = ([a, b]: Span) =>
-      a >= X0 && b <= c.width - 2 && (busy.get(r.id) ?? []).every(([p, q]) => b < p || a > q);
-    const right: Span = [x + LABEL_GAP, x + LABEL_GAP + width];
-    const left: Span = [x - LABEL_GAP - width, x - LABEL_GAP];
-    const side = !first ? null : free(right) ? 'start' : free(left) ? 'end' : null;
+    const placed = first ? placeName(c, m.name, x, busy.get(r.id) ?? []) : null;
+    const side = placed?.side ?? null;
     return [
       {
         workItemId: r.id,
@@ -653,9 +966,9 @@ function deadlinesOf(
         stroke: changed ? 'change' : tone,
         filled: status !== 'planned',
         changed,
-        label: side ? m.name : null,
+        label: placed?.label ?? null,
         labelX: side === 'end' ? x - LABEL_GAP : x + LABEL_GAP,
-        labelY: r.y - LABEL_RISE,
+        labelY: r.y - c.level.nameRise,
         labelAnchor: side ?? 'start',
         ariaLabel: reason ? `${text}, this work item ${reason}` : text,
         tooltip: reason ? `${text}\nThis work item ${reason}.` : text,
@@ -703,17 +1016,22 @@ const throughShownRow = (c: Ctx, w: WorkItem, source: string) =>
 function chipOf(c: Ctx, w: WorkItem, r: LayoutRow, sources: string[]): LayoutChip {
   const titles = sources.map((id) => c.items.get(id)!.title);
   const before = `finished before ${formatDay(c.windowStart)}`;
+  const where = (id: string) => {
+    if (c.hidden.has(id)) return 'hidden';
+    if (!c.folded.has(id)) return before;
+    const teamId = c.items.get(id)!.teamId;
+    return `in ${c.state.teams.find((t) => t.id === teamId)?.name ?? 'a team'}, collapsed`;
+  };
   const sx = Math.max(X0, c.x(startOf(c, w)));
+  const size = c.level.chip;
   return {
     workItemId: w.id,
     sources,
     ariaLabel: `Show ${titles.join(', ')}`,
-    tooltip: sources
-      .map((id, i) => `From ${titles[i]} (${c.hidden.has(id) ? 'hidden' : before})`)
-      .join('\n'),
-    x: Math.max(SIDE + 2, sx - 22),
-    y: r.y - 7,
-    size: 14,
+    tooltip: sources.map((id, i) => `From ${titles[i]} (${where(id)})`).join('\n'),
+    x: Math.max(SIDE + 2, sx - size - 8),
+    y: r.y - size / 2,
+    size,
   };
 }
 
@@ -784,7 +1102,7 @@ function groupsOf(c: Ctx, w: WorkItem, r: LayoutRow, info: ItemInfo): LayoutEven
     if (at < c.startMs) continue;
     const ex = c.x(at);
     const last = groups.at(-1);
-    if (last && ex - last.x < GROUP_GAP) {
+    if (last && ex - last.x < c.level.gap) {
       last.events.push(e);
       last.x = ex;
     } else groups.push({ x: ex, events: [e] });
@@ -924,9 +1242,11 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
   const t = (px: number) => startMs + ((px - X0) / plot) * (endMs - startMs);
   const plotEndMs = t(x1);
   const people = new Map(state.people.map((p) => [p.id, p.name]));
+  const level = ROW_LEVELS[view.density ?? 'comfortable'];
   const c: Ctx = {
     state,
     view: { ...view, focus, focusTeam, filter },
+    level,
     marks,
     tz,
     today: dayOf(view.asOf, tz),
@@ -941,6 +1261,7 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     inWindow,
     hidden,
     outside,
+    folded: new Set(),
     eventsOf,
     rows: new Map(),
     name: (id) => (id === 'agent' ? 'Agent' : (people.get(id) ?? id)),
@@ -966,8 +1287,16 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
   });
   const eventGroups = shown.flatMap((r) => groupsOf(c, item(r), r, infos.get(r.id)!));
   const handoffs = handoffsOf(c, eventGroups);
-  const busy = busyOf(segments, eventGroups, handoffs, chips);
+  const busy = busyOf(level, segments, eventGroups, handoffs, chips);
+  if (view.plusButtons) {
+    const plus = c.xt + PLUS_GAP;
+    for (const r of shown)
+      if (!r.done)
+        busy.set(r.id, [...(busy.get(r.id) ?? []), [plus - level.plus - 2, plus + level.plus + 2]]);
+  }
   return {
+    level,
+    side: view.side ?? SIDE,
     zoom: plot / visible,
     dayWidth: plot / days,
     fitDayWidth: visible / days,
@@ -1000,10 +1329,10 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
       x: X0,
       y: l.top + 2,
       width: x1 - X0,
-      height: 18,
+      height: l.head - 4,
       text: `Drop here: ${l.name}`,
       textX: X0 + 10,
-      textY: l.top + 15,
+      textY: l.top + l.head / 2 + 4,
     })),
   };
 }

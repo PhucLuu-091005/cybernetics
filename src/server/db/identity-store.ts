@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
-import type { AgentToken } from '../../contracts';
+import { knownScopes, type AgentToken } from '../../contracts';
 import { AppError } from '../errors';
 import type { HttpIdentityStore, Membership, StoredToken } from '../http/identity-store';
 import {
@@ -189,7 +189,7 @@ export class DbIdentityStore implements HttpIdentityStore {
       projectId: row.projectId,
       workspaceId: row.workspaceId,
       prefix: row.prefix,
-      scopes: row.scopes,
+      scopes: knownScopes(row.scopes),
       hash: row.hash,
       label: row.label,
       idempotencyKey: row.idempotencyKey,
@@ -259,6 +259,7 @@ export class DbIdentityStore implements HttpIdentityStore {
       .offset(input.offset);
     return rows.map((row) => ({
       ...row,
+      scopes: knownScopes(row.scopes),
       createdAt: toIso(row.createdAt),
       expiresAt: toIso(row.expiresAt),
       revokedAt: row.revokedAt === null ? null : toIso(row.revokedAt),

@@ -14,10 +14,15 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  collapsedTeams,
+  changedTeams,
+  openTeams as openTeamsPlan,
+  teamsOfOps,
   descendantsOf,
   formatDay,
   formatDeadline,
   KIND_LABEL,
+  GEOMETRY,
   layoutTracker,
   matchRows,
   NO_FILTER,
@@ -30,6 +35,8 @@ import {
   type RowMatch,
   type Cr,
   type CrPermission,
+  type Density,
+  type TeamToggles,
   type EventKind,
   type TrackerLayout,
   type TrackerPayload,
@@ -95,17 +102,23 @@ import { QueuePanel, type QueueTab } from './QueuePanel';
 import { Toast, type ToastState } from './Toast';
 import { TopBar } from './TopBar';
 import type { Account } from '../shell/AccountMenu';
-import { Legend, TrackerGraph, type DatePreview, type Reveal } from './TrackerGraph';
+import { TrackerGraph, type DatePreview, type Reveal } from './TrackerGraph';
 import {
   browserStore,
   EMPTY_VIEW,
   hiddenList,
   keepFocus,
+  readDensity,
+  readLegendOpen,
   readNoticeOff,
+  readTeamOpen,
   readViewState,
   revealRows,
   toggleId,
+  writeDensity,
+  writeLegendOpen,
   writeNoticeOff,
+  writeTeamOpen,
   writeViewState,
   type ViewState,
 } from './view-state';
@@ -131,16 +144,18 @@ export type TrackerActions = {
   merge: () => void;
   undo: () => void;
   removeChange: (index: number) => void;
+  clearStale: () => void;
   addToQueue: (what: 'event' | 'item') => void;
   openQueueEvent: (id: string) => void;
   openQueueItem: (id: string) => void;
   addEvent: (workItemId: string) => void;
   markDone: (workItemId: string) => void;
+  cancelItem: (workItemId: string) => void;
   moveDate: (target: DateTarget) => void;
   saveRename: (workItemId: string, title: string) => void;
   editItem: (ops: OpInput[]) => void;
   changeKind: (eventId: string) => void;
-  setKind: (eventId: string, kind: EventKind) => void;
+  setKind: (eventId: string, kind: EventKind, finishes?: boolean) => void;
   moveEvent: (eventId: string) => void;
   hideEvent: (eventId: string) => void;
   newMilestone: () => void;
@@ -166,11 +181,13 @@ export const NO_ACTIONS: TrackerActions = {
   merge: noop,
   undo: noop,
   removeChange: noop,
+  clearStale: noop,
   addToQueue: noop,
   openQueueEvent: noop,
   openQueueItem: noop,
   addEvent: noop,
   markDone: noop,
+  cancelItem: noop,
   moveDate: noop,
   saveRename: noop,
   editItem: noop,
@@ -190,8 +207,10 @@ export const POLL_MS = 5000;
 const OUTSIDE_EXEMPT =
   '.p-head, .bbar, .pop, .drawer, .p-side, .empty, .ro-note, svg.tg, .tk-modal, .tk-toast, .zoombar, .gtools';
 // These layers close themselves on Esc, so the screen leaves the rest open.
-const OWN_ESCAPE = '.tk details[open], .tk .tsearch-pop:not([hidden]), .tk .hand-menu';
+const OWN_ESCAPE =
+  '.tk details[open], .tk .tsearch-pop:not([hidden]), .tk .hand-menu, .tk .field-pop, .tk .view-pop, .tk .legend-pop:focus-within';
 const MINUTE = 60_000;
+const PHONE_QUERY = '(max-width: 760px)';
 
 const samePayload = (a: TrackerPayload, b: TrackerPayload) =>
   JSON.stringify(a) === JSON.stringify(b);
@@ -258,6 +277,15 @@ const minuteNow = () => Math.floor(Date.now() / MINUTE) * MINUTE;
 // Hydration renders with the server's minute, so the T line matches the server HTML; the client clock takes over after.
 export const useNow = (serverNow: number) =>
   useSyncExternalStore(everyHalfMinute, minuteNow, () => serverNow);
+
+const watchPhone = (onChange: () => void) => {
+  const query = window.matchMedia(PHONE_QUERY);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+};
+const isPhone = () => window.matchMedia(PHONE_QUERY).matches;
+// CSS sets the phone column width before this flag arrives, so the first measured span is already right.
+const usePhone = () => useSyncExternalStore(watchPhone, isPhone, () => false);
 
 const crByNum = (p: TrackerPayload, num: number) => p.crs.find((c) => c.num === num);
 const withoutNum = (data: TrackerPayload & { num?: number }): TrackerPayload => {
@@ -386,6 +414,36 @@ export function TrackerScreen({
     writeViewState(browserStore(), projectId, next);
   };
 
+  const [density, setDensity] = useState<Density>('compact');
+  const [teamOpen, setTeamOpen] = useState<TeamToggles>(new Map());
+  useLayoutEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDensity(readDensity(browserStore(), userId));
+  }, [userId]);
+  useLayoutEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTeamOpen(readTeamOpen(browserStore(), projectId));
+  }, [projectId]);
+  const changeDensity = (next: Density) => {
+    setDensity(next);
+    writeDensity(browserStore(), userId, next);
+  };
+  // Null until the browser storage and width are read, so the server HTML holds no legend.
+  const [legend, setLegend] = useState<boolean | null>(null);
+  useLayoutEffect(() => {
+    const phone = window.matchMedia(PHONE_QUERY).matches;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLegend(readLegendOpen(browserStore(), userId, { phone }));
+  }, [userId]);
+  const changeLegend = (open: boolean) => {
+    setLegend(open);
+    writeLegendOpen(browserStore(), userId, open);
+  };
+  const changeTeamOpen = (next: TeamToggles) => {
+    setTeamOpen(next);
+    writeTeamOpen(browserStore(), projectId, next);
+  };
+
   // Null until the browser storage is read, so the server HTML and the first render agree.
   const [noticeOff, setNoticeOff] = useState<boolean | null>(null);
   useLayoutEffect(() => {
@@ -429,7 +487,7 @@ export function TrackerScreen({
   const [drag, setDrag] = useState<DragView | null>(null);
   const [preview, setPreview] = useState<DatePreview | null>(null);
   const [moving, setMoving] = useState<{ eventId: string; from: string } | null>(null);
-  const [popFor, setPopFor] = useState<{ kind: 'act' | 'added'; id: string } | null>(null);
+  const [popFor, setPopFor] = useState<{ kind: 'act' | 'added' | 'kind'; id: string } | null>(null);
   const [queueTab, setQueueTab] = useState<QueueTab>('events');
   const root = useRef<HTMLDivElement>(null);
   const gwrap = useRef<HTMLDivElement>(null);
@@ -500,10 +558,32 @@ export function TrackerScreen({
     return () => document.removeEventListener('click', onClick);
   }, [shownPop]);
 
+  // Search, filters and a focus open every team; a toggle made then lasts until the graph is whole again.
+  const narrowed = !!rowMatch || !!focused || !!focusedTeam;
+  const narrowKey = narrowed ? JSON.stringify([rowFilter, focused, focusedTeam]) : null;
+  const [activeToggles, setActiveToggles] = useState<{ key: string | null; map: TeamToggles }>({
+    key: null,
+    map: new Map(),
+  });
+  if (activeToggles.key !== narrowKey) setActiveToggles({ key: narrowKey, map: new Map() });
+  const changed = useMemo(() => changedTeams(state, current.marks), [state, current.marks]);
+  const collapsed = useMemo(
+    () =>
+      collapsedTeams(state, {
+        asOf,
+        timeZone: tz,
+        toggles: teamOpen,
+        changed,
+        active: narrowed,
+        activeToggles: activeToggles.map,
+      }),
+    [state, asOf, tz, teamOpen, changed, narrowed, activeToggles.map],
+  );
   const windowStart = useMemo(
     () => windowStartFor(state, project.windowStart, asOf, tz),
     [state, project.windowStart, asOf, tz],
   );
+  const phone = usePhone();
   const layout = useMemo(
     () =>
       layoutTracker(
@@ -518,11 +598,30 @@ export function TrackerScreen({
           focusTeam: focusedTeam,
           filter: rowMatch,
           focusButtons: true,
+          density,
+          collapsedTeams: collapsed,
+          plusButtons: edit,
+          ...(phone ? { side: GEOMETRY.NARROW_SIDE } : {}),
           ...(windowStart ? { windowStart } : {}),
         },
         current.marks,
       ),
-    [state, hidden, asOf, tz, scale, focused, focusedTeam, rowMatch, windowStart, current.marks],
+    [
+      state,
+      hidden,
+      asOf,
+      tz,
+      scale,
+      focused,
+      focusedTeam,
+      rowMatch,
+      windowStart,
+      current.marks,
+      density,
+      collapsed,
+      edit,
+      phone,
+    ],
   );
   // Pointer handlers outlive the render that started a drag, and a poll can land in between.
   const live = useRef<{
@@ -572,13 +671,52 @@ export function TrackerScreen({
     hide({ ...hidden, hiddenRows: toggleId(hidden.hiddenRows, id) });
   const toggleTeam = (id: string) =>
     hide({ ...hidden, hiddenTeams: toggleId(hidden.hiddenTeams, id) });
-  const reveal = (ids: string[]) => changeHidden(revealRows(hidden, ids, teamOf));
+  /** `narrowedAfter`: the graph stays narrowed after this action, so the opening is temporary. */
+  const openTeams = (teams: string[], narrowedAfter = narrowed) => {
+    const plan = openTeamsPlan(
+      state,
+      { asOf, timeZone: tz, toggles: teamOpen, changed },
+      teams,
+      narrowedAfter,
+    );
+    if (plan.toggles) changeTeamOpen(plan.toggles);
+    if (plan.active.length)
+      setActiveToggles((a) => ({
+        ...a,
+        map: new Map([...a.map, ...plan.active.map((t) => [t, true] as const)]),
+      }));
+  };
+  const openTeamsOf = (ids: string[], narrowedAfter = narrowed) =>
+    openTeams(
+      ids.map(teamOf).filter((t): t is string => !!t),
+      narrowedAfter,
+    );
+  const toggleCollapse = (teamId: string) => {
+    setPop(null);
+    const open = collapsed.has(teamId);
+    if (narrowed) setActiveToggles((a) => ({ ...a, map: new Map([...a.map, [teamId, open]]) }));
+    else changeTeamOpen(new Map([...teamOpen, [teamId, open]]));
+  };
+  const setAllTeams = (open: boolean) => {
+    setPop(null);
+    const all = new Map(state.teams.map((t) => [t.id, open] as const));
+    changeTeamOpen(new Map([...teamOpen, ...all]));
+    if (narrowed) setActiveToggles((a) => ({ ...a, map: all }));
+  };
+  const reveal = (ids: string[]) => {
+    changeHidden(revealRows(hidden, ids, teamOf));
+    openTeamsOf(ids);
+  };
   const filteredOut = (workItemId: string, match: RowMatch | null) =>
     !!match && !match.match.has(workItemId) && !match.context.has(workItemId);
   const bringIn = (workItemId: string, match = rowMatch) => {
-    if (isHidden(workItemId)) reveal([workItemId]);
-    if (inFocus && !inFocus.has(workItemId)) setFocus(null);
-    if (filteredOut(workItemId, match)) setRowFilter(NO_FILTER);
+    const leaveFocus = !!inFocus && !inFocus.has(workItemId);
+    const clearFilters = filteredOut(workItemId, match);
+    const narrowedAfter = (!!match && !clearFilters) || (!!(focused || focusedTeam) && !leaveFocus);
+    if (isHidden(workItemId)) changeHidden(revealRows(hidden, [workItemId], teamOf));
+    openTeamsOf([workItemId], narrowedAfter);
+    if (leaveFocus) setFocus(null);
+    if (clearFilters) setRowFilter(NO_FILTER);
   };
   const find = (workItemId: string) =>
     setInView((r) => ({ rowId: workItemId, key: (r?.key ?? 0) + 1 }));
@@ -683,6 +821,10 @@ export function TrackerScreen({
     void write((p) => removeOp(projectId, num, index, revisionOf(p, num)));
   };
   const undoLast = (num: number) => removeAt(num, 'last');
+  const removeAll = async (num: number, indexes: readonly number[]) => {
+    for (const index of indexes)
+      if (!(await write((p) => removeOp(projectId, num, index, revisionOf(p, num))))) return;
+  };
 
   const appendAll = async (num: number, ops: readonly OpInput[]) => {
     let last: TrackerPayload | null = null;
@@ -698,17 +840,19 @@ export function TrackerScreen({
   };
 
   /** Only the editor of a draft changes the graph; every other view has no way to start a change. */
-  const commitOps = (ops: OpInput[], after?: { added?: string }) => {
+  const commitOps = (ops: OpInput[], after?: { added?: string; kindPop?: string }) => {
     if (!ops.length || !cr || !edit) return;
-    setPop(null);
+    if (!after?.kindPop) setPop(null);
     setMoving(null);
     if (!fits(state, ops, tz)) {
       showToast('That change does not fit this graph.');
       return;
     }
     closeModal();
+    openTeams(teamsOfOps(state, ops));
     void appendAll(cr.num, ops).then((p) => {
       if (p && after?.added) setPopFor({ kind: 'added', id: after.added });
+      if (p && after?.kindPop) setPopFor({ kind: 'kind', id: after.kindPop });
     });
   };
 
@@ -860,6 +1004,9 @@ export function TrackerScreen({
     removeChange: (index) => {
       if (cr && edit) removeAt(cr.num, index);
     },
+    clearStale: () => {
+      if (cr && edit && model) void removeAll(cr.num, model.stale);
+    },
     addToQueue: (what) => openModal({ mode: 'add', what }),
     openQueueEvent: (id) =>
       state.workItems.length
@@ -868,6 +1015,7 @@ export function TrackerScreen({
     openQueueItem: (id) => openModal({ mode: 'placeItem', itemId: id }),
     addEvent: (workItemId) => openModal({ mode: 'event', workItemId }),
     markDone: (workItemId) => openModal({ mode: 'event', workItemId, done: true }),
+    cancelItem: (workItemId) => openModal({ mode: 'event', workItemId, cancel: true }),
     moveDate: ({ kind, id }) => {
       const date =
         kind === 'ms'
@@ -885,9 +1033,14 @@ export function TrackerScreen({
       const anchor = anchorOf(`[data-act="${eventId}"]`) ?? pop?.anchor;
       if (anchor) setPop({ kind: 'kind', id: eventId, anchor, view });
     },
-    setKind: (eventId, kind) => {
-      if (state.events.find((e) => e.id === eventId)?.kind === kind) return setPop(null);
-      commitOps([{ op: 'kind', a: { eventId, kind } }]);
+    setKind: (eventId, kind, finishes) => {
+      const ev = state.events.find((e) => e.id === eventId);
+      if (ev?.kind === kind && (finishes === undefined || finishes === !!ev.finishes))
+        return setPop(null);
+      // A kind change to Handoff leaves it open until the person ticks the box, so no item finishes by surprise.
+      commitOps([{ op: 'kind', a: { eventId, kind, ...(finishes ? { finishes: true } : {}) } }], {
+        ...(kind === 'handoff' ? { kindPop: eventId } : {}),
+      });
     },
     moveEvent: (eventId) => {
       const ev = state.events.find((e) => e.id === eventId);
@@ -1221,15 +1374,9 @@ export function TrackerScreen({
         userId={userId}
         state={state}
         asOf={asOf}
-        hidden={hiddenNow}
         drawer={drawer?.mode ?? null}
         actions={actions}
         onDrawer={(mode) => mode !== 'ms' && mode !== 'item' && toggleDrawer(mode)}
-        onUnhideTeam={(id) =>
-          changeHidden({ ...hidden, hiddenTeams: hidden.hiddenTeams.filter((t) => t !== id) })
-        }
-        onUnhideItem={(id) => reveal([id])}
-        onUnhideAll={() => changeHidden(EMPTY_VIEW)}
         onActAs={(id) => void onActAs(id)}
         onPick={pickItem}
         filter={rowFilter}
@@ -1242,12 +1389,21 @@ export function TrackerScreen({
         busy={busy}
         onView={openView}
         onDrawer={toggleDrawer}
+        hidden={{
+          hidden: hiddenNow,
+          onUnhideTeam: (id) =>
+            changeHidden({ ...hidden, hiddenTeams: hidden.hiddenTeams.filter((t) => t !== id) }),
+          onUnhideItem: (id) => reveal([id]),
+          onUnhideAll: () => changeHidden(EMPTY_VIEW),
+        }}
         {...(model
           ? {
               review: {
                 canMerge: model.canMerge,
                 changed: frozen.changed,
                 onReviewAgain: reviewAgain,
+                applying: model.applying,
+                inMain: model.inMain,
               },
             }
           : {})}
@@ -1304,7 +1460,7 @@ export function TrackerScreen({
                   onClick={() => setSideOpen(true)}
                 >
                   <Icon name="sidebar" size={14} /> {mayEdit ? 'Changes and Queue' : 'Changes'}{' '}
-                  <span className="cnt">{model.changes.length}</span>
+                  <span className="cnt">{model.applying}</span>
                 </button>
               )}
               <span className="seg" role="group" aria-label="Graph state">
@@ -1376,6 +1532,13 @@ export function TrackerScreen({
               onBackground={() => setPop(null)}
               full={full}
               onFull={toggleFull}
+              onCollapse={toggleCollapse}
+              density={density}
+              onDensity={changeDensity}
+              onExpandAll={() => setAllTeams(true)}
+              onCollapseAll={() => setAllTeams(false)}
+              legend={legend}
+              onLegend={changeLegend}
             />
             {edit && (
               <div className="bin" aria-hidden="true">
@@ -1474,6 +1637,7 @@ export function TrackerScreen({
               milestoneId={drawer.id}
               edit={edit}
               actions={actions}
+              onPick={(id) => openItem(id)}
             />
           )}
           {drawer?.mode === 'crs' && (
@@ -1495,7 +1659,6 @@ export function TrackerScreen({
           )}
         </div>
       </div>
-      <Legend />
       {modal && (
         <Modal
           key={modal.key}

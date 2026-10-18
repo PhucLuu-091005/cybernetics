@@ -14,13 +14,18 @@ import {
   formatDay,
   formatDeadline,
   formatStamp,
+  FINISHES_NOTE,
+  isFinishingHandoff,
   itemInfo,
   itemStatus,
   KIND_LABEL,
-  lateBy,
+  kindWithArticle,
+  lateBadge,
   mainState,
   milestoneStatus,
+  pickable,
   replayOps,
+  startHint,
   STATUS_LABEL,
   STATUS_TONE,
   teamFocusTree,
@@ -31,6 +36,7 @@ import {
   type DateMove,
   type FocusNode,
   type TrackerState,
+  type WorkItem,
 } from '../../tracker';
 import type { OpInput } from './api';
 import { Avatar, Avatars, type Directory } from './avatar';
@@ -47,6 +53,7 @@ import {
   type Session,
 } from './ContextBar';
 import { Icon, KIND_COLOR, KindIcon } from './icons';
+import { Select } from './Select';
 import { DateInput } from './DateInput';
 import { TimeInput } from './TimeInput';
 import { Moves } from './Pops';
@@ -115,7 +122,14 @@ export function MilestoneDrawer({
   edit,
   actions,
   busy = false,
-}: Base & { milestoneId: string; edit: boolean; actions: TrackerActions }) {
+  onPick,
+}: Base & {
+  milestoneId: string;
+  edit: boolean;
+  actions: TrackerActions;
+  /** A member name opens that work item and brings its row into view. */
+  onPick?: (workItemId: string) => void;
+}) {
   const { dir, tz } = session;
   const m = state.milestones.find((x) => x.id === milestoneId);
   // Null until the editor types, so a hand-over or a poll shows the current milestone, not a stale copy.
@@ -141,13 +155,9 @@ export function MilestoneDrawer({
       head={
         <>
           <h4>{m.name}</h4>
-          <span className={`badge st-${status}`}>{STATUS_LABEL[status]}</span>
-          {status === 'late' && (
-            <small style={{ display: 'inline', color: 'var(--danger-ink)' }}>
-              {' '}
-              {lateBy(m, asOf, tz)}
-            </small>
-          )}
+          <span className={`badge st-${status}`}>
+            {status === 'late' ? lateBadge(m, asOf, tz) : STATUS_LABEL[status]}
+          </span>
         </>
       }
       onClose={onClose}
@@ -164,12 +174,11 @@ export function MilestoneDrawer({
           </label>
           <label className="field">
             Planned date
-            <input
-              type="date"
+            <DateInput
+              label="Planned date"
+              today={dayOf(asOf, tz)}
               value={date}
-              onChange={(event) =>
-                event.target.value && setDraft({ name, date: event.target.value, time })
-              }
+              onChange={(next) => setDraft({ name, date: next, time })}
             />
           </label>
           <label className="field">
@@ -201,14 +210,22 @@ export function MilestoneDrawer({
       />
       <p className="q-label">Work items in this milestone ({members.length})</p>
       {members.map((w) => {
-        const finishedAt = itemInfo(w, state.events).finishedAt;
+        const { finishedAt, cancelled } = itemInfo(w, state.events);
         return (
           <div className="mem" key={w.id}>
             <div>
-              <b>{w.title}</b>
+              {onPick ? (
+                <button className="lnk mem-title" type="button" onClick={() => onPick(w.id)}>
+                  {w.title}
+                </button>
+              ) : (
+                <b>{w.title}</b>
+              )}
               <small>
-                {finishedAt ? `Done ${formatDay(dayOf(finishedAt, tz))}` : 'Not finished'} ·{' '}
-                {team(w.teamId)}
+                {finishedAt
+                  ? `${cancelled ? 'Cancelled' : 'Done'} ${formatDay(dayOf(finishedAt, tz))}`
+                  : 'Not finished'}{' '}
+                · {team(w.teamId)}
               </small>
             </div>
             {edit && (
@@ -226,17 +243,13 @@ export function MilestoneDrawer({
       })}
       {edit && outside.length > 0 && (
         <div className="share-add">
-          <select
-            aria-label="Work item to add"
+          <Select
+            label="Work item to add"
+            className="grow"
             value={pick}
-            onChange={(event) => setAdding(event.target.value)}
-          >
-            {outside.map((w) => (
-              <option key={w.id} value={w.id}>
-                {trunc(w.title, 44)}
-              </option>
-            ))}
-          </select>
+            onChange={setAdding}
+            options={outside.map((w) => ({ value: w.id, label: trunc(w.title, 44) }))}
+          />
           <button
             className="btn"
             type="button"
@@ -311,6 +324,11 @@ function MoveHistory({
   );
 }
 
+const itemDeadlineOf = (item: WorkItem) => ({
+  planned: item.plannedFinish,
+  plannedTime: item.plannedFinishTime,
+});
+
 function Who({ id, dir }: { id: string; dir: Directory }) {
   return (
     <span className="who">
@@ -356,10 +374,8 @@ export function WorkItemDrawer({
   if (!item) return null;
   const info = itemInfo(item, state.events, asOf);
   const status = itemStatus(item, state.events, asOf, tz);
+  const hint = startHint(item, state.events);
   const late = status === 'late';
-  const lateText = late
-    ? lateBy({ planned: item.plannedFinish, plannedTime: item.plannedFinishTime }, asOf, tz)
-    : null;
   const team = state.teams.find((t) => t.id === item.teamId)?.name ?? '';
   const ms = state.milestones.find((m) => m.id === item.milestoneId);
   const msStat = ms ? milestoneStatus(ms, state.workItems, state.events, asOf, tz).status : null;
@@ -403,18 +419,17 @@ export function WorkItemDrawer({
   const people = (value: string, label: string, onPick: (id: string) => void) => (
     <span className="wi-pick">
       <Avatar id={value} dir={dir} sm />
-      <select
-        aria-label={label}
+      <Select
+        label={label}
+        className="quiet"
         value={value}
         disabled={busy}
-        onChange={(e) => onPick(e.target.value)}
-      >
-        {state.people.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name}
-          </option>
-        ))}
-      </select>
+        onChange={onPick}
+        options={pickable(state.people, session.payload.members, value).map((p) => ({
+          value: p.id,
+          label: p.name,
+        }))}
+      />
     </span>
   );
   const finish = formatDeadline(item.plannedFinish, item.plannedFinishTime);
@@ -422,7 +437,16 @@ export function WorkItemDrawer({
     <Frame
       label={item.title}
       icon={
-        <span className="pi" style={{ color: info.done ? 'var(--proceed)' : 'var(--route)' }}>
+        <span
+          className="pi"
+          style={{
+            color: info.cancelled
+              ? 'var(--isolated)'
+              : info.done
+                ? 'var(--proceed)'
+                : 'var(--route)',
+          }}
+        >
           <Icon name="loop" size={15} />
         </span>
       }
@@ -464,8 +488,9 @@ export function WorkItemDrawer({
         </div>
       )}
       <div className="wi-top">
-        <span className={`badge st-${status}`}>{STATUS_LABEL[status]}</span>
-        {lateText && <span className="late-by">{lateText}</span>}
+        <span className={`badge st-${status}`}>
+          {late ? lateBadge(itemDeadlineOf(item), asOf, tz) : STATUS_LABEL[status]}
+        </span>
         <span className="sp" />
         <button
           className="btn sm btn-quiet"
@@ -477,6 +502,15 @@ export function WorkItemDrawer({
           {hidden ? 'Show on the graph' : 'Hide from the graph'}
         </button>
       </div>
+      {hint && (
+        <p className="wi-hint" role="note" aria-label="Start of the work item">
+          <Icon name="info" size={14} />
+          <span>
+            This work item starts with {kindWithArticle(hint)}. Add the event that started it, such
+            as a Message, an Idea or a Task.
+          </span>
+        </p>
+      )}
       {edit && !info.done && (
         <div className="row-btns wi-acts">
           <button
@@ -489,26 +523,23 @@ export function WorkItemDrawer({
           <button className="btn sm" type="button" onClick={() => actions.markDone(item.id)}>
             <KindIcon kind="done" size={13} /> Mark done
           </button>
+          <button className="btn sm" type="button" onClick={() => actions.cancelItem(item.id)}>
+            <KindIcon kind="cancelled" size={13} /> Cancel work item
+          </button>
         </div>
       )}
       <dl className="facts wi-facts">
         <dt>Team</dt>
         <dd>
           {edit ? (
-            <select
-              aria-label="Team"
+            <Select
+              label="Team"
+              className="quiet"
               value={item.teamId}
               disabled={busy}
-              onChange={(e) =>
-                change({ op: 'team', a: { workItemId: item.id, teamId: e.target.value } })
-              }
-            >
-              {state.teams.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
+              onChange={(teamId) => change({ op: 'team', a: { workItemId: item.id, teamId } })}
+              options={state.teams.map((t) => ({ value: t.id, label: t.name }))}
+            />
           ) : (
             team
           )}
@@ -537,25 +568,26 @@ export function WorkItemDrawer({
         <dt>Milestone</dt>
         <dd>
           {edit ? (
-            <select
-              aria-label="Milestone"
+            <Select
+              label="Milestone"
+              className="quiet"
               value={item.milestoneId ?? ''}
               disabled={busy}
-              onChange={(e) =>
+              onChange={(milestoneId) =>
                 change(
-                  e.target.value
-                    ? { op: 'msAdd', a: { workItemId: item.id, milestoneId: e.target.value } }
+                  milestoneId
+                    ? { op: 'msAdd', a: { workItemId: item.id, milestoneId } }
                     : { op: 'msRemove', a: { workItemId: item.id } },
                 )
               }
-            >
-              <option value="">None</option>
-              {state.milestones.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name} · {formatDeadline(m.planned, m.plannedTime)}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: '', label: 'None' },
+                ...state.milestones.map((m) => ({
+                  value: m.id,
+                  label: `${m.name} · ${formatDeadline(m.planned, m.plannedTime)}`,
+                })),
+              ]}
+            />
           ) : ms && msStat ? (
             <>
               <button className="lnk" type="button" onClick={() => onMilestone(ms.id)}>
@@ -577,12 +609,12 @@ export function WorkItemDrawer({
               <span className="wi-date">
                 <DateInput
                   label="Planned finish"
+                  today={dayOf(asOf, tz)}
                   value={plan.date}
                   onChange={(date) => setDates({ ...plan, date })}
                 />
                 <TimeInput value={plan.time} onChange={(time) => setDates({ ...plan, time })} />
               </span>
-              {late && !moved && <span className="late-by">{lateText}</span>}
               {moved && (
                 <div className="wi-why">
                   <label className="field">
@@ -611,10 +643,7 @@ export function WorkItemDrawer({
               )}
             </div>
           ) : (
-            <>
-              {finish}
-              {lateText && ` · ${lateText}`}
-            </>
+            finish
           )}
         </dd>
         <dt>Finished</dt>
@@ -629,24 +658,19 @@ export function WorkItemDrawer({
             <dt>Parent</dt>
             <dd>
               {edit ? (
-                <select
-                  aria-label="Parent"
+                <Select
+                  label="Parent"
+                  className="quiet"
                   value={item.parentId ?? ''}
                   disabled={busy}
-                  onChange={(e) =>
-                    change({
-                      op: 'parent',
-                      a: { workItemId: item.id, parentId: e.target.value || null },
-                    })
+                  onChange={(parentId) =>
+                    change({ op: 'parent', a: { workItemId: item.id, parentId: parentId || null } })
                   }
-                >
-                  <option value="">None</option>
-                  {others.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {trunc(w.title, 44)}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    { value: '', label: 'None' },
+                    ...others.map((w) => ({ value: w.id, label: trunc(w.title, 44) })),
+                  ]}
+                />
               ) : (
                 parent && link(parent)
               )}
@@ -681,28 +705,26 @@ export function WorkItemDrawer({
                 ),
               )}
               {edit && (
-                <select
-                  aria-label="Add to Leads from"
+                <Select
+                  label="Add to Leads from"
+                  className="quiet"
                   value={adding}
                   disabled={busy}
-                  onChange={(e) => {
+                  onChange={(next) => {
                     setAdding('');
-                    if (e.target.value)
+                    if (next)
                       change({
                         op: 'after',
-                        a: { workItemId: item.id, after: [...item.after, e.target.value] },
+                        a: { workItemId: item.id, after: [...item.after, next] },
                       });
                   }}
-                >
-                  <option value="">{sources.length ? 'Add another…' : 'Nothing · add…'}</option>
-                  {others
-                    .filter((w) => !item.after.includes(w.id))
-                    .map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {trunc(w.title, 44)}
-                      </option>
-                    ))}
-                </select>
+                  options={[
+                    { value: '', label: sources.length ? 'Add another…' : 'Nothing · add…' },
+                    ...others
+                      .filter((w) => !item.after.includes(w.id))
+                      .map((w) => ({ value: w.id, label: trunc(w.title, 44) })),
+                  ]}
+                />
               )}
             </dd>
           </>
@@ -735,6 +757,7 @@ export function WorkItemDrawer({
                 </b>
                 <small>
                   {formatStamp(ev.at, tz)}
+                  {isFinishingHandoff(ev) && ` · ${FINISHES_NOTE}`}
                   {ev.hidden && <span className="chipx"> hidden</span>}
                 </small>
                 <span>{ev.text}</span>

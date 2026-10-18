@@ -7,8 +7,26 @@ import {
   TextSchema,
 } from './primitives';
 
-export const ScopeSchema = z.enum(['project:read', 'queue:add']);
+/**
+ * One scope per right a person can hold in a project. No scope manages tokens, deletes the project or
+ * hands over the project lead: those stay browser actions.
+ */
+export const ScopeSchema = z.enum([
+  'project:read',
+  'queue:add',
+  'queue:dismiss',
+  'crs:edit',
+  'crs:ready',
+  'crs:comment',
+  'crs:merge',
+  'crs:close',
+  'members:manage',
+  'teams:manage',
+]);
 export type Scope = z.infer<typeof ScopeSchema>;
+/** A stored token may hold a scope that no longer exists (round 14 had project:lead); it grants nothing. */
+export const knownScopes = (stored: readonly string[]): Scope[] =>
+  stored.filter((scope): scope is Scope => ScopeSchema.safeParse(scope).success);
 export const DEFAULT_AGENT_SCOPES: readonly Scope[] = ['project:read', 'queue:add'];
 const verified = {
   workspaceId: IdSchema,

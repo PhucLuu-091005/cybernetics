@@ -72,6 +72,19 @@ export const KIND_ICON: Record<EventKind, ReactNode> = {
       <path d="m22 10-7.5 7.5L13 16" />
     </g>
   ),
+  idea: (
+    <g {...S}>
+      <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
+      <path d="M9 18h6" />
+      <path d="M10 22h4" />
+    </g>
+  ),
+  cancelled: (
+    <g {...S}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="m9 15 6-6" />
+    </g>
+  ),
 };
 
 export const KIND_COLOR: Record<EventKind, string> = {
@@ -83,6 +96,8 @@ export const KIND_COLOR: Record<EventKind, string> = {
   delivery: 'var(--k-delivery)',
   issue: 'var(--k-issue)',
   done: 'var(--k-done)',
+  idea: 'var(--k-idea)',
+  cancelled: 'var(--k-cancelled)',
 };
 
 const SHAPES = {
@@ -179,6 +194,13 @@ const SHAPES = {
   chev: (
     <g {...S}>
       <path d="m6 9 6 6 6-6" />
+    </g>
+  ),
+  rows: (
+    <g {...S}>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M21 9H3" />
+      <path d="M21 15H3" />
     </g>
   ),
   branch: (
@@ -316,12 +338,30 @@ const SHAPES = {
       <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
     </g>
   ),
+  info: (
+    <g {...S}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4" />
+      <path d="M12 8h.01" />
+    </g>
+  ),
   cal: (
     <g {...S}>
       <path d="M8 2v4" />
       <path d="M16 2v4" />
       <rect width="18" height="18" x="3" y="4" rx="2" />
       <path d="M3 10h18" />
+    </g>
+  ),
+  legend: (
+    <g {...S}>
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M7 8h2" />
+      <path d="M12 8h5" />
+      <path d="M7 12h2" />
+      <path d="M12 12h5" />
+      <path d="M7 16h2" />
+      <path d="M12 16h5" />
     </g>
   ),
 } satisfies Record<string, ReactNode>;

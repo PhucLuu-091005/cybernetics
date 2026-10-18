@@ -7,13 +7,15 @@
   --change-bg: #ffe14d;
   --edit-bg: #fefce9;
   --k-message: #0c67b6;
-  --k-task: #6550b9;
+  --k-task: #60646c;
   --k-handoff: #0e738c;
   --k-decision: #975800;
-  --k-meeting: #ba2784;
+  --k-meeting: #9e5426;
   --k-delivery: #54722b;
   --k-issue: #be282d;
   --k-done: #1e744e;
+  --k-idea: #3a5bc7;
+  --k-cancelled: #60646c;
 }
 :root[data-theme='dark'] {
   --change: #ffe629;
@@ -21,13 +23,15 @@
   --change-bg: #6e5a00;
   --edit-bg: #1b180f;
   --k-message: #70b8ff;
-  --k-task: #baa7ff;
+  --k-task: #b0b4ba;
   --k-handoff: #4ccce6;
   --k-decision: #ffca16;
-  --k-meeting: #ff8dcc;
+  --k-meeting: #dbb594;
   --k-delivery: #d4ff70;
   --k-issue: #ff9592;
   --k-done: #3dd68c;
+  --k-idea: #9eb1ff;
+  --k-cancelled: #b0b4ba;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
@@ -36,13 +40,31 @@
     --change-bg: #6e5a00;
     --edit-bg: #1b180f;
     --k-message: #70b8ff;
-    --k-task: #baa7ff;
+    --k-task: #b0b4ba;
     --k-handoff: #4ccce6;
     --k-decision: #ffca16;
-    --k-meeting: #ff8dcc;
+    --k-meeting: #dbb594;
     --k-delivery: #d4ff70;
     --k-issue: #ff9592;
     --k-done: #3dd68c;
+    --k-idea: #9eb1ff;
+    --k-cancelled: #b0b4ba;
+  }
+}
+/* The tint under an event circle and its icon, and the stronger tint of the circles behind a stack.
+   Light keeps 12 % so the darkest kind icon still reads at 4.5:1 on it; dark stays calm. */
+:root {
+  --k-tint: 12%;
+  --k-tint-back: 26%;
+}
+:root[data-theme='dark'] {
+  --k-tint: 16%;
+  --k-tint-back: 30%;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --k-tint: 16%;
+    --k-tint-back: 30%;
   }
 }
 
@@ -75,52 +97,6 @@
   font-size: var(--fs-s);
 }
 
-.tk .btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: 1px solid var(--rule);
-  background: var(--panel);
-  color: var(--ink);
-  border-radius: var(--r-ctl);
-  padding: 6px 11px;
-  font-weight: 500;
-  font-size: var(--fs-s);
-  cursor: pointer;
-  min-height: 32px;
-  white-space: nowrap;
-  line-height: 1.2;
-  box-shadow: var(--shadow-sm);
-  text-decoration: none;
-}
-.tk .btn:hover:not(:disabled) {
-  background: var(--sunk);
-}
-.tk .btn svg {
-  flex: none;
-}
-.tk .btn.big {
-  min-height: 40px;
-  font-size: var(--fs);
-  padding: 8px 16px;
-  border-radius: var(--r-ctl);
-}
-.tk .btn.sm {
-  min-height: 28px;
-  font-size: var(--fs-xs);
-  padding: 4px 9px;
-  border-radius: 8px;
-}
-.tk .btn-ink,
-.tk .btn-ink:hover:not(:disabled) {
-  background: var(--ink);
-  color: var(--panel);
-  border-color: var(--ink);
-}
-.tk .btn-ink:hover:not(:disabled) {
-  opacity: 0.9;
-}
 .tk .btn-draft,
 .tk .btn-draft:hover:not(:disabled) {
   background: var(--panel);
@@ -140,10 +116,6 @@
 }
 .tk .btn-stop:hover:not(:disabled) {
   background: var(--danger-ink);
-}
-.tk .btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 .tk .cnt {
   display: inline-grid;
@@ -188,7 +160,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 12px;
+  padding: 10px var(--page-x);
   border-bottom: 1px solid var(--rule);
   flex-wrap: wrap;
   min-height: 52px;
@@ -262,13 +234,6 @@
   font-weight: 500;
   white-space: nowrap;
 }
-.tk .gdot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex: none;
-  background: var(--ink);
-}
 .tk .gmenu {
   position: absolute;
   top: calc(100% + 6px);
@@ -295,6 +260,10 @@
   text-align: left;
   font-size: var(--fs);
   line-height: 1.4;
+}
+.tk .gmenu button > svg {
+  flex: none;
+  color: var(--ink-3);
 }
 .tk .gmenu button:hover {
   background: var(--hover);
@@ -416,18 +385,9 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
-.tk .demo select {
-  min-height: 32px;
-  border: 1px solid var(--rule);
-  background: var(--panel);
-  border-radius: var(--r-ctl);
-  padding: 0 6px;
-  font-size: var(--fs-s);
+.tk .demo .sel-btn {
+  max-width: 160px;
   font-weight: 500;
-  text-transform: none;
-  letter-spacing: 0;
-  color: var(--ink);
-  max-width: 140px;
   box-shadow: var(--shadow-sm);
 }
 /* The search gets the room of the word on a laptop; the select keeps its name and title. */
@@ -471,7 +431,7 @@
   flex-direction: row;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
+  padding: 8px var(--page-x);
   border-bottom: 1px solid var(--rule);
   flex-wrap: wrap;
   font-size: var(--fs-s);
@@ -496,6 +456,10 @@
 }
 .tk .bbar .sp {
   flex: 1;
+}
+/* On a wrapped phone bar the badge keeps the right end of its line. */
+.tk .bbar > .hid-menu {
+  margin-left: auto;
 }
 .tk .bbar .muted {
   font-size: var(--fs-s);
@@ -548,8 +512,8 @@
   font-size: var(--fs-s);
 }
 
-/* The board fills the viewport: the bars and the legend stay put, and the graph canvas scrolls
-   inside the space between them. A phone keeps the page scroll, as the Queue stacks above. */
+/* The board fills the viewport: the bars stay put, and the graph canvas scrolls
+   inside the space below them. A phone keeps the page scroll, as the Queue stacks above. */
 .tk.board {
   height: 100vh;
   height: 100dvh;
@@ -562,10 +526,12 @@
   min-width: 0;
 }
 .tk .p-side {
+  /* The side panel lines up with the page bars; its rows run to its edges. */
+  --side-x: var(--page-x);
   width: 252px;
   flex: none;
   border-right: 1px solid var(--rule);
-  padding: 12px 12px 0;
+  padding: 12px 12px 0 var(--side-x);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -626,10 +592,22 @@
 }
 .tk .side-list {
   overflow-y: auto;
-  margin: 0 -12px;
-  padding: 0 12px;
+  margin: 0 -12px 0 calc(-1 * var(--side-x));
+  padding: 0 12px 0 var(--side-x);
   border-top: 1px solid var(--rule);
   gap: 0;
+}
+.tk .chg-stale {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 -12px 0 calc(-1 * var(--side-x));
+  padding: 6px 12px 6px var(--side-x);
+  min-height: 36px;
+  font-size: var(--fs-s);
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--rule-2);
 }
 .tk .chg-list {
   list-style: none;
@@ -637,7 +615,7 @@
   padding: 0;
 }
 .tk .chg-list .chg-row {
-  margin: 0 -12px;
+  margin: 0 -12px 0 calc(-1 * var(--side-x));
   padding: 0 12px 0 0;
   border-top: 0;
   border-bottom: 1px solid var(--rule-2);
@@ -651,7 +629,7 @@
   align-items: flex-start;
   flex: 1;
   min-width: 0;
-  padding: 10px 0 10px 12px;
+  padding: 10px 0 10px var(--side-x);
   border: 0;
   background: none;
   color: inherit;
@@ -722,6 +700,7 @@
 }
 .tk .gcanvas {
   position: relative;
+  box-sizing: border-box;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -729,8 +708,20 @@
   scroll-padding-top: var(--tk-axis-h, 0px);
 }
 
-/* Two columns share one scale: the label column stays put while the time line scrolls. The frame
-   keeps 900 px so a phone scrolls the whole graph instead of squeezing it. */
+@media (min-width: 761px) {
+  .tk .p-side .qlist {
+    margin-left: calc(-1 * var(--side-x));
+  }
+  .tk .p-side .qc {
+    padding-left: var(--side-x);
+  }
+}
+/* The names start 12px inside the graph, so a padding puts them on the page edge of the bars. */
+.tk .p-body > .gwrap:first-child .gcanvas {
+  padding-left: calc(var(--page-x) - 12px);
+}
+/* Two columns share one scale: the label column stays put while the time line scrolls. Above phone
+   width the frame keeps 900 px, so a narrow window scrolls the whole graph instead of squeezing it. */
 .tk .tgraph {
   position: relative;
   display: flex;
@@ -762,15 +753,58 @@
   min-width: 900px;
 }
 .tk .gtime {
+  position: relative;
   flex: 1 1 0;
   min-width: 0;
   overflow-x: auto;
   overscroll-behavior-x: contain;
 }
+/* A phone pins a narrow name column beside the time line; GEOMETRY.NARROW_SIDE is the same 128. */
+@media (max-width: 760px) {
+  .tk .gframe {
+    min-width: 0;
+  }
+  .tk .gframe > svg.pg-side,
+  .tk .gframe > svg.pg-top-side {
+    width: 128px;
+  }
+}
 .tk .gframe svg {
   display: block;
   flex: none;
   height: auto;
+}
+/* The counts of a team sit in the empty lane of its summary row and stay at the left edge of the
+   visible time line while it scrolls sideways. */
+.tk .lane-counts {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 0;
+  pointer-events: none;
+}
+.tk .lane-count {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+}
+.tk .lane-count > span {
+  position: sticky;
+  left: calc(8px + var(--lane-shift, 0px));
+  margin-left: 8px;
+  font-size: var(--fs-xs);
+  line-height: 1;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.tk .lane-count .late {
+  color: var(--danger-ink);
+  font-weight: 600;
+}
+.tk .lane-count .done {
+  color: var(--proceed-ink);
 }
 /* Sticky in a band of its own below the graph, so at the end of the scroll it covers no row. */
 .tk .zoombar {
@@ -793,7 +827,8 @@
     margin-right: calc(min(380px, 100%) + 20px);
   }
 }
-.tk .zoombar button {
+.tk .zoombar > button,
+.tk .zoombar .view-btn {
   display: grid;
   place-items: center;
   min-width: 26px;
@@ -806,19 +841,53 @@
   font: 600 12px/1 var(--f-ui);
   cursor: pointer;
 }
-.tk .zoombar button svg {
+.tk .zoombar > button svg,
+.tk .zoombar .view-btn svg {
   fill: none;
   stroke: currentColor;
   stroke-width: 2.4;
   stroke-linecap: round;
 }
-.tk .zoombar button:hover:not(:disabled) {
+.tk .zoombar > button:hover:not(:disabled),
+.tk .zoombar .view-btn:hover {
   background: var(--hover);
   color: var(--ink);
 }
-.tk .zoombar button:disabled {
+/* A mouse click leaves no ring on the view and zoom buttons; the keyboard keeps it. */
+:root .tk .zoombar button:focus:not(:focus-visible),
+:root .tk .zoombar .view-btn[data-quiet]:focus-visible {
+  outline: none;
+}
+.tk .zoombar > button:disabled {
   opacity: 0.35;
   cursor: default;
+}
+/* The menu hangs from the right end of the whole bar, so on a phone it stays on the screen. */
+.tk .zoombar .view-menu {
+  display: flex;
+  margin-right: 2px;
+  box-shadow: 1px 0 0 var(--rule);
+}
+.tk .zoombar .view-btn[aria-expanded='true'],
+.tk .zoombar .lg-btn[aria-expanded='true'] {
+  background: var(--hover);
+  color: var(--ink);
+}
+.tk .view-pop {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 8;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 4px 12px 12px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-pop);
+  box-shadow: var(--shadow);
+}
+.tk .view-pop .q-label {
+  margin: 8px 0 6px;
 }
 .tk .zoombar .full {
   margin-left: 2px;
@@ -839,8 +908,7 @@
 }
 .tk.board.fullview > .p-head,
 .tk.board.fullview > .bbar,
-.tk.board.fullview > .ro-note,
-.tk.board.fullview > .legend2 {
+.tk.board.fullview > .ro-note {
   display: none;
 }
 .tk .ro-note {
@@ -849,7 +917,7 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  margin: 10px 12px 4px;
+  margin: 10px var(--page-x) 4px;
   padding: 7px 10px 7px 12px;
   border-radius: var(--r-ctl);
   background: var(--route-bg);
@@ -1055,6 +1123,9 @@
 .tk .fdot.st-flate {
   background: var(--caution);
 }
+.tk .fdot.st-cancelled {
+  background: var(--isolated);
+}
 .tk .tfilter-foot {
   display: flex;
   align-items: center;
@@ -1162,32 +1233,6 @@
   gap: 6px;
   flex-wrap: wrap;
 }
-.tk .legend2 {
-  display: flex;
-  gap: 6px 16px;
-  flex-wrap: wrap;
-  padding: 9px 14px;
-  border-top: 1px solid var(--rule);
-  font-size: var(--fs-xs);
-  color: var(--ink-2);
-  background: var(--panel);
-  align-items: center;
-}
-.tk .legend2 span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.tk .legend2 i.ln {
-  display: inline-block;
-  width: 16px;
-  height: 2.5px;
-  border-radius: 2px;
-}
-.tk .legend2 svg {
-  vertical-align: -2px;
-  margin-right: 4px;
-}
 .tk .ms-sw {
   display: inline-block;
   width: 10px;
@@ -1199,13 +1244,114 @@
 .tk .ms-sw.fill {
   background: currentColor;
 }
-.tk .legend2 .chg {
+/* A reference panel: it stays open on outside clicks, so it covers only its own box above the
+   controls. The graph measures the room it has into --lg-room-w and --lg-room-h. */
+.tk .legend-pop {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 7;
+  container-type: inline-size;
+  width: min(600px, var(--lg-room-w, 100vw), calc(100vw - 32px));
+  max-height: var(--lg-room-h, 60vh);
+  overflow-y: auto;
+  padding: 10px 14px 12px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-pop);
+  box-shadow: var(--shadow);
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+}
+/* A drop target or a move target under the legend must still take the click. */
+.tk.dragging .legend-pop,
+.tk.moving .legend-pop,
+.tk .legend-pop[data-no-room] {
+  visibility: hidden;
+}
+.tk .legend-pop .lg-x {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+}
+.tk .lg-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 18px;
+}
+.tk .lg-sec {
+  display: grid;
+  gap: 5px;
+  align-content: start;
+  min-width: 0;
+}
+.tk .lg-ev {
+  grid-column: span 2;
+}
+.tk .lg-ev-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 18px;
+}
+.tk .legend-pop .q-label {
+  margin: 0 0 1px;
+}
+.tk .legend-pop .q-label ~ .q-label {
+  margin-top: 8px;
+}
+.tk .lg-it {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.tk .lg-it i.ln {
+  flex: none;
+  width: 16px;
+  height: 2.5px;
+  border-radius: 2px;
+}
+.tk .lg-it .ms-sw {
+  flex: none;
+  margin: 0 3px;
+}
+.tk .lg-it svg {
+  flex: none;
+  margin: 0 2px;
+}
+.tk .lg-it .chg {
   padding: 0 5px;
   border-radius: 4px;
   background: var(--change-bg);
   color: var(--change-text);
   font-style: normal;
   font-weight: 600;
+  line-height: 16px;
+}
+.tk .lg-ring {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  background: color-mix(in srgb, currentColor var(--k-tint), var(--panel));
+}
+.tk .lg-ring svg {
+  margin: 0;
+}
+@container (max-width: 520px) {
+  .tk .lg-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .tk .lg-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .tk .qtop {
@@ -1387,6 +1533,34 @@ svg.tg .lane-name {
   fill: var(--ink-2);
   pointer-events: none;
 }
+svg.tg .sum-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+svg.tg .sum-hit:hover {
+  fill: var(--hover);
+}
+/* Chrome rings a focused SVG button with a thick rounded outline even after a mouse click. */
+:root .tk svg.tg .sum-hit:focus {
+  outline: none;
+}
+:root .tk svg.tg .sum-hit:focus-visible {
+  stroke: var(--ink-3);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+svg.tg .sum-name {
+  fill: var(--ink);
+}
+svg.tg .sum-count {
+  fill: var(--ink-3);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+svg.tg .sum-chev {
+  color: var(--ink-3);
+  pointer-events: none;
+}
 svg.tg .row-label {
   font-size: 12px;
   fill: var(--ink);
@@ -1394,6 +1568,7 @@ svg.tg .row-label {
 }
 /* A highlighter stroke painted under the text, like a marker on paper. */
 svg.tg .row-label.changed,
+svg.tg .sum-name.changed,
 svg.tg .ms-label.changed {
   fill: var(--change-text);
   paint-order: stroke;
@@ -1504,11 +1679,19 @@ svg.tg .act {
   cursor: pointer;
 }
 svg.tg .act .bg {
-  fill: var(--panel);
+  fill: color-mix(in srgb, var(--kc) var(--k-tint), var(--panel));
   stroke-width: 2;
 }
 svg.tg .act .layer {
+  fill: color-mix(in srgb, var(--kc) var(--k-tint-back), var(--panel));
   stroke-width: 1.5;
+}
+svg.tg .act .act-hit,
+svg.tg .plus .plus-hit,
+svg.tg .chip .chip-hit,
+svg.tg .handoff .hand-hit {
+  fill: transparent;
+  stroke: none;
 }
 svg.tg .act .halo {
   fill: color-mix(in srgb, var(--change) 30%, transparent);
@@ -1551,6 +1734,10 @@ svg.tg .ms-dot {
 svg.tg .ms-label {
   font-size: 11px;
   font-weight: 600;
+}
+svg.tg .label-back {
+  fill: var(--panel);
+  pointer-events: none;
 }
 svg.tg .ms.glow .ms-c {
   filter: drop-shadow(0 0 4px var(--ink));
@@ -1604,10 +1791,11 @@ svg.tg .hand-count {
   stroke-linejoin: round;
   pointer-events: none;
 }
+/* A thicker ring, not a darker tint, so the icon keeps 4.5:1 on its tint. */
 svg.tg .hand-act:hover .bg,
 svg.tg .hand-act:focus .bg,
 svg.tg .hand-act.open .bg {
-  fill: var(--gray-bg);
+  stroke-width: 3;
 }
 .tk .hand-menu {
   position: absolute;
@@ -1908,6 +2096,11 @@ svg.tg .deadline-name {
   background: var(--caution-bg);
   color: var(--caution-ink);
 }
+.tk .st-cancelled {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--rule);
+  color: var(--ink-2);
+}
 .tk .moves {
   list-style: none;
   padding: 0;
@@ -2070,14 +2263,6 @@ svg.tg .deadline-name {
   font-weight: 500;
   color: var(--ink-2);
 }
-.tk .time-in {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-.tk .time-in .btn {
-  flex: none;
-}
 .tk .field input:disabled {
   color: var(--ink-3);
   background: var(--sunk);
@@ -2128,15 +2313,32 @@ svg.tg .deadline-name {
 }
 .tk .wi-acts {
   margin-top: 10px;
+  gap: 4px;
+}
+/* Add an event, Mark done and Cancel work item fit on one line of the 380px drawer. */
+.tk .wi-acts .btn {
+  padding: 4px 8px;
+}
+.tk .wi-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--r-ctl);
+  background: var(--sunk);
+  color: var(--ink-2);
+  font-size: var(--fs-s);
+  line-height: 1.45;
+}
+.tk .wi-hint svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--ink-3);
 }
 /* O1 work item panel: a label and value list in three groups, the same in read and edit views. */
 .tk .wi-top .sp {
   flex: 1;
-}
-.tk .late-by {
-  font-size: var(--fs-xs);
-  font-weight: 500;
-  color: var(--danger-ink);
 }
 .tk .btn-quiet {
   border-color: transparent;
@@ -2173,7 +2375,6 @@ svg.tg .deadline-name {
   gap: 6px;
   min-width: 0;
 }
-.tk .wi-facts select,
 .tk .wi-facts input,
 .tk .wi-title {
   max-width: 100%;
@@ -2188,19 +2389,20 @@ svg.tg .deadline-name {
   font: inherit;
   font-size: var(--fs-s);
 }
-.tk .wi-facts select:hover,
 .tk .wi-facts input:hover,
 .tk .wi-title:hover {
   border-color: var(--rule);
 }
-.tk .wi-facts select:focus-visible,
 .tk .wi-facts input:focus-visible,
 .tk .wi-title:focus-visible {
   outline: none;
   border-color: var(--focus);
   background: var(--panel);
 }
-.tk .wi-pick select {
+.tk .wi-facts .sel-in.quiet {
+  margin: -4px 0 -4px -7px;
+}
+.tk .wi-pick .sel-in.quiet {
   margin-left: -4px;
 }
 .tk .wi-title {
@@ -2220,6 +2422,12 @@ svg.tg .deadline-name {
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 10px;
+}
+.tk .wi-date .date-in {
+  width: 11.5em;
+}
+.tk .wi-date .time-in {
+  width: 5em;
 }
 .tk .wi-date .time-in input {
   margin: -4px 0;
@@ -2345,6 +2553,13 @@ svg.tg .deadline-name {
 .tk .mem b {
   font-size: var(--fs-s);
   display: block;
+  line-height: 1.3;
+}
+.tk .mem .mem-title {
+  display: block;
+  text-align: left;
+  color: var(--ink);
+  font-weight: 600;
   line-height: 1.3;
 }
 .tk .mem small {
@@ -2555,6 +2770,12 @@ svg.tg .deadline-name {
 }
 
 @media (max-width: 760px) {
+  /* A long handoff line would run off a phone, so the tip wraps there. */
+  .tk .hand-tip {
+    white-space: pre-line;
+    width: max-content;
+    max-width: 260px;
+  }
   .tk.board {
     height: auto;
     min-height: 100vh;
@@ -2622,6 +2843,7 @@ svg.tg .deadline-name {
   }
   /* The badge can sit anywhere on a wrapped bar, so its popup spans the bar instead. */
   .tk .p-head,
+  .tk .bbar,
   .tk .pr-gtools {
     position: relative;
   }
@@ -2853,10 +3075,34 @@ svg.tg .lane-drop.glow {
     var(--shadow-sm),
     0 0 0 1px var(--rule);
 }
+.tk .kind-groups {
+  display: grid;
+  gap: 10px;
+}
+.tk .kind-group {
+  display: grid;
+  gap: 4px;
+}
+.tk .kg-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-3);
+}
 .tk .kinds {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
+}
+.tk .check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: var(--fs-s);
+  color: var(--ink);
+  cursor: pointer;
 }
 .tk .kind {
   display: flex;
@@ -2885,11 +3131,8 @@ svg.tg .lane-drop.glow {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
 }
-.tk .field select,
 .tk .field textarea,
-.tk .sel,
-.tk .share-add select,
-.tk .share-row select {
+.tk .sel {
   border: 1px solid var(--rule);
   background: var(--panel);
   color: var(--ink);
@@ -2901,7 +3144,6 @@ svg.tg .lane-drop.glow {
   min-width: 0;
   min-height: 32px;
 }
-.tk .field select,
 .tk .field textarea,
 .tk .sel {
   width: 100%;
@@ -2912,7 +3154,6 @@ svg.tg .lane-drop.glow {
   font-size: var(--fs);
 }
 .tk .field input:focus-visible,
-.tk .field select:focus-visible,
 .tk .field textarea:focus-visible,
 .tk .tsearch input:focus-visible,
 .tk .qsearch input:focus-visible {
@@ -2983,7 +3224,7 @@ svg.tg .lane-drop.glow {
   margin-top: 6px;
   flex-wrap: wrap;
 }
-.tk .share-add select:first-child {
+.tk .share-add .sel-in.grow {
   flex: 1;
   min-width: 140px;
 }
@@ -3011,9 +3252,6 @@ svg.tg .lane-drop.glow {
 }
 
 @media (max-width: 760px) {
-  .tk .kinds {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
   .tk .grid2 {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -3049,43 +3287,4 @@ svg.tg .lane-drop.glow {
     max-width: calc(100vw - 32px);
     text-align: center;
   }
-}
-.tk .date-in {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-.tk .date-in input[type='text'] {
-  width: 9.5em;
-}
-.tk .date-in input[aria-invalid='true'] {
-  border-color: var(--danger);
-}
-.tk .date-in .ib {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: var(--r-ctl);
-  background: none;
-  color: var(--ink-3);
-  cursor: pointer;
-}
-.tk .date-in .ib:hover {
-  background: var(--hover);
-  color: var(--ink);
-}
-/* The browser's calendar opens from this box, so it stays in the layout without showing. */
-.tk .date-in .date-pick {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  border: 0;
-  opacity: 0;
-  pointer-events: none;
 }

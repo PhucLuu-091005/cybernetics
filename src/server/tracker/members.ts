@@ -81,7 +81,7 @@ export type MembersPayload = {
   teams: ProjectTeam[];
 };
 
-const GrantsSchema = z.strictObject({
+export const GrantsSchema = z.strictObject({
   viewMain: z.boolean(),
   viewCrs: z.boolean(),
   createCrs: z.boolean(),
@@ -92,7 +92,7 @@ const TeamNameSchema = noNul(
   z.string().trim().min(1, 'Give the team a name').max(200, 'Keep the team name to 200 characters'),
 );
 const ListMembersInputSchema = z.strictObject(ProjectScopeSchema);
-const InviteMemberInputSchema = z.strictObject({
+export const InviteMemberInputSchema = z.strictObject({
   ...ProjectScopeSchema,
   email: EmailSchema,
   grants: GrantsSchema.optional(),
@@ -101,17 +101,23 @@ const UpdateMemberInputSchema = z.union([
   z.strictObject({ ...ProjectScopeSchema, memberId: IdSchema, grants: GrantsSchema }),
   z.strictObject({ ...ProjectScopeSchema, memberId: IdSchema, projectLead: z.literal(true) }),
 ]);
-const RemoveMemberInputSchema = z.strictObject({ ...ProjectScopeSchema, memberId: IdSchema });
+export const RemoveMemberInputSchema = z.strictObject({
+  ...ProjectScopeSchema,
+  memberId: IdSchema,
+});
 const TeamIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,100}$/);
-const AddTeamInputSchema = z.strictObject({ ...ProjectScopeSchema, name: TeamNameSchema });
-const UpdateTeamInputSchema = z.strictObject({
+export const AddTeamInputSchema = z.strictObject({ ...ProjectScopeSchema, name: TeamNameSchema });
+export const UpdateTeamInputSchema = z.strictObject({
   ...ProjectScopeSchema,
   teamId: TeamIdSchema,
   name: TeamNameSchema.optional(),
   leadId: IdSchema.nullable().optional(),
   memberIds: z.array(IdSchema).max(500).optional(),
 });
-const DeleteTeamInputSchema = z.strictObject({ ...ProjectScopeSchema, teamId: TeamIdSchema });
+export const DeleteTeamInputSchema = z.strictObject({
+  ...ProjectScopeSchema,
+  teamId: TeamIdSchema,
+});
 
 const UNIQUE = ['tracker_members_project_email_unique', 'tracker_members_project_user_unique'];
 const COLORS = ['#2563eb', '#0f766e', '#d97706', '#0891b2', '#65a30d', '#dc2626', '#4f46e5'];
@@ -348,6 +354,11 @@ export async function updateMember(
       await set(target.id, closeGrants(input.grants));
       return;
     }
+    if (ctx.kind === 'agent')
+      throw new AppError(
+        'FORBIDDEN',
+        'Only a person in the browser can hand over the project lead',
+      );
     if (target.id === lead) return;
     if (isInvite(target)) throw new AppError('VALIDATION', `${target.email} has not signed in yet`);
     await tx

@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
-import { drag, hydrated } from './helpers';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { choose, drag, hydrated } from './helpers';
 
 type TrackerRead = {
   crs: Array<{
@@ -16,20 +16,43 @@ async function visit(page: Page, path: string) {
   await hydrated(page);
 }
 
-async function signIn(page: Page, label: string) {
+async function viewMenu(page: Page, run: (pop: Locator) => Promise<void>) {
+  const button = page.getByRole('button', { name: 'Row height and teams' });
+  await button.click();
+  const pop = page.getByRole('dialog', { name: 'Row height and teams' });
+  await run(pop);
+  await page.keyboard.press('Escape');
+  await expect(pop).toBeHidden();
+}
+
+/** The older walks read rows of every team at 32 units, as the graph drew them before round 9. */
+async function classicView(page: Page) {
+  await viewMenu(page, async (pop) => {
+    await pop.getByRole('button', { name: 'Comfortable', exact: true }).click();
+    await pop.getByRole('button', { name: 'Expand all' }).click();
+  });
+}
+
+async function signIn(page: Page, label: string, { classic = true } = {}) {
   await page.goto(`/signin?label=${label}`);
   await page.getByRole('button', { name: /continue/i }).click();
   await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
   await expect(page.locator('svg.pg')).toBeVisible();
   await hydrated(page);
+  if (classic) await classicView(page);
   const projectId = new URL(page.url()).pathname.split('/')[2];
   return { projectId, graph: `/projects/${projectId}/graph` };
 }
 
 async function actAs(page: Page, name: string) {
-  await page.getByLabel('Demo: act as').selectOption({ label: name });
+  await choose(page.getByLabel('Demo: act as'), name);
   await expect(page.locator('.me b')).toHaveText(name);
 }
+
+const hexToRgb = (hex: string) => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return `rgb(${r}, ${g}, ${b})`;
+};
 
 const crPath = (graph: string, num: number) => graph.replace(/graph$/, `changes/${num}`);
 
@@ -110,7 +133,7 @@ test.describe('the tracker walkthrough', () => {
       await expect(page.locator('.pop')).toHaveCount(0);
       for (const name of ['Add an event', 'Move the date', 'Rename', 'Mark done'])
         await expect(drawer.getByRole('button', { name })).toHaveCount(0);
-      await expect(drawer.locator('select, input, textarea')).toHaveCount(0);
+      await expect(drawer.locator('select, input, textarea, .sel-btn')).toHaveCount(0);
       await expect(drawer.locator('.facts')).toContainText('Not yet');
       await page.keyboard.press('Escape');
       await expect(drawer).toHaveCount(0);
@@ -146,9 +169,7 @@ test.describe('the tracker walkthrough', () => {
 
     await test.step('3. Lan finds PG-203 with the search and moves its date in place, with a reason', async () => {
       await find('PG-203', 'PG-203 Country list field type');
-      await expect(drawer.getByLabel('Done by').locator('option:checked')).toHaveText(
-        'Quang Nguyễn',
-      );
+      await expect(drawer.getByLabel('Done by')).toHaveText('Quang Nguyễn');
       await expect(drawer).toContainText(/Events \(\d+\)/);
       await expect(drawer.getByRole('button', { name: 'Move the date' })).toHaveCount(0);
       const planned = drawer.getByLabel('Planned finish');
@@ -185,11 +206,11 @@ test.describe('the tracker walkthrough', () => {
     await test.step('4. Lan shares #5 with Khoa, Can edit', async () => {
       await bar.getByRole('button', { name: 'Share' }).click();
       await expect(dialog.getByLabel('Link')).toHaveValue(/\/projects\/[0-9a-f-]{36}\/changes\/5$/);
-      await dialog.getByLabel('Person').selectOption({ label: 'Khoa Lê' });
-      await dialog.getByLabel('Access', { exact: true }).selectOption('edit');
+      await choose(dialog.getByLabel('Person'), 'Khoa Lê');
+      await choose(dialog.getByLabel('Access', { exact: true }), 'Can edit');
       await dialog.getByRole('button', { name: 'Add', exact: true }).click();
       await expect(toast).toContainText('Khoa Lê can edit #5. Send them the link.');
-      await expect(dialog.getByLabel('Access for Khoa Lê')).toHaveValue('edit');
+      await expect(dialog.getByLabel('Access for Khoa Lê')).toHaveText('Can edit');
       await dialog.getByRole('button', { name: 'Done' }).click();
       await expect(dialog).toHaveCount(0);
     });
@@ -422,8 +443,14 @@ test.describe('the top bar', () => {
       await expect(bar.getByRole('button', { name })).toBeVisible();
     await expect(head.getByRole('button', { name: 'New change request' })).toHaveCount(1);
 
+    // Main has no Open draft button; the Change requests list reaches the draft.
     await visit(page, graph);
-    await bar.getByRole('button', { name: 'Open #4 (draft)' }).click();
+    await expect(bar.getByRole('button', { name: /^Open #/ })).toHaveCount(0);
+    await head.getByRole('button', { name: /^Change requests/ }).click();
+    await page
+      .locator('.drawer .req', { hasText: '#4 Test plan for the CRS section' })
+      .getByRole('button', { name: 'Open' })
+      .click();
     await page.waitForURL(/\/changes\/4$/);
     await visit(page, graph);
     await actAs(page, 'Minh Trần');
@@ -470,6 +497,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await crm.first().focus();
     await page.keyboard.press(' ');
     await expect(drawer).toContainText('CRM integration live');
+    await expect(drawer.locator('.badge')).toHaveText(/^Late by \d+ days$/);
+    await expect(drawer).not.toContainText(/late \d/);
     await page.keyboard.press('Escape');
     await expect(drawer).toHaveCount(0);
 
@@ -504,6 +533,68 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await page.keyboard.press('Escape');
       await expect(drawer).toHaveCount(0);
     }
+  });
+
+  test('a milestone name on the axis keeps the T line behind its own background and covers no circle', async ({
+    page,
+  }) => {
+    const { projectId, graph } = await signIn(page, 'tracker-axis', { classic: false });
+    // Both milestones move next to T (9 Oct 18:00): whichever side each name takes, one crosses T.
+    const num = await page.evaluate(async (pid) => {
+      const read = await (await fetch(`/api/v1/projects/${pid}/tracker`)).json();
+      const move = (milestoneId: string, date: string) => ({
+        op: 'msDate',
+        a: { milestoneId, date, why: 'Axis test.', by: read.me.id, at: new Date().toISOString() },
+      });
+      const created = await fetch(`/api/v1/projects/${pid}/tracker/crs`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Axis',
+          ops: [move('crm', '2026-10-08'), move('golive', '2026-10-11')],
+        }),
+      });
+      return ((await created.json()) as { num: number }).num;
+    }, projectId);
+    await visit(page, crPath(graph, num));
+    const read = () =>
+      page.evaluate(() => {
+        const probe = document.createElement('div');
+        probe.style.color = 'var(--panel)';
+        document.querySelector('.tk')!.append(probe);
+        const panel = getComputedStyle(probe).color;
+        probe.remove();
+        const head = document.querySelector('svg.pg-top-time')!;
+        const tline = head.querySelector('.tline')!;
+        const xt = tline.getBoundingClientRect().left;
+        const groups = Array.from(head.querySelectorAll('.ms'));
+        return groups.map((g) => {
+          const text = g.querySelector('.ms-label')!.getBoundingClientRect();
+          const back = head.querySelector(`.label-back[data-back="${g.getAttribute('data-ms')}"]`);
+          const box = back?.getBoundingClientRect();
+          return {
+            crosses: text.left < xt && text.right > xt,
+            covered:
+              !!box &&
+              box.left <= text.left &&
+              box.right >= text.right &&
+              box.top <= text.top + 1 &&
+              box.bottom >= text.bottom - 1,
+            panel: !!back && getComputedStyle(back).fill === panel,
+            overT:
+              !!back && !!(tline.compareDocumentPosition(back) & Node.DOCUMENT_POSITION_FOLLOWING),
+            underCircles:
+              !!back &&
+              groups.every(
+                (other) =>
+                  !!(back.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING),
+              ),
+          };
+        });
+      });
+    await expect.poll(async () => (await read()).some((m) => m.crosses)).toBe(true);
+    for (const m of await read())
+      expect(m).toMatchObject({ covered: true, panel: true, overT: true, underCircles: true });
   });
 
   test('a milestone deadline with a time sits at that time inside its busy day', async ({
@@ -550,6 +641,150 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     const after = await x(page.locator('svg.pg [data-act="m3"]'));
     expect(before).toBeLessThan(at);
     expect(at).toBeLessThan(after);
+  });
+
+  test('date and time boxes use the app format and their own calendar and time list', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-pickers');
+    const dialog = page.locator('.m-card');
+    const drawer = page.locator('.drawer');
+    const native = page.locator(
+      'input[type="date"], input[type="time"], input[type="datetime-local"]',
+    );
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/changes\/\d+$/);
+
+    await page.locator('svg.tg [data-ms="crm"] .ms-hit').click();
+    await expect(drawer.locator('h4')).toHaveText('CRM integration live');
+    await expect(native).toHaveCount(0);
+    const date = drawer.getByLabel('Planned date', { exact: true });
+    await expect(date).toHaveValue('18 Sept 2026');
+
+    await drawer.getByRole('button', { name: 'Open the calendar' }).click();
+    const calendar = page.getByRole('dialog', { name: 'Calendar' });
+    await expect(calendar.getByRole('grid', { name: 'September 2026' })).toBeVisible();
+    await expect(calendar.getByRole('button', { name: '18 Sept 2026' })).toBeFocused();
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('Enter');
+    await expect(calendar).toHaveCount(0);
+    await expect(date).toHaveValue('20 Sept 2026');
+
+    const time = drawer.getByLabel('Time (optional)');
+    await expect(time).toHaveValue('');
+    await expect(time).toHaveAttribute('placeholder', 'Time');
+    const times = page.getByRole('listbox', { name: 'Times' });
+    const retype = async (text: string) => {
+      await time.press('ControlOrMeta+a');
+      await time.pressSequentially(text);
+    };
+    await time.click();
+    await expect(times.getByRole('option', { name: '09:00' })).toBeInViewport();
+    await expect(times.getByRole('option', { name: '00:00' })).not.toBeInViewport();
+    await time.click();
+    await expect(times).toBeVisible();
+
+    await time.pressSequentially('14:15');
+    await time.press('Enter');
+    await expect(times).toHaveCount(0);
+    await expect(time).toHaveValue('14:15');
+    await time.click();
+    await expect(times).toBeVisible();
+    await time.press('Enter');
+    await expect(time).toHaveValue('14:15');
+    await time.click();
+    await retype('9:5');
+    await time.press('Enter');
+    await expect(time).toHaveValue('09:05');
+    await time.press('ArrowDown');
+    await time.press('ArrowDown');
+    await time.press('Enter');
+    await expect(time).toHaveValue('09:30');
+
+    await retype('17:00');
+    await time.press('Enter');
+    await retype('25:00');
+    await expect(time).toHaveAttribute('aria-invalid', 'true');
+    await time.press('Tab');
+    await expect(time).toHaveValue('17:00');
+    await expect(time).not.toHaveAttribute('aria-invalid');
+    await retype('143');
+    await time.press('Tab');
+    await expect(time).toHaveValue('01:43');
+
+    await time.click();
+    await times.getByRole('option', { name: '12:30' }).click();
+    await expect(time).toHaveValue('12:30');
+
+    await date.fill('soon');
+    await expect(date).toHaveAttribute('aria-invalid', 'true');
+    await time.focus();
+    await expect(date).toHaveValue('20 Sept 2026');
+    await expect(date).not.toHaveAttribute('aria-invalid');
+
+    await drawer.getByRole('button', { name: 'Save milestone' }).click();
+    await expect(dialog).toContainText('Move the milestone date');
+    const newDate = dialog.getByLabel('New date');
+    const newTime = dialog.getByLabel('Time (optional)');
+    await expect(newDate).toHaveValue('20 Sept 2026');
+    await expect(newTime).toHaveValue('12:30');
+
+    await dialog.getByRole('button', { name: 'Open the calendar' }).click();
+    const moveCalendar = page.getByRole('dialog', { name: 'Calendar' });
+    await page.keyboard.press('Escape');
+    await expect(moveCalendar).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Open the calendar' }).click();
+    await moveCalendar.getByRole('button', { name: 'Next month' }).click();
+    await expect(moveCalendar.getByRole('grid', { name: 'October 2026' })).toBeVisible();
+    await moveCalendar.getByRole('button', { name: '2 Oct 2026', exact: true }).click();
+    await expect(newDate).toHaveValue('2 Oct 2026');
+    await newTime.fill('1430');
+    await newTime.press('Tab');
+    await expect(newTime).toHaveValue('14:30');
+    await expect(native).toHaveCount(0);
+    await dialog.getByLabel(/Why does the date move/).fill('The vendor call moved to the 2nd.');
+    await dialog.getByRole('button', { name: 'Move the date' }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(
+      page.locator('svg.pg .deadline[aria-label^="CRM integration live · deadline 2 Oct 14:30"]'),
+    ).toHaveCount(4);
+
+    await page
+      .locator('.cr-side')
+      .getByRole('button', { name: /^Queue/ })
+      .click();
+    await page.locator('.qpanel').getByRole('button', { name: 'Add' }).click();
+    await expect(page.getByRole('dialog', { name: 'Add to the queue' })).toBeVisible();
+    const when = dialog.getByRole('group', { name: 'When' });
+    await expect(when.getByLabel('Date')).toHaveValue(/^\d{1,2} \w+ 2026$/);
+    await expect(when.getByLabel('Time')).toHaveValue(/^\d{2}:\d{2}$/);
+    const whenDate = when.getByLabel('Date');
+    await whenDate.press('ControlOrMeta+a');
+    await whenDate.pressSequentially('6 Oct 0202');
+    await whenDate.press('Tab');
+    await expect(whenDate).toHaveValue('9 Oct 2026');
+    await whenDate.press('ControlOrMeta+a');
+    await whenDate.pressSequentially('8 Oct');
+    await whenDate.press('Enter');
+    await expect(whenDate).toHaveValue('8 Oct 2026');
+    await when.getByLabel('Time').press('ControlOrMeta+a');
+    await when.getByLabel('Time').pressSequentially('9');
+    await when.getByLabel('Time').press('Tab');
+    await expect(when.getByLabel('Time')).toHaveValue('09:00');
+    await expect(native).toHaveCount(0);
+    await dialog.getByLabel('What happened?').fill('Quang confirmed the vendor call.');
+    const posted = page.waitForRequest(
+      (request) => request.method() === 'POST' && request.url().endsWith('/tracker/queue'),
+    );
+    await dialog.getByRole('button', { name: 'Add event' }).click();
+    expect((await posted).postDataJSON()).toMatchObject({
+      kind: 'event',
+      fields: { at: '2026-10-08T09:00:00+07:00', text: 'Quang confirmed the vendor call.' },
+    });
+    await expect(dialog).toHaveCount(0);
   });
 
   test('the first view opens at a readable scale with T and the latest events in view, and labels never touch', async ({
@@ -631,11 +866,12 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
   test('a click on a row opens its details, and an event brief leads to its work item', async ({
     page,
   }) => {
-    await signIn(page, 'tracker-click');
+    // This walk runs on the shipped view: Compact rows, and teams without late work collapsed.
+    await signIn(page, 'tracker-click', { classic: false });
     const drawer = page.locator('.drawer');
     const pop = page.locator('.pop');
 
-    await page.locator('svg.pg [data-loop="pg203"]').click({ position: { x: 40, y: 15 } });
+    await page.locator('svg.pg [data-loop="pg203"]').click({ position: { x: 40, y: 9 } });
     await expect(drawer.locator('h4')).toHaveText('PG-203 Country list field type');
     await expect(pop).toHaveCount(0);
     await expect(page.locator('svg.pg .hit.sel[data-loop="pg203"]')).toHaveCount(1);
@@ -655,8 +891,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(page.locator('svg.pg [data-loop="pg203"]')).toBeFocused();
     expect(await stroke('pg203')).not.toBe('none');
 
-    await page.locator('svg.pg-side .label-hit[data-rowlabel="crs"]').click();
-    await expect(drawer.locator('h4')).toHaveText('CRS tax residency section with DealCloud sync');
+    await page.locator('svg.pg-side .label-hit[data-rowlabel="dynamics"]').click();
+    await expect(drawer.locator('h4')).toHaveText('Dynamics CRM sync scope');
     await expect(page.locator('svg.pg .hit.sel')).toHaveCount(1);
     await page.keyboard.press('Escape');
     await expect(drawer).toHaveCount(0);
@@ -756,7 +992,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(board).toHaveCount(1);
     await expect(full).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.p-head')).toBeHidden();
-    await expect(page.locator('.legend2')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Legend', exact: true })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Legend' })).toBeVisible();
     const box = (await page.locator('.tk.board').boundingBox())!;
     expect(box.x).toBe(0);
     expect(box.width).toBe(1440);
@@ -796,7 +1033,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(board).toHaveCount(1);
     await page.keyboard.press('Escape');
     await expect(board).toHaveCount(0);
-    await expect(page.locator('.legend2')).toBeVisible();
+    await expect(page.locator('.p-head')).toBeVisible();
   });
 
   test('lists a stack, zooms it apart, and hides rows without a trace but a chip', async ({
@@ -978,7 +1215,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await page.locator('.hid-menu > summary').click();
       await page.getByRole('button', { name: 'Unhide Digitization' }).click();
       await expect(rows).toHaveCount(14);
-      await expect(searchBox).toBeFocused();
+      // The badge goes away with the last hidden row, so the focus moves to the control before it.
+      await expect(page.locator('.bbar .gpick > summary')).toBeFocused();
 
       await side.locator('[data-eyerow="crs"]').click();
       await expect(row('crs')).toHaveCount(0);
@@ -1004,10 +1242,13 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await expect(side.locator('[data-eyeteam="engineering"]')).toHaveCount(0);
       await expect(side.locator('[data-eyeteam="solutions-engineering"]')).toHaveCount(0);
       await expect(side.getByText(/hidden/)).toHaveCount(0);
-      expect(await height()).toBe(full - 6 * 32 - 2 * (22 + 6));
+      expect(await height()).toBe(full - 6 * 32 - 2 * (28 + 6));
 
       const badge = page.locator('.hid-menu > summary');
       await expect(badge).toContainText('3 hidden');
+      // The badge is the last control at the right end of the context bar.
+      await expect(page.locator('.bbar > :last-child')).toHaveClass('hid-menu');
+      await expect(page.locator('.p-head .hid-menu')).toHaveCount(0);
       const list = page.getByRole('dialog', { name: 'Hidden teams and work items' });
       await badge.click();
       await expect(list).toBeVisible();
@@ -1021,8 +1262,39 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await list.getByRole('button', { name: 'Unhide all' }).click();
       await expect(rows).toHaveCount(14);
       await expect(page.locator('.hid-menu')).toHaveCount(0);
-      await expect(page.getByRole('combobox', { name: 'Search work items' })).toBeFocused();
+      await expect(page.locator('.bbar .gpick > summary')).toBeFocused();
     });
+  });
+});
+
+test.describe('the hidden badge in a change request', () => {
+  test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
+
+  test('the last Unhide in a draft with no changes keeps the focus on an enabled control of the bar', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-hidden-cr', { classic: false });
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
+    await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/changes\/\d+$/);
+    const bar = page.locator('.bbar');
+    await expect(bar).toContainText('0 changes');
+    await expect(bar.getByRole('button', { name: 'Mark as ready' })).toBeDisabled();
+    await page.locator('svg.pg-side [data-eyeteam="engineering"]').click();
+    const badge = page.locator('.hid-menu > summary');
+    await expect(badge).toContainText('1 hidden');
+    await expect(page.locator('.bbar > :last-child')).toHaveClass('hid-menu');
+    await badge.click();
+    await page.getByRole('button', { name: 'Unhide all' }).click();
+    await expect(page.locator('.hid-menu')).toHaveCount(0);
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const a = document.activeElement as HTMLButtonElement | null;
+          return !!a && a !== document.body && !!a.closest('.bbar') && !a.disabled;
+        }),
+      )
+      .toBe(true);
   });
 });
 
@@ -1073,6 +1345,103 @@ test.describe('events at their own time', () => {
 test.describe('the tracker at phone width', () => {
   test.use({ viewport: { width: 390, height: 844 }, colorScheme: 'light', hasTouch: true });
 
+  test('a milestone name on a row never sits under the pinned column: it moves right and ends with an ellipsis', async ({
+    page,
+  }) => {
+    await page.goto('/signin?label=tracker-row-names');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    const time = page.locator('.gscroll .gtime');
+    await expect(page.locator('.gscroll svg.pg-side')).toHaveAttribute('viewBox', /^0 64 128 /);
+    await expect.poll(() => time.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+    const shown = () =>
+      page.evaluate(() => {
+        const edge = document.querySelector('.gscroll svg.pg-side')!.getBoundingClientRect().right;
+        return Array.from(document.querySelectorAll<SVGTextElement>('svg.pg .deadline-name'))
+          .filter((t) => t.getAttribute('visibility') !== 'hidden' && t.textContent)
+          .map((t) => {
+            const box = t.getBoundingClientRect();
+            return { text: t.textContent!, cut: box.left < edge - 1 && box.right > edge };
+          });
+      });
+    await expect.poll(async () => (await shown()).filter((n) => n.cut)).toEqual([]);
+    const moved = (await shown()).filter((n) => n.text.startsWith('CRM integ'));
+    expect(moved.length).toBeGreaterThan(0);
+    for (const n of moved)
+      expect(n.text === 'CRM integration live' || n.text.endsWith('…')).toBe(true);
+
+    await time.evaluate((el) => (el.scrollLeft = 0));
+    await expect
+      .poll(async () => (await shown()).filter((n) => n.text === 'CRM integration live').length)
+      .toBeGreaterThan(0);
+    await expect(page.locator('svg.pg .deadline-stuck:not(:empty)')).toHaveCount(0);
+  });
+
+  test('keeps the names level with their rows while the column still has the wide view box', async ({
+    page,
+  }) => {
+    await page.goto('/signin?label=tracker-level');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    const side = page.locator('.gscroll svg.pg-side');
+    await expect(side).toHaveAttribute('viewBox', /^0 64 128 /);
+    // A server-rendered first frame has the desktop view box until the phone flag arrives.
+    const offsets = await page.evaluate(() => {
+      const svg = document.querySelector<SVGSVGElement>('.gscroll svg.pg-side')!;
+      const [, y, , h] = svg.getAttribute('viewBox')!.split(' ');
+      svg.setAttribute('viewBox', `0 ${y} 228 ${h}`);
+      return Array.from(svg.querySelectorAll('.hit[data-rowlabel]')).map((hit) => {
+        const id = hit.getAttribute('data-rowlabel');
+        const line = document.querySelector(`svg.pg .hit[data-loop="${id}"]`);
+        const a = hit.getBoundingClientRect();
+        const b = line?.getBoundingClientRect();
+        return b ? Math.abs(a.top + a.height / 2 - (b.top + b.height / 2)) : 0;
+      });
+    });
+    expect(offsets.length).toBeGreaterThan(0);
+    for (const offset of offsets) expect(offset).toBeLessThan(1);
+  });
+
+  test('pins a narrow column of row names beside the time line, which scrolls on its own', async ({
+    page,
+  }) => {
+    await page.goto('/signin?label=tracker-pin');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    const side = page.locator('.gscroll svg.pg-side');
+    const time = page.locator('.gscroll .gtime');
+    await expect(side).toHaveAttribute('viewBox', /^0 64 128 /);
+    await expect.poll(() => time.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+    const box = (await side.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.width).toBeLessThanOrEqual(140);
+    await expect(side.locator('.row-label').first()).toBeInViewport();
+    await expect(page.locator('svg.pg-top-time .tpill')).toBeInViewport();
+    await expect(side.locator('[data-eyerow], [data-eyeteam], [data-focusitem]')).toHaveCount(0);
+    const names = await side.locator('.row-label').evaluateAll((els) =>
+      els.map((el) => {
+        const column = el.closest('svg')!.getBoundingClientRect();
+        const text = el.firstChild!;
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        return {
+          text: text.textContent ?? '',
+          room: column.right - range.getBoundingClientRect().right,
+        };
+      }),
+    );
+    const cut = names.filter((n) => n.text.endsWith('…'));
+    expect(cut.length).toBeGreaterThan(0);
+    for (const n of names) expect(n.room).toBeGreaterThanOrEqual(2);
+
+    await time.evaluate((el) => (el.scrollLeft = 0));
+    expect((await side.boundingBox())!.x).toBe(box.x);
+    expect(
+      await page.locator('.gscroll').evaluate((el) => el.scrollWidth - el.clientWidth),
+    ).toBeLessThanOrEqual(0);
+    await noHorizontalScroll(page);
+  });
+
   test('the graph, a change request page, its modals and the other pages never scroll sideways', async ({
     page,
   }) => {
@@ -1093,7 +1462,7 @@ test.describe('the tracker at phone width', () => {
 
     // The phone rail hides the fold button, so the first picks may land before hydration.
     await expect(async () => {
-      await page.getByLabel('Demo: act as').selectOption({ label: 'Hà Đỗ' }, { timeout: 2_000 });
+      await choose(page.getByLabel('Demo: act as'), 'Hà Đỗ', 2_000);
       await expect(page).toHaveURL(/\/changes\/4$/, { timeout: 2_000 });
     }).toPass();
     await expect(page.locator('.bbar').first()).toContainText('#4');
@@ -1125,5 +1494,861 @@ test.describe('the tracker at phone width', () => {
       await expect(page.locator('.pg-head h1')).toBeVisible();
       await noHorizontalScroll(page);
     }
+  });
+});
+
+test.describe('row height and collapsible teams', () => {
+  test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
+
+  const rowY = (page: Page, id: string) =>
+    page.locator(`svg.pg [data-loop="${id}"]`).evaluate((el) => {
+      const r = el as SVGRectElement;
+      return r.y.baseVal.value + r.height.baseVal.value / 2;
+    });
+
+  test('the row height starts Compact, changes in the view menu and stays after a reload', async ({
+    page,
+  }) => {
+    const { graph } = await signIn(page, 'tracker-density', { classic: false });
+    // Engineering has late work, so it starts open.
+    expect((await rowY(page, 'syncmon')) - (await rowY(page, 'dynamics'))).toBe(20);
+    await viewMenu(page, async (pop) => {
+      await expect(pop.getByRole('button', { name: 'Compact' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      await pop.getByRole('button', { name: 'Dense' }).click();
+    });
+    // Esc closes the menu also when the focus has left it.
+    await page.getByRole('button', { name: 'Row height and teams' }).click();
+    await page.getByRole('combobox', { name: 'Search work items' }).focus();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: 'Row height and teams' })).toBeHidden();
+    await expect
+      .poll(async () => (await rowY(page, 'syncmon')) - (await rowY(page, 'dynamics')))
+      .toBe(12);
+    await expect(page.locator('svg.pg [data-act] circle.dot').first()).toBeVisible();
+    await visit(page, graph);
+    expect((await rowY(page, 'syncmon')) - (await rowY(page, 'dynamics'))).toBe(12);
+    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Comfortable' }).click());
+    await expect
+      .poll(async () => (await rowY(page, 'syncmon')) - (await rowY(page, 'dynamics')))
+      .toBe(32);
+  });
+
+  test('a team opens and collapses from its summary row, by click and by keyboard', async ({
+    page,
+  }) => {
+    const { graph } = await signIn(page, 'tracker-collapse', { classic: false });
+    const side = page.locator('svg.pg-side');
+    const implementation = side.getByRole('button', { name: /^Implementation, 3 work items/ });
+    const engineering = side.getByRole('button', { name: /^Engineering, 4 work items: 2 late/ });
+    await expect(implementation).toHaveAttribute('aria-expanded', 'false');
+    await expect(engineering).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('svg.pg [data-loop="golive"]')).toHaveCount(0);
+    await expect(page.locator('svg.pg [data-loop="pg203"]')).toHaveCount(1);
+
+    // The summary row is one 28-unit line; its counts sit in its lane, at the left of the time line.
+    await expect(page.locator('svg.pg .sum-bar, svg.pg .sum-tick')).toHaveCount(0);
+    await expect(side.locator('.sum-counts')).toHaveCount(0);
+    const rowBox = (await engineering.boundingBox())!;
+    expect(rowBox.height).toBeCloseTo(27, 0);
+    const counts = page.locator('.lane-count > span', { hasText: '2 late · 2 done' });
+    await expect(counts).toHaveCount(1);
+    const scroller = page.locator('.gscroll .gtime');
+    const timeLeft = (await scroller.boundingBox())!.x;
+    const at = async () => (await counts.boundingBox())!;
+    expect((await at()).x - timeLeft).toBeCloseTo(8, 0);
+    const middle = (await at()).y + (await at()).height / 2;
+    expect(Math.abs(middle - (rowBox.y + rowBox.height / 2))).toBeLessThan(2);
+    // It stays at the left edge while the time line scrolls sideways.
+    await scroller.evaluate((el) => (el.scrollLeft = 400));
+    await expect.poll(async () => (await at()).x - timeLeft).toBeCloseTo(8, 0);
+    await scroller.evaluate((el) => (el.scrollLeft = 0));
+
+    const ring = (el: typeof implementation) =>
+      el.evaluate((node) => {
+        const s = getComputedStyle(node);
+        return { outline: s.outlineStyle, stroke: s.stroke };
+      });
+    await implementation.click();
+    await expect(implementation).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('svg.pg [data-loop="golive"]')).toHaveCount(1);
+    // A mouse click leaves no ring; keyboard focus shows a thin neutral one.
+    await expect(implementation).toBeFocused();
+    expect(await ring(implementation)).toEqual({ outline: 'none', stroke: 'none' });
+
+    await engineering.focus();
+    await page.keyboard.press('Enter');
+    await expect(engineering).toHaveAttribute('aria-expanded', 'false');
+    const ink3 = await page.evaluate(() =>
+      getComputedStyle(document.documentElement).getPropertyValue('--ink-3').trim(),
+    );
+    const keyboard = await ring(engineering);
+    expect(keyboard.outline).toBe('none');
+    expect(keyboard.stroke).toBe(ink3.startsWith('#') ? hexToRgb(ink3) : ink3);
+    await expect(page.locator('svg.pg [data-loop="pg203"]')).toHaveCount(0);
+    await page.keyboard.press(' ');
+    await expect(engineering).toHaveAttribute('aria-expanded', 'true');
+    await page.keyboard.press('Enter');
+
+    // The toggles are the person's own and come back with the page.
+    await visit(page, graph);
+    await expect(implementation).toHaveAttribute('aria-expanded', 'true');
+    await expect(engineering).toHaveAttribute('aria-expanded', 'false');
+
+    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Collapse all' }).click());
+    await expect(page.locator('svg.pg [data-loop]')).toHaveCount(0);
+    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Expand all' }).click());
+    await expect(page.locator('svg.pg [data-loop]')).toHaveCount(14);
+  });
+
+  test('the view and zoom buttons show a ring for the keyboard only', async ({ page }) => {
+    await signIn(page, 'tracker-zoom-ring', { classic: false });
+    const btn = page.getByRole('button', { name: 'Row height and teams' });
+    const outline = (el: Locator) => el.evaluate((node) => getComputedStyle(node).outlineStyle);
+    await btn.click();
+    const pop = page.getByRole('dialog', { name: 'Row height and teams' });
+    await pop.getByRole('button', { name: 'Dense', exact: true }).click();
+    await page.keyboard.press('Escape');
+    await expect(pop).toBeHidden();
+    await expect(btn).toBeFocused();
+    expect(await outline(btn)).toBe('none');
+    await btn.click();
+    await btn.click();
+    expect(await outline(btn)).toBe('none');
+    const zoomIn = page.getByRole('button', { name: 'Zoom in' });
+    await zoomIn.click();
+    await expect(zoomIn).toBeFocused();
+    expect(await outline(zoomIn)).toBe('none');
+
+    await btn.focus();
+    await page.keyboard.press('Enter');
+    await expect(pop).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(btn).toBeFocused();
+    expect(await outline(btn)).toBe('solid');
+  });
+
+  test('at Dense a summary row is one 24-unit line with its counts in the lane', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-dense-summary', { classic: false });
+    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Dense', exact: true }).click());
+    const engineering = page
+      .locator('svg.pg-side')
+      .getByRole('button', { name: /^Engineering, 4 work items: 2 late/ });
+    const row = (await engineering.boundingBox())!;
+    expect(row.height).toBeCloseTo(23, 0);
+    const counts = (await page
+      .locator('.lane-count > span', { hasText: '2 late · 2 done' })
+      .boundingBox())!;
+    expect(counts.height).toBeLessThan(row.height);
+    expect(Math.abs(counts.y + counts.height / 2 - (row.y + row.height / 2))).toBeLessThan(2);
+    const name = (await page
+      .locator('svg.pg-side text.sum-name', { hasText: /^ENGINEERING/ })
+      .boundingBox())!;
+    const focus = (await page.locator('svg.pg-side [data-focusteam="engineering"]').boundingBox())!;
+    expect(name.x + name.width).toBeLessThan(focus.x);
+    expect(Math.abs(name.y + name.height / 2 - (row.y + row.height / 2))).toBeLessThan(3);
+  });
+
+  test('search, the filter panel, a search pick and a handoff pick open a collapsed team', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-collapse-pick', { classic: false });
+    const side = page.locator('svg.pg-side');
+    const qa = side.getByRole('button', { name: /^Digitization QA, 1 work item/ });
+    const testRow = page.locator('svg.pg [data-loop="test"]');
+    await expect(qa).toHaveAttribute('aria-expanded', 'false');
+
+    // While the search text narrows the graph, every team with a match shows open.
+    const search = page.getByRole('combobox', { name: 'Search work items' });
+    await search.fill('Test the CRS');
+    await expect(testRow).toHaveCount(1);
+    await search.fill('');
+    await expect(testRow).toHaveCount(0);
+
+    // A filter from the panel opens the team too, and a pick inside it stores nothing.
+    await page.locator('.tfilter-btn').click();
+    const panel = page.getByRole('group', { name: 'Filter the graph' });
+    await panel.locator('.fchip', { hasText: /^Digitization QA$/ }).click();
+    await expect(testRow).toHaveCount(1);
+    await expect(qa).toHaveAttribute('aria-expanded', 'true');
+    await page.keyboard.press('Escape');
+    await search.fill('Test the CRS');
+    await page.getByRole('option').first().click();
+    await expect(page.locator('.drawer h4')).toHaveText('Test the CRS section end to end');
+    await page.keyboard.press('Escape');
+    await page.locator('.tfilter-btn').click();
+    await page.getByRole('button', { name: 'Clear filters' }).click();
+    await page.keyboard.press('Escape');
+    await expect(qa).toHaveAttribute('aria-expanded', 'false');
+    await expect(testRow).toHaveCount(0);
+
+    // On the whole graph a pick opens the team and keeps it open.
+    await search.fill('Go-live date');
+    await page.getByRole('option').first().click();
+    await expect(page.locator('.drawer h4')).toHaveText('Go-live date');
+    await expect(
+      side.getByRole('button', { name: /^Implementation, 3 work items/ }),
+    ).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('svg.pg [data-loop="golive"]')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+
+    const mark = page.locator('svg.pg [data-handoff="pg203"]');
+    await mark.focus();
+    await page.keyboard.press('Enter');
+    await expect(qa).toHaveAttribute('aria-expanded', 'true');
+    await expect(testRow).toHaveCount(1);
+  });
+
+  test('a details link and a milestone member open a collapsed team', async ({ page }) => {
+    await signIn(page, 'tracker-collapse-links', { classic: false });
+    const side = page.locator('svg.pg-side');
+    const drawer = page.locator('.drawer');
+    const qa = side.getByRole('button', { name: /^Digitization QA, 1 work item/ });
+    const implementation = side.getByRole('button', { name: /^Implementation, 3 work items/ });
+    await expect(qa).toHaveAttribute('aria-expanded', 'false');
+    await expect(implementation).toHaveAttribute('aria-expanded', 'false');
+
+    await page.locator('svg.pg [data-loop="pg203"]').click({ position: { x: 40, y: 9 } });
+    await expect(drawer.locator('h4')).toHaveText('PG-203 Country list field type');
+    await drawer.getByRole('button', { name: 'Test the CRS section end to end' }).click();
+    await expect(drawer.locator('h4')).toHaveText('Test the CRS section end to end');
+    await expect(qa).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('svg.pg [data-loop="test"]')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+
+    await page.locator('svg.tg [data-ms="golive"] .ms-hit').dispatchEvent('click');
+    await expect(drawer.locator('h4')).toContainText('Go-live and first close');
+    await drawer.getByRole('button', { name: 'Go-live date' }).click();
+    await expect(drawer.locator('h4')).toHaveText('Go-live date');
+    await expect(implementation).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('svg.pg [data-loop="golive"]')).toHaveCount(1);
+  });
+
+  test('an event added to a work item of a collapsed team opens that team', async ({ page }) => {
+    const { graph } = await signIn(page, 'tracker-collapse-attach', { classic: false });
+    await page.goto(crPath(graph, 4));
+    await hydrated(page);
+    await actAs(page, 'Hà Đỗ');
+    const implementation = page
+      .locator('svg.pg-side')
+      .getByRole('button', { name: /^Implementation, 3 work items/ });
+    await expect(implementation).toHaveAttribute('aria-expanded', 'false');
+
+    await page
+      .locator('.cr-side')
+      .getByRole('button', { name: /^Queue/ })
+      .click();
+    const card = page.locator('[data-qevent]').first();
+    const eventId = await card.getAttribute('data-qevent');
+    await card.click();
+    const dialog = page.getByRole('dialog', { name: 'Add this event to a work item' });
+    await choose(dialog.getByLabel('Work item'), 'Go-live date');
+    await dialog.getByRole('button', { name: 'Add to work item' }).click();
+
+    await expect(implementation).toHaveAttribute('aria-expanded', 'true');
+    await expect(
+      page.locator(
+        `svg.pg [data-in="golive"][data-act="${eventId}"], svg.pg [data-in="golive"][data-stack*="${eventId}"]`,
+      ),
+    ).toHaveCount(1);
+  });
+
+  test('an event takes the colour of its kind while its row line keeps the status colour', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-kinds', { classic: false });
+    // PG-203 is open, so its line starts in the Not finished blue; p31 on it is a Task.
+    await expect(page.locator('svg.pg [data-line="pg203"]').first()).toHaveCSS(
+      'stroke',
+      'rgb(0, 144, 255)',
+    );
+    await expect(page.locator('svg.pg [data-act="p31"] circle.bg')).toHaveCSS(
+      'stroke',
+      'rgb(96, 100, 108)',
+    );
+    await expect(page.locator('svg.pg [data-act="p31"] g[style]').last()).toHaveCSS(
+      'color',
+      'rgb(96, 100, 108)',
+    );
+    await expect(
+      page.getByRole('dialog', { name: 'Legend' }).getByRole('group', { name: 'Event kinds' }),
+    ).toContainText('Meeting');
+  });
+
+  test('a cancelled source hands nothing over, and the kind pop stays open for a Handoff', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    await signIn(page, 'tracker-cancel-source');
+    await actAs(page, 'Lan Phạm');
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
+    await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/changes\/5$/);
+    const bar = page.locator('.bbar').first();
+    const mark = page.locator('svg.pg [data-handoff="pg203"]');
+    const receiverWait = page.locator('svg.pg text', { hasText: /^(Waiting for|PG-203 was)/ });
+    await expect(mark).toHaveAttribute(
+      'aria-label',
+      'Hands over to Digitization QA when done · received in Test the CRS section end to end',
+    );
+    await expect(receiverWait).toHaveText('Waiting for PG-203');
+
+    await test.step('cancel PG-203: its mark says cancelled and the receiver says so', async () => {
+      await page.getByRole('combobox', { name: 'Search work items' }).fill('PG-203');
+      await page.keyboard.press('Enter');
+      const drawer = page.locator('.drawer');
+      await drawer.getByRole('button', { name: 'Cancel work item' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Cancel this work item' });
+      await dialog
+        .getByLabel('Why is it cancelled? (required)')
+        .fill('The client keeps the free text field.');
+      await dialog.getByRole('button', { name: 'Cancel work item' }).click();
+      await expect(dialog).toHaveCount(0);
+      await page.keyboard.press('Escape');
+      await expect(mark).toHaveAttribute(
+        'aria-label',
+        'Cancelled · Test the CRS section end to end no longer gets it from here',
+      );
+      await expect(receiverWait).toHaveText('PG-203 was cancelled');
+      await expect(page.locator('.lane-count', { hasText: 'cancelled' })).toHaveText(
+        '1 late · 2 done · 1 cancelled',
+      );
+      await expect(bar).toContainText('1 change');
+    });
+
+    await test.step('picking Handoff keeps the kind pop open, and the tick replaces that change', async () => {
+      await page.locator('svg.pg [data-act="p31"]').click();
+      const pop = page.locator('.pop');
+      await pop.getByRole('button', { name: 'Change kind' }).click();
+      await expect(pop.getByText('What kind of event is it?')).toBeVisible();
+      const box = pop.getByLabel('This finishes the work item');
+      await expect(box).toHaveCount(0);
+      await pop.getByRole('button', { name: 'Handoff', exact: true }).click();
+      await expect(bar).toContainText('2 changes');
+      await expect(pop.getByRole('button', { name: 'Handoff', exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      await expect(box).not.toBeChecked();
+      await box.check();
+      await expect(box).toBeChecked();
+      await expect(pop.getByText('What kind of event is it?')).toBeVisible();
+      await expect(bar).toContainText('2 changes');
+      await page
+        .locator('.cr-side')
+        .getByRole('button', { name: /^Changes/ })
+        .click();
+      await expect(page.getByRole('list', { name: 'Changes' })).toContainText(
+        'Handoff, finishes the work item',
+      );
+    });
+  });
+
+  test('Cancelled and a finishing Handoff end a work item, and the details hint at a missing start', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    await signIn(page, 'tracker-finish');
+    await actAs(page, 'Lan Phạm');
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
+    await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/changes\/5$/);
+    const drawer = page.locator('.drawer');
+    const search = page.getByRole('combobox', { name: 'Search work items' });
+    const details = async (text: string, title: string) => {
+      await search.fill(text);
+      await expect(page.getByRole('option').first()).toContainText(title);
+      await page.keyboard.press('Enter');
+      await expect(drawer).toHaveAttribute('aria-label', title);
+    };
+    const hint = drawer.getByRole('note', { name: 'Start of the work item' });
+    const line = (id: string) => page.locator(`svg.pg [data-line="${id}"]`);
+
+    await test.step('the kind picker groups the kinds into Start, Progress and Finish', async () => {
+      await details('Test the CRS', 'Test the CRS section end to end');
+      await expect(hint).toHaveCount(0);
+      await drawer.getByRole('button', { name: 'Add an event' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Add an event' });
+      await expect(dialog.getByLabel('Who')).toHaveText('Minh Trần');
+      await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+      await expect(dialog.getByLabel('Who')).toHaveText('Hà Đỗ');
+      await choose(dialog.getByLabel('Who'), 'Lan Phạm');
+      await dialog.getByRole('button', { name: 'Message', exact: true }).click();
+      await expect(dialog.getByLabel('Who')).toHaveText('Lan Phạm');
+      const group = (name: string) => dialog.getByRole('group', { name, exact: true });
+      await expect(group('Start').getByRole('button')).toHaveText(['Idea', 'Message', 'Issue']);
+      await expect(group('Progress').getByRole('button')).toHaveText([
+        'Task',
+        'Meeting',
+        'Decision',
+        'Delivery',
+      ]);
+      await expect(group('Finish').getByRole('button')).toHaveText([
+        'Handoff',
+        'Done',
+        'Cancelled',
+      ]);
+      await dialog.getByRole('button', { name: 'Delivery', exact: true }).click();
+      await dialog.getByLabel('What happened?').fill('Ha sends the first test report.');
+      await dialog.getByRole('button', { name: 'Add event' }).click();
+      await expect(dialog).toHaveCount(0);
+    });
+
+    await test.step('a work item that starts with a Delivery shows the hint in its details only', async () => {
+      await expect(hint).toHaveText(
+        'This work item starts with a Delivery. Add the event that started it, such as a Message, an Idea or a Task.',
+      );
+      await expect(page.getByText(/This work item starts with/)).toHaveCount(1);
+      await page.keyboard.press('Escape');
+      await expect(drawer).toHaveCount(0);
+      await expect(page.getByText(/This work item starts with/)).toHaveCount(0);
+    });
+
+    await test.step('Cancel work item needs a reason, then the row is grey and not late', async () => {
+      await details('PG-203', 'PG-203 Country list field type');
+      await expect(drawer.locator('.wi-top .badge')).toHaveText(/^Late by \d+ days?$/);
+      await expect(drawer).not.toContainText(/late \d/);
+      await drawer.getByRole('button', { name: 'Mark done' }).click();
+      const done = page.getByRole('dialog', { name: 'Add an event' });
+      await expect(done.getByLabel('Who')).toHaveText('Quang Nguyễn');
+      await done.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await expect(done).toHaveCount(0);
+      await drawer.getByRole('button', { name: 'Cancel work item' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Cancel this work item' });
+      await expect(dialog.getByLabel('Who')).toHaveText('Quang Nguyễn');
+      await expect(dialog.getByRole('button', { name: 'Cancelled', exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      const reason = dialog.getByLabel('Why is it cancelled? (required)');
+      await expect(reason).toHaveValue('');
+      await reason.fill('   ');
+      await dialog.getByRole('button', { name: 'Cancel work item' }).click();
+      await expect(dialog).toBeVisible();
+      await reason.fill('The client keeps the free text field.');
+      await dialog.getByRole('button', { name: 'Cancel work item' }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(drawer.locator('.wi-top .badge')).toHaveText('Cancelled');
+      await expect(drawer.locator('.late-by')).toHaveCount(0);
+      await expect(drawer.getByRole('button', { name: 'Mark done' })).toHaveCount(0);
+      await expect(line('pg203')).toHaveCount(1);
+      await expect(line('pg203')).toHaveCSS('stroke', 'rgb(139, 141, 152)');
+      await page.keyboard.press('Escape');
+    });
+
+    await test.step('a new Handoff finishes the work item by default', async () => {
+      await details('CRS tax residency', 'CRS tax residency section with DealCloud sync');
+      await drawer.getByRole('button', { name: 'Add an event' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Add an event' });
+      const finishes = dialog.getByLabel('This finishes the work item');
+      await expect(finishes).toHaveCount(0);
+      await dialog.getByRole('button', { name: 'Handoff', exact: true }).click();
+      await expect(finishes).toBeChecked();
+      await dialog.getByLabel('What happened?').fill('Minh hands the CRS section to QA.');
+      await dialog.getByRole('button', { name: 'Add event' }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(drawer.locator('.wi-top .badge')).toHaveText('Finished early');
+      await expect(line('crs')).toHaveCSS('stroke', 'rgb(70, 167, 88)');
+    });
+  });
+
+  test('an event circle is a full kind-colour ring on a light tint, and the circles behind a stack tint more', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-kind-tint', { classic: false });
+    // The browser serialises color-mix in its own way, so a probe element computes the expected colour.
+    const mixed = (color: string, percent: number) =>
+      page.evaluate(
+        ([c, p]) => {
+          const probe = document.createElement('div');
+          probe.style.color = `color-mix(in srgb, ${c} ${p}%, #ffffff)`;
+          document.body.append(probe);
+          const value = getComputedStyle(probe).color;
+          probe.remove();
+          return value;
+        },
+        [color, percent] as const,
+      );
+    const task = page.locator('svg.pg [data-act="p31"] circle.bg');
+    await expect(task).toHaveCSS('stroke', 'rgb(96, 100, 108)');
+    await expect(task).toHaveCSS('stroke-width', '2px');
+    await expect(task).toHaveCSS('fill', await mixed('rgb(96, 100, 108)', 12));
+    const stack = page.locator('svg.pg [data-stack] circle.layer').first();
+    const kind = await stack.evaluate((el) => getComputedStyle(el).stroke);
+    await expect(stack).toHaveCSS('fill', await mixed(kind, 26));
+  });
+
+  test('in dark, the tint inside an event circle is 16 % of its kind over the dark panel', async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({
+      viewport: { width: 1440, height: 1000 },
+      colorScheme: 'dark',
+    });
+    const page = await context.newPage();
+    await signIn(page, 'tracker-kind-tint-dark', { classic: false });
+    const task = page.locator('svg.pg [data-act="p31"] circle.bg');
+    await expect(task).toHaveCSS('stroke', 'rgb(176, 180, 186)');
+    const expected = await page.evaluate(() => {
+      const probe = document.createElement('div');
+      probe.style.color = 'color-mix(in srgb, rgb(176, 180, 186) 16%, #18191b)';
+      document.body.append(probe);
+      const value = getComputedStyle(probe).color;
+      probe.remove();
+      return value;
+    });
+    await expect(task).toHaveCSS('fill', expected);
+    await context.close();
+  });
+});
+
+test.describe('the legend popover', () => {
+  test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
+
+  test('opens on the first visit and remembers a close and an open across reloads', async ({
+    page,
+  }) => {
+    const { graph } = await signIn(page, 'legend-store', { classic: false });
+    const button = page.getByRole('button', { name: 'Legend', exact: true });
+    const legend = page.getByRole('dialog', { name: 'Legend' });
+    await expect(page.locator('.legend2')).toHaveCount(0);
+    await expect(button).toHaveAttribute('aria-expanded', 'true');
+    await expect(button).toHaveAttribute('title', 'Legend');
+    await expect(legend).toBeVisible();
+    for (const group of ['Line', 'Change', 'Milestone', 'Event'])
+      await expect(legend.getByText(group, { exact: true })).toBeVisible();
+    await expect(legend.getByRole('group', { name: 'Event kinds' }).locator('.lg-kd')).toHaveCount(
+      10,
+    );
+    await expect(legend.getByText('Late part')).toHaveAttribute(
+      'title',
+      'Not finished after its planned finish',
+    );
+    await expect(legend.getByText('Done late')).toHaveAttribute(
+      'title',
+      'Done after its planned finish',
+    );
+    const pop = (await legend.boundingBox())!;
+    const bar = (await page.getByRole('group', { name: 'View controls' }).boundingBox())!;
+    expect(pop.y + pop.height).toBeLessThanOrEqual(bar.y);
+    expect(Math.abs(pop.x + pop.width - (bar.x + bar.width))).toBeLessThanOrEqual(1);
+
+    // The server cannot read the stored choice, so its HTML holds no legend at all.
+    const html = await (await page.request.get(graph)).text();
+    expect(html).toContain('aria-label="View controls"');
+    expect(html).not.toContain('legend-pop');
+
+    await button.click();
+    await expect(legend).toBeHidden();
+    await expect(button).toHaveAttribute('aria-expanded', 'false');
+    await page.addInitScript(() => {
+      const seen = { legend: false };
+      (window as unknown as { legendSeen: typeof seen }).legendSeen = seen;
+      new MutationObserver(() => {
+        if (document.querySelector('.legend-pop')) seen.legend = true;
+      }).observe(document, { childList: true, subtree: true });
+    });
+    await page.reload();
+    await hydrated(page);
+    await expect(button).toHaveAttribute('aria-expanded', 'false');
+    await expect(legend).toBeHidden();
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { legendSeen: { legend: boolean } }).legendSeen.legend,
+      ),
+    ).toBe(false);
+
+    await button.click();
+    await expect(legend).toBeVisible();
+    await page.reload();
+    await hydrated(page);
+    await expect(legend).toBeVisible();
+
+    await legend.getByRole('button', { name: 'Close legend' }).click();
+    await expect(legend).toBeHidden();
+    await page.reload();
+    await hydrated(page);
+    await expect(legend).toBeHidden();
+  });
+
+  test('Esc closes it only from inside, and the graph around it still takes clicks', async ({
+    page,
+  }) => {
+    await signIn(page, 'legend-esc', { classic: false });
+    const button = page.getByRole('button', { name: 'Legend', exact: true });
+    const legend = page.getByRole('dialog', { name: 'Legend' });
+    const drawer = page.locator('.drawer');
+    await expect(legend).toBeVisible();
+
+    await page.locator('svg.pg [data-loop="pg203"]').click({ position: { x: 40, y: 15 } });
+    await expect(drawer.locator('h4')).toHaveText('PG-203 Country list field type');
+    await expect(legend).toBeVisible();
+    const pop = (await legend.boundingBox())!;
+    const left = { x: pop.x - 20, y: pop.y + pop.height / 2 };
+    expect(
+      await page.evaluate(
+        ({ x, y }) => !!document.elementFromPoint(x, y)?.closest('.tgraph'),
+        left,
+      ),
+    ).toBe(true);
+
+    await page.keyboard.press('Escape');
+    await expect(drawer).toHaveCount(0);
+    await expect(legend).toBeVisible();
+
+    await page.locator('svg.pg [data-loop="pg203"]').click({ position: { x: 40, y: 15 } });
+    await expect(drawer).toHaveCount(1);
+    await legend.getByRole('button', { name: 'Close legend' }).focus();
+    await page.keyboard.press('Escape');
+    await expect(legend).toBeHidden();
+    await expect(drawer).toHaveCount(1);
+    await expect(button).toBeFocused();
+    await expect(button).toHaveAttribute('aria-expanded', 'false');
+  });
+});
+
+test.describe('the legend popover beside a drawer', () => {
+  test.use({ viewport: { width: 1280, height: 900 }, colorScheme: 'light' });
+
+  test('follows the zoom corner when a drawer opens, and hides while an event moves', async ({
+    page,
+  }) => {
+    const { graph } = await signIn(page, 'legend-drawer', { classic: false });
+    await visit(page, crPath(graph, 4));
+    await actAs(page, 'Hà Đỗ');
+    const legend = page.getByRole('dialog', { name: 'Legend' });
+    const bar = page.getByRole('group', { name: 'View controls' });
+    const canvas = page.locator('.gcanvas');
+    const inside = async () => {
+      const pop = (await legend.boundingBox())!;
+      const area = (await canvas.boundingBox())!;
+      const zoom = (await bar.boundingBox())!;
+      expect(pop.x).toBeGreaterThanOrEqual(area.x);
+      expect(Math.abs(pop.x + pop.width - (zoom.x + zoom.width))).toBeLessThanOrEqual(1);
+      expect(pop.y).toBeGreaterThanOrEqual(area.y);
+      expect(pop.y + pop.height).toBeLessThanOrEqual(zoom.y);
+    };
+    await expect(legend).toBeVisible();
+    await inside();
+    const wide = (await legend.boundingBox())!.width;
+
+    await page.locator('svg.pg [data-loop="pg203"]').click({ position: { x: 40, y: 15 } });
+    await expect(
+      page.getByRole('complementary', { name: 'PG-203 Country list field type' }),
+    ).toBeVisible();
+    await expect(legend).toBeVisible();
+    await inside();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.drawer')).toHaveCount(0);
+    await inside();
+    expect((await legend.boundingBox())!.width).toBe(wide);
+
+    await page.locator('svg.pg [data-act="p31"]').click();
+    await page.locator('.pop').getByRole('button', { name: 'Move to another work item' }).click();
+    await expect(page.locator('.tk.moving')).toHaveCount(1);
+    await expect(legend).toBeHidden();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.tk.moving')).toHaveCount(0);
+    await expect(legend).toBeVisible();
+  });
+});
+
+test.describe('the legend popover on a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, colorScheme: 'light', hasTouch: true });
+
+  test('starts closed, then takes two columns inside the graph, no wider than the screen minus the 16 px gutters', async ({
+    page,
+  }) => {
+    await page.goto('/signin?label=legend-phone');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    const legend = page.getByRole('dialog', { name: 'Legend' });
+    const button = page.getByRole('button', { name: 'Legend', exact: true });
+    // On a phone the legend would cover most of the graph, so it starts closed there.
+    await expect(button).toHaveAttribute('aria-expanded', 'false');
+    await expect(legend).toHaveCount(0);
+    await page.locator('.gcanvas').scrollIntoViewIfNeeded();
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await button.click();
+    await expect(legend).toBeVisible();
+    const box = (await legend.boundingBox())!;
+    const area = (await page.locator('.gcanvas').boundingBox())!;
+    const bar = (await page.getByRole('group', { name: 'View controls' }).boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(area.y);
+    expect(box.width).toBeLessThanOrEqual(390 - 32);
+    expect(box.x).toBeGreaterThanOrEqual(16);
+    expect(Math.abs(box.x + box.width - (bar.x + bar.width))).toBeLessThanOrEqual(1);
+    expect(box.y + box.height).toBeLessThanOrEqual(bar.y);
+    const columns = await legend.evaluate(
+      (el) => getComputedStyle(el.querySelector('.lg-grid')!).gridTemplateColumns.split(' ').length,
+    );
+    expect(columns).toBe(2);
+    await noHorizontalScroll(page);
+    await page.reload();
+    await expect(page.locator('svg.pg')).toBeVisible();
+    await expect(button).toHaveAttribute('aria-expanded', 'true');
+    await expect(legend).toBeVisible();
+  });
+
+  test('never covers the controls above a short view of the graph', async ({ page }) => {
+    await page.goto('/signin?label=legend-phone-top');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    await page.getByRole('button', { name: 'Legend', exact: true }).click();
+    const legend = page.getByRole('dialog', { name: 'Legend' });
+    await expect(legend).toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect
+      .poll(async () => {
+        const box = (await legend.boundingBox())!;
+        const area = (await page.locator('.gcanvas').boundingBox())!;
+        return box.y - area.y;
+      })
+      .toBeGreaterThanOrEqual(0);
+  });
+});
+
+test.describe('changes that no longer apply', () => {
+  test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
+
+  test('when Clear fails part way, the rows left keep their Clear button', async ({ page }) => {
+    const { projectId, graph } = await signIn(page, 'tracker-clear-409', { classic: false });
+    const num = await page.evaluate(async (pid) => {
+      const read = await (await fetch(`/api/v1/projects/${pid}/tracker`)).json();
+      const item = read.queue.items.find(
+        (q: { title: string }) => q.title === 'PG-204 Tax ID format check',
+      );
+      const created = await fetch(`/api/v1/projects/${pid}/tracker/crs`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Tax ID check',
+          ops: [
+            { op: 'place', a: { itemId: item.id, teamId: 'engineering' } },
+            { op: 'rename', a: { workItemId: item.id, title: 'PG-204 Tax ID check' } },
+            { op: 'rename', a: { workItemId: item.id, title: 'PG-204 Tax ID rules' } },
+          ],
+        }),
+      });
+      return ((await created.json()) as { num: number }).num;
+    }, projectId);
+    await visit(page, crPath(graph, num));
+    const side = page.locator('.cr-side');
+    const rows = side.locator('.chg-row');
+    const clear = side.getByRole('button', { name: 'Clear the changes that no longer apply' });
+    const note = side.getByRole('note', { name: 'Changes that no longer apply' });
+    await rows
+      .first()
+      .getByRole('button', { name: /^Undo this change/ })
+      .click();
+    await expect(note).toHaveText('2 changes no longer apply.Clear');
+
+    let removals = 0;
+    await page.route(/\/ops\/\d+$/, async (route) => {
+      if (route.request().method() !== 'DELETE' || ++removals < 2) return route.continue();
+      await route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: { code: 'CONFLICT', message: 'The change request changed.' },
+        }),
+      });
+    });
+    await clear.click();
+    await expect(note).toHaveText('1 change no longer applies.Clear');
+    await expect(rows).toHaveCount(1);
+    await expect(clear).toBeEnabled();
+    expect(removals).toBe(2);
+  });
+
+  test('a draft whose every change is already in Main says so and can be cancelled', async ({
+    page,
+  }) => {
+    const { projectId, graph } = await signIn(page, 'tracker-inmain', { classic: false });
+    const num = await page.evaluate(async (pid) => {
+      const base = `/api/v1/projects/${pid}/tracker/crs`;
+      const post = (url: string, body: unknown) =>
+        fetch(url, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        }).then((r) => r.json());
+      const ops = [{ op: 'rename', a: { workItemId: 'secret', title: 'Client secret renewed' } }];
+      const first = await post(base, { title: 'First', ops });
+      const copy = await post(base, { title: 'Copy', ops });
+      await post(`${base}/${first.num}/actions`, { action: 'ready' });
+      const read = await (await fetch(`/api/v1/projects/${pid}/tracker`)).json();
+      const revision = read.crs.find((c: { num: number }) => c.num === first.num).revision;
+      await post(`${base}/${first.num}/actions`, { action: 'merge', expectedRevision: revision });
+      return copy.num as number;
+    }, projectId);
+    await visit(page, crPath(graph, num));
+    const bar = page.locator('.bbar').first();
+    await expect(bar).toContainText('0 changes');
+    await expect(bar).toContainText('Every change is already in Main.');
+    await expect(bar.getByRole('button', { name: 'Mark as ready' })).toBeDisabled();
+    await expect(bar.getByRole('button', { name: 'Cancel change request' })).toBeEnabled();
+    await expect(page.locator('.cr-side')).toContainText('Every change is already in Main.');
+  });
+
+  test('an undone placement leaves its later changes out of the count and of Mark as ready, and Clear removes them', async ({
+    page,
+  }) => {
+    const { projectId, graph } = await signIn(page, 'tracker-stale', { classic: false });
+    const num = await page.evaluate(async (pid) => {
+      const read = await (await fetch(`/api/v1/projects/${pid}/tracker`)).json();
+      const item = read.queue.items.find(
+        (q: { title: string }) => q.title === 'PG-204 Tax ID format check',
+      );
+      const created = await fetch(`/api/v1/projects/${pid}/tracker/crs`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Tax ID check',
+          ops: [
+            { op: 'place', a: { itemId: item.id, teamId: 'engineering' } },
+            { op: 'rename', a: { workItemId: item.id, title: 'PG-204 Tax ID check' } },
+            { op: 'rename', a: { workItemId: item.id, title: 'PG-204 Tax ID rules' } },
+          ],
+        }),
+      });
+      return ((await created.json()) as { num: number }).num;
+    }, projectId);
+    await visit(page, crPath(graph, num));
+    const bar = page.locator('.bbar').first();
+    const side = page.locator('.cr-side');
+    const rows = side.locator('.chg-row');
+    const ready = bar.getByRole('button', { name: 'Mark as ready' });
+    const clear = side.getByRole('button', { name: 'Clear the changes that no longer apply' });
+    await expect(bar).toContainText('3 changes');
+    await expect(ready).toBeEnabled();
+    await expect(clear).toHaveCount(0);
+
+    await rows
+      .first()
+      .getByRole('button', { name: /^Undo this change/ })
+      .click();
+    await expect(rows).toHaveCount(2);
+    await expect(rows.first()).toContainText('no longer applies');
+    await expect(bar).toContainText('0 changes');
+    await expect(side.getByRole('button', { name: /^Changes/ })).toHaveText('Changes 0');
+    await expect(ready).toBeDisabled();
+    await expect(side.getByRole('note', { name: 'Changes that no longer apply' })).toHaveText(
+      '2 changes no longer apply.Clear',
+    );
+
+    await side.getByRole('button', { name: 'Hide the side panel' }).click();
+    const show = page.getByRole('button', { name: /^Changes and Queue/ });
+    await expect(show.locator('.cnt')).toHaveText('0');
+    await show.click();
+
+    await clear.click();
+    await expect(rows).toHaveCount(0);
+    await expect(clear).toHaveCount(0);
+    await expect(side).toContainText('No changes yet.');
   });
 });

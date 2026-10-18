@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { makeDirectory } from '../../../src/components/tracker/avatar';
 import type { Session } from '../../../src/components/tracker/ContextBar';
 import { ContextBar } from '../../../src/components/tracker/ContextBar';
-import { TopBar } from '../../../src/components/tracker/TopBar';
+import { demoPeople, TopBar } from '../../../src/components/tracker/TopBar';
 import { NO_ACTIONS } from '../../../src/components/tracker/TrackerScreen';
 import type { HiddenList } from '../../../src/components/tracker/view-state';
 import { NO_FILTER, type RowFilter } from '../../../src/tracker/filter';
@@ -20,6 +20,7 @@ const members: Member[] = [
     color: '#111',
     userId: 'u1',
     active: true,
+    removed: false,
     grants: DEFAULT_GRANTS,
   },
   {
@@ -29,6 +30,7 @@ const members: Member[] = [
     color: '#222',
     userId: null,
     active: true,
+    removed: false,
     grants: DEFAULT_GRANTS,
   },
   {
@@ -38,6 +40,7 @@ const members: Member[] = [
     color: '#333',
     userId: null,
     active: false,
+    removed: true,
     grants: DEFAULT_GRANTS,
   },
   {
@@ -47,6 +50,7 @@ const members: Member[] = [
     color: '#444',
     userId: 'u2',
     active: true,
+    removed: false,
     grants: DEFAULT_GRANTS,
   },
 ];
@@ -120,12 +124,7 @@ function sessionOf(me: Member | null, crs: Cr[] = []): Session {
   };
 }
 
-function render(
-  me: Member | null,
-  hidden: HiddenList = NONE,
-  filter: RowFilter = NO_FILTER,
-  crs: Cr[] = [],
-) {
+function render(me: Member | null, filter: RowFilter = NO_FILTER, crs: Cr[] = []) {
   const session = sessionOf(me, crs);
   const { base, queue } = session.payload;
   return renderToStaticMarkup(
@@ -135,13 +134,9 @@ function render(
       userId: 'u1',
       state: { ...base, queue },
       asOf: '2026-10-09T18:00:00+07:00',
-      hidden,
       drawer: null,
       actions: NO_ACTIONS,
       onDrawer: () => {},
-      onUnhideTeam: () => {},
-      onUnhideItem: () => {},
-      onUnhideAll: () => {},
       onActAs: () => {},
       onPick: () => {},
       filter,
@@ -180,32 +175,18 @@ describe('TopBar', () => {
   });
 
   it('counts the active filters on the control and offers Clear filters', () => {
-    const html = render(members[1], NONE, { ...NO_FILTER, statuses: ['late'], teams: ['eng'] });
+    const html = render(members[1], { ...NO_FILTER, statuses: ['late'], teams: ['eng'] });
     expect(html).toContain('aria-label="Filters, 2 on"');
     expect(html).toMatch(/<span class="cnt">2<\/span>/);
     expect(html).toContain('Clear filters');
   });
 
   it('shows the typed text of the filter in the search box', () => {
-    expect(render(members[1], NONE, { ...NO_FILTER, text: 'pg-203' })).toContain('value="pg-203"');
+    expect(render(members[1], { ...NO_FILTER, text: 'pg-203' })).toContain('value="pg-203"');
   });
 
-  it('shows no hidden badge when nothing is hidden', () => {
-    expect(render(members[1])).not.toContain('Unhide');
-  });
-
-  it('opens a list of hidden teams and work items from the hidden badge, each with Unhide', () => {
-    const html = render(members[1], {
-      teams: [{ id: 'it', name: 'IT', items: 1 }],
-      items: [{ id: 'pg203', title: 'PG-203 Country list field type', team: 'Engineering' }],
-      count: 2,
-    });
-    expect(html).toMatch(/<summary[^>]*>.*2 hidden.*<\/summary>/);
-    expect(html).toContain('role="dialog"');
-    expect(html).toContain('aria-label="Unhide IT"');
-    expect(html).toContain('aria-label="Unhide PG-203 Country list field type"');
-    expect(html).toContain('Unhide all');
-    expect(html).not.toContain('Show all');
+  it('leaves the hidden badge to the context bar', () => {
+    expect(render(members[1])).not.toContain('hid-menu');
   });
 
   it('leaves the view selector to the context bar', () => {
@@ -218,7 +199,7 @@ describe('TopBar', () => {
     const plain = render(members[0]);
     expect(plain).toMatch(/class="btn crs-btn"[^>]*>.*Change requests<\/button>/);
     expect(plain).not.toContain('nbadge');
-    const html = render(members[0], NONE, NO_FILTER, [draft(1, 'ready'), draft(2, 'ready')]);
+    const html = render(members[0], NO_FILTER, [draft(1, 'ready'), draft(2, 'ready')]);
     expect(html).toContain('aria-label="Change requests, 2 ready to merge"');
     expect(html).toMatch(/<span class="nbadge" aria-hidden="true">2<\/span>/);
     expect(html).not.toContain('ready to merge</button>');
@@ -229,16 +210,19 @@ describe('TopBar', () => {
     const count = (html: string) => html.match(/New change request/g)?.length ?? 0;
     expect(count(render(members[1]))).toBe(1);
     const cr = draft(5, 'draft');
-    expect(count(render(members[1], NONE, NO_FILTER, [cr]))).toBe(1);
+    expect(count(render(members[1], NO_FILTER, [cr]))).toBe(1);
     expect(count(render(null))).toBe(0);
   });
 
   it('lists only the seeded members who can act and your own member in the Demo select', () => {
     const html = render(members[1]);
-    expect(html).toContain('>Lan Phạm</option>');
-    expect(html).not.toContain('Bảo Ngô</option>');
-    expect(html).not.toContain('Mai Vũ</option>');
-    expect(html).toContain('>Minh Trần</option>');
+    expect(html).toContain('aria-label="Demo: act as"');
+    expect(html).toContain('<span class="sel-val">Lan Phạm</span>');
+    const names = demoPeople(members, 'u1').map((option) => option.label);
+    expect(names).toContain('Lan Phạm');
+    expect(names).toContain('Minh Trần');
+    expect(names).not.toContain('Bảo Ngô');
+    expect(names).not.toContain('Mai Vũ');
   });
 
   it('opens a menu with the theme and Sign out from the acting member, or from the signed-in person', () => {
@@ -254,7 +238,13 @@ describe('TopBar', () => {
   });
 });
 
-const bar = (me: Member | null, crs: Cr[], cr: Cr | null = null) =>
+const TWO_HIDDEN: HiddenList = {
+  teams: [{ id: 'it', name: 'IT', items: 1 }],
+  items: [{ id: 'pg203', title: 'PG-203 Country list field type', team: 'Engineering' }],
+  count: 2,
+};
+
+const bar = (me: Member | null, crs: Cr[], cr: Cr | null = null, hidden: HiddenList = NONE) =>
   renderToStaticMarkup(
     createElement(ContextBar, {
       session: sessionOf(me, crs),
@@ -262,8 +252,16 @@ const bar = (me: Member | null, crs: Cr[], cr: Cr | null = null) =>
       actions: NO_ACTIONS,
       onView: () => {},
       onDrawer: () => {},
+      hidden: { hidden, onUnhideTeam: () => {}, onUnhideItem: () => {}, onUnhideAll: () => {} },
     }),
   );
+
+/** The badge is the last control of the first line of the bar. */
+const lastOfFirstLine = (html: string) => {
+  const line = html.replace(/<(div class="ask-row|p class="bnote)[\s\S]*$/, '');
+  const at = line.indexOf('class="hid-menu"');
+  return at > 0 && !/<button|<span class="chipx/.test(line.slice(line.indexOf('</details>', at)));
+};
 
 describe('ContextBar on Main', () => {
   it('holds the view selector: Main, read-only and its project lead', () => {
@@ -277,10 +275,27 @@ describe('ContextBar on Main', () => {
     expect(html).not.toContain('Open #');
   });
 
-  it('offers to open a draft of your own, without the read-only sentence', () => {
+  it('has no Open draft button; the view selector still lists your draft', () => {
     const html = bar(members[1], [draft(4, 'draft')]);
-    expect(html).toContain('Open #4 (draft)');
-    expect(html).not.toContain('Every change goes through a change request');
+    expect(html).not.toContain('Open #');
+    expect(html).toContain('#4 Change 4');
+    expect(html).toContain('you are editing');
+    expect(html).toContain('All change requests');
+  });
+
+  it('shows no hidden badge when nothing is hidden', () => {
+    expect(bar(members[1], [draft(4, 'draft')])).not.toContain('hid-menu');
+  });
+
+  it('puts the hidden badge at the right end, with a list of each hidden row and Unhide', () => {
+    const html = bar(members[1], [draft(4, 'draft')], null, TWO_HIDDEN);
+    expect(html).toMatch(/<summary[^>]*>.*2 hidden.*<\/summary>/);
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-label="Unhide IT"');
+    expect(html).toContain('aria-label="Unhide PG-203 Country list field type"');
+    expect(html).toContain('Unhide all');
+    expect(html).not.toContain('Show all');
+    expect(lastOfFirstLine(html)).toBe(true);
   });
 });
 
@@ -296,6 +311,22 @@ describe('ContextBar in a change request', () => {
     expect(html).toContain('You are editing');
     expect(html).toContain('0 changes');
     expect(html.match(/class="bbar/g)).toHaveLength(1);
+  });
+
+  it('puts the hidden badge in the same slot, in an open and in a merged change request', () => {
+    const cr = draft(5, 'draft');
+    const open = bar(members[1], [cr], cr, TWO_HIDDEN);
+    expect(open).toMatch(/<summary[^>]*>.*2 hidden.*<\/summary>/);
+    expect(lastOfFirstLine(open)).toBe(true);
+    expect(bar(members[1], [cr], cr)).not.toContain('hid-menu');
+    const merged = { ...draft(6, 'merged'), mergedBy: 'minh' };
+    expect(bar(members[1], [merged], merged, TWO_HIDDEN)).toContain('2 hidden');
+  });
+
+  it('adds no spacer to a merged change request when nothing is hidden', () => {
+    const merged = { ...draft(6, 'merged'), mergedBy: 'minh' };
+    expect(bar(members[1], [merged], merged)).not.toContain('class="sp"');
+    expect(bar(members[1], [merged], merged, TWO_HIDDEN)).toContain('class="sp"');
   });
 
   it('gives a member without edit right a button to ask for edit access', () => {
@@ -364,6 +395,7 @@ describe('ContextBar in a change request', () => {
           kind: 'closed',
           body: 'Main has it already.',
           opIndex: null,
+          agent: false,
           createdAt: '2026-10-09T11:00:00.000Z',
         },
       ],

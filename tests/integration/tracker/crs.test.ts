@@ -67,6 +67,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
           kind: 'created',
           body: null,
           opIndex: null,
+          agent: false,
           createdAt: expect.any(String),
         },
       ]);
@@ -156,6 +157,37 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       });
       expect(crOf(second, num).ops.map((op) => op.op)).toEqual(['attach', 'rename']);
       expect(crOf(second, num).revision).toBe(2);
+    });
+
+    it('lets a kind change of the same event replace the last one, and drops a change back', async () => {
+      await fresh();
+      const { num } = await createCr(t.db, demo.owner, { ...as('lan'), title: 'Kinds' });
+      const kind = async (a: Record<string, unknown>) => {
+        const revision = crOf(await getTrackerPayload(t.db, demo.owner, as('lan')), num).revision;
+        const p = await appendOp(t.db, demo.owner, {
+          ...as('lan'),
+          num,
+          expectedRevision: revision,
+          op: { op: 'kind', a: { eventId: 'p31', ...a } },
+        } as never);
+        return crOf(p, num).ops;
+      };
+      expect(await kind({ kind: 'handoff' })).toHaveLength(1);
+      const ops = await kind({ kind: 'handoff', finishes: true });
+      expect(ops).toHaveLength(1);
+      expect(ops[0]).toMatchObject({
+        a: { eventId: 'p31', kind: 'handoff', finishes: true },
+        d: { before: 'Task', after: 'Handoff, finishes the work item' },
+      });
+      expect(await kind({ kind: 'task' })).toEqual([]);
+      await appendOp(t.db, demo.owner, {
+        ...as('lan'),
+        num,
+        expectedRevision: crOf(await getTrackerPayload(t.db, demo.owner, as('lan')), num).revision,
+        op: { op: 'rename', a: { workItemId: 'pg203', title: 'PG-203 Country list' } },
+      });
+      expect((await kind({ kind: 'issue' })).map((op) => op.op)).toEqual(['rename', 'kind']);
+      expect((await kind({ kind: 'idea' })).map((op) => op.op)).toEqual(['rename', 'kind']);
     });
 
     it('rejects an op that does not fit the latest Main plus the change request', async () => {
@@ -340,6 +372,31 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       expect(lastComment(draft, num)).toMatchObject({ kind: 'unready', memberId: demo.ids.lan });
       await expect(action('lan', num, { action: 'unready' })).rejects.toMatchObject({
         code: 'CONFLICT',
+      });
+    });
+  });
+
+  describe('ready with changes that no longer apply', () => {
+    it('refuses Ready when no change applies after the placement is undone', async () => {
+      await fresh();
+      const { num } = await createCr(t.db, demo.owner, { ...as('lan'), title: 'Placed' });
+      const ops = [
+        { op: 'place', a: { itemId: demo.ids.q2, teamId: 'engineering' } },
+        { op: 'rename', a: { workItemId: demo.ids.q2, title: 'Investor template v2' } },
+      ];
+      for (const [i, op] of ops.entries())
+        await appendOp(t.db, demo.owner, { ...as('lan'), num, expectedRevision: i, op });
+      const undone = await removeOp(t.db, demo.owner, {
+        ...as('lan'),
+        num,
+        index: 0,
+        expectedRevision: 2,
+      });
+      expect(crOf(undone, num).ops).toHaveLength(1);
+      expect(reviewModel(undone, num)).toMatchObject({ applying: 0, stale: [0] });
+      await expect(action('lan', num, { action: 'ready' })).rejects.toMatchObject({
+        code: 'VALIDATION',
+        message: 'Add at least one change that applies before you mark it as ready',
       });
     });
   });

@@ -1,13 +1,13 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import type { AgentToken, RevokeAgentTokenResult } from '../../contracts';
 import { shortDay, shortStamp } from './dates';
 import { send, type ApiError } from '../shell/api';
 import { ConflictBanner } from '../shell/ConflictBanner';
 import { useHydrated } from '../shell/hydrated';
 import { Pager } from '../shell/Pager';
-import { permissionTitles } from './scopes';
+import { permissionShort } from './scopes';
 
 function TokenRow({
   projectId,
@@ -25,6 +25,8 @@ function TokenRow({
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<ApiError | null>(null);
+  // Revoking stays until the refreshed list shows the token revoked, not only until the DELETE answers.
+  const [refreshing, startRefresh] = useTransition();
   // One key per row: a retried revocation returns the first revocation time instead of acting twice.
   const [revokeKey] = useState(() => crypto.randomUUID());
   const expired = token.revokedAt === null && Date.parse(token.expiresAt) <= Date.parse(now);
@@ -36,43 +38,53 @@ function TokenRow({
       'DELETE',
       { idempotencyKey: revokeKey },
     );
-    setBusy(false);
-    if (result.ok) {
-      setConfirming(false);
-      router.refresh();
-    } else setFailure(result.error);
+    if (result.ok)
+      startRefresh(() => {
+        setBusy(false);
+        setConfirming(false);
+        router.refresh();
+      });
+    else {
+      setBusy(false);
+      setFailure(result.error);
+    }
   };
   return (
-    <tr className={token.revokedAt || expired ? 'inactive' : undefined}>
-      <td>
+    <div className={`pg-trow${token.revokedAt || expired ? ' inactive' : ''}`} role="row">
+      <span className="pg-tname" role="cell">
         <b className="pg-token">{token.label}</b>
         <span className="id faint">{token.prefix}…</span>
-      </td>
-      <td>{permissionTitles(token.scopes)}</td>
-      <td data-testid="last-call">
-        {token.lastUsedAt ? shortStamp(token.lastUsedAt, timeZone) : 'Never'}
-      </td>
-      <td>
+      </span>
+      <span className="pg-tperm" role="cell" title={permissionShort(token.scopes)}>
+        {permissionShort(token.scopes)}
+      </span>
+      <span className="pg-tcell" role="cell">
+        <span className="pg-cap">Last call</span>
+        <span data-testid="last-call">
+          {token.lastUsedAt ? shortStamp(token.lastUsedAt, timeZone) : 'Never'}
+        </span>
+      </span>
+      <span className="pg-tcell" role="cell">
+        <span className="pg-cap">Expires</span>
         {token.revokedAt
           ? `Revoked ${shortDay(token.revokedAt, timeZone)}`
           : expired
             ? `Expired ${shortDay(token.expiresAt, timeZone)}`
             : shortDay(token.expiresAt, timeZone, true)}
-      </td>
-      <td>
+      </span>
+      <span className="pg-tacts" role="cell">
         {!token.revokedAt &&
           !expired &&
-          (confirming ? (
+          (busy || refreshing ? (
+            <span className="pg-status" role="status">
+              Revoking…
+            </span>
+          ) : confirming ? (
             <div className="pg-acts">
-              <button className="btn sm btn-danger" type="button" disabled={busy} onClick={revoke}>
+              <button className="btn sm btn-danger" type="button" onClick={revoke}>
                 Confirm revoke
               </button>
-              <button
-                className="btn sm"
-                type="button"
-                disabled={busy}
-                onClick={() => setConfirming(false)}
-              >
+              <button className="btn sm" type="button" onClick={() => setConfirming(false)}>
                 Keep
               </button>
             </div>
@@ -87,8 +99,8 @@ function TokenRow({
             </button>
           ))}
         {failure && <ConflictBanner title="The token was not revoked." error={failure} />}
-      </td>
-    </tr>
+      </span>
+    </div>
   );
 }
 
@@ -114,48 +126,46 @@ export function TokenList({
   return (
     <section className="pg-sec" aria-labelledby="token-list">
       <div className="pg-sec-head">
-        <h2 id="token-list">Your agent tokens</h2>
+        <h2 id="token-list">
+          Agent tokens <span className="pg-count">{tokens.length}</span>
+        </h2>
         <button
           type="button"
-          className="btn sm"
+          className="btn sm btn-quiet"
           disabled={!hydrated}
           onClick={() => router.refresh()}
         >
           Check again
         </button>
       </div>
-      <div className="pg-scroll">
-        <table className="pg-table">
-          <thead>
-            <tr>
-              <th>Token</th>
-              <th>Permissions</th>
-              <th>Last call</th>
-              <th>Expires</th>
-              <th>
-                <span className="sr">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {tokens.map((token) => (
-              <TokenRow
-                key={token.id}
-                projectId={projectId}
-                token={token}
-                now={now}
-                timeZone={timeZone}
-              />
-            ))}
-            {tokens.length === 0 && (
-              <tr>
-                <td colSpan={5} className="faint">
-                  No tokens yet. Create one to connect your agent.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <p className="pg-lede">
+        A token lets your own AI agent work in this project through MCP, with the permissions you
+        pick. Only you see your tokens.
+      </p>
+      <div className="pg-tokens" role="table" aria-label="Your agent tokens">
+        <div className="pg-trow pg-cols" role="row">
+          <span role="columnheader">Token</span>
+          <span role="columnheader">Permissions</span>
+          <span role="columnheader">Last call</span>
+          <span role="columnheader">Expires</span>
+          <span role="columnheader">
+            <span className="sr">Actions</span>
+          </span>
+        </div>
+        {tokens.map((token) => (
+          <TokenRow
+            key={token.id}
+            projectId={projectId}
+            token={token}
+            now={now}
+            timeZone={timeZone}
+          />
+        ))}
+        {tokens.length === 0 && (
+          <div className="pg-empty" role="row">
+            <span role="cell">No tokens yet. Create one below to connect your agent.</span>
+          </div>
+        )}
       </div>
       <Pager basePath={basePath} nextCursor={nextCursor} paged={paged} noun="tokens" />
     </section>

@@ -7,6 +7,7 @@ import { getApp } from '../../../../../server/app';
 import { signedInAccount } from '../../../../../server/domain/account';
 import { requireActor } from '../../../../../server/http/rsc';
 import { NoViewNotice, serverMinute, trackerPayload } from '../tracker-load';
+import { Notice } from '../../../../../components/shell/Notice';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Graph · Promise Graph' };
@@ -28,14 +29,9 @@ export default async function GraphPage({
   if (payload === 'no-view') return <NoViewNotice projectId={id} />;
   if (!payload)
     return (
-      <div className="screen">
-        <div className="card pad" role="status">
-          <h1>This project has no tracker yet.</h1>
-          <p className="muted" style={{ marginTop: 6 }}>
-            Make a new project from the project menu to start an event tracker.
-          </p>
-        </div>
-      </div>
+      <Notice role="status" title="This project has no tracker yet.">
+        Make a new project from the project menu to start an event tracker.
+      </Notice>
     );
   return (
     <TrackerScreen

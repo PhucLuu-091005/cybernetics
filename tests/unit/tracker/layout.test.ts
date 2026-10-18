@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   GEOMETRY,
+  ROW_LEVELS,
   layoutTracker,
+  cutToWidth,
+  laneNameWidth,
+  type Density,
   windowStartFor,
   type LayoutSegment,
   type TrackerLayout,
@@ -9,6 +13,7 @@ import {
 } from '../../../src/tracker/layout';
 import type { TrackerState } from '../../../src/tracker/model';
 import { replayOps, type Marks } from '../../../src/tracker/ops';
+import { larkspurCrs } from '../../../src/server/tracker/seed/larkspur';
 import { addDays } from '../../../src/tracker/time';
 import {
   AS_OF,
@@ -371,8 +376,9 @@ describe('layoutTracker: lanes and rows', () => {
       teamId: 'implementation',
       label: 'IMPLEMENTATION',
       top: TRUNK_Y + 16,
-      bottom: 188,
-      guide: { y1: TRUNK_Y + 36, y2: 166 },
+      head: 28,
+      bottom: 194,
+      guide: { y1: TRUNK_Y + 40, y2: 172 },
       eyeLabel: 'Hide Implementation',
     });
     expect(L.lanes[0]).not.toHaveProperty('more');
@@ -384,19 +390,19 @@ describe('layoutTracker: lanes and rows', () => {
   it('gives one row per visible work item and drops items finished before the window', () => {
     const L = layoutTracker(larkspurState(), view());
     expect(L.rows.map((r) => [r.id, r.y])).toEqual([
-      ['golive', 102],
-      ['crs', 134],
-      ['rehearsal', 166],
-      ['analyse', 226],
-      ['pg201', 286],
-      ['pg202', 318],
-      ['dynamics', 378],
-      ['syncmon', 410],
-      ['crmlive', 442],
-      ['pg203', 474],
-      ['test', 534],
-      ['incident', 594],
-      ['secret', 654],
+      ['golive', 108],
+      ['crs', 140],
+      ['rehearsal', 172],
+      ['analyse', 238],
+      ['pg201', 304],
+      ['pg202', 336],
+      ['dynamics', 402],
+      ['syncmon', 434],
+      ['crmlive', 466],
+      ['pg203', 498],
+      ['test', 564],
+      ['incident', 630],
+      ['secret', 696],
     ]);
     expect(L.rows.every((r) => !r.changed)).toBe(true);
     expect(L.rows.find((r) => r.id === 'crs')).toMatchObject({
@@ -414,7 +420,7 @@ describe('layoutTracker: lanes and rows', () => {
     });
     const withButtons = layoutTracker(larkspurState(), view({ focusButtons: true }));
     expect(withButtons.rows.find((r) => r.id === 'crs')!.label).toBe('CRS tax residency secti…');
-    expect(L.height).toBe(732);
+    expect(L.height).toBe(774);
   });
 
   it('drops a hidden team completely: no head line, no rows, no drop target', () => {
@@ -430,7 +436,7 @@ describe('layoutTracker: lanes and rows', () => {
     expect(L.laneDrops.map((d) => d.teamId)).not.toContain('engineering');
     const height = lane.bottom - lane.top;
     expect(L.lanes.find((l) => l.teamId === 'digitization-qa')!.top).toBe(lane.top);
-    expect(L.rows.find((r) => r.id === 'test')!.y).toBe(534 - height);
+    expect(L.rows.find((r) => r.id === 'test')!.y).toBe(564 - height);
     expect(L.height).toBe(all.height - height);
     expect(L).not.toHaveProperty('folds');
   });
@@ -444,8 +450,8 @@ describe('layoutTracker: lanes and rows', () => {
     const L = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['pg203']) }));
     expect(L.rows.some((r) => r.id === 'pg203')).toBe(false);
     expect(L.segments.some((s) => s.workItemId === 'pg203')).toBe(false);
-    expect(L.rows.find((r) => r.id === 'test')!.y).toBe(534 - 32);
-    expect(L.height).toBe(732 - 32);
+    expect(L.rows.find((r) => r.id === 'test')!.y).toBe(564 - 32);
+    expect(L.height).toBe(774 - 32);
   });
 
   it('drops a team whose rows are all hidden, and keeps its full name on other lanes', () => {
@@ -465,17 +471,17 @@ describe('layoutTracker: lanes and rows', () => {
       x: X0,
       y: TRUNK_Y + 18,
       width: X1 - X0,
-      height: 18,
+      height: 24,
       text: 'Drop here: Implementation',
       textX: X0 + 10,
-      textY: TRUNK_Y + 31,
+      textY: TRUNK_Y + 34,
     });
   });
 
   it('gives an empty lane room for drops', () => {
     const s = buildState({ teams: [{ id: 't', name: 'Team', leadId: null }] });
     const L = layoutTracker(s, view());
-    expect(L.lanes[0]).toMatchObject({ top: 64, bottom: 64 + 22 + 18 + 6, guide: null });
+    expect(L.lanes[0]).toMatchObject({ top: 64, bottom: 64 + 28 + 18 + 6, guide: null });
   });
 });
 
@@ -525,7 +531,7 @@ describe('layoutTracker: segments and waits', () => {
     expect(segs[0].x2).toBeCloseTo(L.x(dayEnd('2026-10-06')), 9);
     expect(segs[1].x1).toBeCloseTo(L.x(dayEnd('2026-10-06')), 9);
     expect(segs[1].x2).toBeCloseTo(L.x(Date.parse(AS_OF)), 9);
-    expect(segs[1].y).toBe(474);
+    expect(segs[1].y).toBe(498);
   });
 
   it('shows PG-202 caution after its planned day (finished late)', () => {
@@ -558,11 +564,11 @@ describe('layoutTracker: segments and waits', () => {
       workItemId: 'test',
       x1: sx,
       x2: L.x(Date.parse(AS_OF)),
-      y: 534,
+      y: 564,
       tone: 'ink-3',
       text: 'Waiting for PG-203',
       textX: sx + 8,
-      textY: 534 - 7,
+      textY: 564 - 7,
     });
   });
 
@@ -649,7 +655,7 @@ describe('layoutTracker: events and milestone ticks', () => {
       topId: 'r3',
       kind: 'done',
       x: L.x(ms('2026-09-24T16:40')),
-      y: 166,
+      y: 172,
       tone: 'proceed',
       changed: false,
       ariaLabel: '3 events, the last: Done by Sarah Kim, 24 Sept 16:40',
@@ -713,7 +719,7 @@ describe('layoutTracker: milestone deadlines on member rows', () => {
     expect(mark('rehearsal')).toMatchObject({
       date: '2026-09-30',
       x: L.x(dayEnd('2026-09-30')),
-      y: 166,
+      y: 172,
       tone: 'danger',
       stroke: 'danger',
       filled: true,
@@ -815,7 +821,7 @@ describe('layoutTracker: milestone deadlines on member rows', () => {
   it('keeps the name inside its own row band', () => {
     const M = layoutTracker(labelled(), view({ zoom: 4 }));
     for (const d of M.deadlines) {
-      expect(d.labelY - 9).toBeGreaterThanOrEqual(d.y - GEOMETRY.ROW / 2);
+      expect(d.labelY - 9).toBeGreaterThanOrEqual(d.y - M.level.row / 2);
       expect(d.labelY).toBeLessThanOrEqual(d.y);
     }
   });
@@ -855,6 +861,68 @@ describe('layoutTracker: milestone deadlines on member rows', () => {
     });
     const M = layoutTracker(s, view());
     expect(M.deadlines[0].x).toBe(M.x1 - 4);
+  });
+});
+
+describe('layoutTracker: milestone names keep off the T line', () => {
+  const main = () => replayOps(larkspurState(), larkspurCrs()[0].ops, TIME_ZONE).state;
+  const views = [300, 500, 800, 1000, 1200].flatMap((span) =>
+    [1, 1.5, 2, 3].map((zoom) =>
+      view({ windowStart: undefined, windowEnd: undefined, span, zoom }),
+    ),
+  );
+
+  it('moves a row name to the other side of its mark or ends it with an ellipsis', () => {
+    const cut: string[] = [];
+    for (const v of views) {
+      const L = layoutTracker(main(), v);
+      for (const d of L.deadlines.filter((x) => x.label)) {
+        const width = d.label!.length * 5.4 * (L.level.nameFont / 9.5);
+        const [x0, x1] =
+          d.labelAnchor === 'start' ? [d.labelX, d.labelX + width] : [d.labelX - width, d.labelX];
+        expect(x1 < L.tLine.x - 2 || x0 > L.tLine.x + 2).toBe(true);
+        if (d.label!.endsWith('…')) cut.push(d.label!);
+      }
+    }
+    expect(cut.length).toBeGreaterThan(0);
+    const names = main().milestones.map((m) => m.name);
+    for (const label of cut) {
+      expect(label.length).toBeGreaterThanOrEqual(8);
+      expect(names.some((name) => name.startsWith(label.slice(0, -1)))).toBe(true);
+    }
+  });
+});
+
+describe('layoutTracker: the narrow label column of a phone', () => {
+  const { NARROW_SIDE } = GEOMETRY;
+
+  it('keeps the wide column without a width and reports the narrow one with it', () => {
+    expect(layoutTracker(larkspurState(), view()).side).toBe(SIDE);
+    expect(layoutTracker(larkspurState(), view({ side: NARROW_SIDE })).side).toBe(NARROW_SIDE);
+    expect(NARROW_SIDE).toBeLessThanOrEqual(140);
+  });
+
+  it('cuts the row and team names to the narrow column, with an ellipsis', () => {
+    for (const density of ['comfortable', 'compact', 'dense'] as Density[]) {
+      const L = layoutTracker(larkspurState(), view({ side: NARROW_SIDE, density }));
+      const char = (6.6 * L.level.font) / ROW_LEVELS.comfortable.font;
+      for (const r of L.rows) {
+        expect(28 + r.depth * INDENT + r.label.length * char).toBeLessThanOrEqual(NARROW_SIDE - 4);
+        if (r.label !== r.title) expect(r.label.endsWith('…')).toBe(true);
+      }
+      expect(L.rows.some((r) => r.label !== r.title)).toBe(true);
+      for (const lane of L.lanes) {
+        const count = laneNameWidth(` · ${lane.summary.count}`, true);
+        expect(24 + laneNameWidth(lane.label) + count).toBeLessThanOrEqual(NARROW_SIDE - 4);
+      }
+    }
+  });
+
+  it('leaves the time line where it was', () => {
+    const wide = layoutTracker(larkspurState(), view({ span: 262 }));
+    const narrow = layoutTracker(larkspurState(), view({ span: 262, side: NARROW_SIDE }));
+    expect(narrow.tLine.x).toBe(wide.tLine.x);
+    expect(narrow.width).toBe(wide.width);
   });
 });
 
@@ -977,12 +1045,13 @@ describe('layoutTracker: handoff marks and chips', () => {
       eventId: 'a3',
       groupId: handoff.topId,
       x: handoff.x - 10,
-      y: 226 - 10,
+      y: 238 - 10,
       width: 20,
       height: 20,
       dir: 'down',
       tone: 'proceed',
       wait: false,
+      cancelled: false,
       ariaLabel: `3 handoffs from Analyse the CRS and FATCA rules: ${lines.join('; ')}`,
       tooltip: lines.join('\n'),
     });
@@ -996,7 +1065,7 @@ describe('layoutTracker: handoff marks and chips', () => {
       targets: [{ id: 'test', text }],
       eventId: null,
       x: xt + 32,
-      y: 474 - 7,
+      y: 498 - 7,
       width: 14,
       tone: 'danger',
       wait: true,
@@ -1492,16 +1561,24 @@ describe('layoutTracker: focus on a team', () => {
     expect(L.rows.every((r) => !r.focused)).toBe(true);
   });
 
-  it('cuts the team name shorter when the lane has a focus button', () => {
+  it('cuts a long team name with an ellipsis before the buttons of its one-line summary row', () => {
     const name = 'Solutions Engineering and Delivery';
     const s = buildState({
       teams: [{ id: 't', name, leadId: null }],
       workItems: [workItem({ id: 'a', teamId: 't' })],
     });
     const plain = layoutTracker(s, view()).lanes[0].label;
-    const short = layoutTracker(s, view({ focusButtons: true })).lanes[0].label;
-    expect(short.length).toBeLessThan(plain.length);
-    expect(short.endsWith('…')).toBe(true);
+    const withButtons = layoutTracker(s, view({ focusButtons: true })).lanes[0].label;
+    expect(plain.endsWith('…')).toBe(true);
+    expect(withButtons.endsWith('…')).toBe(true);
+    expect(withButtons.length).toBeLessThan(plain.length);
+    const count = laneNameWidth(' · 1', true);
+    expect(laneNameWidth(plain) + count).toBeLessThanOrEqual(174);
+    expect(laneNameWidth(withButtons) + count).toBeLessThanOrEqual(155);
+    expect(layoutTracker(larkspurState(), view()).lanes[2].label).toBe('SOLUTIONS ENGINEERING');
+    const F = layoutTracker(larkspurState(), view({ focusButtons: true }));
+    expect(F.lanes[2].label).toMatch(/^SOLUTIONS ENGINEER.*…$/);
+    expect(F.lanes[3].label).toBe('ENGINEERING');
   });
 
   it('lets a work item focus win over a team focus, and ignores an unknown team', () => {
@@ -1646,5 +1723,257 @@ describe('layoutTracker: filters', () => {
     expect(hidden.rows.map((r) => r.id)).toEqual(['pg203']);
     const focused = layoutTracker(larkspurState(), view({ filter, focus: 'analyse' }));
     expect(focused.rows.map((r) => r.id)).toEqual(['pg201', 'pg203']);
+  });
+});
+
+const LEVELS: Array<[Density, number, number]> = [
+  ['comfortable', 32, 28],
+  ['compact', 20, 28],
+  ['dense', 12, 24],
+];
+
+describe('layoutTracker: row height', () => {
+  it.each(LEVELS)('steps %s rows by %i units under a summary row of %i', (density, row, head) => {
+    const L = layoutTracker(larkspurState(), view({ density }));
+    expect(L.level).toBe(ROW_LEVELS[density]);
+    expect(L.level.row).toBe(row);
+    const lane = L.lanes[0];
+    expect(lane.head).toBe(head);
+    const ys = L.rows.filter((r) => r.teamId === 'implementation').map((r) => r.y);
+    expect(ys).toEqual([0, 1, 2].map((i) => lane.top + head + row / 2 + i * row));
+    expect(lane.bottom).toBe(lane.top + head + 3 * row + 6);
+    expect(L.lanes[1].top).toBe(lane.bottom);
+  });
+
+  it('keeps Comfortable when the view names no row height', () => {
+    expect(layoutTracker(larkspurState(), view()).level).toBe(ROW_LEVELS.comfortable);
+  });
+
+  it.each(LEVELS)('keeps every %s mark inside its own row band', (density, row) => {
+    const L = layoutTracker(larkspurState(), view({ density, zoom: 4 }));
+    const { r, chip, mark, diamond, nameFont } = L.level;
+    expect(2 * r).toBeLessThanOrEqual(row - 2);
+    expect(2 * diamond).toBeLessThanOrEqual(row - 2);
+    expect(chip).toBeLessThanOrEqual(row - 2);
+    expect(mark).toBeLessThanOrEqual(row - 2);
+    for (const h of L.handoffs) expect(h.height).toBeLessThanOrEqual(row - 2);
+    for (const c of L.chips) expect(c.size).toBe(chip);
+    for (const d of L.deadlines.filter((x) => x.label)) {
+      expect(d.labelY - 0.72 * nameFont).toBeGreaterThanOrEqual(d.y - row / 2);
+      expect(d.labelY).toBeLessThanOrEqual(d.y + row / 2);
+    }
+    expect(L.level.hit).toBeGreaterThanOrEqual(12);
+  });
+
+  it('stacks events closer than 16, 12 or 7 units', () => {
+    const s = buildState({
+      teams: [{ id: 't', name: 'Team', leadId: null }],
+      workItems: [workItem({ id: 'a', teamId: 't', plannedFinish: '2026-10-30' })],
+      events: [
+        event({ id: 'e1', workItemId: 'a', at: at('2026-10-01T00:00') }),
+        event({ id: 'e2', workItemId: 'a', at: at('2026-10-01T10:00') }),
+        event({ id: 'e3', workItemId: 'a', at: at('2026-10-02T00:00') }),
+      ],
+    });
+    const stacks = (density: Density) =>
+      layoutTracker(s, view({ density })).eventGroups.map((g) => g.eventIds);
+    // 10 hours is about 9 units and 14 hours about 13 at this window.
+    expect(stacks('comfortable')).toEqual([['e1', 'e2', 'e3']]);
+    expect(stacks('compact')).toEqual([['e1', 'e2'], ['e3']]);
+    expect(stacks('dense')).toEqual([['e1'], ['e2'], ['e3']]);
+  });
+
+  it('shows the waiting text above the line only where the row has room for it', () => {
+    expect(ROW_LEVELS.comfortable.waitText).toBe(true);
+    expect(ROW_LEVELS.compact.waitText).toBe(true);
+    expect(ROW_LEVELS.dense.waitText).toBe(false);
+    const L = layoutTracker(larkspurState(), view({ density: 'compact' }));
+    const wait = L.segments.find((x) => x.kind === 'wait')!;
+    expect(wait.kind === 'wait' && wait.textY).toBe(wait.y - ROW_LEVELS.compact.waitRise);
+  });
+
+  it.each(LEVELS)('keeps a %s milestone name off the + button of an editable view', (density) => {
+    const plain = layoutTracker(larkspurState(), view());
+    // Without the button the name of Go-live sits where the button goes.
+    expect(plain.deadlines.find((d) => d.workItemId === 'golive')!.label).not.toBeNull();
+    const L = layoutTracker(larkspurState(), view({ density, plusButtons: true }));
+    const plus = L.x(Date.parse(AS_OF)) + 20;
+    const room = L.level.plus + 2;
+    for (const d of L.deadlines.filter(
+      (x) => x.label && !L.rows.find((r) => r.id === x.workItemId)!.done,
+    )) {
+      const width = d.label!.length * 5.4 * (L.level.nameFont / 9.5);
+      const [a, b] =
+        d.labelAnchor === 'start' ? [d.labelX, d.labelX + width] : [d.labelX - width, d.labelX];
+      expect(b < plus - room || a > plus + room).toBe(true);
+    }
+  });
+
+  it.each(LEVELS)('keeps a %s waiting text off the + button of an editable view', (density) => {
+    const state = buildState({
+      teams: [{ id: 'team', name: 'Team', leadId: null }],
+      workItems: [
+        workItem({ id: 'above', plannedFinish: '2026-10-20' }),
+        workItem({ id: 'placed', since: AS_OF, plannedFinish: '2026-10-20' }),
+      ],
+    });
+    const waitOf = (L: TrackerLayout) =>
+      L.segments.find(
+        (x): x is Extract<LayoutSegment, { kind: 'wait' }> =>
+          x.kind === 'wait' && x.workItemId === 'placed',
+      )!;
+    const plain = waitOf(layoutTracker(state, view({ density })));
+    expect(plain.textX).toBe(plain.x1 + 8);
+    const L = layoutTracker(state, view({ density, plusButtons: true }));
+    const wait = waitOf(L);
+    const plus = L.tLine.x + 20;
+    expect(wait.textX).toBeGreaterThan(plus + L.level.plus);
+    expect(wait.textX + wait.text.length * 5.6).toBeLessThanOrEqual(L.width);
+  });
+
+  it('puts a Dense milestone name only where the row has no line', () => {
+    const L = layoutTracker(larkspurState(), view({ density: 'dense', zoom: 4 }));
+    const named = L.deadlines.filter((d) => d.label);
+    expect(named.length).toBeGreaterThan(0);
+    for (const d of named) {
+      const width = d.label!.length * 5.4 * (ROW_LEVELS.dense.nameFont / 9.5);
+      const [a, b] =
+        d.labelAnchor === 'start' ? [d.labelX, d.labelX + width] : [d.labelX - width, d.labelX];
+      const lines = L.segments.filter((x) => x.workItemId === d.workItemId);
+      for (const line of lines) expect(b < line.x1 || a > line.x2).toBe(true);
+    }
+  });
+});
+
+describe('layoutTracker: team summary rows', () => {
+  const L = layoutTracker(larkspurState(), view());
+  const lane = (id: string, M = L) => M.lanes.find((l) => l.teamId === id)!;
+
+  it('counts late, not yet and done work items, and names only the counts above zero', () => {
+    expect(lane('engineering').summary).toMatchObject({
+      count: 4,
+      late: 2,
+      notYet: 0,
+      done: 2,
+      ariaLabel: 'Engineering, 4 work items: 2 late, 2 done',
+    });
+    expect(lane('implementation').summary).toMatchObject({
+      count: 3,
+      late: 0,
+      notYet: 2,
+      done: 1,
+      ariaLabel: 'Implementation, 3 work items: 2 not yet, 1 done',
+    });
+  });
+
+  it('leaves the lane right of the summary row empty: no bar and no event ticks', () => {
+    for (const l of L.lanes) {
+      expect(l.summary).not.toHaveProperty('bar');
+      expect(l.summary).not.toHaveProperty('ticks');
+    }
+  });
+
+  it('puts every summary row on one line: no second line for the counts', () => {
+    for (const l of L.lanes) expect(l).not.toHaveProperty('oneLine');
+  });
+
+  it('cuts a Vietnamese name by grapheme, in NFC, and keeps every mark on its letter', () => {
+    const name = 'Phát triển Sản phẩm và Dịch vụ Khách hàng Quốc tế'.normalize('NFD');
+    const s = buildState({
+      teams: [{ id: 't', name, leadId: null }],
+      workItems: [workItem({ id: 'a', teamId: 't' })],
+    });
+    const label = layoutTracker(s, view({ focusButtons: true })).lanes[0].label;
+    const full = name.normalize('NFC').toUpperCase();
+    expect(label.endsWith('…')).toBe(true);
+    expect(label).toBe(label.normalize('NFC'));
+    expect(full.startsWith(label.slice(0, -1).trimEnd())).toBe(true);
+    expect(label).not.toMatch(/\p{M}…$/u);
+    expect(label).toMatch(/^PHÁT TRIỂN/);
+    expect(laneNameWidth(label) + laneNameWidth(' · 1', true)).toBeLessThanOrEqual(155);
+  });
+
+  it('never cuts inside a grapheme: a letter with a mark that has no single code point, or an emoji', () => {
+    for (let room = 10; room < 60; room += 3) {
+      const marked = cutToWidth('X\u030CX\u030CX\u030CX\u030CX\u030CX\u030CX\u030C', room);
+      expect(marked).not.toMatch(/X…|\u030C\u030C/);
+      expect(marked.replace('…', '')).toMatch(/^(X\u030C)*$/);
+      const emoji = cutToWidth('🚀🚀🚀🚀🚀🚀🚀🚀 ROCKET', room);
+      expect(emoji).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+      expect(emoji).not.toMatch(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/);
+    }
+    expect(cutToWidth('ĐỘI NGŨ', 200)).toBe('ĐỘI NGŨ');
+  });
+
+  // Geist 10.5px as the browser measured it (18 Oct): the estimate may be a little wide, never narrow.
+  it.each([
+    ['IMPLEMENTATION', 3, 115],
+    ['DIGITIZATION', 2, 89],
+    ['SOLUTIONS ENGINEERING', 2, 162],
+    ['ENGINEERING', 4, 93],
+    ['DIGITIZATION QA', 1, 107],
+    ['CUSTOMER SUCCESS', 1, 134],
+    ['IT', 1, 22],
+  ])('estimates the width of "%s · %i" within 8 %% above the measure', (name, n, real) => {
+    const w = laneNameWidth(name) + laneNameWidth(` · ${n}`, true);
+    expect(w).toBeGreaterThanOrEqual(real);
+    expect(w).toBeLessThanOrEqual(real * 1.08);
+  });
+
+  it('gives a collapsed team its summary row only, and no rows, lines or events', () => {
+    const C = layoutTracker(larkspurState(), view({ collapsedTeams: new Set(['implementation']) }));
+    const imp = lane('implementation', C);
+    expect(imp.collapsed).toBe(true);
+    expect(imp.bottom).toBe(imp.top + imp.head + 2);
+    expect(imp.guide).toBeNull();
+    expect(imp.summary.count).toBe(3);
+    expect(C.rows.some((r) => r.teamId === 'implementation')).toBe(false);
+    expect(C.segments.some((x) => ['golive', 'crs', 'rehearsal'].includes(x.workItemId))).toBe(
+      false,
+    );
+    expect(C.lanes[1].top).toBe(imp.bottom);
+    expect(C.height).toBe(L.height - (lane('implementation').bottom - imp.bottom));
+    expect(lane('engineering').collapsed).toBe(false);
+  });
+
+  it('keeps a team with no work items open, as a drop target', () => {
+    const s = buildState({ teams: [{ id: 't', name: 'Team', leadId: null }] });
+    const E = layoutTracker(s, view({ collapsedTeams: new Set(['t']) }));
+    expect(E.lanes[0]).toMatchObject({
+      collapsed: false,
+      summary: { count: 0, ariaLabel: 'Team, 0 work items' },
+    });
+  });
+
+  it('keeps the receivers in a collapsed team on the handoff mark, with their team', () => {
+    const C = layoutTracker(
+      larkspurState(),
+      view({ collapsedTeams: new Set(['digitization-qa']) }),
+    );
+    expect(C.handoffs.find((h) => h.fromId === 'pg203')!.targets).toMatchObject([
+      { id: 'test', team: 'Digitization QA' },
+    ]);
+  });
+
+  it('flags the summary of a team that holds a change of the change request', () => {
+    const marks = { ...noMarks(), events: new Set(['p31']) };
+    const C = layoutTracker(
+      larkspurState(),
+      view({ collapsedTeams: new Set(['engineering']) }),
+      marks,
+    );
+    expect(lane('engineering', C).summary.changed).toBe(true);
+    expect(lane('engineering', C).summary.ariaLabel).toBe(
+      'Engineering, 4 work items: 2 late, 2 done, changed in this change request',
+    );
+    expect(lane('implementation', C).summary.changed).toBe(false);
+    expect(lane('engineering').summary.changed).toBe(false);
+  });
+
+  it('says in the chip that a source sits in a collapsed team', () => {
+    const C = layoutTracker(larkspurState(), view({ collapsedTeams: new Set(['implementation']) }));
+    expect(C.chips.find((c) => c.workItemId === 'analyse')!.tooltip).toBe(
+      'From CRS tax residency section with DealCloud sync (in Implementation, collapsed)',
+    );
   });
 });

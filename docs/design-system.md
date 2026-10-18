@@ -42,7 +42,7 @@ The theme toggle in the rail cycles system, light and dark. It sets `data-theme`
 | `--scrim` | `rgb(11 12 16 / 0.38)` | `rgb(0 0 0 / 0.62)` | Backdrop behind a modal. |
 | `--mark` | `#ffe770` | `#524202` | Not used today. Use `--change-bg` for a change mark. |
 | `--stripe` | `#f9f9fb` | `#111113` | Not used today. |
-| `--isolated` | `#8b8d98` | `#696e77` | Mapped to the Tailwind colour `isolated`. One use in old code. |
+| `--isolated` | `#8b8d98` | `#696e77` | The neutral line of a cancelled work item and its status dot (round 10B). Mapped to the Tailwind colour `isolated`. |
 
 ### 2.2 Status colours
 
@@ -60,7 +60,7 @@ Each status hue has 3 steps. Use the right step for the job:
 | caution (amber) | `#ef5f00` / `#ef5f00` | `#b44500` / `#ffa057` | `#ffefd6` / `#331e0b` | The part of a done line after its own Planned finish. Status Finished late. The ask row and resolved clashes. |
 | teal | `#0d9b8a` / `#12a594` | `#007b6a` / `#0bd8b6` | `#e0f8f3` / `#0d2d2a` | Status Finished early. |
 
-The 5 statuses map to tones in `STATUS_TONE` (`src/tracker/layout.ts`):
+The 6 statuses map to tones in `STATUS_TONE` (`src/tracker/layout.ts`). Cancelled is for work items only: a milestone is never cancelled (spec decision 6).
 
 | Status | Tone | Badge class | Milestone circle | Deadline diamond |
 |---|---|---|---|---|
@@ -69,6 +69,9 @@ The 5 statuses map to tones in `STATUS_TONE` (`src/tracker/layout.ts`):
 | Finished on time | `--proceed` | `.st-ontime` | Filled, tick | Filled |
 | Late | `--danger` | `.st-late` | Filled, "!" | Filled |
 | Finished late | `--caution` | `.st-flate` | Filled, "!" | Filled |
+| Cancelled | `--isolated` | `.st-cancelled` (no fill, 1px `--rule` ring, `--ink-2`) | Not used | Not used |
+
+A cancelled row draws one `--isolated` line from its start to the Cancelled event and nothing after it. It is never red and never amber, whatever its planned finish.
 
 ### 2.3 Change mark (C2 yellow highlighter)
 
@@ -83,18 +86,24 @@ The owner chose C2 on 17 October 2026. Yellow marks what a change request change
 
 ### 2.4 Event kind colours
 
-The `--k-*` tokens colour the kind icon in the Queue cards, the event pops, the stack list and the event list of the details drawer. On the graph, an event icon takes the tone of its row line instead, so the graph keeps one meaning per colour.
+The `--k-*` tokens colour the kind icon in the Queue cards, the event pops, the stack list, the event list of the details drawer, the legend and the graph. On the graph, kinds colour the events (the ring, the tint inside it, the icon, the Dense dot and the stronger tint of the circles behind a stack), and status colours the row lines (owner ruling 18 Oct, K1: "the status of a work item already shows in the colour of its line"). Task is grey and Meeting is brown, so no kind looks like the yellow change mark or a pink or violet mark. Cancelled shares the grey of Task, and its circle-slash icon tells the two apart (owner ruling 18 Oct, T1).
 
 | Kind | Token | Light | Dark |
 |---|---|---|---|
 | Message | `--k-message` | `#0c67b6` | `#70b8ff` |
-| Task | `--k-task` | `#6550b9` | `#baa7ff` |
+| Task | `--k-task` | `#60646c` | `#b0b4ba` |
 | Handoff | `--k-handoff` | `#0e738c` | `#4ccce6` |
 | Decision | `--k-decision` | `#975800` | `#ffca16` |
-| Meeting | `--k-meeting` | `#ba2784` | `#ff8dcc` |
+| Meeting | `--k-meeting` | `#9e5426` | `#dbb594` |
 | Delivery | `--k-delivery` | `#54722b` | `#d4ff70` |
 | Issue | `--k-issue` | `#be282d` | `#ff9592` |
 | Done | `--k-done` | `#1e744e` | `#3dd68c` |
+| Idea | `--k-idea` | `#3a5bc7` | `#9eb1ff` |
+| Cancelled | `--k-cancelled` | `#60646c` | `#b0b4ba` |
+
+The kind picker (`KindGrid`, in the event modals and the kind pop) groups the kinds under small uppercase labels (`.kg-label`, 10.5px weight 600, `--ink-3`): Start (Idea, Message, Issue), Progress (Task, Meeting, Decision, Delivery) and Finish (Handoff, Done, Cancelled). The groups are guidance only. Each group is a 4-column grid of `.kind` buttons, also on a phone. For a Handoff the picker adds the check box "This finishes the work item" (`.check`).
+
+On the graph an event circle is a 2-unit ring in the full kind colour around a tint of the same colour mixed into `--panel`: `--k-tint` (12 % light, 16 % dark) for the front circle and `--k-tint-back` (26 % light, 30 % dark) for the circles behind a stack (owner, 18 Oct: "colour the outer ring too, not only the icon"). Light stays at 12 % because the Handoff icon on a 14 % tint measured 4.48. No kind colour moved a Radix step: each one passes on its tint (§2.5), and a step more saturated (step 9 or 10) falls under 4.5 for the icon.
 
 ### 2.5 Measured contrast
 
@@ -109,6 +118,12 @@ WCAG contrast ratios of the current values (text needs 4.5, lines and marks need
 | `--ink` on `--change-bg` | 12.59 | 5.79 |
 | Line step on `--panel` (route, proceed, danger, caution, teal) | 3.26, 3.03, 3.91, 3.33, 3.46 | 5.39, 5.80, 4.49, 5.28, 5.73 |
 | `--focus` on `--panel` | 4.77 | 8.37 |
+| `--k-task` on `--panel` / its 12 % tint | 5.94 / 5.03 | 8.45 / 6.73 |
+| `--k-meeting` on `--panel` / its 12 % tint | 5.60 / 4.72 | 9.26 / 7.30 |
+| Event ring on `--panel` / `--sunk` (message, task, handoff, decision, meeting, delivery, issue, done, idea, cancelled) | 5.78, 5.94, 5.46, 5.66, 5.60, 5.50, 5.95, 5.73, 6.00, 5.94 / 5.50, 5.65, 5.19, 5.38, 5.33, 5.23, 5.66, 5.45, 5.70, 5.65 | 8.37, 8.45, 9.29, 11.49, 9.26, 15.36, 8.35, 9.38, 8.53, 8.45 / 8.97, 9.06, 9.96, 12.32, 9.92, 16.47, 8.95, 10.06, 9.15, 9.06 |
+| Event icon on its `--k-tint` (same order; 12 % light, 16 % dark) | 4.86, 5.04, 4.61, 4.78, 4.74, 4.69, 4.91, 4.85, 5.04, 5.03 | 6.17, 6.18, 6.73, 7.93, 6.66, 9.79, 6.19, 6.81, 6.28, 6.18 |
+
+The owner picked `#a35829` for Meeting in light. On its 12 % tint (the round icon of a pop or the stack list) it measured 4.47, so the token is one small step darker, `#9e5426`, with the same hue.
 
 Measure again when you change a colour. Do not put line-step colours on small text.
 
@@ -145,10 +160,10 @@ The CSS has no spacing tokens. Use the values below and match the code around yo
 
 - Step values: 2, 4, 6, 8, 10, 12, 14, 16, 18, 22 px.
 - Control height: 32px (`.btn`, inputs, selects, the search). Small: 28px (`.btn.sm`, icon buttons, the hidden badge). Big: 40px (`.btn.big`, sign-in).
-- Bars: the top bar (`.p-head`) has a minimum height of 52px and padding `10px 12px`. The context bar (`.bbar`) has a minimum height of 48px and padding `8px 12px`.
+- Bars: the top bar (`.p-head`) has a minimum height of 52px and padding `10px var(--page-x)`. The context bar (`.bbar`) has a minimum height of 48px and padding `8px var(--page-x)`.
 - Lists: rows have `10px 0` or `10px 12px` padding and a `--rule-2` top border.
-- Widths: rail 212px (56px folded), change request side panel 320px, drawer 380px, pop 312px, modal 620px, search from 160px to all the free room, filter and search panels 380px. Secondary pages (Members, Settings): one centred column of up to 1200px with 24px gutters (16px on a phone) for the head and the body; Settings splits into the tokens and a 340px to 420px Connect your agent column from 1180px.
-- Graph density: row 32 units, team head 22 units, indent 12 units per level (3 levels at most). The graph scales the 1060-unit view box to the canvas width.
+- Widths: graph name column 228px (128px on a phone, with no row buttons), rail 212px (56px folded), change request side panel 320px, drawer 380px, pop 312px, modal 620px, search from 160px to all the free room, filter and search panels 380px. Page frame (round 14): every page beside the rail fills the full width; nothing is centred with empty sides. `--page-x` (24px, 16px on a phone) is the side padding of the head and the body of Members and Settings; the head is the 52px `.p-head`. The graph and the change request page use it too: the top bar, the context bar, the read-only notice and the side panel; the graph canvas has a `--page-x` minus 12px left padding, so the names start on the same line. The rail column paints `--sunk` and its line down the full page. Inside the frame a text block keeps a readable width (640px for a paragraph, 760px for the create form), left-aligned. Settings adds a 320px to 400px Connect your agent column from 1180px, below the sections on a narrower screen. Notice pages (Page not found, an error, no projects, no access, no tracker) use `Notice` (`src/components/shell/Notice.tsx`): plain text, a 20px heading, `--fs-s` text in `--ink-2`, actions as `.btn`; no card.
+- Graph density: three row heights, `ROW_LEVELS` in `src/tracker/layout.ts`. Comfortable is a 32-unit row, Compact (the default) a 20-unit row, Dense a 12-unit row. The team summary row is 40 units (32 at Dense). Indent 12 units per level (3 levels at most). Marks scale with the row (see section 9), and every click target stays at least 12 units. Each person's choice stays in the browser.
 - Phone (760px and less): 16px side gutters, the rail becomes a sticky top bar, the top bar puts History, Change requests and the account on the first line and the search on the last, the side panel stacks above the graph and its cards scroll sideways, a drawer covers the full height below the rail. The page has no horizontal scroll at 390px.
 
 ## 6. Shadows and layers
@@ -166,13 +181,15 @@ Stacking order (`z-index`), low to high: pinned axis, zoom bar and bin 3; move h
 - Set: Lucide shapes (ISC licence) on a 24px grid, copied as inline SVG paths into `src/components/tracker/icons.tsx` (`Icon`, `KindIcon`, `SvgIcon`) and `src/components/shell/icons.tsx` (`RailIcon`). Do not add an icon font or an icon package.
 - Stroke: `currentColor`, width 2, round caps and joins. The Done kind and the `check`, `branch`, `cornerUp`, `cornerDown` and `upDown` shapes use width 2.4, so they stay clear at 10px. `grip` is the only filled shape.
 - Sizes: 16px by default, 14px in buttons and the zoom bar, 12px to 13px for the eye and focus buttons on the graph, 13 units inside an event circle, 10 units inside a graph mark.
-- Kinds: `message` (mail), `task` (clipboard check), `handoff` (two arrows), `decision` (scales), `meeting` (people), `delivery` (package check), `issue` (triangle alert), `done` (double check).
-- UI shapes: `eye`, `eyeoff`, `plus`, `pencil`, `move`, `trash`, `undo`, `check`, `x`, `tag`, `diamond`, `list`, `inbox`, `sidebar`, `chev`, `branch`, `focus`, `cornerDown`, `cornerUp`, `upDown`, `filter`, `maximize`, `minimize`, `loop`, `grip`, `search`, `bot`, `lock`, `pr`, `merge`, `share`, `history`, `flag`, `link`, `cal`. Rail shapes: `graph`, `settings`, `theme`, `signOut`, `panel`, `chevron`.
+- Kinds: `idea` (lightbulb), `message` (mail), `issue` (triangle alert), `task` (clipboard check), `meeting` (people), `decision` (scales), `delivery` (package check), `handoff` (two arrows), `done` (double check), `cancelled` (circle slash).
+- UI shapes: `eye`, `eyeoff`, `plus`, `pencil`, `move`, `trash`, `undo`, `check`, `x`, `tag`, `diamond`, `list`, `inbox`, `sidebar`, `chev`, `branch`, `focus`, `cornerDown`, `cornerUp`, `upDown`, `filter`, `maximize`, `minimize`, `loop`, `grip`, `search`, `bot`, `lock`, `pr`, `merge`, `share`, `history`, `flag`, `link`, `info`, `cal`. Rail shapes: `graph`, `settings`, `theme`, `signOut`, `panel`, `chevron`.
 - An icon next to text is decorative (`aria-hidden="true"`). An icon-only button needs an `aria-label` and a `title`.
 
 ## 8. Components
 
 ### 8.1 Buttons
+
+One definition: `.btn`, `.btn-ink`, `.btn.sm`, `.btn.big` and `.btn-block` live in `src/app/globals.css` and serve every page (sign-in and Page not found included); the tracker adds only tones. No page copies them.
 
 | Class | Look | Use |
 |---|---|---|
@@ -181,7 +198,8 @@ Stacking order (`z-index`), low to high: pinned axis, zoom bar and bin 3; move h
 | `.btn-draft` | Default look with a `.cnt` count on `--change-bg`. | The change request button that counts your changes. |
 | `.btn-danger` | Default look, `--danger-ink` text. | Remove. |
 | `.btn.sm`, `.btn.big` | 28px and `--fs-xs`; 40px and `--fs`. | Dense rows; sign-in. |
-| `:disabled` | Opacity 0.4 (0.45 for the global `.btn`), `not-allowed` cursor. | Keep the button visible and say why in a tooltip or a line of text. |
+| `:disabled` | Opacity 0.4, `not-allowed` cursor. | Keep the button visible and say why in a tooltip or a line of text. |
+| `.btn-quiet` | No border, no fill, `--ink-2`; hover `--hover`. | A quiet text button in a heading line (Check again). |
 | `.lnk` | No box, `--route-ink`, weight 500, underline on hover. | Inline links in text and lists. |
 | `.x` | No box, a 20px `×` in `--ink-3`. | Close a pop, a drawer, a modal or a notice. |
 | `.ib` | No box, 28px, `--ink-3`. Hover: `--hover` and `--ink`. | Icon-only buttons. |
@@ -190,17 +208,27 @@ Stacking order (`z-index`), low to high: pinned axis, zoom bar and bin 3; move h
 
 - `.chipx`: a pill on `--gray-bg` with `--ink-2` text, `--fs-xs` weight 500. Variants: `.warn` (caution), `.ok` (proceed), `.route` (blue), `.pen` (change yellow, for "changed" labels only).
 - `.badge` with `.st-*`: the status badge. Always pair the hue with its word.
+- `.wi-hint`: a quiet note in the work item details, under the status row: an `info` icon in `--ink-3` and `--fs-s` text in `--ink-2` on `--sunk`, `--r-ctl`, no border. Only the start hint uses it (spec decision 1).
 - `.cnt`: an 18px round count on `--gray-bg`. On an ink button it uses 22 % of `--panel`.
 - `.fchip`: filter chips in the filter panel. Idle: 1px `--rule` border, `--ink-2`. Checked: `--gray-bg`, `--ink` border and text, weight 600. Status chips start with an 8px status dot.
-- `.hid-pill`: the "N hidden" badge in the top bar, 28px, `--gray-bg`. Hover or open: `--rule` fill.
+- `.hid-pill`: the "N hidden" badge at the right end of the context bar, 28px, `--gray-bg`. Hover or open: `--rule` fill.
 - `.nbadge`: the app icon badge on the Change requests button: an 18px pill in `--danger` with white 10.5px weight 600 text and a 2px `--panel` ring, at the top right corner of the button. It counts the Ready change requests and is absent at 0. It is the only solid red count in the app.
 - `.bot`: the Agent chip on a Queue card, on `--route-bg`.
 
 ### 8.3 Inputs
 
 - `.field`: a label (`--fs-xs` weight 500, `--ink-2`) above the control. Inputs and selects are 32px with a 1px `--rule` border, `--r-ctl` and `--panel` fill. A textarea has a minimum height of 64px and `--fs` text.
+- Select (round 14): the app never shows a native `<select>`. `Select` (`src/components/tracker/Select.tsx`) is a button (`role="combobox"`, the label as its name) that reads like a text box: the value with an ellipsis and a 14px chevron in `--ink-3`; hover `--sunk`; open or focused: the `--focus` border and ring. Its list opens in the same `.field-pop` as the time list (`.sel-pop`): at least as wide as the box, up to 420px, rows with `--r-ctl`, the active row `--hover`, the current value weight 600 on `--gray-bg`, a disabled row `--ink-3`. Keys: the arrows open and move, Home and End, Page Up and Page Down (8 rows), letters jump to the next option that starts with them (accents ignored), Enter or Space picks, Esc closes. A disabled option is never active, also not on open. `.sel-in.quiet` is the inline look of the work item facts (no border until hover).
+- Checkbox (round 14): `Checkbox` (`src/components/tracker/Checkbox.tsx`) keeps the native input for keys, labels and tests and draws a 16px box on it: 1px `--ink-3` border, half of `--r-ctl`; checked or mixed: `--ink` fill with a `--panel` check or dash; disabled: 50 % with `--sunk`, a held check on `--ink-3`; focus: a 2px `--focus` outline. With children it is a `.cbx-row` label. Radios stay native with `accent-color: var(--ink)`. The filter chips (`.fchip`) are chips, not checkboxes.
 - Focus: the border turns `--focus` and a 3px ring of `--focus` at 18 % shows around it. No outline.
 - Disabled input: `--sunk` fill, `--ink-3` text.
+- Dates and times use the app's own boxes, never the browser's date or time controls (no `type="date"`, `type="time"` or `type="datetime-local"`, not even hidden). Code: `src/components/tracker/DateInput.tsx`, `TimeInput.tsx`, `DateTimeInput.tsx`, `FieldPop.tsx`, `fields.css`; parsing in `src/tracker/time.ts`.
+  - `DateInput`: a text box in the app format "6 Oct 2026" (it also reads "6 October", "6 Oct" and "2026-10-06") with a 28px calendar icon button inside its right edge (Open the calendar). The calendar is a popover: month name (weight 600) with Previous month and Next month, a 6-week grid from Monday of 32 × 30px day buttons (`--r-ctl`), and a footer with Today (and Clear on an optional box). Days of other months are `--ink-3`; today (the project's T day) is weight 600 with a 1px `--rule` ring; the picked day is an `--ink` fill with `--panel` text; hover is `--hover`. Keys: the arrows move a day or a week, Page Up and Page Down a month (with Shift a year), Home and End the week, Enter picks, Esc closes and returns the focus to the button. An empty box shows the placeholder "Date".
+  - `TimeInput`: a text box in 24-hour "14:30". It reads "1430", "930", "9" (09:00) and "9:5" (09:05). A click or the arrow keys open a list of times in 30-minute steps (rows 8px radius, the current time weight 600 on `--gray-bg`, the active row `--hover`); the list opens at the current time, or at 09:00 when the box is empty. An optional box starts the list with "No time". A click only opens the list; Esc, a click outside or a pick close it. Enter saves the typed time; it picks the active row only after the arrow keys moved it. An empty box shows the placeholder "Time", never "--:--".
+  - `DateTimeInput`: a group of a `DateInput` (Date) and a `TimeInput` (Time) side by side; it reads and writes the `YYYY-MM-DDTHH:mm` wall time of the project.
+  - Popovers (`.field-pop`): the top layer, so a modal, a drawer or the New project dialog never clips them; `--panel`, 1px `--rule`, `--r-pop`, `--shadow`. They open under the box, or above it when the room below is too small, and stay inside the screen with an 8px edge. Esc closes the popover first, then the modal or the drawer.
+  - Saving: while the person types, a box saves only whole text (a day with a 4-digit year or a full ISO day; a time with two minute digits, or 4 digits). Short text such as "6 Oct", "9" or "143" saves on Enter or when the box loses the focus. Text that is not a day or a time (or a year before 1000) is never saved: the box gets a `--danger` border (also on hover and focus, with a 3px ring of `--danger` at 18 %) and a tooltip with an example, and when it loses the focus it returns to the value it had when it got the focus. Enter in a box with unsaved text saves it and does not submit the form.
+  - Names: the calendar popover is the dialog "Calendar", the time list is the listbox "Times".
 
 ### 8.4 Search with filter
 
@@ -238,17 +266,17 @@ The rail is flat: `--sunk` fill and a 1px `--rule` right border. Items (`.rail-i
 
 ### 8.11 Top bar and context bar
 
-- `.p-head` (top bar): `--panel`, a `--rule` bottom hairline. It holds Search work items (all the free room), the "N hidden" badge, History, Change requests with its `.nbadge`, New change request, the demo select (upper-case 10.5px label) and the acting member (28px avatar, name, role) after a `--rule` divider.
-- `.bbar` (context bar): says what the view is and what you can do. It starts with the view selector (`.gpick > .vsel`): the title of the view in `--fs` weight 600 with a pull-request icon (a 10px ink dot for Main) and a chevron, no box; hover or open: `--hover`. A long title ends with an ellipsis at 56 characters. `.bbar.main` on `--sunk`, `.bbar.mine` on `--edit-bg` (you edit), `.bbar.other` on `--route-bg` (someone else's change request). The ask row (`.ask-row`) is a full-width line on `--caution-bg`; a note (`.bnote`, the cancel reason or the "asked for changes" note) is a full-width `--fs-s` line in `--ink-2`.
+- `.p-head` (top bar): `--panel`, a `--rule` bottom hairline. It holds Search work items (all the free room), History, Change requests with its `.nbadge`, New change request, the demo select (upper-case 10.5px label) and the acting member (28px avatar, name, role) after a `--rule` divider.
+- `.bbar` (context bar): says what the view is and what you can do. It starts with the view selector (`.gpick > .vsel`): the title of the view in `--fs` weight 600 with a pull-request icon (a 10px ink dot for Main) and a chevron, no box; hover or open: `--hover`. A long title ends with an ellipsis at 56 characters. The last control of its first line is the "N hidden" badge (`.hid-menu`), only while something is hidden; on a phone its popup spans the bar. `.bbar.main` on `--sunk`, `.bbar.mine` on `--edit-bg` (you edit), `.bbar.other` on `--route-bg` (someone else's change request). The ask row (`.ask-row`) is a full-width line on `--caution-bg`; a note (`.bnote`, the cancel reason or the "asked for changes" note) is a full-width `--fs-s` line in `--ink-2`.
 - `.cr-side` (side panel of the change request page): 320px, the Changes and Queue tabs as a `.qseg`, a list of changes as rows with hairlines (`.chg-row`; the picked one on `--gray-bg`), the clash picks (`.res-box`) at the top. `.gtools` above the graph holds the Before / After `.seg`.
 - `.btn-stop`: a solid `--danger` button with white text, only for the confirm button of Cancel change request.
 - `.ro-note` (Main is read-only): `--route-bg` with `--route-ink` text, `--r-ctl`, a close button and Don't show again.
-- `.legend2`: a `--fs-xs` legend below the graph with the 4 line colours, the deadline diamond, the 5 milestone statuses and the yellow "Name" sample.
+- `.legend-pop`: the Legend popover of the zoom bar (no strip under the graph). A `--panel` surface with `--r-pop`, `--shadow` and a `--rule` border, `--fs-xs` text in `--ink-2`, an `.x` close button at the top right. `.lg-grid` has 4 columns (2 under 520 px of popover width and on a phone): LINE with CHANGE under it, MILESTONE, and EVENT over two columns. Group labels are `.q-label` (10.5px upper case, `--ink-3`). Each row (`.lg-it`) is an 18px line with its sample and its word: a 16 × 2.5 line, the deadline diamond, a `.ms-sw` circle, the yellow `.chg` "Name" sample, or `.lg-ring`, an 18px kind circle drawn as on the graph (a 1.5px ring in the kind colour, a `--k-tint` tint over `--panel`, the 11px icon).
 
 ### 8.12 Tables of people and teams (Members page)
 
 - `src/components/members/members.css`. The page is full width: no narrow column. Each table is rows on one CSS grid template, a `--rule` line under the column heads (`--fs-xs`, `--ink-3`) and `--rule-2` hairlines between rows; no card.
-- People: avatar 28px, name weight 600, email and role label in `--fs-xs` `--ink-3`, `.chipx` for Project lead / You / Invited, teams with a small upper-case "LEAD" in `--ink-3`, four centred native checkboxes with `accent-color: var(--ink)`, row actions as `.btn.sm` (Remove is `.btn-danger`). A box that a rule holds is disabled and its tooltip says why.
+- People: avatar 28px, name weight 600, email and role label in `--fs-xs` `--ink-3`, `.chipx` for Project lead / You / Invited, teams with a small upper-case "LEAD" in `--ink-3`, four centred `Checkbox` boxes, row actions as `.btn.sm` (Remove is `.btn-danger`). A box that a rule holds is disabled and its tooltip says why.
 - Below 1180px the row actions go under the person; at a phone width each row stacks (person, teams, the four boxes in two columns with their names, actions), and the team rows show Lead and People captions.
 - The New project dialog lists its teams the same way: rows with hairlines and an `×` icon button (26px, `--ink-3`, hover `--hover`), then an input with Add.
 
@@ -258,22 +286,24 @@ Geometry in view-box units (`GEOMETRY` in `src/tracker/layout.ts`): width 1060, 
 
 | Mark | Drawing |
 |---|---|
-| Team lane | Alternate lanes get a `--sunk` band. The team name is 10.5px weight 600 upper case in `--ink-2`. An eye button hides the team. A neutral `--rule` guide joins the rows of the team in the label column. |
+| Team summary row | Alternate lanes get a `--sunk` band. The first row of each lane is a button (`aria-expanded`), one line 28 units high (24 at Dense): a chevron (right when collapsed), the team name in 10.5px weight 600 upper case `--ink` with " · N" items in `--ink-3`, and the focus and eye buttons (16 units, 12 at Dense) at the right of the label column. A name too long for that line ends with an ellipsis 6 units before the focus button, cut by grapheme. The counts above zero of "N late · N not yet · N done" sit in the lane of the row, in `--fs-xs` `--ink-3` (the late part `--danger-ink` weight 600, the done part `--proceed-ink`), centred in the row and pinned 8px from the left edge of the visible time line while it scrolls. A collapsed team that holds a change gets the yellow highlighter on its name, as a changed row label does. A team with no shown work items has no chevron and is not a button. Hover: `--hover`. Keyboard focus: a 1px `--ink-3` ring inside the row; a mouse click leaves no ring. A collapsed team shows this row only. A neutral `--rule` guide joins the rows of an open team in the label column. |
+| Row height | Comfortable / Compact / Dense (`ROW_LEVELS`): row 32 / 20 / 12 under a team summary row of 28 / 28 / 24, label 12 / 11 / 9.5px, event radius 10 / 7 / 3 with a 13 / 9 / no icon, line 3 / 2.5 / 2, diamond half 6 / 4.5 / 3.5, handoff box 14 / 12 / 10, chip 14 / 12 / 10, eye and focus buttons 18 / 16 / 12, + radius 9 / 7 / 5, milestone name 9.5 / 9 / 8px, stack distance 16 / 12 / 7 units. At Dense an event is a filled dot in its kind colour, the waiting text moves to the tooltip, the receiver count leaves the Handoff icon, and the milestone name sits on the row centre only where the row has no line. Every target keeps a hit area of at least 12 units. The view menu (rows icon) at the left of the zoom bar holds Row height (a segmented control) and Expand all / Collapse all. |
 | Row label | 12px `--ink`, indented 12 units per level. A changed name gets the yellow highlighter. A row in the picked milestone is weight 600. A filter context row shows at 50 % opacity. |
-| Row line | 3 units, round caps. `--route` while open, `--proceed` when done. The part after the row's own Planned finish is `--danger` while open and `--caution` when done. A row with no events shows a `--ink-3` line at 45 % opacity and an italic "Waiting for ..." or "No events yet". |
-| Event | A circle of radius 10 with a `--panel` fill and a 2-unit stroke in the row tone, and the Lucide kind icon (13 units) in the same tone. Events closer than 16 units form a stack: up to 2 offset circles behind, filled with an 18 % tint. A changed event gets a yellow ring of radius 15 (a 3-unit `--change` stroke, 30 % fill). Events sit at their own time; nothing drags them inside the day. |
+| Row line | 3 units, round caps. `--route` while open, `--proceed` when done. The part after the row's own Planned finish is `--danger` while open and `--caution` when done. A row with no events shows a `--ink-3` line at 45 % opacity and an italic "Waiting for ..." or "No events yet", which starts after the add button when the button would cover it. |
+| Event | A circle of radius 10 (Comfortable) with a 2-unit ring in its full kind colour (`--k-*`, at every row height), filled with a `--k-tint` tint of that colour over `--panel`, and the Lucide kind icon (13 units) in the same colour. The row line keeps the status colour. Events closer than the stack distance form a stack: up to 2 offset circles behind, filled with the stronger `--k-tint-back` tint of the kind colour of the top (latest) event. A changed event gets a yellow ring 5 units wider (a 3-unit `--change` stroke, 30 % fill). Events sit at their own time; nothing drags them inside the day. |
 | T line and pill | A solid 1-unit `--ink-3` line at the demo clock or now. The pill on the axis is an `--ink` capsule (88 × 17) with `--panel` text. |
 | Milestone line | A 4-unit `--trunk` line with round caps. A coloured segment shows a slip: `--danger` from the date to the T line while late, `--caution` from the date to the finish when finished late, `--teal` from the finish to the date when finished early. |
-| Milestone circle | Radius 8, stroke 2 (3.5 when picked). Filled with the status tone; Planned is an outline. A tick for finished early or on time, "!" for late or finished late, both in `--panel`. A changed milestone gets a 3-unit `--change` stroke. The label "name · date · status" is 11px weight 600 in the `-ink` step, on 2 levels when labels collide. |
-| Deadline diamond | On every member row at noon of the milestone date: a 12-unit diamond, stroke 1.5 (2.5 on hover, focus or pick). Filled with the milestone status tone; Planned is an outline. A moved date gets a 3-unit `--change` stroke. The milestone name shows once per team and milestone (9.5px weight 600, `--panel` halo) beside the first member row, or not at all when it has no room. |
-| Handoff mark | One symbol per source row. When the source has a Handoff event, its event icon (or the stack that holds it) is the mark: no separate badge, a `--gray-bg` fill on hover or open, and the receiver count (8.5px weight 700, `--ink-2`, `--panel` halo) on the top right of the ring when there are several receivers. Without a Handoff event the mark sits after the finish (or after the T line while open): a 14 × 14 box, 24 wide with a count, radius 4, `--panel` fill and `--ink-3` stroke; the arrow (`cornerUp`, `cornerDown` or `upDown`, 10 units) is `--proceed` for a done source and `--danger` for an open one; hover or open: `--gray-bg` fill and `--ink` stroke. |
+| Milestone circle | Radius 8, stroke 2 (3.5 when picked). Filled with the status tone; Planned is an outline. A tick for finished early or on time, "!" for late or finished late, both in `--panel`. A changed milestone gets a 3-unit `--change` stroke. The label "name · date · status" is 11px weight 600 in the `-ink` step, on 2 levels when labels collide, on a `--panel` box 3 units wider on each side, so the T line and the grid pass behind it. |
+| Deadline diamond | On every member row at noon of the milestone date: a 12-unit diamond, stroke 1.5 (2.5 on hover, focus or pick). Filled with the milestone status tone; Planned is an outline. A moved date gets a 3-unit `--change` stroke. The milestone name shows once per team and milestone (9.5px weight 600, `--panel` halo) beside the first member row, never across the T line or the add button: cut with an ellipsis when only part of it fits, or not at all when it has no room. |
+| Handoff mark | One symbol per source row. When the source has a Handoff event, its event icon (or the stack that holds it) is the mark: no separate badge, a 3-unit ring on hover or open (the tint stays `--k-tint`, so the icon keeps 4.5:1), and the receiver count (8.5px weight 700, `--ink-2`, `--panel` halo) on the top right of the ring when there are several receivers. Without a Handoff event the mark sits after the finish (or after the T line while open): a 14 × 14 box, 24 wide with a count, radius 4, `--panel` fill and `--ink-3` stroke; the arrow (`cornerUp`, `cornerDown` or `upDown`, 10 units) is `--proceed` for a done source, `--danger` for an open one and `--isolated` for a cancelled one (which never uses its Handoff icon as the mark); hover or open: `--gray-bg` fill and `--ink` stroke. |
 | Hidden-source chip | A 14-unit square, radius 4, `--panel` fill, `--ink-3` stroke, the `branch` icon in `--ink-2`. Only direct children of a hidden source get it. |
-| Add button | In an editable view, a radius-9 circle with a `+` at 20 units right of the T line on each open row. |
+| Add button | In an editable view, a radius-9 circle with a `+` at 20 units right of the T line on each open row. Milestone names and waiting texts keep off it. |
 | Selection band | The row with open details: a band of 6 % `--ink` and nothing else. The reveal flash and the picked review row: 8 % `--ink`. A drop target while you drag: 9 % `--ink` with a 2-unit `--ink` outline. |
 | Focus ring | A thin 1px `--focus` stroke with `vector-effect: non-scaling-stroke` on the row hit area (it reads as a line above and below the row); a `--focus` outline on milestone circles. |
-| Focus button | On each row and each team head, left of the eye: an 18-unit square, radius 4, the `focus` icon. Pressed: a `--focus` fill with a `--panel` icon. |
+| Focus button | On each row and each team summary row, left of the eye: an 18-unit square (smaller with the row height), radius 4, the `focus` icon. Pressed: a `--focus` fill with a `--panel` icon. |
 | Bin | Shows only while you drag: a sticky box at the bottom left with a `--danger` border and `--danger-ink` text; `--danger-bg` and scale 1.06 when the pointer is over it. |
-| Zoom bar | Floats at the bottom right of the graph: Zoom out, Zoom in, Fit and Full view in a `--panel` box with `--r-ctl` and `--shadow`. It moves left of an open drawer. |
+| Zoom bar | Floats at the bottom right of the graph: the Legend button, the view menu (Row height and teams), Zoom out, Zoom in, Fit and Full view in a `--panel` box with `--r-ctl` and `--shadow`. Its buttons show the focus ring for the keyboard only: no ring after a click, and none when Esc closes a menu that a click opened. The view menu opens above the bar, from its right end, as a `--r-pop` popover; Esc and a press outside close it. It moves left of an open drawer. |
+| Legend | A popover above the zoom bar, aligned to its right end, opened by the Legend button (pressed look while open). It is open by default on a desktop and closed by default on a phone; the person's stored choice wins. LINE (Not finished, Done, Late part, Done late, Cancelled) and CHANGE, MILESTONE (Deadline and the 5 statuses), EVENT (the 10 kinds in kind picker order, each as its graph circle, name in `--ink-2`). An outside click leaves it open; Esc closes it only while the focus is inside it. It hides during a drag (`.tk.dragging`), in move mode (`.tk.moving`) and with less than 48 px of room above the bar (`[data-no-room]`). Its top never leaves the visible graph. |
 
 ## 10. Graph rules
 

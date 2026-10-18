@@ -3,6 +3,7 @@ export {
   AddQueueItemInputSchema,
   addQueueEvent,
   addQueueItem,
+  crBrief,
   getChangeRequest,
   GetChangeRequestInputSchema,
   getTrackerSummary,
@@ -19,8 +20,14 @@ export { FirstMilestoneSchema, ProjectTeamsSchema } from '../../tracker';
 export { createTrackerProject, seedTrackerDemo, type CreateTrackerProjectInput } from './projects';
 export {
   addTeam,
+  AddTeamInputSchema,
   deleteTeam,
+  DeleteTeamInputSchema,
+  GrantsSchema,
   inviteMember,
+  InviteMemberInputSchema,
+  RemoveMemberInputSchema,
+  UpdateTeamInputSchema,
   listProjectMembers,
   removeMember,
   updateMember,
@@ -29,5 +36,10 @@ export {
   type ProjectMember,
   type ProjectTeam,
 } from './members';
-export { addQueueCard, addQueueEntry, dismissQueueEntry } from './queue';
+export {
+  addQueueCard,
+  addQueueEntry,
+  dismissQueueEntry,
+  DismissQueueEntryInputSchema,
+} from './queue';
 export { getTrackerPayload } from './read';

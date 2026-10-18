@@ -7,6 +7,8 @@ export const EVENT_KINDS = [
   'delivery',
   'issue',
   'done',
+  'idea',
+  'cancelled',
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
@@ -19,9 +21,29 @@ export const KIND_LABEL: Record<EventKind, string> = {
   delivery: 'Delivery',
   issue: 'Issue',
   done: 'Done',
+  idea: 'Idea',
+  cancelled: 'Cancelled',
 };
 
-export type Status = 'planned' | 'early' | 'ontime' | 'late' | 'flate';
+export const kindWithArticle = (kind: EventKind) =>
+  `${/^[AEIOU]/.test(KIND_LABEL[kind]) ? 'an' : 'a'} ${KIND_LABEL[kind]}`;
+
+export const FINISHES_NOTE = 'finishes the work item';
+
+export const isFinishingHandoff = (e: { kind: EventKind; finishes?: boolean }) =>
+  e.kind === 'handoff' && e.finishes === true;
+
+export const kindText = (e: { kind: EventKind; finishes?: boolean }) =>
+  isFinishingHandoff(e) ? `${KIND_LABEL[e.kind]}, ${FINISHES_NOTE}` : KIND_LABEL[e.kind];
+
+/** Guidance for the kind picker only: any kind can sit anywhere on a work item. */
+export const KIND_GROUPS: ReadonlyArray<{ label: string; kinds: readonly EventKind[] }> = [
+  { label: 'Start', kinds: ['idea', 'message', 'issue'] },
+  { label: 'Progress', kinds: ['task', 'meeting', 'decision', 'delivery'] },
+  { label: 'Finish', kinds: ['handoff', 'done', 'cancelled'] },
+];
+
+export type Status = 'planned' | 'early' | 'ontime' | 'late' | 'flate' | 'cancelled';
 
 export const STATUS_LABEL: Record<Status, string> = {
   planned: 'Planned',
@@ -29,6 +51,7 @@ export const STATUS_LABEL: Record<Status, string> = {
   ontime: 'Finished on time',
   late: 'Late',
   flate: 'Finished late',
+  cancelled: 'Cancelled',
 };
 
 export type Person = { id: string; name: string };
@@ -73,6 +96,10 @@ export type WorkItem = {
   since: string | null;
 };
 
+/** The person a new event of this kind names first in Who: the doer closes the work, the requester opens it. */
+export const whoDid = (item: Pick<WorkItem, 'doneBy' | 'requestedBy'>, kind: EventKind) =>
+  kind === 'done' || kind === 'cancelled' ? item.doneBy : item.requestedBy;
+
 export type TrackerEvent = {
   id: string;
   workItemId: string;
@@ -80,6 +107,8 @@ export type TrackerEvent = {
   at: string;
   by: string;
   text: string;
+  /** Only a Handoff reads it: true makes the Handoff finish its work item. */
+  finishes?: boolean;
   addedBy: 'agent' | string | null;
   hidden: boolean;
 };
@@ -90,6 +119,7 @@ export type QueueEvent = {
   at: string;
   by: string;
   text: string;
+  finishes?: boolean;
   addedBy: string | null;
   agent: boolean;
   createdAt: string;

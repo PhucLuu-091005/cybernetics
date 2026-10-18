@@ -246,6 +246,72 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP tracker tools', () => {
     });
   });
 
+  it('takes Idea, Cancelled and a finishing Handoff, and get_tracker shows cancelled and finished items', async () => {
+    const agent = await connect();
+    const idea = await call(agent, 'add_queue_event', {
+      kind: 'idea',
+      at: '2026-10-09T09:00+07:00',
+      by: 'sarah',
+      text: 'Sarah thinks of a CRS checklist.',
+    });
+    expect(idea.structuredContent.event).toMatchObject({ kind: 'idea' });
+    const handoff = await call(agent, 'add_queue_event', {
+      kind: 'handoff',
+      at: '2026-10-09T10:00+07:00',
+      by: 'sarah',
+      text: 'Sarah hands the checklist over.',
+      finishes: true,
+    });
+    expect(handoff.structuredContent.event).toMatchObject({ kind: 'handoff', finishes: true });
+    expect(
+      await call(agent, 'add_queue_event', {
+        kind: 'cancelled',
+        at: '2026-10-09T10:00+07:00',
+        by: 'sarah',
+        text: '   ',
+      }),
+    ).toMatchObject({ isError: true, structuredContent: { code: 'VALIDATION' } });
+
+    const as = { projectId: demo.projectId, actAs: demo.ids.minh };
+    const ev = (id: string, kind: string, text: string, finishes?: boolean) => ({
+      id,
+      kind,
+      at: '2026-10-09T11:00:00+07:00',
+      by: 'minh',
+      text,
+      ...(finishes ? { finishes } : {}),
+    });
+    const { num } = await createCr(t.db, demo.owner, {
+      ...as,
+      title: 'Finish two work items',
+      ops: [
+        {
+          op: 'addEvent',
+          a: {
+            workItemId: 'pg203',
+            ev: ev('cancel203', 'cancelled', 'The field stays free text.'),
+          },
+        },
+        {
+          op: 'addEvent',
+          a: { workItemId: 'crs', ev: ev('handcrs', 'handoff', 'Minh hands it to QA.', true) },
+        },
+      ],
+    });
+    await crAction(t.db, demo.owner, { ...as, num, action: 'ready' });
+    const ready = await getTrackerPayload(t.db, demo.owner, as);
+    const revision = ready.crs.find((cr) => cr.num === num)!.revision;
+    await crAction(t.db, demo.owner, { ...as, num, action: 'merge', expectedRevision: revision });
+    const tracker = (await call(agent, 'get_tracker')).structuredContent;
+    const item = (id: string) => tracker.workItems.find((w: { id: string }) => w.id === id);
+    expect(item('pg203')).toMatchObject({
+      status: 'cancelled',
+      statusLabel: 'Cancelled',
+      finishedAt: '2026-10-09T11:00:00+07:00',
+    });
+    expect(item('crs')).toMatchObject({ status: 'early', finishedAt: '2026-10-09T11:00:00+07:00' });
+  });
+
   it('shows a planned finish time in get_tracker, and a late status from that time', async () => {
     const as = { projectId: demo.projectId, actAs: demo.ids.minh };
     const { num } = await createCr(t.db, demo.owner, {

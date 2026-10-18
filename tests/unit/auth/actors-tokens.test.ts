@@ -1,12 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createHash, randomUUID } from 'node:crypto';
-import type { Scope } from '../../../src/contracts';
+import type { Creator, Scope } from '../../../src/contracts';
 import { createIdentityServices } from '../../../src/server/http/actors';
 import { createTokenService } from '../../../src/server/domain/tokens/service';
 import { signSession } from '../../../src/server/http/session';
 import type { AuthEnvironment } from '../../../src/server/env';
 import { memoryStore } from './test-store';
 const now = Date.parse('2026-10-13T00:00:00Z');
+const LEAD: Creator = {
+  member: true,
+  rights: { viewMain: true, create: true, merge: true, manage: true },
+};
 const env: AuthEnvironment = {
   mode: 'local',
   appOrigin: 'http://localhost:3000',
@@ -32,7 +36,11 @@ async function setup() {
     scopes: ['project:read' as const, 'queue:add' as const],
     requestId: 'test',
   };
-  const tokens = createTokenService(store, () => now);
+  const tokens = createTokenService(
+    store,
+    async () => LEAD,
+    () => now,
+  );
   const request = (secret?: string, method = 'GET') =>
     new Request(`${env.appOrigin}/api/projects/${projectId}`, {
       method,
@@ -188,7 +196,11 @@ describe('hashed project agent tokens', () => {
       idempotencyKey: 'revoke-once',
     };
     const result = await s.tokens.revokeToken(s.ctx, input);
-    const later = createTokenService(s.store, () => now + 60_000);
+    const later = createTokenService(
+      s.store,
+      async () => LEAD,
+      () => now + 60_000,
+    );
     const retried = await later.revokeToken(s.ctx, input);
     expect(result).toMatchObject({
       projectId: s.projectId,
@@ -477,5 +489,67 @@ describe('last call of a token', () => {
     await s.call();
     const listed = await s.tokens.listTokens(s.ctx, { projectId: s.projectId });
     expect(listed.items[0].lastUsedAt).toBe('2026-10-13T00:00:00.000Z');
+  });
+});
+
+describe('token creation and the rights of the creator today', () => {
+  const writer: Creator = {
+    member: true,
+    rights: { viewMain: true, create: true, merge: false, manage: false },
+  };
+  const reader: Creator = {
+    member: false,
+    rights: { viewMain: true, create: false, merge: false, manage: false },
+  };
+  it('refuses a scope whose right the creator does not hold, with the reason the page shows', async () => {
+    const s = await setup();
+    const tokens = createTokenService(
+      s.store,
+      async () => writer,
+      () => now,
+    );
+    const base = { projectId: s.projectId, label: 'Agent' };
+    await expect(
+      tokens.createToken(s.ctx, {
+        ...base,
+        scopes: ['project:read', 'crs:merge'],
+        idempotencyKey: 'merge',
+      }),
+    ).rejects.toMatchObject({
+      code: 'VALIDATION',
+      message: 'You do not have the Merge right in this project',
+      extras: { errors: [{ path: 'scopes', message: expect.stringContaining('crs:merge') }] },
+    });
+    const ok = await tokens.createToken(s.ctx, {
+      ...base,
+      scopes: ['crs:edit'],
+      idempotencyKey: 'edit',
+    });
+    expect(ok.token.scopes).toEqual(['crs:edit']);
+  });
+  it('gives a token without scopes the default scopes that the creator may give', async () => {
+    const s = await setup();
+    const tokens = createTokenService(
+      s.store,
+      async () => reader,
+      () => now,
+    );
+    const made = await tokens.createToken(s.ctx, {
+      projectId: s.projectId,
+      label: 'Reader agent',
+      idempotencyKey: 'reader',
+    });
+    expect(made.token.scopes).toEqual(['project:read']);
+    await expect(
+      tokens.createToken(s.ctx, {
+        projectId: s.projectId,
+        label: 'Reader agent',
+        scopes: ['queue:add'],
+        idempotencyKey: 'reader-queue',
+      }),
+    ).rejects.toMatchObject({
+      code: 'VALIDATION',
+      message: 'Only members of the project can do this',
+    });
   });
 });

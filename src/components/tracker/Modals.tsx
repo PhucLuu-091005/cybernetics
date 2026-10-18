@@ -12,31 +12,39 @@ import {
   can,
   addDays,
   dayOf,
-  EVENT_KINDS,
   formatDeadline,
   formatStamp,
   itemInfo,
+  KIND_GROUPS,
   KIND_LABEL,
+  kindText,
+  pickable,
   toInstant,
   wallTimeInstant,
+  whoDid,
   type Cr,
   type Member,
   type CrPermission,
   type EventKind,
+  type Person,
   type TrackerState,
 } from '../../tracker';
 import type { OpInput, QueueEntry } from './api';
 import { Avatar } from './avatar';
 import { mergerNames, trunc, type Session } from './ContextBar';
+import { Checkbox } from './Checkbox';
+import { Select } from './Select';
 import { Icon, KindIcon } from './icons';
 import { newTeamOp } from './team';
+import { DateInput } from './DateInput';
+import { DateTimeInput } from './DateTimeInput';
 import { TimeInput } from './TimeInput';
 
 export type ModalState =
   | { mode: 'add'; what: 'event' | 'item' }
   | { mode: 'attach'; eventId: string }
   | { mode: 'placeItem'; itemId: string }
-  | { mode: 'event'; workItemId: string; done?: boolean }
+  | { mode: 'event'; workItemId: string; done?: boolean; cancel?: boolean }
   | { mode: 'fromEvent'; eventId: string; teamId: string }
   | { mode: 'ms' }
   | { mode: 'team' }
@@ -160,6 +168,7 @@ function Foot({
   busy,
   disabled,
   extra,
+  cancelLabel = 'Cancel',
   onCancel,
   onCreate,
 }: {
@@ -168,13 +177,14 @@ function Foot({
   busy: boolean;
   disabled?: boolean;
   extra?: ReactNode;
+  cancelLabel?: string;
   onCancel: () => void;
   onCreate: () => void;
 }) {
   return (
     <div className="m-foot">
       <button className="btn big" type="button" onClick={onCancel}>
-        Cancel
+        {cancelLabel}
       </button>
       {extra}
       <button
@@ -191,80 +201,128 @@ function Foot({
 
 export function KindGrid({ value, onPick }: { value: EventKind; onPick: (k: EventKind) => void }) {
   return (
-    <div className="kinds" role="group" aria-label="Kind">
-      {EVENT_KINDS.map((k) => (
-        <button
-          key={k}
-          className={`kind${k === value ? ' on' : ''}`}
-          type="button"
-          aria-pressed={k === value}
-          onClick={() => onPick(k)}
-        >
-          <KindIcon kind={k} size={18} />
-          <span>{KIND_LABEL[k]}</span>
-        </button>
+    <div className="kind-groups" role="group" aria-label="Kind">
+      {KIND_GROUPS.map((group) => (
+        <div key={group.label} className="kind-group" role="group" aria-label={group.label}>
+          <span className="kg-label" aria-hidden="true">
+            {group.label}
+          </span>
+          <div className="kinds">
+            {group.kinds.map((k) => (
+              <button
+                key={k}
+                className={`kind${k === value ? ' on' : ''}`}
+                type="button"
+                aria-pressed={k === value}
+                onClick={() => onPick(k)}
+              >
+                <KindIcon kind={k} size={18} />
+                <span>{KIND_LABEL[k]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       ))}
     </div>
   );
 }
 
+export function FinishesCheck({
+  checked,
+  disabled,
+  onChange,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <Checkbox className="check" checked={checked} disabled={disabled} onChange={onChange}>
+      This finishes the work item
+    </Checkbox>
+  );
+}
+
+function EventText({
+  kind,
+  value,
+  placeholder,
+  onChange,
+}: {
+  kind: EventKind;
+  value: string;
+  placeholder?: string;
+  onChange: (value: string) => void;
+}) {
+  const cancel = kind === 'cancelled';
+  return (
+    <label className="field">
+      {cancel ? 'Why is it cancelled? (required)' : 'What happened?'}
+      <textarea
+        value={value}
+        required={cancel}
+        placeholder={cancel ? 'For example: The client keeps the free text field.' : placeholder}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
+const finishFields = (kind: EventKind, finishes: boolean) =>
+  kind === 'handoff' && finishes ? { finishes: true } : {};
+
 function PeopleSelect({
-  state,
+  label,
+  people,
   value,
   onChange,
 }: {
-  state: TrackerState;
+  label: string;
+  people: readonly Person[];
   value: string;
   onChange: (v: string) => void;
 }) {
   return (
-    <select value={value} onChange={(event) => onChange(event.target.value)}>
-      {state.people.map((p) => (
-        <option key={p.id} value={p.id}>
-          {p.name}
-        </option>
-      ))}
-    </select>
+    <Select
+      label={label}
+      value={value}
+      onChange={onChange}
+      options={people.map((p) => ({ value: p.id, label: p.name }))}
+    />
   );
 }
 
 function ItemSelect({
+  label,
   state,
   value,
   none,
   onChange,
 }: {
+  label: string;
   state: TrackerState;
   value: string;
   none?: string;
   onChange: (v: string) => void;
 }) {
   return (
-    <select value={value} onChange={(event) => onChange(event.target.value)}>
-      {none !== undefined && <option value="">{none}</option>}
-      {state.workItems.map((w) => (
-        <option key={w.id} value={w.id}>
-          {trunc(w.title, 44)}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-// An empty value means the person cleared the field; the last date stays, so every op gets a date.
-function DateInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <input
-      type="date"
-      required
+    <Select
+      label={label}
       value={value}
-      onChange={(event) => event.target.value && onChange(event.target.value)}
+      onChange={onChange}
+      options={[
+        ...(none !== undefined ? [{ value: '', label: none }] : []),
+        ...state.workItems.map((w) => ({ value: w.id, label: trunc(w.title, 44) })),
+      ]}
     />
   );
 }
 
-const personOr = (state: TrackerState, id: string | null | undefined) =>
-  id && state.people.some((p) => p.id === id) ? id : (state.people[0]?.id ?? '');
+const blankText = (kind: EventKind) =>
+  kind === 'cancelled' ? 'Write why the work item is cancelled.' : 'Write what happened first.';
+
+const personOr = (people: readonly Person[], id: string | null | undefined) =>
+  id && people.some((p) => p.id === id) ? id : (people[0]?.id ?? '');
 
 function Gone({ onClose }: { onClose: () => void }) {
   useEffect(() => onClose(), [onClose]);
@@ -274,19 +332,21 @@ function Gone({ onClose }: { onClose: () => void }) {
 function EventQuote({
   text,
   kind,
+  finishes,
   by,
   at,
   session,
 }: {
   text: string;
   kind: EventKind;
+  finishes?: boolean;
   by: string;
   at: string;
   session: Session;
 }) {
   return (
     <blockquote>
-      <b>{KIND_LABEL[kind]}</b> · {session.dir.name(by)} · {formatStamp(at, session.tz)}
+      <b>{kindText({ kind, finishes })}</b> · {session.dir.name(by)} · {formatStamp(at, session.tz)}
       <br />
       {text}
     </blockquote>
@@ -295,9 +355,11 @@ function EventQuote({
 
 function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'add'>) {
   const tz = session.tz;
-  const me = personOr(state, session.me);
+  const people = pickable(state.people, session.payload.members);
+  const me = personOr(people, session.me);
   const [what, setWhat] = useState(modal.what);
   const [kind, setKind] = useState<EventKind>('message');
+  const [finishes, setFinishes] = useState(true);
   const [text, setText] = useState('');
   const [by, setBy] = useState(me);
   const [when, setWhen] = useState(localInput(hourBefore(asOf, tz), tz));
@@ -311,8 +373,11 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
   const create = () => {
     if (what === 'event') {
       const at = fromLocalInput(when, tz);
-      if (!text.trim() || !at) return on.toast('Write what happened first.');
-      return on.addToQueue({ kind: 'event', fields: { kind, at, by, text: text.trim() } });
+      if (!text.trim() || !at) return on.toast(blankText(kind));
+      return on.addToQueue({
+        kind: 'event',
+        fields: { kind, at, by, text: text.trim(), ...finishFields(kind, finishes) },
+      });
     }
     if (!title.trim()) return on.toast('Give the work item a name.');
     on.addToQueue({
@@ -347,29 +412,26 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
       </span>
       {what === 'event' ? (
         <>
-          <p className="q-label">Kind</p>
-          <KindGrid value={kind} onPick={setKind} />
-          <label className="field">
-            What happened?
-            <textarea
-              value={text}
-              placeholder="For example: Lan sent the list of tax ID formats to Quang."
-              onChange={(event) => setText(event.target.value)}
-            />
-          </label>
+          <div className="field">
+            Kind
+            <KindGrid value={kind} onPick={setKind} />
+          </div>
+          {kind === 'handoff' && <FinishesCheck checked={finishes} onChange={setFinishes} />}
+          <EventText
+            kind={kind}
+            value={text}
+            placeholder="For example: Lan sent the list of tax ID formats to Quang."
+            onChange={setText}
+          />
           <div className="grid2">
             <label className="field">
               Who
-              <PeopleSelect state={state} value={by} onChange={setBy} />
+              <PeopleSelect label="Who" people={people} value={by} onChange={setBy} />
             </label>
-            <label className="field">
+            <div className="field">
               When
-              <input
-                type="datetime-local"
-                value={when}
-                onChange={(event) => event.target.value && setWhen(event.target.value)}
-              />
-            </label>
+              <DateTimeInput label="When" value={when} today={dayOf(asOf, tz)} onChange={setWhen} />
+            </div>
           </div>
           <Foot label="Add event" busy={busy} onCancel={onClose} onCreate={create} />
         </>
@@ -394,21 +456,37 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
           <div className="grid2">
             <label className="field">
               Done by
-              <PeopleSelect state={state} value={doneBy} onChange={setDoneBy} />
+              <PeopleSelect label="Done by" people={people} value={doneBy} onChange={setDoneBy} />
             </label>
             <label className="field">
               For (requested by)
-              <PeopleSelect state={state} value={requestedBy} onChange={setRequestedBy} />
+              <PeopleSelect
+                label="For (requested by)"
+                people={people}
+                value={requestedBy}
+                onChange={setRequestedBy}
+              />
             </label>
           </div>
           <div className="grid2">
             <label className="field">
               Leads from
-              <ItemSelect state={state} value={after} none="Nothing" onChange={setAfter} />
+              <ItemSelect
+                label="Leads from"
+                state={state}
+                value={after}
+                none="Nothing"
+                onChange={setAfter}
+              />
             </label>
             <label className="field">
               Planned finish
-              <DateInput value={planned} onChange={setPlanned} />
+              <DateInput
+                label="Planned finish"
+                today={dayOf(asOf, tz)}
+                value={planned}
+                onChange={setPlanned}
+              />
             </label>
           </div>
           <div className="grid2">
@@ -451,23 +529,18 @@ function AttachModal({ modal, session, state, busy, on, onClose }: PropsOf<'atta
       {state.workItems.length > 0 && (
         <label className="field">
           Work item
-          <ItemSelect state={state} value={workItemId} onChange={setWorkItemId} />
+          <ItemSelect label="Work item" state={state} value={workItemId} onChange={setWorkItemId} />
         </label>
       )}
       {/* The click way to drop the event on a team: it starts a new work item there. */}
       <p className="q-label">Or start a new work item from it</p>
       <div className="share-add">
-        <select
-          aria-label="Team"
+        <Select
+          label="Team"
           value={teamId}
-          onChange={(event) => setTeamId(event.target.value)}
-        >
-          {state.teams.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </select>
+          onChange={setTeamId}
+          options={state.teams.map((t) => ({ value: t.id, label: t.name }))}
+        />
         <button
           className="btn"
           type="button"
@@ -489,7 +562,7 @@ function AttachModal({ modal, session, state, busy, on, onClose }: PropsOf<'atta
   );
 }
 
-function PlaceModal({ modal, state, busy, on, onClose }: PropsOf<'placeItem'>) {
+function PlaceModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'placeItem'>) {
   const item = state.queue.items.find((x) => x.id === modal.itemId);
   const [teamId, setTeamId] = useState(state.teams[0]?.id ?? '');
   const [ms, setMs] = useState(item?.milestoneId ?? '');
@@ -522,28 +595,33 @@ function PlaceModal({ modal, state, busy, on, onClose }: PropsOf<'placeItem'>) {
       <div className="grid2">
         <label className="field">
           Team
-          <select value={teamId} onChange={(event) => setTeamId(event.target.value)}>
-            {state.teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
+          <Select
+            label="Team"
+            value={teamId}
+            onChange={setTeamId}
+            options={state.teams.map((t) => ({ value: t.id, label: t.name }))}
+          />
         </label>
         <label className="field">
           Milestone
-          <select value={ms} onChange={(event) => setMs(event.target.value)}>
-            <option value="">No milestone</option>
-            {state.milestones.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
+          <Select
+            label="Milestone"
+            value={ms}
+            onChange={setMs}
+            options={[
+              { value: '', label: 'No milestone' },
+              ...state.milestones.map((m) => ({ value: m.id, label: m.name })),
+            ]}
+          />
         </label>
         <label className="field">
           Planned finish
-          <DateInput value={planned} onChange={setPlanned} />
+          <DateInput
+            label="Planned finish"
+            today={dayOf(asOf, session.tz)}
+            value={planned}
+            onChange={setPlanned}
+          />
         </label>
         <label className="field">
           Time (optional)
@@ -564,62 +642,74 @@ function PlaceModal({ modal, state, busy, on, onClose }: PropsOf<'placeItem'>) {
 
 function EventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'event'>) {
   const tz = session.tz;
+  const people = pickable(state.people, session.payload.members);
   const start = state.workItems.find((w) => w.id === modal.workItemId);
   const [workItemId, setWorkItemId] = useState(modal.workItemId);
-  const [kind, setKind] = useState<EventKind>(modal.done ? 'done' : 'message');
+  const [kind, setKind] = useState<EventKind>(
+    modal.cancel ? 'cancelled' : modal.done ? 'done' : 'message',
+  );
+  const [finishes, setFinishes] = useState(true);
   const [text, setText] = useState(modal.done ? 'Done.' : '');
-  const [by, setBy] = useState(personOr(state, start?.requestedBy));
+  const [picked, setBy] = useState<string | null>(null);
   const [when, setWhen] = useState(localInput(hourBefore(asOf, tz), tz));
   if (!start) return <Gone onClose={onClose} />;
+  const item = state.workItems.find((w) => w.id === workItemId) ?? start;
+  const by = picked ?? personOr(people, whoDid(item, kind));
   const create = () => {
     const at = fromLocalInput(when, tz);
-    if (!text.trim() || !at) return on.toast('Write what happened first.');
+    if (!text.trim() || !at) return on.toast(blankText(kind));
     on.commit([
       {
         op: 'addEvent',
-        a: { workItemId, ev: { id: newId(), kind, at, by, text: text.trim() } },
+        a: {
+          workItemId,
+          ev: { id: newId(), kind, at, by, text: text.trim(), ...finishFields(kind, finishes) },
+        },
       },
     ]);
   };
   return (
-    <ModalFrame title="Add an event" onClose={onClose}>
+    <ModalFrame title={modal.cancel ? 'Cancel this work item' : 'Add an event'} onClose={onClose}>
       <label className="field">
         Work item
-        <ItemSelect state={state} value={workItemId} onChange={setWorkItemId} />
+        <ItemSelect label="Work item" state={state} value={workItemId} onChange={setWorkItemId} />
       </label>
-      <p className="q-label">Kind</p>
-      <KindGrid value={kind} onPick={setKind} />
-      <label className="field">
-        What happened?
-        <textarea value={text} onChange={(event) => setText(event.target.value)} />
-      </label>
+      <div className="field">
+        Kind
+        <KindGrid value={kind} onPick={setKind} />
+      </div>
+      {kind === 'handoff' && <FinishesCheck checked={finishes} onChange={setFinishes} />}
+      <EventText kind={kind} value={text} onChange={setText} />
       <div className="grid2">
         <label className="field">
           Who
-          <PeopleSelect state={state} value={by} onChange={setBy} />
+          <PeopleSelect label="Who" people={people} value={by} onChange={setBy} />
         </label>
-        <label className="field">
+        <div className="field">
           When
-          <input
-            type="datetime-local"
-            value={when}
-            onChange={(event) => event.target.value && setWhen(event.target.value)}
-          />
-        </label>
+          <DateTimeInput label="When" value={when} today={dayOf(asOf, tz)} onChange={setWhen} />
+        </div>
       </div>
-      <Foot label="Add event" busy={busy} onCancel={onClose} onCreate={create} />
+      <Foot
+        label={modal.cancel && kind === 'cancelled' ? 'Cancel work item' : 'Add event'}
+        cancelLabel={modal.cancel ? 'Back' : 'Cancel'}
+        busy={busy}
+        onCancel={onClose}
+        onCreate={create}
+      />
     </ModalFrame>
   );
 }
 
 function FromEventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'fromEvent'>) {
   const tz = session.tz;
+  const people = pickable(state.people, session.payload.members);
   const ev = state.queue.events.find((e) => e.id === modal.eventId);
   const lead = state.teams.find((t) => t.id === modal.teamId)?.leadId;
   const [teamId, setTeamId] = useState(modal.teamId);
   const [title, setTitle] = useState(ev ? trunc(ev.text, 50) : '');
-  const [doneBy, setDoneBy] = useState(personOr(state, lead ?? session.me));
-  const [requestedBy, setRequestedBy] = useState(personOr(state, ev?.by));
+  const [doneBy, setDoneBy] = useState(personOr(people, lead ?? session.me));
+  const [requestedBy, setRequestedBy] = useState(personOr(people, ev?.by));
   const [after, setAfter] = useState('');
   const [planned, setPlanned] = useState(weekAfter(asOf, tz));
   const [plannedTime, setPlannedTime] = useState('');
@@ -654,33 +744,48 @@ function FromEventModal({ modal, session, state, asOf, busy, on, onClose }: Prop
         </label>
         <label className="field">
           Team
-          <select value={teamId} onChange={(event) => setTeamId(event.target.value)}>
-            {state.teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
+          <Select
+            label="Team"
+            value={teamId}
+            onChange={setTeamId}
+            options={state.teams.map((t) => ({ value: t.id, label: t.name }))}
+          />
         </label>
       </div>
       <div className="grid2">
         <label className="field">
           Done by
-          <PeopleSelect state={state} value={doneBy} onChange={setDoneBy} />
+          <PeopleSelect label="Done by" people={people} value={doneBy} onChange={setDoneBy} />
         </label>
         <label className="field">
           For (requested by)
-          <PeopleSelect state={state} value={requestedBy} onChange={setRequestedBy} />
+          <PeopleSelect
+            label="For (requested by)"
+            people={people}
+            value={requestedBy}
+            onChange={setRequestedBy}
+          />
         </label>
       </div>
       <div className="grid2">
         <label className="field">
           Leads from
-          <ItemSelect state={state} value={after} none="Nothing" onChange={setAfter} />
+          <ItemSelect
+            label="Leads from"
+            state={state}
+            value={after}
+            none="Nothing"
+            onChange={setAfter}
+          />
         </label>
         <label className="field">
           Planned finish
-          <DateInput value={planned} onChange={setPlanned} />
+          <DateInput
+            label="Planned finish"
+            today={dayOf(asOf, tz)}
+            value={planned}
+            onChange={setPlanned}
+          />
         </label>
       </div>
       <div className="grid2">
@@ -724,7 +829,12 @@ function MilestoneModal({ session, state, asOf, busy, on, onClose }: PropsOf<'ms
         </label>
         <label className="field">
           Planned date
-          <DateInput value={planned} onChange={setPlanned} />
+          <DateInput
+            label="Planned date"
+            today={dayOf(asOf, session.tz)}
+            value={planned}
+            onChange={setPlanned}
+          />
         </label>
       </div>
       <div className="grid2">
@@ -739,14 +849,14 @@ function MilestoneModal({ session, state, asOf, busy, on, onClose }: PropsOf<'ms
         {state.workItems.map((w) => {
           const checked = members.includes(w.id);
           return (
-            <label key={w.id} className={`pcard${checked ? ' on' : ''}`}>
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={(event) => toggle(w.id, event.target.checked)}
-              />{' '}
+            <Checkbox
+              key={w.id}
+              className={`pcard${checked ? ' on' : ''}`}
+              checked={checked}
+              onChange={(on) => toggle(w.id, on)}
+            >
               {w.title}
-            </label>
+            </Checkbox>
           );
         })}
         {!state.workItems.length && <p className="tip">No work item yet.</p>}
@@ -784,7 +894,7 @@ function TeamModal({ state, busy, on, onClose }: PropsOf<'team'>) {
   );
 }
 
-function DueModal({ modal, session, state, busy, on, onClose }: PropsOf<'due'>) {
+function DueModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'due'>) {
   const isMs = modal.kind === 'ms';
   const ms = isMs ? state.milestones.find((m) => m.id === modal.id) : undefined;
   const item = isMs ? undefined : state.workItems.find((w) => w.id === modal.id);
@@ -841,7 +951,12 @@ function DueModal({ modal, session, state, busy, on, onClose }: PropsOf<'due'>) 
       <div className="grid2">
         <label className="field">
           New date
-          <DateInput value={date} onChange={setDate} />
+          <DateInput
+            label="New date"
+            today={dayOf(asOf, session.tz)}
+            value={date}
+            onChange={setDate}
+          />
         </label>
         <label className="field">
           Time (optional)
@@ -1064,20 +1179,19 @@ function ShareModal({ session, cr, busy, on, onClose }: PropsOf<'share'>) {
           </div>
           {s.permission === 'edit' && hand(s.memberId)}
           {s.memberId !== cr.editor && (
-            <select
-              aria-label={`Access for ${dir.name(s.memberId)}`}
+            <Select
+              label={`Access for ${dir.name(s.memberId)}`}
               value={s.permission}
               disabled={busy}
-              onChange={(event) =>
-                on.share(s.memberId, event.target.value as CrPermission | 'remove')
-              }
-            >
-              {(s.permission === 'edit' || creates(s.memberId)) && (
-                <option value="edit">Can edit</option>
-              )}
-              <option value="view">Can view</option>
-              <option value="remove">Remove</option>
-            </select>
+              onChange={(next) => on.share(s.memberId, next as CrPermission | 'remove')}
+              options={[
+                ...(s.permission === 'edit' || creates(s.memberId)
+                  ? [{ value: 'edit', label: 'Can edit' }]
+                  : []),
+                { value: 'view', label: 'Can view' },
+                { value: 'remove', label: 'Remove' },
+              ]}
+            />
           )}
         </div>
       ))}
@@ -1095,25 +1209,22 @@ function ShareModal({ session, cr, busy, on, onClose }: PropsOf<'share'>) {
         <>
           <p className="q-label">Add a person</p>
           <div className="share-add">
-            <select
-              aria-label="Person"
+            <Select
+              label="Person"
+              className="grow"
               value={pick}
-              onChange={(event) => setWho(event.target.value)}
-            >
-              {others.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-            <select
-              aria-label="Access"
+              onChange={setWho}
+              options={others.map((m) => ({ value: m.id, label: m.name }))}
+            />
+            <Select
+              label="Access"
               value={access}
-              onChange={(event) => setPerm(event.target.value as CrPermission)}
-            >
-              {creates(pick) && <option value="edit">Can edit</option>}
-              <option value="view">Can view</option>
-            </select>
+              onChange={(next) => setPerm(next as CrPermission)}
+              options={[
+                ...(creates(pick) ? [{ value: 'edit', label: 'Can edit' }] : []),
+                { value: 'view', label: 'Can view' },
+              ]}
+            />
             <button
               className="btn btn-ink"
               type="button"
