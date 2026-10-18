@@ -886,6 +886,43 @@ function busyOf(
   return busy;
 }
 
+/**
+ * A handoff mark or a chip of the row sits on the waiting text, so the text starts after it. Near the
+ * right edge the text ends with an ellipsis, before or after the mark, on the side with more room.
+ */
+function waitsClearOfMarks(
+  c: Ctx,
+  segments: LayoutSegment[],
+  handoffs: LayoutHandoff[],
+  chips: LayoutChip[],
+): LayoutSegment[] {
+  if (!c.level.waitText) return segments;
+  const marks = new Map<string, Span[]>();
+  const add = (id: string, span: Span) => marks.set(id, [...(marks.get(id) ?? []), span]);
+  for (const h of handoffs) add(h.fromId, [h.x - 4, h.x + h.width + 4]);
+  for (const ch of chips) add(ch.workItemId, [ch.x - 4, ch.x + ch.size + 4]);
+  return segments.map((s) => {
+    const spans = s.kind === 'wait' ? marks.get(s.workItemId) : undefined;
+    if (s.kind !== 'wait' || !spans) return s;
+    const width = s.text.length * WAIT_CHAR;
+    let x = s.textX;
+    let first: Span | null = null;
+    for (const span of spans.sort((a, b) => a[0] - b[0]))
+      if (x < span[1] && x + width > span[0]) {
+        first ??= span;
+        x = span[1];
+      }
+    if (!first) return s;
+    const after = c.width - 2 - x;
+    if (width <= after) return { ...s, textX: x };
+    const before = first[0] - s.textX;
+    const [room, textX] = before >= after ? [before, s.textX] : [after, x];
+    const fits = Math.floor(room / WAIT_CHAR);
+    if (fits < MIN_CUT) return { ...s, textX: x };
+    return { ...s, textX, text: `${s.text.slice(0, fits - 1).trimEnd()}…` };
+  });
+}
+
 const MIN_CUT = 8;
 const T_ROOM = 3;
 
@@ -1271,7 +1308,7 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
   };
   const { lanes, height } = placeRows(c);
   const shown = [...c.rows.values()].sort((a, b) => a.y - b.y);
-  const segments = linesOf(c, shown);
+  const lines = linesOf(c, shown);
   const statusOf = new Map(
     state.milestones.map((m) => [
       m.id,
@@ -1287,6 +1324,7 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
   });
   const eventGroups = shown.flatMap((r) => groupsOf(c, item(r), r, infos.get(r.id)!));
   const handoffs = handoffsOf(c, eventGroups);
+  const segments = waitsClearOfMarks(c, lines, handoffs, chips);
   const busy = busyOf(level, segments, eventGroups, handoffs, chips);
   if (view.plusButtons) {
     const plus = c.xt + PLUS_GAP;

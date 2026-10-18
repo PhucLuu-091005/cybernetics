@@ -1831,6 +1831,66 @@ describe('layoutTracker: row height', () => {
     expect(wait.textX + wait.text.length * 5.6).toBeLessThanOrEqual(L.width);
   });
 
+  it.each([
+    ['comfortable', false],
+    ['compact', false],
+    ['comfortable', true],
+    ['compact', true],
+  ] as const)(
+    'starts a %s waiting text after the handoff mark of its own row (+ buttons: %s)',
+    (density, plusButtons) => {
+      const state = buildState({
+        teams: [
+          { id: 'design', name: 'Design', leadId: null },
+          { id: 'web', name: 'Web', leadId: null },
+          { id: 'qa', name: 'QA', leadId: null },
+        ],
+        workItems: [
+          workItem({ id: 'homepage', title: 'Homepage design', teamId: 'design' }),
+          workItem({
+            id: 'build',
+            title: 'Build the homepage',
+            teamId: 'web',
+            after: ['homepage'],
+          }),
+          workItem({ id: 'test', title: 'Test the homepage', teamId: 'qa', after: ['build'] }),
+        ],
+        events: [event({ id: 'e1', workItemId: 'homepage', kind: 'task' })],
+      });
+      for (const since of [undefined, AS_OF]) {
+        const shaped = since
+          ? {
+              ...state,
+              workItems: state.workItems.map((w) => (w.id === 'build' ? { ...w, since } : w)),
+            }
+          : state;
+        const L = layoutTracker(shaped, view({ density, plusButtons }));
+        const wait = L.segments.find(
+          (x): x is Extract<LayoutSegment, { kind: 'wait' }> =>
+            x.kind === 'wait' && x.workItemId === 'build',
+        )!;
+        expect(wait.text).toBe('Waiting for Homepage');
+        const mark = L.handoffs.find((h) => h.fromId === 'build')!;
+        expect(mark.wait).toBe(true);
+        const end = wait.textX + wait.text.length * 5.6;
+        expect(end <= mark.x || wait.textX >= mark.x + mark.width).toBe(true);
+        expect(end).toBeLessThanOrEqual(L.width);
+      }
+      // A window that ends just after T leaves no room after the mark for the whole text.
+      const edge = layoutTracker(state, view({ density, plusButtons, windowEnd: '2026-10-11' }));
+      const cut = edge.segments.find(
+        (x): x is Extract<LayoutSegment, { kind: 'wait' }> =>
+          x.kind === 'wait' && x.workItemId === 'build',
+      )!;
+      const mark = edge.handoffs.find((h) => h.fromId === 'build')!;
+      const end = cut.textX + cut.text.length * 5.6;
+      expect(end <= mark.x || cut.textX >= mark.x + mark.width).toBe(true);
+      if (plusButtons) return;
+      expect(cut.text).toMatch(/^Waiting.*…$/);
+      expect(end).toBeLessThanOrEqual(edge.width);
+    },
+  );
+
   it('puts a Dense milestone name only where the row has no line', () => {
     const L = layoutTracker(larkspurState(), view({ density: 'dense', zoom: 4 }));
     const named = L.deadlines.filter((d) => d.label);
