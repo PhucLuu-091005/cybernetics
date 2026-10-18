@@ -157,9 +157,15 @@ export function parseDayText(text: string, year: number): string | null {
   else if (words)
     [d, m, y] = [Number(words[1]), monthOf(words[2]), words[3] ? Number(words[3]) : year];
   else return null;
-  if (!m || m > 12 || d < 1) return null;
+  if (!m || m > 12 || d < 1 || y < 1000) return null;
   const date = `${y}-${pad(m)}-${pad(d)}`;
-  return dayOf(`${date}T12:00:00Z`, 'UTC') === date ? date : null;
+  return new Date(Date.UTC(y, m - 1, d)).toISOString().slice(0, 10) === date ? date : null;
+}
+
+/** Only whole text saves while the person types, so "6 Oct" never lands on this year mid-typing. */
+export function completeDayText(text: string): string | null {
+  const t = text.trim();
+  return /^\d{4}-\d{2}-\d{2}$|\s\d{4}$/.test(t) ? parseDayText(t, 0) : null;
 }
 
 /** Reads "14:30", "1430", "930", "9" (09:00) or "9:5" (09:05) as a 24-hour `HH:mm`. */
@@ -173,6 +179,12 @@ export function parseTimeText(text: string): string | null {
   else if (digits) [hour, minute] = [Number(digits.slice(0, -2)), Number(digits.slice(-2))];
   else return null;
   return hour < 24 && minute < 60 ? `${pad(hour)}:${pad(minute)}` : null;
+}
+
+/** Only whole text saves while the person types, so "25:00" never saves "2" as 02:00 on the way. */
+export function completeTimeText(text: string): string | null {
+  const t = text.trim();
+  return /^\d{1,2}[:.]\d{2}$|^\d{4}$/.test(t) ? parseTimeText(t) : null;
 }
 
 export function timeSteps(stepMinutes = 30): string[] {

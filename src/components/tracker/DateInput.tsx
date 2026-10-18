@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import {
   addDays,
   addMonths,
+  completeDayText,
   formatDayYear,
   formatMonth,
   monthGrid,
@@ -167,6 +168,15 @@ export function DateInput({
   const year = Number(value.slice(0, 4)) || Number((today ?? browserToday()).slice(0, 4));
   const read = (raw: string) => (!raw.trim() ? (optional ? '' : null) : parseDayText(raw, year));
   const bad = text !== null && read(text) === null;
+  const onFocus = useRef(value);
+  const commit = (raw: string) => {
+    setText(null);
+    const next = read(raw);
+    if (next !== null) {
+      onFocus.current = next;
+      if (next !== value) onChange(next);
+    } else if (value !== onFocus.current) onChange(onFocus.current);
+  };
   const close = (focusButton: boolean) => {
     setOpen(false);
     if (focusButton) button.current?.focus();
@@ -194,14 +204,21 @@ export function DateInput({
         placeholder={placeholder}
         autoComplete="off"
         value={text ?? (value ? formatDayYear(value) : '')}
+        onFocus={() => {
+          onFocus.current = value;
+        }}
         onChange={(event) => {
           setText(event.target.value);
-          const next = read(event.target.value);
-          if (next !== null && next !== value) onChange(next);
+          const whole = completeDayText(event.target.value);
+          if (whole !== null && whole !== value) onChange(whole);
         }}
-        onBlur={() => setText(null)}
+        onBlur={() => text !== null && commit(text)}
         onKeyDown={(event) => {
-          if (event.key === 'Enter') setText(null);
+          if (event.key === 'Enter' && text !== null) {
+            // A form must not submit before the typed day is saved.
+            if (read(text) !== value) event.preventDefault();
+            commit(text);
+          }
           if (event.key === 'ArrowDown' && event.altKey) setOpen(true);
         }}
       />
@@ -222,7 +239,7 @@ export function DateInput({
           anchor={box}
           className="cal-pop"
           role="dialog"
-          aria-label={`Pick a day: ${label}`}
+          aria-label="Calendar"
           onClose={() => close(false)}
         >
           <Calendar
@@ -231,6 +248,7 @@ export function DateInput({
             optional={optional}
             onPick={(day) => {
               setText(null);
+              onFocus.current = day;
               if (day !== value) onChange(day);
               close(true);
             }}

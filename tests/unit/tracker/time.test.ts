@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   addMonths,
+  completeDayText,
+  completeTimeText,
   dayOf,
   formatDayYear,
   formatMonth,
@@ -160,5 +162,30 @@ describe('the calendar of a date box', () => {
 
   it('starts on the 1st when the month starts on a Monday', () => {
     expect(monthGrid('2026-06-20')[0][0]).toBe('2026-06-01');
+  });
+});
+
+describe('parseDayText: years the app cannot hold', () => {
+  it('refuses a year before 1000 instead of throwing', () => {
+    for (const text of ['6 Oct 0202', '0099-01-01', '1 Jan 0001', '0000-01-01'])
+      expect(parseDayText(text, 2026)).toBeNull();
+    expect(parseDayText('6 Oct 1000', 2026)).toBe('1000-10-06');
+  });
+});
+
+describe('completeDayText and completeTimeText: what a box saves while the person types', () => {
+  it('saves a day only once its text is whole: a 4-digit year or a full ISO day', () => {
+    expect(completeDayText('6 Oct 2026')).toBe('2026-10-06');
+    expect(completeDayText('2026-10-20')).toBe('2026-10-20');
+    for (const text of ['6', '6 Oct', '6 Oct 2', '6 Oct 202', '2026-10-2', '31 Sept 2026'])
+      expect(completeDayText(text)).toBeNull();
+  });
+
+  it('saves a time only once its text is whole: two minute digits', () => {
+    expect(completeTimeText('14:30')).toBe('14:30');
+    expect(completeTimeText('9:05')).toBe('09:05');
+    expect(completeTimeText('1430')).toBe('14:30');
+    for (const text of ['2', '25', '25:0', '25:00', '9:7', '9:75', '143', '9:5', '9', ''])
+      expect(completeTimeText(text)).toBeNull();
   });
 });

@@ -572,7 +572,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(date).toHaveValue('18 Sept 2026');
 
     await drawer.getByRole('button', { name: 'Open the calendar' }).click();
-    const calendar = page.getByRole('dialog', { name: 'Pick a day: Planned date' });
+    const calendar = page.getByRole('dialog', { name: 'Calendar' });
     await expect(calendar.getByRole('grid', { name: 'September 2026' })).toBeVisible();
     await expect(calendar.getByRole('button', { name: '18 Sept 2026' })).toBeFocused();
     await page.keyboard.press('ArrowRight');
@@ -584,11 +584,47 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     const time = drawer.getByLabel('Time (optional)');
     await expect(time).toHaveValue('');
     await expect(time).toHaveAttribute('placeholder', 'Time');
+    const times = page.getByRole('listbox', { name: 'Times' });
+    const retype = async (text: string) => {
+      await time.press('ControlOrMeta+a');
+      await time.pressSequentially(text);
+    };
     await time.click();
-    await page
-      .getByRole('listbox', { name: 'Time (optional)' })
-      .getByRole('option', { name: '12:30' })
-      .click();
+    await expect(times.getByRole('option', { name: '09:00' })).toBeInViewport();
+    await expect(times.getByRole('option', { name: '00:00' })).not.toBeInViewport();
+    await time.click();
+    await expect(times).toBeVisible();
+
+    await time.pressSequentially('14:15');
+    await time.press('Enter');
+    await expect(times).toHaveCount(0);
+    await expect(time).toHaveValue('14:15');
+    await time.click();
+    await expect(times).toBeVisible();
+    await time.press('Enter');
+    await expect(time).toHaveValue('14:15');
+    await time.click();
+    await retype('9:5');
+    await time.press('Enter');
+    await expect(time).toHaveValue('09:05');
+    await time.press('ArrowDown');
+    await time.press('ArrowDown');
+    await time.press('Enter');
+    await expect(time).toHaveValue('09:30');
+
+    await retype('17:00');
+    await time.press('Enter');
+    await retype('25:00');
+    await expect(time).toHaveAttribute('aria-invalid', 'true');
+    await time.press('Tab');
+    await expect(time).toHaveValue('17:00');
+    await expect(time).not.toHaveAttribute('aria-invalid');
+    await retype('143');
+    await time.press('Tab');
+    await expect(time).toHaveValue('01:43');
+
+    await time.click();
+    await times.getByRole('option', { name: '12:30' }).click();
     await expect(time).toHaveValue('12:30');
 
     await date.fill('soon');
@@ -605,7 +641,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(newTime).toHaveValue('12:30');
 
     await dialog.getByRole('button', { name: 'Open the calendar' }).click();
-    const moveCalendar = page.getByRole('dialog', { name: 'Pick a day: New date' });
+    const moveCalendar = page.getByRole('dialog', { name: 'Calendar' });
     await page.keyboard.press('Escape');
     await expect(moveCalendar).toHaveCount(0);
     await expect(dialog).toBeVisible();
@@ -634,10 +670,30 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     const when = dialog.getByRole('group', { name: 'When' });
     await expect(when.getByLabel('Date')).toHaveValue(/^\d{1,2} \w+ 2026$/);
     await expect(when.getByLabel('Time')).toHaveValue(/^\d{2}:\d{2}$/);
-    await when.getByLabel('Time').fill('9');
+    const whenDate = when.getByLabel('Date');
+    await whenDate.press('ControlOrMeta+a');
+    await whenDate.pressSequentially('6 Oct 0202');
+    await whenDate.press('Tab');
+    await expect(whenDate).toHaveValue('9 Oct 2026');
+    await whenDate.press('ControlOrMeta+a');
+    await whenDate.pressSequentially('8 Oct');
+    await whenDate.press('Enter');
+    await expect(whenDate).toHaveValue('8 Oct 2026');
+    await when.getByLabel('Time').press('ControlOrMeta+a');
+    await when.getByLabel('Time').pressSequentially('9');
     await when.getByLabel('Time').press('Tab');
     await expect(when.getByLabel('Time')).toHaveValue('09:00');
     await expect(native).toHaveCount(0);
+    await dialog.getByLabel('What happened?').fill('Quang confirmed the vendor call.');
+    const posted = page.waitForRequest(
+      (request) => request.method() === 'POST' && request.url().endsWith('/tracker/queue'),
+    );
+    await dialog.getByRole('button', { name: 'Add event' }).click();
+    expect((await posted).postDataJSON()).toMatchObject({
+      kind: 'event',
+      fields: { at: '2026-10-08T09:00:00+07:00', text: 'Quang confirmed the vendor call.' },
+    });
+    await expect(dialog).toHaveCount(0);
   });
 
   test('the first view opens at a readable scale with T and the latest events in view, and labels never touch', async ({
