@@ -25,6 +25,7 @@ const members: Member[] = LARKSPUR_MEMBERS.map((m) => ({
   color: m.color,
   userId: null,
   active: true,
+  removed: false,
   grants: m.grants,
 }));
 

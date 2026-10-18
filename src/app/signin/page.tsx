@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { BrandMark } from '../../components/shell/BrandMark';
 import { readAuthEnvironment, type AuthEnvironment } from '../../server/env';
+import { returnPath } from '../../server/http/return-path';
 import { optionalActor } from '../../server/http/rsc';
 
 export const dynamic = 'force-dynamic';
@@ -123,9 +124,12 @@ export default async function SignInPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const mode = authMode();
-  const { label } = await searchParams;
+  const params = await searchParams;
+  const { label } = params;
   const localLabel = typeof label === 'string' && /^[a-z0-9-]{1,40}$/.test(label) ? label : null;
-  if (mode && (await optionalActor('/signin'))) redirect('/');
+  const next = returnPath(params.next);
+  if (mode && (await optionalActor('/signin'))) redirect(next ?? '/');
+  const query = next ? `?next=${encodeURIComponent(next)}` : '';
   return (
     <main className="signin">
       <div>
@@ -144,13 +148,13 @@ export default async function SignInPage({
       <div className="card pad stack" style={{ maxWidth: 380 }}>
         <h2>Sign in</h2>
         {mode === 'google' && (
-          <a className="gbtn" href="/api/auth/google">
+          <a className="gbtn" href={`/api/auth/google${query}`}>
             <GoogleLogo />
             Continue with Google
           </a>
         )}
         {mode === 'local' && (
-          <form action="/api/auth/local" method="post">
+          <form action={`/api/auth/local${query}`} method="post">
             {localLabel && <input type="hidden" name="label" value={localLabel} />}
             <button className="gbtn" type="submit">
               Continue (local dev{localLabel ? `, ${localLabel}` : ''})

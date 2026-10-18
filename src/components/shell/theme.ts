@@ -3,6 +3,17 @@ import { useEffect, useState } from 'react';
 
 export const THEMES = ['system', 'light', 'dark'] as const;
 export type Theme = (typeof THEMES)[number];
+export const THEME_KEY = 'pg-theme';
+
+export function storedTheme(): 'light' | 'dark' | null {
+  try {
+    const value = localStorage.getItem(THEME_KEY);
+    return value === 'light' || value === 'dark' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 export const THEME_LABEL: Record<Theme, string> = {
   system: 'System',
   light: 'Light',
@@ -22,8 +33,8 @@ export function useTheme(): [Theme, (theme: Theme) => void] {
     if (value === 'system') delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = value;
     try {
-      if (value === 'system') localStorage.removeItem('pg-theme');
-      else localStorage.setItem('pg-theme', value);
+      if (value === 'system') localStorage.removeItem(THEME_KEY);
+      else localStorage.setItem(THEME_KEY, value);
     } catch {
       /* storage can be unavailable; the choice still works for this page */
     }

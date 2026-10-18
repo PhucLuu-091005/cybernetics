@@ -227,3 +227,90 @@ test('Settings shows plain permission names, and Last call changes from Never af
   await page.getByRole('button', { name: 'Check again' }).click();
   await expect(row.getByTestId('last-call')).toHaveText(/^\d{1,2} [A-Z][a-z]{2} \d{2}:\d{2}$/);
 });
+
+test('a missing page keeps the stored theme and logs no console error', async ({ page }) => {
+  const problems: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && !/Failed to load resource/.test(message.text()))
+      problems.push(message.text());
+  });
+  page.on('pageerror', (error) => problems.push(error.message));
+  await page.goto('/signin?label=shell-missing');
+  await page.evaluate(() => localStorage.setItem('pg-theme', 'dark'));
+  await page.getByRole('button', { name: /continue/i }).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  for (const path of ['/no-such-page', '/projects/00000000-0000-4000-8000-000000000000/graph']) {
+    const response = await page.goto(path);
+    expect(response?.status()).toBe(404);
+    await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  }
+  await page.getByRole('link', { name: 'Go to your projects' }).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  expect(problems).toEqual([]);
+});
+
+test('a signed-out person who opens a change request link lands on it after sign-in', async ({
+  page,
+  context,
+}) => {
+  await page.goto('/signin?label=shell-return');
+  await page.getByRole('button', { name: /continue/i }).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  const projectId = new URL(page.url()).pathname.split('/')[2];
+  const link = `/projects/${projectId}/changes/2`;
+  await context.clearCookies();
+
+  await page.goto(link);
+  await page.waitForURL(/\/signin\?/);
+  expect(new URL(page.url()).searchParams.get('next')).toBe(link);
+  await page.goto(`/signin?label=shell-return&next=${encodeURIComponent(link)}`);
+  await page.getByRole('button', { name: /continue/i }).click();
+  await page.waitForURL((url) => url.pathname === link);
+  await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+
+  await page.goto(`/signin?next=${encodeURIComponent(`/projects/${projectId}/members`)}`);
+  await page.waitForURL((url) => url.pathname === `/projects/${projectId}/members`);
+
+  await context.clearCookies();
+  await page.goto('/signin?label=shell-return&next=%2F%2Fevil.example%2Fx');
+  await page.getByRole('button', { name: /continue/i }).click();
+  await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+  expect(new URL(page.url()).host).toBe(new URL(link, page.url()).host);
+});
+
+test('Revoke shows Revoking until the table shows the token as revoked', async ({ page }) => {
+  await page.goto('/signin?label=settings-revoke');
+  await page.getByRole('button', { name: /continue/i }).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  const projectId = new URL(page.url()).pathname.split('/')[2];
+  await page.goto(`/projects/${projectId}/settings/tokens`);
+  const form = page.getByRole('form', { name: 'Create a token' });
+  await form.getByLabel('Label').fill('Revoke agent');
+  await form.getByRole('button', { name: 'Create token' }).click();
+  await expect(page.getByTestId('token-secret')).toBeVisible();
+  const row = page.getByRole('row').filter({ hasText: 'Revoke agent' });
+
+  const later = () => new Promise((resolve) => setTimeout(resolve, 800));
+  await page.route('**/agent-tokens/*', async (route) => {
+    if (route.request().method() === 'DELETE') await later();
+    await route.continue();
+  });
+  await page.route('**/settings/tokens**', async (route) => {
+    if (route.request().headers()['rsc'] === '1') await later();
+    await route.continue();
+  });
+  await row.getByRole('button', { name: 'Revoke' }).click();
+  const answered = page.waitForResponse(
+    (response) => response.request().method() === 'DELETE' && response.ok(),
+  );
+  await row.getByRole('button', { name: 'Confirm revoke' }).click();
+  await expect(row.getByRole('status')).toHaveText('Revoking…');
+  await expect(row.getByRole('button')).toHaveCount(0);
+  await answered;
+  await expect(row.getByRole('status')).toHaveText('Revoking…');
+  await expect(row.getByRole('button')).toHaveCount(0);
+  await expect(row).toContainText(/Revoked \d{1,2} [A-Z][a-z]{2}/);
+  await expect(row.getByRole('status')).toHaveCount(0);
+});

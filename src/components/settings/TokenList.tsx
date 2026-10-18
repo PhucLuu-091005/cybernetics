@@ -1,6 +1,6 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import type { AgentToken, RevokeAgentTokenResult } from '../../contracts';
 import { shortDay, shortStamp } from './dates';
 import { send, type ApiError } from '../shell/api';
@@ -25,6 +25,8 @@ function TokenRow({
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<ApiError | null>(null);
+  // Revoking stays until the refreshed list shows the token revoked, not only until the DELETE answers.
+  const [refreshing, startRefresh] = useTransition();
   // One key per row: a retried revocation returns the first revocation time instead of acting twice.
   const [revokeKey] = useState(() => crypto.randomUUID());
   const expired = token.revokedAt === null && Date.parse(token.expiresAt) <= Date.parse(now);
@@ -36,11 +38,16 @@ function TokenRow({
       'DELETE',
       { idempotencyKey: revokeKey },
     );
-    setBusy(false);
-    if (result.ok) {
-      setConfirming(false);
-      router.refresh();
-    } else setFailure(result.error);
+    if (result.ok)
+      startRefresh(() => {
+        setBusy(false);
+        setConfirming(false);
+        router.refresh();
+      });
+    else {
+      setBusy(false);
+      setFailure(result.error);
+    }
   };
   return (
     <tr className={token.revokedAt || expired ? 'inactive' : undefined}>
@@ -62,17 +69,16 @@ function TokenRow({
       <td>
         {!token.revokedAt &&
           !expired &&
-          (confirming ? (
+          (busy || refreshing ? (
+            <span className="pg-status" role="status">
+              Revoking…
+            </span>
+          ) : confirming ? (
             <div className="pg-acts">
-              <button className="btn sm btn-danger" type="button" disabled={busy} onClick={revoke}>
+              <button className="btn sm btn-danger" type="button" onClick={revoke}>
                 Confirm revoke
               </button>
-              <button
-                className="btn sm"
-                type="button"
-                disabled={busy}
-                onClick={() => setConfirming(false)}
-              >
+              <button className="btn sm" type="button" onClick={() => setConfirming(false)}>
                 Keep
               </button>
             </div>

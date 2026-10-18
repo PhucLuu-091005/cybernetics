@@ -7,6 +7,7 @@ import { createEmptyProject, listProjects } from '../../../src/server/domain/pro
 import {
   addQueueEntry,
   addTeam,
+  appendOp,
   createCr,
   crAction,
   deleteTeam,
@@ -95,6 +96,100 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
     expect(payload.base.teams.find((team) => team.id === 'engineering')?.leadId).toBe(
       demo.ids.quang,
     );
+  });
+
+  it('puts every member, pending invites included, into the people of Main after the story people', async () => {
+    await fresh();
+    const seeded = (await getTrackerPayload(t.db, demo.owner, own())).base.people;
+    expect(seeded).toHaveLength(9);
+    const pending = email();
+    const joined = email();
+    await inviteMember(t.db, demo.owner, { ...own(), email: pending });
+    await signIn(joined, 'Mai Vũ');
+    const list = await inviteMember(t.db, demo.owner, { ...own(), email: joined });
+    const idOf = (address: string) => list.members.find((m) => m.email === address)!.id;
+
+    const payload = await getTrackerPayload(t.db, demo.owner, own());
+    expect(payload.base.people).toEqual([
+      ...seeded,
+      { id: idOf(pending), name: pending },
+      { id: idOf(joined), name: 'Mai Vũ' },
+    ]);
+    const card = {
+      ...own(),
+      kind: 'item' as const,
+      fields: {
+        title: 'Check the invoice batch',
+        doneBy: idOf(joined),
+        requestedBy: idOf(pending),
+        plannedFinish: '2026-10-20',
+      },
+    };
+    const added = await addQueueEntry(t.db, demo.owner, card);
+    expect(added.queue.items.some((item) => item.title === 'Check the invoice batch')).toBe(true);
+
+    await removeMember(t.db, demo.owner, { ...own(), memberId: idOf(joined) });
+    const after = await getTrackerPayload(t.db, demo.owner, own());
+    expect(after.base.people.find((p) => p.id === idOf(joined))?.name).toBe('Mai Vũ');
+  });
+
+  it('keeps a removed member on past work but takes no new work for them', async () => {
+    await fresh();
+    await removeMember(t.db, demo.owner, { ...own(), memberId: demo.ids.ha });
+    const payload = await getTrackerPayload(t.db, demo.owner, own());
+    expect(payload.members.find((m) => m.id === demo.ids.ha)).toMatchObject({ removed: true });
+    expect(payload.base.people.find((p) => p.id === demo.ids.ha)?.name).toBe('Hà Đỗ');
+
+    const card = (doneBy: string) => ({
+      ...own(),
+      kind: 'item' as const,
+      fields: { title: 'Retest', doneBy, requestedBy: demo.ids.minh, plannedFinish: '2026-10-20' },
+    });
+    await expect(addQueueEntry(t.db, demo.owner, card(demo.ids.ha))).rejects.toMatchObject({
+      code: 'VALIDATION',
+      extras: {
+        errors: [{ path: 'fields', message: 'doneBy: Hà Đỗ is no longer in this project' }],
+      },
+    });
+    await expect(
+      addQueueEntry(t.db, demo.owner, {
+        ...own(),
+        kind: 'event',
+        fields: { kind: 'message', at: '2026-10-08T03:00:00.000Z', by: demo.ids.ha, text: 'Hi' },
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+
+    const { num } = await createCr(t.db, demo.owner, { ...own(), title: 'Hand over the tests' });
+    const change = (
+      op: { op: 'doneBy' | 'requestedBy'; personId: string },
+      expectedRevision: number,
+    ) =>
+      appendOp(t.db, demo.owner, {
+        ...own(),
+        num,
+        expectedRevision,
+        op: { op: op.op, a: { workItemId: 'test', personId: op.personId } },
+      });
+    await expect(change({ op: 'requestedBy', personId: demo.ids.ha }, 0)).rejects.toMatchObject({
+      code: 'VALIDATION',
+      message: expect.stringContaining('Hà Đỗ'),
+    });
+    await expect(change({ op: 'doneBy', personId: demo.ids.ha }, 0)).resolves.toBeDefined();
+    await expect(change({ op: 'doneBy', personId: demo.ids.quang }, 1)).resolves.toBeDefined();
+    await expect(change({ op: 'doneBy', personId: demo.ids.ha }, 2)).rejects.toMatchObject({
+      code: 'VALIDATION',
+    });
+  });
+
+  it('starts a new project with its creator as the one person, with no copy', async () => {
+    await fresh();
+    const { id } = await createEmptyProject(t.db, demo.owner, {
+      title: 'Fresh project',
+      clientName: 'Client',
+      teams: ['Engineering'],
+    });
+    const payload = await getTrackerPayload(t.db, demo.owner, { projectId: id });
+    expect(payload.base.people).toEqual([{ id: payload.me!.id, name: payload.me!.name }]);
   });
 
   it('keeps an invite pending until that address signs in, then opens only this project', async () => {
