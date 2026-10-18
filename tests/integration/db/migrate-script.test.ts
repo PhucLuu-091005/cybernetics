@@ -194,11 +194,15 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('container migration script', ()
     );
     expect(rows[0]?.config).toContain('TimeZone=UTC');
   });
-  it('refuses a pooled DATABASE_URL without MIGRATE_DATABASE_URL, and migrates through MIGRATE_DATABASE_URL when it is set', () => {
+  it('refuses a pooled DATABASE_URL without MIGRATE_DATABASE_URL and a pooled MIGRATE_DATABASE_URL, names the one it read, and migrates through MIGRATE_DATABASE_URL when it is set', () => {
     const pooled = run(POOLED);
     expect(pooled.status).not.toBe(0);
-    expect(pooled.stderr).toContain('MIGRATE_DATABASE_URL');
+    expect(pooled.stderr).toContain('DATABASE_URL is a pooled');
+    expect(pooled.stderr).toContain('set MIGRATE_DATABASE_URL');
     expect(pooled.stderr + pooled.stdout).not.toContain('not-a-real-password');
+    const pooledMigrate = run(url, POOLED);
+    expect(pooledMigrate.status).not.toBe(0);
+    expect(pooledMigrate.stderr).toContain('MIGRATE_DATABASE_URL is a pooled');
     const direct = run(POOLED, url);
     expect(direct.stderr).toBe('');
     expect(direct.status).toBe(0);

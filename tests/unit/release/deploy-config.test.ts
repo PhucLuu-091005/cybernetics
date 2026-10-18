@@ -41,6 +41,19 @@ describe('deployment config', () => {
       'CMD ["sh", "-c", "node scripts/migrate.mjs && HOSTNAME=0.0.0.0 exec node server.js"]',
     );
   });
+  it('maps the CI image check to the port the container listens on', () => {
+    const docker = read('Dockerfile');
+    const port = docker.match(/ENV [^\n]*\bPORT=(\d+)/)![1];
+    expect(docker).toContain(`EXPOSE ${port}\n`);
+    const ci = read('.github/workflows/ci.yml');
+    const maps = [...ci.matchAll(/-p (\d+):(\d+)/g)];
+    expect(maps).toHaveLength(1);
+    const [, host, container] = maps[0];
+    expect(container).toBe(port);
+    const curled = [...ci.matchAll(/http:\/\/127\.0\.0\.1:(\d+)\//g)].map((m) => m[1]);
+    expect(curled.length).toBeGreaterThan(0);
+    expect(new Set(curled)).toEqual(new Set([host]));
+  });
   it('keeps secrets, dependencies, build output and agent notes out of the build context and the Cloud Build upload', () => {
     for (const file of ['.dockerignore', '.gcloudignore']) {
       const ignored = lines(file);
