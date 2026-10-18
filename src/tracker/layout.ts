@@ -77,7 +77,7 @@ export const ROW_LEVELS: Record<Density, RowLevel> = {
   comfortable: {
     row: 32,
     hit: 30,
-    head: 40,
+    head: 28,
     r: 10,
     icon: 13,
     gap: 16,
@@ -102,7 +102,7 @@ export const ROW_LEVELS: Record<Density, RowLevel> = {
   compact: {
     row: 20,
     hit: 18,
-    head: 40,
+    head: 28,
     r: 7,
     icon: 9,
     gap: 12,
@@ -127,7 +127,7 @@ export const ROW_LEVELS: Record<Density, RowLevel> = {
   dense: {
     row: 12,
     hit: 12,
-    head: 32,
+    head: 24,
     r: 3,
     icon: 0,
     gap: 7,
@@ -218,8 +218,6 @@ export type LayoutTeamSummary = {
   late: number;
   notYet: number;
   done: number;
-  bar: { x1: number; x2: number; y: number } | null;
-  ticks: Array<{ x: number; tone: Tone }>;
   /** The team holds a change of the change request on screen. */
   changed: boolean;
   ariaLabel: string;
@@ -233,6 +231,8 @@ export type LayoutLane = {
   bottom: number;
   /** The height of the summary row at the top of the lane. */
   head: number;
+  /** The name, the count and the counts share one line; otherwise the counts go under the name. */
+  oneLine: boolean;
   collapsed: boolean;
   summary: LayoutTeamSummary;
   alt: boolean;
@@ -483,10 +483,66 @@ export function windowStartFor(
   return addDays(dayOf(new Date(earliest).toISOString(), timeZone), -START_MARGIN_DAYS);
 }
 
-// The lane name is 10.5 px bold capitals with letter spacing; the item count follows it.
-const LANE_CHAR = 7.6;
-const COUNT_CHAR = 6;
+// Advance widths of Geist 10.5px, as the browser measured them: the lane name (weight 600, capitals,
+// 0.07em letter spacing) and the counts. They decide in the pure layout whether a summary fits one line.
+const CAPS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+const CAP_W = [
+  8.2, 8, 8.4, 8.3, 7.2, 6.9, 8.4, 8.2, 3.7, 7.1, 7.7, 6.7, 10.1, 8.5, 8.8, 7.6, 8.7, 8, 7.8, 7,
+  8.2, 8.1, 11.1, 7.7, 7.4, 6.8, 8.1, 4.9, 7.5, 7.5, 7.5, 7.7, 7.2, 6.6, 7.5, 7.3,
+];
+const PUNCT_W: Record<string, number> = { ' ': 3, '·': 3.1, '.': 3.1, ',': 3.1, "'": 2.8, '…': 8 };
+const WIDE = 8.8;
+// The " · N" count after the name is weight 500 with no letter spacing.
+const COUNT_SEP = 7.5;
+const digitWidth = (d: string) => (d === '1' ? 4.1 : 6.8);
+const COUNT_WORD: Record<'late' | 'notYet' | 'done', number> = {
+  late: 19.5,
+  notYet: 33.5,
+  done: 23.8,
+};
+const COUNTS_SEP = 7.6;
+const COUNT_SPACE = 2.7;
+const COUNTS_GAP = 8;
+// The label column text starts at 24: one line ends 6 units before the focus button (16 wide, centred
+// 43 left of X0); a name alone on its line runs to 8 units before the edge of the column.
+const ONE_LINE_ROOM = X0 - 43 - 8 - 6 - 24;
+const FOCUS_BUTTON_ROOM = 19;
+const NAME_LINE_ROOM = SIDE - 8 - 24;
 const MAX_DEPTH = 3;
+
+/** The width of a lane name in capitals, or with `count` of its " · N" part. */
+export function laneNameWidth(text: string, count = false): number {
+  let w = 0;
+  for (const ch of text) {
+    if (count) w += /\d/.test(ch) ? digitWidth(ch) : 0;
+    else {
+      const i = CAPS.indexOf(ch);
+      w += i >= 0 ? CAP_W[i] : (PUNCT_W[ch] ?? (/[-/()]/.test(ch) ? 5.1 : WIDE));
+    }
+  }
+  return count ? w + COUNT_SEP : w;
+}
+
+/** The width of "N late · N not yet · N done", with only the parts above zero. */
+export function laneCountsWidth(c: Pick<LayoutTeamSummary, 'late' | 'notYet' | 'done'>): number {
+  const parts = (['late', 'notYet', 'done'] as const).filter((k) => c[k] > 0);
+  return parts.reduce(
+    (w, k, i) =>
+      w +
+      (i ? COUNTS_SEP : 0) +
+      [...String(c[k])].reduce((d, ch) => d + digitWidth(ch), 0) +
+      COUNT_SPACE +
+      COUNT_WORD[k],
+    0,
+  );
+}
+
+function fitWidth(text: string, room: number): string {
+  if (laneNameWidth(text) <= room) return text;
+  let cut = text;
+  while (cut.length > 1 && laneNameWidth(`${cut}…`) > room) cut = cut.slice(0, -1);
+  return `${cut.trimEnd()}…`;
+}
 
 /** Children follow their parent inside a team, so the indent of the labels reads as a tree. */
 function treeOrder(shown: WorkItem[]): Array<{ w: WorkItem; depth: number }> {
@@ -509,13 +565,10 @@ function treeOrder(shown: WorkItem[]): Array<{ w: WorkItem; depth: number }> {
   return out;
 }
 
-function summaryOf(c: Ctx, name: string, shown: WorkItem[], top: number): LayoutTeamSummary {
+function summaryOf(c: Ctx, name: string, shown: WorkItem[]): LayoutTeamSummary {
   let late = 0;
   let done = 0;
   let changed = false;
-  let x1 = Infinity;
-  let x2 = -Infinity;
-  const ticks: LayoutTeamSummary['ticks'] = [];
   for (const w of shown) {
     const info = c.infos.get(w.id)!;
     changed ||=
@@ -524,17 +577,6 @@ function summaryOf(c: Ctx, name: string, shown: WorkItem[], top: number): Layout
       info.events.some((e) => c.marks?.events.has(e.id));
     if (info.done) done += 1;
     else if (itemStatus(w, c.eventsOf(w.id), c.view.asOf, c.tz) === 'late') late += 1;
-    x1 = Math.min(x1, c.x(startOf(c, w)));
-    x2 = Math.max(
-      x2,
-      info.finishedAt ? c.x(Date.parse(info.finishedAt)) : Math.max(c.xt, c.x(c.lateFrom(w))),
-    );
-    const lateFrom = c.lateFrom(w);
-    for (const e of info.events) {
-      const at = Date.parse(e.at);
-      if (at < c.startMs) continue;
-      ticks.push({ x: c.x(at), tone: at > lateFrom ? lateTone(info) : baseTone(info) });
-    }
   }
   const notYet = shown.length - late - done;
   const count = shown.length;
@@ -549,10 +591,6 @@ function summaryOf(c: Ctx, name: string, shown: WorkItem[], top: number): Layout
     late,
     notYet,
     done,
-    bar: count
-      ? { x1: Math.max(X0, x1), x2: Math.min(c.x1, Math.max(x1, x2)), y: top + c.level.head / 2 }
-      : null,
-    ticks,
     changed,
     ariaLabel: `${name}, ${count} work item${count === 1 ? '' : 's'}${parts.length ? `: ${parts.join(', ')}` : ''}`,
   };
@@ -600,17 +638,23 @@ function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
     y += collapsed ? 2 : 6;
     const lastY = collapsed ? 0 : Math.max(0, ...shown.map((w) => c.rows.get(w.id)!.y));
     const index = lanes.length;
-    const countRoom = ` · ${shown.length}`.length * COUNT_CHAR;
+    const summary = summaryOf(c, team.name, shown);
+    const upper = team.name.toUpperCase();
+    const countRoom = laneNameWidth(` · ${shown.length}`, true);
+    const counts = laneCountsWidth(summary);
+    const lineRoom = view.focusButtons ? ONE_LINE_ROOM : ONE_LINE_ROOM + FOCUS_BUTTON_ROOM;
+    const oneLine = !counts || laneNameWidth(upper) + countRoom + COUNTS_GAP + counts <= lineRoom;
     lanes.push({
       teamId: team.id,
       name: team.name,
-      label: trunc(team.name.toUpperCase(), Math.floor((X0 - 14 - 26 - countRoom) / LANE_CHAR)),
+      label: fitWidth(upper, (oneLine ? lineRoom : NAME_LINE_ROOM) - countRoom),
       index,
       top,
       bottom: y,
       head: level.head,
+      oneLine,
       collapsed,
-      summary: summaryOf(c, team.name, shown, top),
+      summary,
       alt: index % 2 === 1,
       guide: lastY ? { y1: top + level.head - 4, y2: lastY } : null,
       eyeLabel: `Hide ${team.name}`,

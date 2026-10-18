@@ -532,12 +532,13 @@ export function TrackerGraph(props: Props) {
         <rect x={0} y={0} width={labelEnd} height={H} />
       </clipPath>
       {L.lanes.map((lane) => {
-        const tall = lane.head >= 40;
-        const line1 = lane.top + (tall ? 16 : 13);
-        const line2 = lane.top + (tall ? 31 : 26);
-        const btn = tall ? 18 : 15;
-        const by = line2 - 4 - btn / 2;
-        const { summary } = lane;
+        const { summary, oneLine, top, head } = lane;
+        const dense = head < 28;
+        // Capitals are about 7.6 units tall, so a baseline 3.8 below the centre centres the name.
+        const line1 = oneLine ? top + head / 2 + 3.8 : top + (dense ? 10 : 11.5);
+        const line2 = top + (dense ? 20.5 : 23.5);
+        const btn = oneLine ? (dense ? 14 : 16) : dense ? 12 : 14;
+        const by = (oneLine ? top + head / 2 : line2 - 4) - btn / 2;
         // An empty team has nothing to open or collapse, so its summary is plain text.
         const toggles = summary.count > 0;
         const counts = [
@@ -551,10 +552,10 @@ export function TrackerGraph(props: Props) {
               <rect
                 className="sum-hit"
                 data-teamsum={lane.teamId}
-                x={0}
-                y={lane.top}
-                width={SIDE}
-                height={lane.head}
+                x={0.5}
+                y={top + 0.5}
+                width={SIDE - 1}
+                height={head - 1}
                 aria-expanded={!lane.collapsed}
                 {...button(summary.ariaLabel)}
               >
@@ -564,9 +565,9 @@ export function TrackerGraph(props: Props) {
             {toggles && (
               <g
                 className="sum-chev"
-                transform={lane.collapsed ? `rotate(-90 14 ${line1 - 4})` : undefined}
+                transform={lane.collapsed ? `rotate(-90 14 ${line1 - 3.8})` : undefined}
               >
-                <SvgIcon name="chev" x={14} y={line1 - 4} size={12} />
+                <SvgIcon name="chev" x={14} y={line1 - 3.8} size={12} />
               </g>
             )}
             <text
@@ -580,9 +581,19 @@ export function TrackerGraph(props: Props) {
             >
               {lane.label}
               <tspan className="sum-count"> · {summary.count}</tspan>
+              {oneLine && counts.length > 0 && (
+                <tspan className="sum-counts" dx={8}>
+                  {counts.map((p, i) => (
+                    <tspan key={p.word} className={p.cls}>
+                      {i ? ' · ' : ''}
+                      {p.n} {p.word}
+                    </tspan>
+                  ))}
+                </tspan>
+              )}
               {lane.label !== lane.name.toUpperCase() && <title>{lane.name}</title>}
             </text>
-            {counts.length > 0 && (
+            {!oneLine && counts.length > 0 && (
               <text className="sum-counts" x={24} y={line2}>
                 {counts.map((p, i) => (
                   <tspan key={p.word} className={p.cls}>
@@ -804,29 +815,6 @@ export function TrackerGraph(props: Props) {
           {summary.count > 0 && (
             <rect className="sum-hit" x={SIDE} y={top} width={L.width - SIDE} height={head} />
           )}
-          {summary.bar && (
-            <rect
-              className="sum-bar"
-              x={summary.bar.x1}
-              y={summary.bar.y - 3}
-              width={Math.max(6, summary.bar.x2 - summary.bar.x1)}
-              height={6}
-              rx={3}
-            />
-          )}
-          {summary.bar &&
-            summary.ticks.map((t, i) => (
-              <rect
-                key={i}
-                className="sum-tick"
-                x={t.x - 0.8}
-                y={summary.bar!.y - 5}
-                width={1.6}
-                height={10}
-                rx={0.8}
-                style={{ fill: color(t.tone) }}
-              />
-            ))}
         </g>
       ))}
       {tline}

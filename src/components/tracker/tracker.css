@@ -1433,9 +1433,12 @@ svg.tg .sum-hit {
 svg.tg .sum-hit:hover {
   fill: var(--hover);
 }
-:root .tk svg.tg .sum-hit:focus-visible {
+/* Chrome rings a focused SVG button with a thick rounded outline even after a mouse click. */
+:root .tk svg.tg .sum-hit:focus {
   outline: none;
-  stroke: var(--focus);
+}
+:root .tk svg.tg .sum-hit:focus-visible {
+  stroke: var(--ink-3);
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
 }
@@ -1452,6 +1455,11 @@ svg.tg .sum-counts {
   fill: var(--ink-3);
   pointer-events: none;
 }
+svg.tg .sum-name .sum-counts {
+  font-weight: 400;
+  letter-spacing: 0;
+  stroke: none;
+}
 svg.tg .sum-counts .late {
   fill: var(--danger-ink);
   font-weight: 600;
@@ -1461,13 +1469,6 @@ svg.tg .sum-counts .done {
 }
 svg.tg .sum-chev {
   color: var(--ink-3);
-  pointer-events: none;
-}
-svg.tg .sum-bar {
-  fill: color-mix(in srgb, var(--ink-3) 22%, var(--panel));
-  pointer-events: none;
-}
-svg.tg .sum-tick {
   pointer-events: none;
 }
 svg.tg .row-label {
