@@ -456,3 +456,21 @@ test('the token Label takes typing only after hydration, so a typed label is nev
   await expect(page.getByRole('button', { name: 'Create token' })).toBeEnabled();
   await expect(label).toHaveValue('After hydration');
 });
+
+test('pages, API routes and /welcome send the security headers, and no site can frame them', async ({
+  page,
+}) => {
+  await page.goto('/signin?label=headers');
+  await page.getByRole('button', { name: /continue/i }).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  const graph = new URL(page.url()).pathname;
+  for (const path of [graph, '/signin', '/welcome', '/api/health', '/api/v1/projects', '/mcp']) {
+    const reply = await page.request.get(path, { maxRedirects: 0 });
+    expect(reply.headers(), path).toMatchObject({
+      'content-security-policy': "frame-ancestors 'none'",
+      'x-frame-options': 'DENY',
+      'x-content-type-options': 'nosniff',
+      'referrer-policy': 'strict-origin-when-cross-origin',
+    });
+  }
+});
