@@ -46,7 +46,7 @@ test('a new project starts with its teams and an empty graph, and its first chan
   await expect(milestoneDate).toHaveAttribute('placeholder', 'Date');
   await expect(create.locator('input[type="date"], input[type="time"]')).toHaveCount(0);
   await create.getByRole('button', { name: 'Open the calendar' }).click();
-  const calendar = page.getByRole('dialog', { name: 'Pick a day: Milestone date' });
+  const calendar = page.getByRole('dialog', { name: 'Calendar' });
   await expect(calendar.getByRole('button', { name: 'Today' })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(calendar).toHaveCount(0);
