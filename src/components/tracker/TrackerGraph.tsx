@@ -24,7 +24,7 @@ import {
   type TrackerLayout,
 } from '../../tracker';
 import { svgPoint } from './drag';
-import { openScale, wheelZoomFactor, zoomTarget } from './scale';
+import { gestureFactor, openScale, wheelZoomFactor, zoomTarget } from './scale';
 import { Icon, KIND_COLOR, KindIcon, SvgIcon } from './icons';
 
 const { X0, SIDE, AXIS_Y, TRUNK_Y, TOP, INDENT, MAX_DAY_WIDTH } = GEOMETRY;
@@ -104,6 +104,14 @@ const ink = (tone: Tone) => `var(--${tone}-ink, var(--${tone}))`;
 const cls = (...names: Array<string | false | null | undefined>) => names.filter(Boolean).join(' ');
 const same = (a: number, b: number) => Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(b));
 const atFit = (L: TrackerLayout) => L.zoom <= 1 + 1e-9;
+
+/** The counts above zero of a team summary, for the empty lane of its summary row. */
+const laneCounts = (s: { late: number; notYet: number; done: number }) =>
+  [
+    { n: s.late, word: 'late', cls: 'late' },
+    { n: s.notYet, word: 'not yet', cls: undefined },
+    { n: s.done, word: 'done', cls: 'done' },
+  ].filter((p) => p.n > 0);
 
 function groupBy<T extends { workItemId: string }>(list: readonly T[]): Map<string, T[]> {
   const map = new Map<string, T[]>();
@@ -220,9 +228,33 @@ export function TrackerGraph(props: Props) {
     const el = root.current;
     const pinned = head.current;
     if (!el || !pinned) return;
+    // Safari sends a trackpad pinch as gesture events; without preventDefault it zooms the page.
+    let gesture: number | null = null;
+    type Gesture = Event & { scale: number; clientX: number };
+    const onGestureStart = (event: Event) => {
+      event.preventDefault();
+      gesture = 1;
+    };
+    const onGestureChange = (event: Event) => {
+      event.preventDefault();
+      const { scale, clientX } = event as Gesture;
+      zoomBy(gestureFactor(gesture ?? 1, scale), clientX);
+      gesture = scale;
+    };
+    const onGestureEnd = (event: Event) => {
+      event.preventDefault();
+      gesture = null;
+    };
+    const gestures = 'ongesturestart' in window;
+    if (gestures) {
+      el.addEventListener('gesturestart', onGestureStart);
+      el.addEventListener('gesturechange', onGestureChange);
+      el.addEventListener('gestureend', onGestureEnd);
+    }
     const onWheel = (event: WheelEvent) => {
       if (event.ctrlKey || event.metaKey) {
         event.preventDefault();
+        if (gesture !== null) return;
         zoomBy(wheelZoomFactor(event.deltaY, event.deltaMode), event.clientX);
       } else if (pinned.contains(event.target as Node) && event.deltaX && scroller.current) {
         // The pinned axis has no scroll of its own, so a sideways swipe on it moves the time line.
@@ -232,12 +264,24 @@ export function TrackerGraph(props: Props) {
     };
     // React registers wheel listeners as passive, and a passive listener cannot stop the page zoom.
     el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      if (!gestures) return;
+      el.removeEventListener('gesturestart', onGestureStart);
+      el.removeEventListener('gesturechange', onGestureChange);
+      el.removeEventListener('gestureend', onGestureEnd);
+    };
   }, [zoomBy]);
 
   // The pinned axis sits outside the scrolling graph, so it copies the sideways scroll of the rows.
   const syncHead = useCallback(() => {
     if (head.current && body.current) head.current.scrollLeft = body.current.scrollLeft;
+    // On a phone the whole graph scrolls too, so the lane counts also move past the hidden labels.
+    if (body.current && scroller.current)
+      scroller.current.style.setProperty(
+        '--lane-shift',
+        `${Math.max(0, body.current.scrollLeft - SIDE)}px`,
+      );
     if (headTime.current && scroller.current)
       headTime.current.scrollLeft = scroller.current.scrollLeft;
   }, []);
@@ -404,6 +448,8 @@ export function TrackerGraph(props: Props) {
   }, [menu]);
   const [viewMenu, setViewMenu] = useState(false);
   const viewRef = useRef<HTMLSpanElement>(null);
+  // A menu opened with the mouse gives the focus back to its button without a ring, even on Esc.
+  const viewByPointer = useRef(false);
   const viewId = `view-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   useEffect(() => {
     if (!viewMenu) return;
@@ -417,7 +463,10 @@ export function TrackerGraph(props: Props) {
       event.preventDefault();
       const inside = viewRef.current?.contains(document.activeElement);
       setViewMenu(false);
-      if (inside) viewRef.current?.querySelector<HTMLElement>('.view-btn')?.focus();
+      const btn = viewRef.current?.querySelector<HTMLElement>('.view-btn');
+      if (!inside || !btn) return;
+      if (viewByPointer.current) btn.dataset.quiet = '';
+      btn.focus();
     };
     document.addEventListener('pointerdown', onDown);
     document.addEventListener('keydown', onKey);
@@ -532,22 +581,15 @@ export function TrackerGraph(props: Props) {
         <rect x={0} y={0} width={labelEnd} height={H} />
       </clipPath>
       {L.lanes.map((lane) => {
-        const { summary, oneLine, top, head } = lane;
+        const { summary, top, head } = lane;
         const dense = head < 28;
         // Capitals are about 7.6 units tall, so a baseline 3.8 below the centre centres the name.
-        const line1 = oneLine ? top + head / 2 + 3.8 : top + (dense ? 10 : 11.5);
-        const line2 = top + (dense ? 20 : 23.5);
-        const countsSize = dense ? { fontSize: 9.5 } : undefined;
+        const line1 = top + head / 2 + 3.8;
         const btn = dense ? lv.btn : 16;
         const icon = dense ? lv.btnIcon : 11;
-        const by = (oneLine ? top + head / 2 : line2 - 4) - btn / 2;
+        const by = top + head / 2 - btn / 2;
         // An empty team has nothing to open or collapse, so its summary is plain text.
         const toggles = summary.count > 0;
-        const counts = [
-          { n: summary.late, word: 'late', cls: 'late' },
-          { n: summary.notYet, word: 'not yet', cls: undefined },
-          { n: summary.done, word: 'done', cls: 'done' },
-        ].filter((p) => p.n > 0);
         return (
           <Fragment key={lane.teamId}>
             {toggles ? (
@@ -583,28 +625,10 @@ export function TrackerGraph(props: Props) {
             >
               {lane.label}
               <tspan className="sum-count"> · {summary.count}</tspan>
-              {oneLine && counts.length > 0 && (
-                <tspan className="sum-counts" dx={8} style={countsSize}>
-                  {counts.map((p, i) => (
-                    <tspan key={p.word} className={p.cls}>
-                      {i ? ' · ' : ''}
-                      {p.n} {p.word}
-                    </tspan>
-                  ))}
-                </tspan>
+              {lane.label !== lane.name.normalize('NFC').toUpperCase() && (
+                <title>{lane.name}</title>
               )}
-              {lane.label !== lane.name.toUpperCase() && <title>{lane.name}</title>}
             </text>
-            {!oneLine && counts.length > 0 && (
-              <text className="sum-counts" x={24} y={line2} style={countsSize}>
-                {counts.map((p, i) => (
-                  <tspan key={p.word} className={p.cls}>
-                    {i ? ' · ' : ''}
-                    {p.n} {p.word}
-                  </tspan>
-                ))}
-              </text>
-            )}
             {props.onFocusTeam && (
               <g
                 className={cls('eye', 'focus-btn', lane.focused && 'on')}
@@ -1128,6 +1152,29 @@ export function TrackerGraph(props: Props) {
           {side}
           <div className="gtime" ref={scroller}>
             {time}
+            <div className="lane-counts" aria-hidden="true" style={timeWidth}>
+              {L.lanes.map((lane) => {
+                const parts = laneCounts(lane.summary);
+                return parts.length ? (
+                  <div
+                    key={lane.teamId}
+                    className="lane-count"
+                    style={{ top: lane.top - TOP, height: lane.head }}
+                  >
+                    <span>
+                      {parts.map((p, i) => (
+                        <Fragment key={p.word}>
+                          {i ? ' · ' : ''}
+                          <span className={p.cls}>
+                            {p.n} {p.word}
+                          </span>
+                        </Fragment>
+                      ))}
+                    </span>
+                  </div>
+                ) : null;
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -1191,7 +1238,11 @@ export function TrackerGraph(props: Props) {
               title="Row height and teams"
               aria-expanded={viewMenu}
               aria-controls={viewId}
-              onClick={() => setViewMenu((open) => !open)}
+              onClick={(event) => {
+                viewByPointer.current = event.detail > 0;
+                setViewMenu((open) => !open);
+              }}
+              onBlur={(event) => delete event.currentTarget.dataset.quiet}
             >
               <Icon name="rows" size={14} />
             </button>

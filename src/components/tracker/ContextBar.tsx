@@ -238,7 +238,7 @@ function AskRow({
 
 export function ContextBar(props: Props) {
   const { session, cr: c, actions, busy = false, review } = props;
-  const hiddenBadge = props.hidden && <HiddenMenu {...props.hidden} />;
+  const hiddenBadge = !!props.hidden?.hidden.count && <HiddenMenu {...props.hidden} />;
   if (!c) return <MainBar {...props} />;
   const { payload, me, dir, tz } = session;
   const n = c.ops.length;

@@ -39,6 +39,12 @@ export function wheelZoomFactor(deltaY: number, deltaMode: number): number {
   return Math.min(WHEEL_STEP, Math.max(1 / WHEEL_STEP, factor));
 }
 
+/** Safari reports a pinch as gesture events whose scale counts from the start of the pinch. */
+export function gestureFactor(lastScale: number, scale: number): number {
+  const ok = (n: number) => Number.isFinite(n) && n > 0;
+  return ok(lastScale) && ok(scale) ? scale / lastScale : 1;
+}
+
 const DAY = 86_400_000;
 /** The first view shows five weeks before T and one after, so recent work reads at a calm scale. */
 export const OPEN_DAYS = 42;

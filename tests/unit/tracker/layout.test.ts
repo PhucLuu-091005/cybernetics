@@ -3,7 +3,7 @@ import {
   GEOMETRY,
   ROW_LEVELS,
   layoutTracker,
-  laneCountsWidth,
+  cutToWidth,
   laneNameWidth,
   type Density,
   windowStartFor,
@@ -1497,7 +1497,7 @@ describe('layoutTracker: focus on a team', () => {
     expect(L.rows.every((r) => !r.focused)).toBe(true);
   });
 
-  it('gives the team name the first line of its summary row, as the buttons sit on the second', () => {
+  it('cuts a long team name with an ellipsis before the buttons of its one-line summary row', () => {
     const name = 'Solutions Engineering and Delivery';
     const s = buildState({
       teams: [{ id: 't', name, leadId: null }],
@@ -1505,9 +1505,16 @@ describe('layoutTracker: focus on a team', () => {
     });
     const plain = layoutTracker(s, view()).lanes[0].label;
     const withButtons = layoutTracker(s, view({ focusButtons: true })).lanes[0].label;
-    expect(withButtons).toBe(plain);
     expect(plain.endsWith('…')).toBe(true);
+    expect(withButtons.endsWith('…')).toBe(true);
+    expect(withButtons.length).toBeLessThan(plain.length);
+    const count = laneNameWidth(' · 1', true);
+    expect(laneNameWidth(plain) + count).toBeLessThanOrEqual(174);
+    expect(laneNameWidth(withButtons) + count).toBeLessThanOrEqual(155);
     expect(layoutTracker(larkspurState(), view()).lanes[2].label).toBe('SOLUTIONS ENGINEERING');
+    const F = layoutTracker(larkspurState(), view({ focusButtons: true }));
+    expect(F.lanes[2].label).toMatch(/^SOLUTIONS ENGINEER.*…$/);
+    expect(F.lanes[3].label).toBe('ENGINEERING');
   });
 
   it('lets a work item focus win over a team focus, and ignores an unknown team', () => {
@@ -1780,35 +1787,36 @@ describe('layoutTracker: team summary rows', () => {
     }
   });
 
-  it('puts the name, the count and the counts on one line only where they fit', () => {
-    const F = layoutTracker(larkspurState(), view({ focusButtons: true }));
-    const oneLine = (M: TrackerLayout) =>
-      Object.fromEntries(M.lanes.map((l) => [l.teamId, l.oneLine]));
-    expect(oneLine(F)).toEqual({
-      implementation: false,
-      digitization: true,
-      'solutions-engineering': false,
-      engineering: false,
-      'digitization-qa': false,
-      'customer-success': false,
-      it: true,
-    });
-    // Without the focus button the line has 19 more units.
-    expect(oneLine(L)).toMatchObject({
-      implementation: false,
-      engineering: true,
-      'digitization-qa': true,
-      'customer-success': true,
-    });
+  it('puts every summary row on one line: no second line for the counts', () => {
+    for (const l of L.lanes) expect(l).not.toHaveProperty('oneLine');
   });
 
-  it('keeps an empty team on one line, its name cut before the buttons', () => {
-    const name = 'Solutions Engineering and Delivery';
-    const s = buildState({ teams: [{ id: 't', name, leadId: null }] });
-    const E = layoutTracker(s, view({ focusButtons: true })).lanes[0];
-    expect(E.oneLine).toBe(true);
-    expect(E.label.endsWith('…')).toBe(true);
-    expect(laneNameWidth(E.label)).toBeLessThanOrEqual(155 - laneNameWidth(' · 0', true));
+  it('cuts a Vietnamese name by grapheme, in NFC, and keeps every mark on its letter', () => {
+    const name = 'Phát triển Sản phẩm và Dịch vụ Khách hàng Quốc tế'.normalize('NFD');
+    const s = buildState({
+      teams: [{ id: 't', name, leadId: null }],
+      workItems: [workItem({ id: 'a', teamId: 't' })],
+    });
+    const label = layoutTracker(s, view({ focusButtons: true })).lanes[0].label;
+    const full = name.normalize('NFC').toUpperCase();
+    expect(label.endsWith('…')).toBe(true);
+    expect(label).toBe(label.normalize('NFC'));
+    expect(full.startsWith(label.slice(0, -1).trimEnd())).toBe(true);
+    expect(label).not.toMatch(/\p{M}…$/u);
+    expect(label).toMatch(/^PHÁT TRIỂN/);
+    expect(laneNameWidth(label) + laneNameWidth(' · 1', true)).toBeLessThanOrEqual(155);
+  });
+
+  it('never cuts inside a grapheme: a letter with a mark that has no single code point, or an emoji', () => {
+    for (let room = 10; room < 60; room += 3) {
+      const marked = cutToWidth('X\u030CX\u030CX\u030CX\u030CX\u030CX\u030CX\u030C', room);
+      expect(marked).not.toMatch(/X…|\u030C\u030C/);
+      expect(marked.replace('…', '')).toMatch(/^(X\u030C)*$/);
+      const emoji = cutToWidth('🚀🚀🚀🚀🚀🚀🚀🚀 ROCKET', room);
+      expect(emoji).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+      expect(emoji).not.toMatch(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/);
+    }
+    expect(cutToWidth('ĐỘI NGŨ', 200)).toBe('ĐỘI NGŨ');
   });
 
   // Geist 10.5px as the browser measured it (18 Oct): the estimate may be a little wide, never narrow.
@@ -1822,18 +1830,6 @@ describe('layoutTracker: team summary rows', () => {
     ['IT', 1, 22],
   ])('estimates the width of "%s · %i" within 8 %% above the measure', (name, n, real) => {
     const w = laneNameWidth(name) + laneNameWidth(` · ${n}`, true);
-    expect(w).toBeGreaterThanOrEqual(real);
-    expect(w).toBeLessThanOrEqual(real * 1.08);
-  });
-
-  it.each([
-    [{ late: 0, notYet: 2, done: 1 }, 79],
-    [{ late: 0, notYet: 0, done: 2 }, 33],
-    [{ late: 2, notYet: 0, done: 2 }, 68],
-    [{ late: 0, notYet: 1, done: 0 }, 40],
-    [{ late: 1, notYet: 0, done: 0 }, 26],
-  ])('estimates the width of the counts %o within 8 %% above the measure', (counts, real) => {
-    const w = laneCountsWidth(counts);
     expect(w).toBeGreaterThanOrEqual(real);
     expect(w).toBeLessThanOrEqual(real * 1.08);
   });
