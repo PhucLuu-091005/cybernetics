@@ -27,6 +27,7 @@ import {
 } from '../../tracker';
 import { svgPoint } from './drag';
 import { gestureFactor, openScale, wheelZoomFactor, zoomTarget } from './scale';
+import { cutToFit, keepInView } from './in-view';
 import { Icon, KIND_COLOR, KindIcon, SvgIcon } from './icons';
 
 const { X0, SIDE, AXIS_Y, TRUNK_Y, TOP, INDENT, MAX_DAY_WIDTH } = GEOMETRY;
@@ -258,14 +259,60 @@ export function TrackerGraph(props: Props) {
     }
   }, []);
   useLayoutEffect(fitBacks, [L, preview, fitBacks]);
+
+  // A row name that the sideways scroll pushes under the pinned names starts again after them.
+  const fitRowNames = useCallback(() => {
+    const svg = timeSvg.current;
+    const el = scroller.current;
+    if (!svg || !el) return;
+    const left = SIDE + el.scrollLeft;
+    for (const g of Array.from(svg.querySelectorAll<SVGGElement>('.deadline'))) {
+      const label = g.querySelector<SVGTextElement>('.deadline-name:not(.deadline-stuck)');
+      const stuck = g.querySelector<SVGTextElement>('.deadline-stuck');
+      if (!label || !stuck || typeof label.getBBox !== 'function') continue;
+      const gx = g.transform.baseVal.consolidate()?.matrix.e ?? 0;
+      const box = label.getBBox();
+      const place = keepInView({ x0: gx + box.x, x1: gx + box.x + box.width }, left);
+      let text: string | null = null;
+      if (place && place !== 'whole') {
+        stuck.setAttribute('x', String(place.x - gx));
+        text = cutToFit(label.textContent ?? '', place.room, (t) => {
+          stuck.textContent = t;
+          return stuck.getComputedTextLength();
+        });
+      }
+      stuck.textContent = text ?? '';
+      if (place === 'whole') label.removeAttribute('visibility');
+      else label.setAttribute('visibility', 'hidden');
+    }
+  }, []);
+  useLayoutEffect(fitRowNames, [L, fitRowNames]);
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    let frame = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(fitRowNames);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      el.removeEventListener('scroll', onScroll);
+    };
+  }, [fitRowNames]);
   useEffect(() => {
     let mounted = true;
     // A web font that arrives later changes the width of the names.
-    void document.fonts?.ready.then(() => mounted && fitBacks());
+    void document.fonts?.ready.then(() => {
+      if (!mounted) return;
+      fitBacks();
+      fitRowNames();
+    });
     return () => {
       mounted = false;
     };
-  }, [fitBacks]);
+  }, [fitBacks, fitRowNames]);
 
   useEffect(() => {
     const el = root.current;
@@ -1052,6 +1099,16 @@ export function TrackerGraph(props: Props) {
                 >
                   {d.label}
                 </text>
+              )}
+              {d.label && (
+                <text
+                  className="deadline-name deadline-stuck"
+                  y={d.labelY - d.y}
+                  style={{
+                    fill: ink(d.tone === 'ink-3' ? 'ink-2' : d.tone),
+                    fontSize: lv.nameFont,
+                  }}
+                />
               )}
             </g>
           ))}

@@ -1347,6 +1347,38 @@ test.describe('events at their own time', () => {
 test.describe('the tracker at phone width', () => {
   test.use({ viewport: { width: 390, height: 844 }, colorScheme: 'light', hasTouch: true });
 
+  test('a milestone name on a row never sits under the pinned column: it moves right and ends with an ellipsis', async ({
+    page,
+  }) => {
+    await page.goto('/signin?label=tracker-row-names');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    const time = page.locator('.gscroll .gtime');
+    await expect(page.locator('.gscroll svg.pg-side')).toHaveAttribute('viewBox', /^0 64 128 /);
+    await expect.poll(() => time.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+    const shown = () =>
+      page.evaluate(() => {
+        const edge = document.querySelector('.gscroll svg.pg-side')!.getBoundingClientRect().right;
+        return Array.from(document.querySelectorAll<SVGTextElement>('svg.pg .deadline-name'))
+          .filter((t) => t.getAttribute('visibility') !== 'hidden' && t.textContent)
+          .map((t) => {
+            const box = t.getBoundingClientRect();
+            return { text: t.textContent!, cut: box.left < edge - 1 && box.right > edge };
+          });
+      });
+    await expect.poll(async () => (await shown()).filter((n) => n.cut)).toEqual([]);
+    const moved = (await shown()).filter((n) => n.text.startsWith('CRM integ'));
+    expect(moved.length).toBeGreaterThan(0);
+    for (const n of moved)
+      expect(n.text === 'CRM integration live' || n.text.endsWith('…')).toBe(true);
+
+    await time.evaluate((el) => (el.scrollLeft = 0));
+    await expect
+      .poll(async () => (await shown()).filter((n) => n.text === 'CRM integration live').length)
+      .toBeGreaterThan(0);
+    await expect(page.locator('svg.pg .deadline-stuck:not(:empty)')).toHaveCount(0);
+  });
+
   test('keeps the names level with their rows while the column still has the wide view box', async ({
     page,
   }) => {
