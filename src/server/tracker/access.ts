@@ -176,6 +176,13 @@ const AGENT_SCOPES: Record<keyof Rights, readonly TokenScope[]> = {
   manage: ['members:manage', 'teams:manage'],
 };
 
+/** A token manages what its person manages today, inside its scopes. */
+export const mayManage = (
+  ctx: ActorContext,
+  scope: Pick<Scope, 'me' | 'tracker'>,
+  need: 'members:manage' | 'teams:manage',
+) => (ctx.kind === 'user' || ctx.scopes.includes(need)) && rightsOf(subjectOf(scope)).manage;
+
 export function requireRight(
   ctx: ActorContext,
   scope: Pick<Scope, 'me' | 'tracker'>,

@@ -284,6 +284,26 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
     );
   });
 
+  it('tells a token what it can manage: the lead right of its person today and the scope', async () => {
+    await fresh();
+    const read = async (scopes: Parameters<typeof agentActor>[2], actor = demo.owner) => {
+      const list = await listProjectMembers(
+        t.db,
+        agentActor(actor, demo.projectId, ['project:read', ...scopes]),
+        own(),
+      );
+      return [list.canManage, list.canManageTeams];
+    };
+    expect(await read([])).toEqual([false, false]);
+    expect(await read(['members:manage'])).toEqual([true, false]);
+    expect(await read(['teams:manage'])).toEqual([false, true]);
+    expect(await read(['members:manage', 'teams:manage'])).toEqual([true, true]);
+    const lead = await listProjectMembers(t.db, demo.owner, own());
+    expect([lead.canManage, lead.canManageTeams]).toEqual([true, true]);
+    await updateMember(t.db, demo.owner, { ...own(), memberId: demo.ids.lan, projectLead: true });
+    expect(await read(['members:manage', 'teams:manage'])).toEqual([false, false]);
+  });
+
   it('keeps the project lead: no removal of themself and no grants without a new lead', async () => {
     await fresh();
     await expect(

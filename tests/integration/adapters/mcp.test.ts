@@ -201,6 +201,18 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP adapter', () => {
       structuredContent: { code: 'FORBIDDEN' },
     });
   });
+  it('list_members tells a members:manage token of the lead that it can manage members', async () => {
+    const manager = await connect((await token(['project:read', 'members:manage'])).secret);
+    const list = await call(manager, 'list_members');
+    expect(list.structuredContent).toMatchObject({ canManage: true, canManageTeams: false });
+    const invited = await call(manager, 'invite_member', { email: 'new.person@example.com' });
+    expect(invited.isError).toBeFalsy();
+    const reader = await connect(defaultToken.secret);
+    expect((await call(reader, 'list_members')).structuredContent).toMatchObject({
+      canManage: false,
+      canManageTeams: false,
+    });
+  });
   it('a revoked token fails its next call and a new connection', async () => {
     const created = await token(['project:read']);
     const client = await connect(created.secret);
