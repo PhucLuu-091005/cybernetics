@@ -78,7 +78,6 @@ type Props = {
     canMerge: boolean;
     changed: boolean;
     onReviewAgain: () => void;
-    /** The changes that still apply; the ones that no longer apply never count. */
     applying: number;
   };
   /** Without it, the bar has no hidden badge. */
