@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { choose, drag, hydrated } from './helpers';
+import { centerOf, choose, drag, hydrated } from './helpers';
 
 type TrackerRead = {
   crs: Array<{
@@ -386,6 +386,45 @@ test.describe('the tracker walkthrough', () => {
     });
 
     expect(problems).toEqual([]);
+  });
+});
+
+test.describe('a drag right after a change', () => {
+  test.use({ viewport: { width: 1440, height: 900 }, colorScheme: 'light' });
+
+  test('hides the toast while a Queue card moves, so the bin shows in full', async ({ page }) => {
+    await signIn(page, 'tracker-toast-drag');
+    const toast = page.locator('.tk-toast');
+    const bin = page.locator('.bin');
+    await actAs(page, 'Lan Phạm');
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
+    await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/changes\/5$/);
+    const card = (text: string) => page.locator('[data-qevent]', { hasText: text });
+    await drag(
+      page,
+      card('Where is the root cause report'),
+      page.locator('svg.pg [data-loop="incident"]'),
+    );
+    await expect(toast).toContainText('Message by Sarah Kim: added');
+
+    const from = await centerOf(card('Scope call'));
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(from.x + 8, from.y + 8, { steps: 3 });
+    await page.mouse.move(from.x + 300, from.y, { steps: 6 });
+    await expect(bin).toBeVisible();
+    // The toast times out on its own, so a retrying toBeHidden would pass without the fix.
+    expect(await toast.isVisible()).toBe(false);
+    const box = (await bin.boundingBox())!;
+    const top = await page.evaluate(
+      ([x, y]) => document.elementFromPoint(x, y)?.closest('.bin, .tk-toast')?.className ?? '',
+      [box.x + box.width / 2, box.y + box.height / 2],
+    );
+    expect(top).toContain('bin');
+    await page.mouse.move(from.x, from.y, { steps: 6 });
+    await page.mouse.up();
+    await expect(toast).toContainText('Message by Sarah Kim: added');
   });
 });
 

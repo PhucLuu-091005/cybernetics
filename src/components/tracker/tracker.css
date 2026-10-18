@@ -2942,6 +2942,10 @@ svg.tg .lane-drop.glow {
   color: var(--danger-ink);
   pointer-events: auto;
 }
+/* The toast sits over the bin; it waits out the drag and keeps its Undo. */
+.tk.dragging .tk-toast {
+  visibility: hidden;
+}
 .tk .bin.glow {
   background: var(--danger-bg);
   transform: scale(1.06);
