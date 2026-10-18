@@ -279,3 +279,38 @@ test('a signed-out person who opens a change request link lands on it after sign
   await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
   expect(new URL(page.url()).host).toBe(new URL(link, page.url()).host);
 });
+
+test('Revoke shows Revoking until the table shows the token as revoked', async ({ page }) => {
+  await page.goto('/signin?label=settings-revoke');
+  await page.getByRole('button', { name: /continue/i }).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  const projectId = new URL(page.url()).pathname.split('/')[2];
+  await page.goto(`/projects/${projectId}/settings/tokens`);
+  const form = page.getByRole('form', { name: 'Create a token' });
+  await form.getByLabel('Label').fill('Revoke agent');
+  await form.getByRole('button', { name: 'Create token' }).click();
+  await expect(page.getByTestId('token-secret')).toBeVisible();
+  const row = page.getByRole('row').filter({ hasText: 'Revoke agent' });
+
+  const later = () => new Promise((resolve) => setTimeout(resolve, 800));
+  await page.route('**/agent-tokens/*', async (route) => {
+    if (route.request().method() === 'DELETE') await later();
+    await route.continue();
+  });
+  await page.route('**/settings/tokens**', async (route) => {
+    if (route.request().headers()['rsc'] === '1') await later();
+    await route.continue();
+  });
+  await row.getByRole('button', { name: 'Revoke' }).click();
+  const answered = page.waitForResponse(
+    (response) => response.request().method() === 'DELETE' && response.ok(),
+  );
+  await row.getByRole('button', { name: 'Confirm revoke' }).click();
+  await expect(row.getByRole('status')).toHaveText('Revoking…');
+  await expect(row.getByRole('button')).toHaveCount(0);
+  await answered;
+  await expect(row.getByRole('status')).toHaveText('Revoking…');
+  await expect(row.getByRole('button')).toHaveCount(0);
+  await expect(row).toContainText(/Revoked \d{1,2} [A-Z][a-z]{2}/);
+  await expect(row.getByRole('status')).toHaveCount(0);
+});
