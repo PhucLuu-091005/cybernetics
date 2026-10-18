@@ -2,8 +2,8 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { afterEach, describe, expect, it } from 'vitest';
-import { readPhotoConfig } from '../../../src/server/avatars/config';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { assertPhotoConfig, readPhotoConfig } from '../../../src/server/avatars/config';
 import {
   GcsPhotoStore,
   LocalPhotoStore,
@@ -152,5 +152,24 @@ describe('photo store configuration', () => {
       'for development and tests',
     );
     expect(() => readPhotoConfig({ AVATAR_STORE: 's3' })).toThrow('gcs or local');
+  });
+});
+
+describe('photo store start check', () => {
+  it('ends the start with code 1 when the store is on but broken, and passes when it is off', () => {
+    const exit = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.stubEnv('AVATAR_STORE', 'gcs');
+    vi.stubEnv('AVATAR_BUCKET', '');
+    assertPhotoConfig();
+    expect(exit).toHaveBeenCalledWith(1);
+    expect(log.mock.calls[0][0]).toContain('photo_config_invalid');
+    exit.mockClear();
+    vi.stubEnv('AVATAR_STORE', '');
+    assertPhotoConfig();
+    expect(exit).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
+    exit.mockRestore();
+    log.mockRestore();
   });
 });

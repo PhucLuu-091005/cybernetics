@@ -24,6 +24,18 @@ export function readPhotoConfig(
   throw new Error('AVATAR_STORE must be gcs or local');
 }
 
+/** Next logs an error thrown in the instrumentation hook and keeps serving, so the start ends here. */
+export function assertPhotoConfig(): void {
+  try {
+    readPhotoConfig();
+  } catch (error) {
+    console.error(
+      JSON.stringify({ event: 'photo_config_invalid', message: (error as Error).message }),
+    );
+    process.exit(1);
+  }
+}
+
 const state = globalThis as typeof globalThis & { promisePhotoStore?: PhotoStore | null };
 
 export function photoStore(): PhotoStore | null {
