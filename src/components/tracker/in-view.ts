@@ -30,3 +30,43 @@ export function cutToFit(
   }
   return null;
 }
+
+const BAR_ROOM = 12;
+
+/**
+ * The page scroll that shows the first change of a change request above the sticky zoom bar (all
+ * boxes in screen pixels). The page stops where a block below the sticky top bar starts, so no row
+ * of buttons is cut in half, and never past the end of the page.
+ */
+export function changeScroll(page: {
+  scrollY: number;
+  viewport: number;
+  scrollHeight: number;
+  first: { top: number; bottom: number };
+  barHeight: number;
+  stickyTop: number;
+  axisHeight: number;
+  stops: readonly number[];
+}): number {
+  const { scrollY: y, first, stickyTop } = page;
+  const barTop = page.viewport - BAR_ROOM - page.barHeight;
+  const need = first.bottom + y - (barTop - BAR_ROOM);
+  if (need <= 0) return 0;
+  const below = stickyTop + page.axisHeight;
+  const stop = page.stops
+    .map((top) => top + y - stickyTop)
+    .filter((at) => at >= need && first.top + y - at >= below)
+    .sort((a, b) => a - b)[0];
+  return Math.round(Math.min(stop ?? need, Math.max(0, page.scrollHeight - page.viewport)));
+}
+
+/** A menu opens above when it does not fit below and above has more room; else it scrolls inside. */
+export function menuPlace(room: { below: number; above: number; height: number }): {
+  up: boolean;
+  maxHeight: number | null;
+} {
+  if (room.height <= room.below) return { up: false, maxHeight: null };
+  const up = room.above > room.below;
+  const space = up ? room.above : room.below;
+  return { up, maxHeight: room.height > space ? Math.floor(Math.max(0, space)) : null };
+}
