@@ -290,6 +290,7 @@ export function MembersScreen({
                           <button
                             className="btn sm"
                             type="button"
+                            aria-label={`Make project lead: ${member.name}`}
                             disabled={off}
                             onClick={() => setConfirm({ kind: 'lead', member })}
                           >

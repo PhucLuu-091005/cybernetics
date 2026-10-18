@@ -34,6 +34,10 @@ test('the project lead invites, sets grants, edits a team, removes a member and 
   await expect(row('Minh Trần')).toContainText('You');
   await expect(row('Minh Trần')).toContainText('Project lead');
   await expect(row('Minh Trần').getByRole('button', { name: /Remove/ })).toHaveCount(0);
+  await expect(row('Minh Trần').getByRole('button', { name: /Make project lead/ })).toHaveCount(0);
+  await expect(
+    row('Lan Phạm').getByRole('button', { name: /Make project lead/ }),
+  ).toHaveAccessibleName('Make project lead: Lan Phạm');
   await expect(page.getByLabel('Merge change requests: Minh Trần')).toBeDisabled();
   await expect(page.getByLabel('Merge change requests: Minh Trần')).toBeChecked();
 
@@ -140,12 +144,12 @@ test('the project lead invites, sets grants, edits a team, removes a member and 
   await test.step('hand the lead to Quang: Cancel keeps it, Make project lead moves it', async () => {
     await page.reload();
     await hydrated(page);
-    await row('Quang Nguyễn').getByRole('button', { name: 'Make project lead' }).click();
+    await page.getByRole('button', { name: 'Make project lead: Quang Nguyễn' }).click();
     const confirm = page.getByRole('dialog', { name: 'Make Quang Nguyễn the project lead?' });
     await expect(confirm).toContainText('You keep every grant');
     await confirm.getByRole('button', { name: 'Cancel' }).click();
     await expect(confirm).toHaveCount(0);
-    await row('Quang Nguyễn').getByRole('button', { name: 'Make project lead' }).click();
+    await page.getByRole('button', { name: 'Make project lead: Quang Nguyễn' }).click();
     await confirm.getByRole('button', { name: 'Make project lead' }).click();
     await expect(toast).toContainText('Quang Nguyễn is the project lead now.');
     await expect(page.getByRole('form', { name: 'Invite a person' })).toHaveCount(0);
