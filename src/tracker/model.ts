@@ -96,6 +96,10 @@ export type WorkItem = {
   since: string | null;
 };
 
+/** The person a new event of this kind names first in Who: the doer closes the work, the requester opens it. */
+export const whoDid = (item: Pick<WorkItem, 'doneBy' | 'requestedBy'>, kind: EventKind) =>
+  kind === 'done' || kind === 'cancelled' ? item.doneBy : item.requestedBy;
+
 export type TrackerEvent = {
   id: string;
   workItemId: string;

@@ -20,6 +20,7 @@ import {
   kindText,
   toInstant,
   wallTimeInstant,
+  whoDid,
   type Cr,
   type Member,
   type CrPermission,
@@ -639,9 +640,11 @@ function EventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<
   );
   const [finishes, setFinishes] = useState(true);
   const [text, setText] = useState(modal.done ? 'Done.' : '');
-  const [by, setBy] = useState(personOr(state, start?.requestedBy));
+  const [picked, setBy] = useState<string | null>(null);
   const [when, setWhen] = useState(localInput(hourBefore(asOf, tz), tz));
   if (!start) return <Gone onClose={onClose} />;
+  const item = state.workItems.find((w) => w.id === workItemId) ?? start;
+  const by = picked ?? personOr(state, whoDid(item, kind));
   const create = () => {
     const at = fromLocalInput(when, tz);
     if (!text.trim() || !at) return on.toast(blankText(kind));
