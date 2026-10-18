@@ -276,9 +276,11 @@ export function CrSide({
           ) : (
             <div className="qempty">
               <Icon name="inbox" size={26} />
-              {edit
-                ? 'No changes yet. Drag an event or a work item from the Queue onto the graph.'
-                : 'This change request has no change.'}
+              {model.inMain
+                ? 'Every change is already in Main. Cancel the change request to close it.'
+                : edit
+                  ? 'No changes yet. Drag an event or a work item from the Queue onto the graph.'
+                  : 'This change request has no change.'}
               {edit && (
                 <button className="btn sm" type="button" onClick={() => onTab('queue')}>
                   Open the Queue

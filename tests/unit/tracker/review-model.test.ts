@@ -448,6 +448,23 @@ describe('reviewModel', () => {
     });
   });
 
+  it('says when every change of an open CR is already in Main', () => {
+    const { crs, commits } = afterTwoMerges();
+    const merged = crs.find((c) => c.num === 2)!;
+    const copy = makeCr(6, {
+      author: 'lan',
+      status: 'draft',
+      ops: merged.ops.map((op) => ({ ...op, rev: 1 })),
+    });
+    expect(reviewModel(payload([...crs, copy], commits), 6, {})).toMatchObject({
+      applying: 0,
+      inMain: true,
+      changes: [],
+    });
+    expect(reviewModel(payload(crs, commits), 3, {})?.inMain).toBe(false);
+    expect(reviewModel(payload(crs, commits), 2, {})?.inMain).toBe(false);
+  });
+
   it('blames Main, not the queue, for a closed change whose card or spot Main used before the close', () => {
     const { crs, commits } = mainTookTheSpots();
     const [, cr5] = crs;

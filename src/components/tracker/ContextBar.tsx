@@ -79,6 +79,7 @@ type Props = {
     changed: boolean;
     onReviewAgain: () => void;
     applying: number;
+    inMain: boolean;
   };
   /** Without it, the bar has no hidden badge. */
   hidden?: HiddenMenuProps;
@@ -305,6 +306,7 @@ export function ContextBar(props: Props) {
     tone = 'mine';
     buttons = (
       <>
+        {review?.inMain && <span className="muted">Every change is already in Main.</span>}
         {share}
         {cancel}
         <button
