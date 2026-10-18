@@ -809,7 +809,6 @@
     border: 1px solid var(--rule);
     border-radius: var(--r-ctl);
     background: var(--surface);
-    box-shadow: var(--shadow);
     color: var(--ink);
     font-size: var(--fs-s);
     font-weight: 500;
@@ -817,6 +816,7 @@
     transform: translateY(calc(-100% - 16px));
   }
   .skip:focus {
+    box-shadow: var(--shadow);
     transform: none;
   }
   #content:focus {
