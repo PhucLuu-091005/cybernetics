@@ -1416,6 +1416,33 @@ test.describe('the tracker at phone width', () => {
     await expect(page.locator('svg.pg .deadline-stuck:not(:empty)')).toHaveCount(0);
   });
 
+  test('the zoom bar sits in its own band under the graph, so it covers no row on the first view', async ({
+    page,
+  }) => {
+    await page.goto('/signin?label=tracker-phone-zoombar');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    const graph = new URL(page.url()).pathname;
+    for (const path of [crPath(graph, 4), graph]) {
+      await page.goto(path);
+      await expect(page.locator('svg.pg')).toBeVisible();
+      const bar = (await page.getByRole('group', { name: 'View controls' }).boundingBox())!;
+      const plot = (await page.locator('.gcanvas svg.pg').boundingBox())!;
+      expect(bar.y).toBeGreaterThanOrEqual(plot.y + plot.height);
+    }
+    await page.goto(crPath(graph, 4));
+    const changed = page.locator('svg.pg .halo').first();
+    await expect(changed).toBeVisible();
+    const box = (await changed.boundingBox())!;
+    if (box.y + box.height <= 844) {
+      const top = await page.evaluate(
+        ([x, y]) => !!document.elementFromPoint(x, y)?.closest('svg.pg'),
+        [box.x + box.width / 2, box.y + box.height / 2],
+      );
+      expect(top).toBe(true);
+    }
+  });
+
   test('keeps the names level with their rows while the column still has the wide view box', async ({
     page,
   }) => {

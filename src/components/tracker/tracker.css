@@ -2786,6 +2786,11 @@ svg.tg .deadline-name {
   .tk .gcanvas {
     overflow: visible;
   }
+  /* The page scrolls on a phone, so a sticky bar would sit on rows of the first view. */
+  .tk .zoombar {
+    position: relative;
+    bottom: auto;
+  }
   .tk .p-body {
     flex-direction: column;
   }
