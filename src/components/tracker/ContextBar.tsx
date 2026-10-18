@@ -103,13 +103,13 @@ function ViewMenu({ session, cr, actions, onView, onDrawer }: Props) {
         className="vsel"
         aria-label={`View: ${cr ? `#${cr.num} ${cr.title}` : `Main, read-only, project lead ${dir.name(lead)}`}. Switch view`}
       >
-        {cr ? <Icon name="pr" size={15} /> : <span className="gdot" />}
+        <Icon name={cr ? 'pr' : 'lock'} size={15} />
         <span className="vtitle">{cr ? `#${cr.num} ${cr.title}` : 'Main'}</span>
         <Icon name="chev" size={14} />
       </summary>
       <div className="gmenu">
         <button type="button" className={view === 'main' ? 'on' : ''} onClick={() => pick('main')}>
-          <span className="gdot" />
+          <Icon name="lock" size={15} />
           <span>
             Main<small>Read-only · project lead {dir.name(lead)}</small>
           </span>
