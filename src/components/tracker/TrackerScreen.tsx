@@ -143,6 +143,7 @@ export type TrackerActions = {
   merge: () => void;
   undo: () => void;
   removeChange: (index: number) => void;
+  clearStale: () => void;
   addToQueue: (what: 'event' | 'item') => void;
   openQueueEvent: (id: string) => void;
   openQueueItem: (id: string) => void;
@@ -179,6 +180,7 @@ export const NO_ACTIONS: TrackerActions = {
   merge: noop,
   undo: noop,
   removeChange: noop,
+  clearStale: noop,
   addToQueue: noop,
   openQueueEvent: noop,
   openQueueItem: noop,
@@ -806,6 +808,10 @@ export function TrackerScreen({
     void write((p) => removeOp(projectId, num, index, revisionOf(p, num)));
   };
   const undoLast = (num: number) => removeAt(num, 'last');
+  const removeAll = async (num: number, indexes: readonly number[]) => {
+    for (const index of indexes)
+      if (!(await write((p) => removeOp(projectId, num, index, revisionOf(p, num))))) return;
+  };
 
   const appendAll = async (num: number, ops: readonly OpInput[]) => {
     let last: TrackerPayload | null = null;
@@ -984,6 +990,9 @@ export function TrackerScreen({
     },
     removeChange: (index) => {
       if (cr && edit) removeAt(cr.num, index);
+    },
+    clearStale: () => {
+      if (cr && edit && model) void removeAll(cr.num, model.stale);
     },
     addToQueue: (what) => openModal({ mode: 'add', what }),
     openQueueEvent: (id) =>
@@ -1380,6 +1389,7 @@ export function TrackerScreen({
                 canMerge: model.canMerge,
                 changed: frozen.changed,
                 onReviewAgain: reviewAgain,
+                applying: model.applying,
               },
             }
           : {})}
