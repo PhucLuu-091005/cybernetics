@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import type { ActorContext } from '../../contracts';
+import type { ActorContext, Creator } from '../../contracts';
 import { users } from '../db/schema';
 import type { Db } from '../db/tx';
 import { AppError } from '../errors';
@@ -37,4 +37,21 @@ export async function projectAccount(
     }
   }
   return { ...(await signedInAccount(db, ctx.userId)), detail: 'Can view' };
+}
+
+const READER: Creator = {
+  member: false,
+  rights: { viewMain: true, create: false, merge: false, manage: false },
+};
+
+/** A token acts as its person's own member, never as the demo person they work as now. */
+export async function tokenCreator(db: Db, ctx: ActorContext, projectId: string): Promise<Creator> {
+  try {
+    const { members } = await listProjectMembers(db, ctx, { projectId });
+    const own = members.find((member) => member.you);
+    return own ? { member: true, rights: own.rights } : READER;
+  } catch (error) {
+    if (error instanceof AppError && error.code === 'NOT_FOUND') return READER;
+    throw error;
+  }
 }

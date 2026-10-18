@@ -1,11 +1,20 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
-import { DEFAULT_AGENT_SCOPES, type Scope, type TokenCreated } from '../../contracts';
+import { useId, useState, type FormEvent } from 'react';
+import {
+  SCOPE_GROUPS,
+  SCOPE_INFO,
+  scopeBlock,
+  type Creator,
+  type Scope,
+  type TokenCreated,
+} from '../../contracts';
 import { send, type ApiError } from '../shell/api';
 import { ConflictBanner } from '../shell/ConflictBanner';
 import { useHydrated } from '../shell/hydrated';
-import { SCOPE_INFO as SCOPES } from '../../contracts';
+import { Checkbox } from '../tracker/Checkbox';
+import { Select } from '../tracker/Select';
+import { allowedScopes, firstScopes, selectAllState, toggleAll } from './scopes';
 import { SecretReveal } from './SecretReveal';
 
 export type ExpiryOption = { days: number; label: string };
@@ -14,19 +23,24 @@ export function TokenCreate({
   projectId,
   endpoint,
   expiryOptions,
+  creator,
 }: {
   projectId: string;
   endpoint: string;
   expiryOptions: ExpiryOption[];
+  creator: Creator;
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
+  const id = useId();
+  const allowed = allowedScopes(creator);
   const [label, setLabel] = useState('');
   const [days, setDays] = useState(expiryOptions[0].days);
-  const [scopes, setScopes] = useState<ReadonlySet<Scope>>(() => new Set(DEFAULT_AGENT_SCOPES));
+  const [scopes, setScopes] = useState<ReadonlySet<Scope>>(() => firstScopes(creator));
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<ApiError | null>(null);
   const [created, setCreated] = useState<{ secret: string; label: string } | null>(null);
+  const all = selectAllState(scopes, allowed);
   const toggle = (scope: Scope, on: boolean) =>
     setScopes((current) => {
       const next = new Set(current);
@@ -42,7 +56,7 @@ export function TokenCreate({
     // A reused creation key answers CONFLICT and never replays the secret (SRD 3), so every attempt gets a fresh key.
     const result = await send<TokenCreated>(`/api/v1/projects/${projectId}/agent-tokens`, 'POST', {
       label: label.trim(),
-      scopes: SCOPES.map((item) => item.scope).filter((scope) => scopes.has(scope)),
+      scopes: SCOPE_INFO.map((info) => info.scope).filter((scope) => scopes.has(scope)),
       expiresAt: new Date(Date.now() + days * 86_400_000).toISOString(),
       idempotencyKey: crypto.randomUUID(),
     });
@@ -58,6 +72,14 @@ export function TokenCreate({
   return (
     <form className="pg-sec pg-create" aria-label="Create a token" onSubmit={submit}>
       <h2>Create a token</h2>
+      {created && (
+        <SecretReveal
+          secret={created.secret}
+          label={created.label}
+          endpoint={endpoint}
+          onClose={() => setCreated(null)}
+        />
+      )}
       {failure && <ConflictBanner title="The token was not created." error={failure} />}
       <div className="pg-form">
         <label className="field pg-grow">
@@ -69,32 +91,61 @@ export function TokenCreate({
             placeholder="Claude Code, release review"
           />
         </label>
-        <label className="field">
+        <label className="field pg-expiry">
           Expires
-          <select value={days} onChange={(event) => setDays(Number(event.target.value))}>
-            {expiryOptions.map((option) => (
-              <option key={option.days} value={option.days}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <Select
+            label="Expires"
+            value={String(days)}
+            disabled={!hydrated}
+            onChange={(value) => setDays(Number(value))}
+            options={expiryOptions.map((option) => ({
+              value: String(option.days),
+              label: option.label,
+            }))}
+          />
         </label>
       </div>
-      <fieldset className="pg-scopes">
+      <fieldset className="pg-scopes" aria-describedby={`${id}-hint`}>
         <legend>Permissions</legend>
-        {SCOPES.map(({ scope, title, text }) => (
-          <label key={scope} className="pg-scope">
-            <input
-              type="checkbox"
-              checked={scopes.has(scope)}
-              disabled={!hydrated}
-              onChange={(event) => toggle(scope, event.target.checked)}
-            />
-            <span>
-              <b>{title}</b> <span className="id faint">{scope}</span>
-              <small>{text}</small>
-            </span>
-          </label>
+        <p className="pg-hint" id={`${id}-hint`}>
+          Each permission is one of your own rights. The agent can never manage tokens or delete the
+          project.
+        </p>
+        <div className="pg-all">
+          <Checkbox
+            checked={all === 'all'}
+            mixed={all === 'some'}
+            disabled={!hydrated || allowed.length === 0}
+            onChange={() => setScopes((current) => toggleAll(current, allowed))}
+          >
+            <b>Select all</b>
+          </Checkbox>
+          <span className="pg-count">
+            {allowed.filter((scope) => scopes.has(scope)).length} of {allowed.length}
+          </span>
+        </div>
+        {SCOPE_GROUPS.map((group) => (
+          <div className="pg-group" key={group} role="group" aria-label={group}>
+            <h3>{group}</h3>
+            {SCOPE_INFO.filter((info) => info.group === group).map((info) => {
+              const blocked = scopeBlock(info, creator);
+              return (
+                <Checkbox
+                  key={info.scope}
+                  className={`pg-scope${blocked ? ' off' : ''}`}
+                  checked={!blocked && scopes.has(info.scope)}
+                  disabled={!hydrated || blocked !== null}
+                  onChange={(on) => toggle(info.scope, on)}
+                >
+                  <span className="pg-scope-text">
+                    <b>{info.title}</b> <span className="id faint">{info.scope}</span>
+                    <small>{info.text}</small>
+                    {blocked && <small className="pg-why">{blocked}.</small>}
+                  </span>
+                </Checkbox>
+              );
+            })}
+          </div>
         ))}
       </fieldset>
       <button
@@ -104,14 +155,6 @@ export function TokenCreate({
       >
         Create token
       </button>
-      {created && (
-        <SecretReveal
-          secret={created.secret}
-          label={created.label}
-          endpoint={endpoint}
-          onClose={() => setCreated(null)}
-        />
-      )}
     </form>
   );
 }

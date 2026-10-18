@@ -195,9 +195,20 @@ test('Settings shows plain permission names, and Last call changes from Never af
 
   const form = page.getByRole('form', { name: 'Create a token' });
   const permissions = form.getByRole('group', { name: 'Permissions' });
-  await expect(permissions.getByRole('checkbox')).toHaveCount(2);
+  await expect(permissions.getByRole('checkbox')).toHaveCount(12);
   await expect(permissions.getByRole('checkbox', { name: /Read the project/ })).toBeChecked();
   await expect(permissions.getByRole('checkbox', { name: /Add to the Queue/ })).toBeChecked();
+  await expect(permissions.getByRole('checkbox', { name: /Merge into Main/ })).not.toBeChecked();
+  const all = permissions.getByRole('checkbox', { name: 'Select all' });
+  await expect(all).toHaveJSProperty('indeterminate', true);
+  await all.check();
+  await expect(permissions.locator('input:checked')).toHaveCount(12);
+  await all.uncheck();
+  await expect(permissions.locator('input:checked')).toHaveCount(0);
+  await expect(all).toHaveJSProperty('indeterminate', false);
+  await permissions.getByRole('checkbox', { name: /Read the project/ }).check();
+  await permissions.getByRole('checkbox', { name: /Add to the Queue/ }).check();
+  await expect(page.getByRole('combobox', { name: 'Expires' })).toHaveText(/In 30 days/);
 
   await expect(form.getByRole('button', { name: 'Create token' })).toBeDisabled();
   await form.getByLabel('Label').fill('Last call agent');
@@ -212,7 +223,7 @@ test('Settings shows plain permission names, and Last call changes from Never af
 
   const row = page.getByRole('row').filter({ hasText: 'Last call agent' });
   await expect(row.getByTestId('last-call')).toHaveText('Never');
-  await expect(row.getByText('Read the project, Add to the Queue')).toBeVisible();
+  await expect(row.getByText('Read, Add to Queue')).toBeVisible();
 
   const response = await page.request.post('/mcp', {
     headers: {

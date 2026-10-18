@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { copyText, mcpConfig } from './McpSnippet';
 
 /** The secret lives only in the creating component's state; closing this panel or reloading the page discards it. */
@@ -15,8 +15,13 @@ export function SecretReveal({
   onClose: () => void;
 }) {
   const [status, setStatus] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+  // The form is long, so the one-time secret must come into view by itself.
+  useEffect(() => {
+    ref.current?.scrollIntoView({ block: 'nearest' });
+  }, []);
   return (
-    <div className="pg-secret" role="region" aria-label="New token secret">
+    <div ref={ref} className="pg-secret" role="region" aria-label="New token secret">
       <p>
         <b>Copy the secret for “{label}” now. It is shown once.</b>
       </p>

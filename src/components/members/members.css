@@ -1,8 +1,4 @@
 /* Members page: full width and flat, rows with hairlines (design system 1.2). */
-.tk .pg-body.mb-body {
-  max-width: none;
-  padding: 20px 28px 56px;
-}
 .tk .mb-sec + .mb-sec {
   margin-top: 36px;
 }
@@ -135,16 +131,6 @@
   align-items: center;
   gap: 6px;
   cursor: pointer;
-}
-.tk .mb-grant input {
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  accent-color: var(--ink);
-  cursor: pointer;
-}
-.tk .mb-grant input:disabled {
-  cursor: default;
 }
 .tk .mb-grant-name {
   display: none;
@@ -299,9 +285,6 @@
   }
 }
 @media (max-width: 760px) {
-  .tk .pg-body.mb-body {
-    padding: 16px 16px 40px;
-  }
   .tk .mb-inline {
     flex: 1 1 100%;
   }
