@@ -9,7 +9,6 @@ import {
   useState,
   type KeyboardEvent,
   type MouseEvent,
-  type SVGProps,
 } from 'react';
 import {
   GEOMETRY,
@@ -160,35 +159,6 @@ function MilestoneMark({ m }: { m: LayoutMilestone }) {
 
 const BACK_PAD = 3;
 
-/** The T line and the grid run through the axis row, so a milestone name carries the panel behind it. */
-function BackedText({ children, ...text }: SVGProps<SVGTextElement>) {
-  const textRef = useRef<SVGTextElement>(null);
-  const backRef = useRef<SVGRectElement>(null);
-  useLayoutEffect(() => {
-    const fit = () => {
-      const label = textRef.current;
-      const back = backRef.current;
-      if (!label?.isConnected || !back || typeof label.getBBox !== 'function') return;
-      const box = label.getBBox();
-      back.setAttribute('x', String(box.x - BACK_PAD));
-      back.setAttribute('y', String(box.y));
-      back.setAttribute('width', String(box.width + 2 * BACK_PAD));
-      back.setAttribute('height', String(box.height));
-    };
-    fit();
-    // A web font that arrives later changes the width of the name.
-    void document.fonts?.ready.then(fit);
-  });
-  return (
-    <>
-      <rect ref={backRef} className="label-back" />
-      <text ref={textRef} {...text}>
-        {children}
-      </text>
-    </>
-  );
-}
-
 export function TrackerGraph(props: Props) {
   const { layout: L, edit, selectedMs, focusRow, focusMs, lifted, preview } = props;
   const lv = L.level;
@@ -208,6 +178,7 @@ export function TrackerGraph(props: Props) {
   const head = useRef<HTMLDivElement>(null);
   const headTime = useRef<HTMLDivElement>(null);
   const timeSvg = useRef<SVGSVGElement>(null);
+  const headSvg = useRef<SVGSVGElement>(null);
   const latest = useRef({
     L,
     onZoom: props.onZoom,
@@ -267,6 +238,34 @@ export function TrackerGraph(props: Props) {
     // A frame wider than its box (a narrow window, not a phone) scrolls too, so T needs both.
     if (a.open && body.current) body.current.scrollLeft = body.current.scrollWidth;
   }, [L]);
+
+  // The T line and the grid run through the axis row, so each milestone name gets the panel behind it.
+  const fitBacks = useCallback(() => {
+    const svg = headSvg.current;
+    if (!svg) return;
+    for (const back of Array.from(svg.querySelectorAll<SVGRectElement>('.label-back'))) {
+      const id = CSS.escape(back.dataset.back ?? '');
+      const label = svg.querySelector<SVGTextElement>(`[data-ms="${id}"] .ms-label`);
+      const group = label?.parentNode;
+      if (!label || !(group instanceof SVGGElement) || typeof label.getBBox !== 'function')
+        continue;
+      const box = label.getBBox();
+      const at = group.transform.baseVal.consolidate()?.matrix;
+      back.setAttribute('x', String(box.x + (at?.e ?? 0) - BACK_PAD));
+      back.setAttribute('y', String(box.y + (at?.f ?? 0)));
+      back.setAttribute('width', String(box.width + 2 * BACK_PAD));
+      back.setAttribute('height', String(box.height));
+    }
+  }, []);
+  useLayoutEffect(fitBacks, [L, preview, fitBacks]);
+  useEffect(() => {
+    let mounted = true;
+    // A web font that arrives later changes the width of the names.
+    void document.fonts?.ready.then(() => mounted && fitBacks());
+    return () => {
+      mounted = false;
+    };
+  }, [fitBacks]);
 
   useEffect(() => {
     const el = root.current;
@@ -852,6 +851,7 @@ export function TrackerGraph(props: Props) {
 
   const timeHead = (
     <svg
+      ref={headSvg}
       className="tg pg-top pg-top-time"
       viewBox={`${SIDE} 0 ${L.width - SIDE} ${TOP}`}
       style={timeWidth}
@@ -887,6 +887,12 @@ export function TrackerGraph(props: Props) {
           style={{ stroke: color(s.tone) }}
         />
       ))}
+      {/* One layer under every milestone, so no name box covers a circle. */}
+      <g className="label-backs">
+        {L.milestones.map((m) => (
+          <rect key={m.id} className="label-back" data-back={m.id} />
+        ))}
+      </g>
       {L.milestones.map((m) => {
         const moved = preview?.kind === 'ms' && preview.id === m.id ? preview : null;
         const mx = moved ? moved.x : m.x;
@@ -905,7 +911,7 @@ export function TrackerGraph(props: Props) {
           >
             <rect className="ms-hit" x={-15} y={-15} width={30} height={30} />
             <MilestoneMark m={m} />
-            <BackedText
+            <text
               className={cls('ms-label', m.changed && 'changed')}
               x={m.labelX - m.x}
               y={m.labelY - m.y}
@@ -913,7 +919,7 @@ export function TrackerGraph(props: Props) {
               style={m.changed ? undefined : { fill: ink(m.labelTone) }}
             >
               {moved?.label ?? m.label}
-            </BackedText>
+            </text>
           </g>
         );
       })}

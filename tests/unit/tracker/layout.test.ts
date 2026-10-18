@@ -877,8 +877,10 @@ describe('layoutTracker: milestone names keep off the T line', () => {
     for (const v of views) {
       const L = layoutTracker(main(), v);
       for (const d of L.deadlines.filter((x) => x.label)) {
-        const box = d.labelBox!;
-        expect(box.x1 < L.tLine.x - 2 || box.x0 > L.tLine.x + 2).toBe(true);
+        const width = d.label!.length * 5.4 * (L.level.nameFont / 9.5);
+        const [x0, x1] =
+          d.labelAnchor === 'start' ? [d.labelX, d.labelX + width] : [d.labelX - width, d.labelX];
+        expect(x1 < L.tLine.x - 2 || x0 > L.tLine.x + 2).toBe(true);
         if (d.label!.endsWith('…')) cut.push(d.label!);
       }
     }
@@ -888,19 +890,6 @@ describe('layoutTracker: milestone names keep off the T line', () => {
       expect(label.length).toBeGreaterThanOrEqual(8);
       expect(names.some((name) => name.startsWith(label.slice(0, -1)))).toBe(true);
     }
-  });
-
-  it('gives the box of a row name from its anchor', () => {
-    const L = layoutTracker(
-      main(),
-      view({ windowStart: undefined, windowEnd: undefined, span: 800, zoom: 1.5 }),
-    );
-    for (const d of L.deadlines.filter((x) => x.label)) {
-      const box = d.labelBox!;
-      if (d.labelAnchor === 'start') expect(box.x0).toBe(d.labelX);
-      else expect(box.x1).toBe(d.labelX);
-    }
-    expect(L.deadlines.filter((x) => !x.label).every((x) => x.labelBox === null)).toBe(true);
   });
 });
 

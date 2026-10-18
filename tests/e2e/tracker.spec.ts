@@ -537,10 +537,28 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     }
   });
 
-  test('a milestone name on the axis keeps the T line behind its own background', async ({
+  test('a milestone name on the axis keeps the T line behind its own background and covers no circle', async ({
     page,
   }) => {
-    await signIn(page, 'tracker-axis', { classic: false });
+    const { projectId, graph } = await signIn(page, 'tracker-axis', { classic: false });
+    // Both milestones move next to T (9 Oct 18:00): whichever side each name takes, one crosses T.
+    const num = await page.evaluate(async (pid) => {
+      const read = await (await fetch(`/api/v1/projects/${pid}/tracker`)).json();
+      const move = (milestoneId: string, date: string) => ({
+        op: 'msDate',
+        a: { milestoneId, date, why: 'Axis test.', by: read.me.id, at: new Date().toISOString() },
+      });
+      const created = await fetch(`/api/v1/projects/${pid}/tracker/crs`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Axis',
+          ops: [move('crm', '2026-10-08'), move('golive', '2026-10-11')],
+        }),
+      });
+      return ((await created.json()) as { num: number }).num;
+    }, projectId);
+    await visit(page, crPath(graph, num));
     const read = () =>
       page.evaluate(() => {
         const probe = document.createElement('div');
@@ -548,11 +566,13 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
         document.querySelector('.tk')!.append(probe);
         const panel = getComputedStyle(probe).color;
         probe.remove();
-        const tline = document.querySelector('svg.pg-top-time .tline')!;
+        const head = document.querySelector('svg.pg-top-time')!;
+        const tline = head.querySelector('.tline')!;
         const xt = tline.getBoundingClientRect().left;
-        return Array.from(document.querySelectorAll('svg.pg-top-time .ms')).map((g) => {
+        const groups = Array.from(head.querySelectorAll('.ms'));
+        return groups.map((g) => {
           const text = g.querySelector('.ms-label')!.getBoundingClientRect();
-          const back = g.querySelector('.label-back');
+          const back = head.querySelector(`.label-back[data-back="${g.getAttribute('data-ms')}"]`);
           const box = back?.getBoundingClientRect();
           return {
             crosses: text.left < xt && text.right > xt,
@@ -563,14 +583,20 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
               box.top <= text.top + 1 &&
               box.bottom >= text.bottom - 1,
             panel: !!back && getComputedStyle(back).fill === panel,
-            above:
+            overT:
               !!back && !!(tline.compareDocumentPosition(back) & Node.DOCUMENT_POSITION_FOLLOWING),
+            underCircles:
+              !!back &&
+              groups.every(
+                (other) =>
+                  !!(back.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING),
+              ),
           };
         });
       });
     await expect.poll(async () => (await read()).some((m) => m.crosses)).toBe(true);
     for (const m of await read())
-      expect(m).toMatchObject({ covered: true, panel: true, above: true });
+      expect(m).toMatchObject({ covered: true, panel: true, overT: true, underCircles: true });
   });
 
   test('a milestone deadline with a time sits at that time inside its busy day', async ({
