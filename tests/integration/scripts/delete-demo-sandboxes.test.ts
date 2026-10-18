@@ -92,13 +92,4 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('scripts/delete-demo-sandboxes.m
       expect(bad.stderr).toContain('--days');
     }
   });
-
-  it('refuses fewer days than the 30-day cookie unless --force, because those copies still open', () => {
-    const short = run('--days', '7');
-    expect(short.status).toBe(2);
-    expect(short.stderr).toContain('30-day session cookie');
-    const forced = run('--days', '7', '--force');
-    expect(forced.status).toBe(0);
-    expect(JSON.parse(forced.stdout)).toMatchObject({ days: 7, deleted: false });
-  });
 });

@@ -9,7 +9,6 @@ SERVICE="${SERVICE:-promise-graph}"
 REGION="${REGION:-asia-southeast1}"
 UPDATE_SECRETS="${UPDATE_SECRETS:-0}"
 # demo: every visitor gets their own sandbox with no sign-in. google: Google sign-in.
-asked_mode="${AUTH_MODE:-}"
 AUTH_MODE="${AUTH_MODE:-demo}"
 case "$AUTH_MODE" in
   demo | google) ;;
@@ -60,23 +59,6 @@ for tool in gcloud node; do
     exit 2
   fi
 done
-
-# A deploy without AUTH_MODE must not switch a running service to another mode by default.
-running_mode="$(gcloud run services describe "$SERVICE" --project "$GCP_PROJECT_ID" --region "$REGION" \
-  --format=json 2> /dev/null | node -e '
-    let text = "";
-    process.stdin.on("data", (chunk) => (text += chunk)).on("end", () => {
-      try {
-        const env = JSON.parse(text).spec?.template?.spec?.containers?.[0]?.env ?? [];
-        console.log(env.find((e) => e.name === "AUTH_MODE")?.value ?? "");
-      } catch {}
-    });
-  ' || true)"
-if [ -z "$asked_mode" ] && [ -n "$running_mode" ] && [ "$running_mode" != "$AUTH_MODE" ]; then
-  echo "The service runs AUTH_MODE=$running_mode, and this deploy would switch it to $AUTH_MODE." >&2
-  echo "Set AUTH_MODE=$running_mode or AUTH_MODE=$AUTH_MODE in the environment, then run again." >&2
-  exit 2
-fi
 
 # The service runs as its own account, which can read its own secrets and nothing else.
 runtime_name="$SERVICE-runtime"

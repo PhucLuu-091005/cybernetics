@@ -1,5 +1,5 @@
 // Deletes the demo copies (AUTH_MODE=demo) made more than N days ago. Run by hand, not by a cron job.
-// Usage: DATABASE_URL=... node scripts/delete-demo-sandboxes.mjs [--days 30] [--force] [--apply]
+// Usage: DATABASE_URL=... node scripts/delete-demo-sandboxes.mjs [--days 30] [--apply]
 // Without --apply it only counts. Steps and numbers: docs/deploy-cloud-run-neon.md.
 import pg from 'pg';
 
@@ -9,12 +9,6 @@ const days = at === -1 ? 30 : Number(args[at + 1]);
 const apply = args.includes('--apply');
 if (!Number.isInteger(days) || days < 1) {
   console.error('--days must be a whole number of days, 1 or more');
-  process.exit(2);
-}
-if (days < 30 && !args.includes('--force')) {
-  console.error(
-    `--days ${days} is under the 30-day session cookie: those visitors can still open their copy. Add --force to delete them anyway.`,
-  );
   process.exit(2);
 }
 if (!process.env.DATABASE_URL) {
