@@ -1491,6 +1491,72 @@ test.describe('row height and collapsible teams', () => {
     ).toContainText('Meeting');
   });
 
+  test('a cancelled source hands nothing over, and the kind pop stays open for a Handoff', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    await signIn(page, 'tracker-cancel-source');
+    await actAs(page, 'Lan Phạm');
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
+    await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/changes\/5$/);
+    const bar = page.locator('.bbar').first();
+    const mark = page.locator('svg.pg [data-handoff="pg203"]');
+    const receiverWait = page.locator('svg.pg text', { hasText: /^(Waiting for|PG-203 was)/ });
+    await expect(mark).toHaveAttribute(
+      'aria-label',
+      'Hands over to Digitization QA when done · received in Test the CRS section end to end',
+    );
+    await expect(receiverWait).toHaveText('Waiting for PG-203');
+
+    await test.step('cancel PG-203: its mark says cancelled and the receiver says so', async () => {
+      await page.getByRole('combobox', { name: 'Search work items' }).fill('PG-203');
+      await page.keyboard.press('Enter');
+      const drawer = page.locator('.drawer');
+      await drawer.getByRole('button', { name: 'Cancel work item' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Cancel this work item' });
+      await dialog
+        .getByLabel('Why is it cancelled? (required)')
+        .fill('The client keeps the free text field.');
+      await dialog.getByRole('button', { name: 'Cancel work item' }).click();
+      await expect(dialog).toHaveCount(0);
+      await page.keyboard.press('Escape');
+      await expect(mark).toHaveAttribute(
+        'aria-label',
+        'Cancelled · Test the CRS section end to end no longer gets it from here',
+      );
+      await expect(receiverWait).toHaveText('PG-203 was cancelled');
+      await expect(bar).toContainText('1 change');
+    });
+
+    await test.step('picking Handoff keeps the kind pop open, and the tick replaces that change', async () => {
+      await page.locator('svg.pg [data-act="p31"]').click();
+      const pop = page.locator('.pop');
+      await pop.getByRole('button', { name: 'Change kind' }).click();
+      await expect(pop.getByText('What kind of event is it?')).toBeVisible();
+      const box = pop.getByLabel('This finishes the work item');
+      await expect(box).toHaveCount(0);
+      await pop.getByRole('button', { name: 'Handoff', exact: true }).click();
+      await expect(bar).toContainText('2 changes');
+      await expect(pop.getByRole('button', { name: 'Handoff', exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      await expect(box).not.toBeChecked();
+      await box.check();
+      await expect(box).toBeChecked();
+      await expect(pop.getByText('What kind of event is it?')).toBeVisible();
+      await expect(bar).toContainText('2 changes');
+      await page
+        .locator('.cr-side')
+        .getByRole('button', { name: /^Changes/ })
+        .click();
+      await expect(page.getByRole('list', { name: 'Changes' })).toContainText(
+        'Handoff, finishes the work item',
+      );
+    });
+  });
+
   test('Cancelled and a finishing Handoff end a work item, and the details hint at a missing start', async ({
     page,
   }) => {
@@ -1539,7 +1605,7 @@ test.describe('row height and collapsible teams', () => {
       await expect(hint).toHaveText(
         'This work item starts with a Delivery. Add the event that started it, such as a Message, an Idea or a Task.',
       );
-      await expect(page.locator('svg.pg')).not.toContainText('starts with');
+      await expect(page.getByText(/This work item starts with/)).toHaveCount(1);
       await page.keyboard.press('Escape');
       await expect(drawer).toHaveCount(0);
       await expect(page.getByText(/This work item starts with/)).toHaveCount(0);

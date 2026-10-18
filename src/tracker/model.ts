@@ -25,6 +25,14 @@ export const KIND_LABEL: Record<EventKind, string> = {
   cancelled: 'Cancelled',
 };
 
+export const FINISHES_NOTE = 'finishes the work item';
+
+export const isFinishingHandoff = (e: { kind: EventKind; finishes?: boolean }) =>
+  e.kind === 'handoff' && e.finishes === true;
+
+export const kindText = (e: { kind: EventKind; finishes?: boolean }) =>
+  isFinishingHandoff(e) ? `${KIND_LABEL[e.kind]}, ${FINISHES_NOTE}` : KIND_LABEL[e.kind];
+
 /** Guidance for the kind picker only: any kind can sit anywhere on a work item. */
 export const KIND_GROUPS: ReadonlyArray<{ label: string; kinds: readonly EventKind[] }> = [
   { label: 'Start', kinds: ['idea', 'message', 'issue'] },

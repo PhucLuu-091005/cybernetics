@@ -986,6 +986,7 @@ describe('layoutTracker: handoff marks and chips', () => {
       dir: 'down',
       tone: 'proceed',
       wait: false,
+      cancelled: false,
       ariaLabel: `3 handoffs from Analyse the CRS and FATCA rules: ${lines.join('; ')}`,
       tooltip: lines.join('\n'),
     });

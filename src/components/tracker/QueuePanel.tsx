@@ -1,6 +1,12 @@
 'use client';
 import { useState, type KeyboardEvent } from 'react';
-import { formatDeadline, formatStamp, KIND_LABEL, type TrackerState } from '../../tracker';
+import {
+  formatDeadline,
+  formatStamp,
+  KIND_LABEL,
+  kindText,
+  type TrackerState,
+} from '../../tracker';
 import { Avatar, type Directory } from './avatar';
 import { trunc } from './ContextBar';
 import { Icon, KIND_COLOR, KindIcon } from './icons';
@@ -90,7 +96,7 @@ export function QueuePanel({ state, dir, tz, tab, onTab: setTab, onAdd, onEvent,
                 style={{ ['--kc' as string]: KIND_COLOR[e.kind] }}
                 role="button"
                 tabIndex={0}
-                aria-label={`${KIND_LABEL[e.kind]} by ${dir.name(e.by)}, ${formatStamp(e.at, tz)}: ${e.text}`}
+                aria-label={`${kindText(e)} by ${dir.name(e.by)}, ${formatStamp(e.at, tz)}: ${e.text}`}
                 onClick={() => onEvent(e.id)}
                 onKeyDown={activate(() => onEvent(e.id))}
               >
@@ -98,7 +104,7 @@ export function QueuePanel({ state, dir, tz, tab, onTab: setTab, onAdd, onEvent,
                   <Icon name="grip" size={14} />
                 </span>
                 <span className="qk">
-                  <KindIcon kind={e.kind} size={12} /> {KIND_LABEL[e.kind]}
+                  <KindIcon kind={e.kind} size={12} /> {kindText(e)}
                 </span>
                 <div className="qt">{e.text}</div>
                 <div className="qf">

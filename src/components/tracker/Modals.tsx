@@ -17,6 +17,7 @@ import {
   itemInfo,
   KIND_GROUPS,
   KIND_LABEL,
+  kindText,
   toInstant,
   wallTimeInstant,
   type Cr,
@@ -328,19 +329,21 @@ function Gone({ onClose }: { onClose: () => void }) {
 function EventQuote({
   text,
   kind,
+  finishes,
   by,
   at,
   session,
 }: {
   text: string;
   kind: EventKind;
+  finishes?: boolean;
   by: string;
   at: string;
   session: Session;
 }) {
   return (
     <blockquote>
-      <b>{KIND_LABEL[kind]}</b> · {session.dir.name(by)} · {formatStamp(at, session.tz)}
+      <b>{kindText({ kind, finishes })}</b> · {session.dir.name(by)} · {formatStamp(at, session.tz)}
       <br />
       {text}
     </blockquote>
@@ -405,8 +408,10 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
       </span>
       {what === 'event' ? (
         <>
-          <p className="q-label">Kind</p>
-          <KindGrid value={kind} onPick={setKind} />
+          <div className="field">
+            Kind
+            <KindGrid value={kind} onPick={setKind} />
+          </div>
           {kind === 'handoff' && <FinishesCheck checked={finishes} onChange={setFinishes} />}
           <EventText
             kind={kind}
@@ -656,8 +661,10 @@ function EventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<
         Work item
         <ItemSelect state={state} value={workItemId} onChange={setWorkItemId} />
       </label>
-      <p className="q-label">Kind</p>
-      <KindGrid value={kind} onPick={setKind} />
+      <div className="field">
+        Kind
+        <KindGrid value={kind} onPick={setKind} />
+      </div>
       {kind === 'handoff' && <FinishesCheck checked={finishes} onChange={setFinishes} />}
       <EventText kind={kind} value={text} onChange={setText} />
       <div className="grid2">

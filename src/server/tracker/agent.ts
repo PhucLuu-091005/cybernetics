@@ -5,7 +5,7 @@ import {
   itemStatus,
   mainState,
   milestoneStatus,
-  QueueEventInputSchema,
+  QueueEventFieldsSchema,
   QueueItemInputSchema,
   STATUS_LABEL,
   type Cr,
@@ -24,7 +24,7 @@ const CR_STATUSES = ['draft', 'ready', 'merged', 'closed'] as const;
 export const TrackerInputSchema = z.strictObject({ projectId: IdSchema });
 export const AddQueueEventInputSchema = z.strictObject({
   projectId: IdSchema,
-  ...QueueEventInputSchema.shape,
+  ...QueueEventFieldsSchema.shape,
 });
 export const AddQueueItemInputSchema = z.strictObject({
   projectId: IdSchema,

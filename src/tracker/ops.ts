@@ -1,6 +1,9 @@
 import type { z } from 'zod';
 import {
+  FINISHES_NOTE,
+  isFinishingHandoff,
   KIND_LABEL,
+  kindText,
   type TrackerBase,
   type TrackerEvent,
   type TrackerQueue,
@@ -80,14 +83,11 @@ function visibleEvent(s: TrackerState, id: string): TrackerEvent {
 const personName = (s: TrackerState, id: string) =>
   id === 'agent' ? 'Agent' : (s.people.find((p) => p.id === id)?.name ?? id);
 
-const eventLabel = (s: TrackerState, ev: Pick<TrackerEvent, 'kind' | 'by'>) =>
-  `${KIND_LABEL[ev.kind]} by ${personName(s, ev.by)}`;
+const eventLabel = (s: TrackerState, ev: Pick<TrackerEvent, 'kind' | 'by' | 'finishes'>) =>
+  `${KIND_LABEL[ev.kind]} by ${personName(s, ev.by)}${isFinishingHandoff(ev) ? `, ${FINISHES_NOTE}` : ''}`;
 
 const finishFlag = (e: Pick<TrackerEvent, 'kind' | 'finishes'>): { finishes?: true } =>
-  e.kind === 'handoff' && e.finishes ? { finishes: true } : {};
-
-const kindText = (e: Pick<TrackerEvent, 'kind' | 'finishes'>) =>
-  finishFlag(e).finishes ? `${KIND_LABEL[e.kind]}, finishes the work item` : KIND_LABEL[e.kind];
+  isFinishingHandoff(e) ? { finishes: true } : {};
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 

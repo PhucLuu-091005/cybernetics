@@ -316,6 +316,8 @@ export type LayoutHandoff = {
   dir: 'up' | 'down' | 'both';
   tone: Tone;
   wait: boolean;
+  /** The source was cancelled, so the receivers get nothing from it. */
+  cancelled: boolean;
   ariaLabel: string;
   tooltip: string;
 };
@@ -632,9 +634,10 @@ function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
 function itemStartMs(w: WorkItem, infos: ReadonlyMap<string, ItemInfo>, asOfIso: string): number {
   const info = infos.get(w.id)!;
   if (info.start) return Date.parse(info.start);
+  // A cancelled source delivers nothing, so its cancel never starts the receiver.
   const ends = w.after
     .map((id) => infos.get(id))
-    .flatMap((i) => (i?.finishedAt ? [Date.parse(i.finishedAt)] : []));
+    .flatMap((i) => (i?.finishedAt && !i.cancelled ? [Date.parse(i.finishedAt)] : []));
   const sourcesDone = ends.length ? Math.max(...ends) : null;
   const asOf = Date.parse(asOfIso);
   // A demo project keeps asOf in the past while the item is placed today, so since can lie after the T line.
@@ -651,12 +654,15 @@ function linesOf(c: Ctx, shown: LayoutRow[]): LayoutSegment[] {
     const info = c.infos.get(r.id)!;
     const sx = Math.max(X0, c.x(startOf(c, w)));
     if (info.start === null) {
-      const waits = w.after
-        .map((id) => c.items.get(id))
-        .filter((p): p is WorkItem => !!p && !c.infos.get(p.id)!.done);
-      const text = waits.length
-        ? `Waiting for ${waits.map((p) => p.title.split(' ')[0]).join(', ')}`
-        : 'No events yet';
+      const sources = w.after.map((id) => c.items.get(id)).filter((p): p is WorkItem => !!p);
+      const short = (list: WorkItem[]) => list.map((p) => p.title.split(' ')[0]).join(', ');
+      const waits = sources.filter((p) => !c.infos.get(p.id)!.done);
+      const gone = sources.filter((p) => c.infos.get(p.id)!.cancelled);
+      const parts = [
+        ...(waits.length ? [`Waiting for ${short(waits)}`] : []),
+        ...(gone.length ? [`${short(gone)} ${gone.length > 1 ? 'were' : 'was'} cancelled`] : []),
+      ];
+      const text = parts.length ? parts.join(' · ') : 'No events yet';
       segments.push({
         kind: 'wait',
         workItemId: w.id,
@@ -736,8 +742,9 @@ function handoffsOf(c: Ctx, groups: LayoutEventGroup[]): LayoutHandoff[] {
   return [...bySource].map(([src, list]): LayoutHandoff => {
     const source = c.items.get(src)!;
     const sr = c.rows.get(src)!;
-    const finishedAt = c.infos.get(src)!.finishedAt;
-    const handoff = handoffEventOf(c, src, groups);
+    const { finishedAt, cancelled } = c.infos.get(src)!;
+    // A cancelled source is not a delivery, even when it had a Handoff before the cancel.
+    const handoff = cancelled ? null : handoffEventOf(c, src, groups);
     const wait = !finishedAt && !handoff;
     const end = wait ? c.xt : c.x(Date.parse(finishedAt ?? c.view.asOf));
     const { r, mark, markWide } = c.level;
@@ -749,9 +756,11 @@ function handoffsOf(c: Ctx, groups: LayoutEventGroup[]): LayoutHandoff[] {
     const x = handoff ? handoff.group.x - r : after + width <= c.width - 2 ? after : before;
     const targets = list.map((w) => {
       const team = teamName.get(w.teamId)!;
-      const text = wait
-        ? `Hands over to ${team} when done · received in ${w.title}`
-        : `Handed over to ${team} · received in ${w.title}`;
+      const text = cancelled
+        ? `Cancelled · ${w.title} no longer gets it from here`
+        : wait
+          ? `Hands over to ${team} when done · received in ${w.title}`
+          : `Handed over to ${team} · received in ${w.title}`;
       return { id: w.id, teamId: w.teamId, team, title: w.title, text };
     });
     const ups = list.map((w) => below(w, source) < 0);
@@ -766,11 +775,12 @@ function handoffsOf(c: Ctx, groups: LayoutEventGroup[]): LayoutHandoff[] {
       width,
       height: handoff ? 2 * r : mark,
       dir: ups.every(Boolean) ? 'up' : ups.some(Boolean) ? 'both' : 'down',
-      tone: wait ? 'danger' : 'proceed',
+      tone: cancelled ? 'isolated' : wait ? 'danger' : 'proceed',
       wait,
+      cancelled,
       ariaLabel:
         lines.length > 1
-          ? `${lines.length} handoffs from ${source.title}: ${lines.join('; ')}`
+          ? `${cancelled ? `${source.title} was cancelled, ${lines.length} work items` : `${lines.length} handoffs from ${source.title}`}: ${lines.join('; ')}`
           : lines[0],
       tooltip: lines.join('\n'),
     };

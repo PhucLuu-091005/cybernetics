@@ -3,12 +3,14 @@ import {
   EVENT_KINDS,
   KIND_GROUPS,
   KIND_LABEL,
+  kindText,
   STATUS_LABEL,
   type Milestone,
   type TrackerEvent,
 } from '../../../src/tracker/model';
 import {
   finishesItem,
+  timeSpent,
   itemInfo,
   itemStatus,
   milestoneStatus,
@@ -18,10 +20,14 @@ import {
   AddEventArgsSchema,
   EventKindSchema,
   KindArgsSchema,
+  NewEventSchema,
+  OpSchema,
   QueueEventInputSchema,
+  QueueEventSchema,
   TrackerEventSchema,
 } from '../../../src/tracker/schemas';
-import { applyOp, replayOps } from '../../../src/tracker/ops';
+import { applyOp, replayOps, sameOp, type Op } from '../../../src/tracker/ops';
+import { clashesOf } from '../../../src/tracker/clash';
 import { layoutTracker, STATUS_TONE, type View } from '../../../src/tracker/layout';
 import { matchRows, NO_FILTER } from '../../../src/tracker/filter';
 import {
@@ -335,5 +341,213 @@ describe('layout and filters for a cancelled work item', () => {
   it('keeps the Larkspur demo free of cancelled work items', () => {
     const L = layoutTracker(larkspurState(), { ...view, windowStart: '2026-09-10' });
     expect(L.lanes.every((l) => l.summary.cancelled === 0)).toBe(true);
+  });
+});
+
+describe('fix round: finishing order and milestones', () => {
+  it('finishes at a later Done after a finishing Handoff', () => {
+    const handoff = ev('h', 'handoff', '2026-10-05T16:00', { finishes: true });
+    const done = ev('d', 'done', '2026-10-07T10:00');
+    expect(itemInfo(item, [started, handoff, done]).finishedAt).toBe(at('2026-10-07T10:00'));
+    expect(status([started, handoff, done])).toBe('flate');
+  });
+
+  it('keeps a milestone open by its live member when the other member is cancelled', () => {
+    const m: Milestone = {
+      id: 'm',
+      name: 'M',
+      planned: '2026-10-12',
+      firstPlanned: '2026-10-12',
+      moves: [],
+    };
+    const live = workItem({ id: 'live', milestoneId: 'm' });
+    const gone = workItem({ id: 'gone', milestoneId: 'm' });
+    const events = [
+      event({ id: 'l1', workItemId: 'live', at: at('2026-10-02T09:00') }),
+      event({ id: 'g1', workItemId: 'gone', kind: 'cancelled', at: at('2026-10-03T09:00') }),
+    ];
+    const r = (asOf: string) => milestoneStatus(m, [live, gone], events, asOf, TIME_ZONE);
+    expect(r(at('2026-10-09T18:00'))).toMatchObject({ status: 'planned', finishedAt: null });
+    expect(r(at('2026-10-13T09:00'))).toMatchObject({ status: 'late', finishedAt: null });
+  });
+});
+
+describe('fix round: the finishes flag is normalised at parse', () => {
+  const fields = { at: at('2026-10-01T09:00'), by: 'p', text: 'x' };
+
+  it('keeps the flag only on a finishing Handoff', () => {
+    expect(
+      QueueEventInputSchema.parse({ ...fields, kind: 'handoff', finishes: true }),
+    ).toHaveProperty('finishes', true);
+    for (const raw of [
+      { ...fields, kind: 'handoff', finishes: false },
+      { ...fields, kind: 'task', finishes: true },
+    ]) {
+      expect(QueueEventInputSchema.parse(raw)).not.toHaveProperty('finishes');
+      expect(NewEventSchema.parse({ id: 'n', ...raw })).not.toHaveProperty('finishes');
+      expect(
+        QueueEventSchema.parse({
+          id: 'q',
+          ...raw,
+          addedBy: null,
+          agent: true,
+          createdAt: fields.at,
+        }),
+      ).not.toHaveProperty('finishes');
+      expect(
+        TrackerEventSchema.parse({
+          id: 'e',
+          workItemId: 'w',
+          ...raw,
+          addedBy: null,
+          hidden: false,
+        }),
+      ).not.toHaveProperty('finishes');
+    }
+    expect(KindArgsSchema.parse({ eventId: 'e', kind: 'handoff', finishes: false })).toEqual({
+      eventId: 'e',
+      kind: 'handoff',
+    });
+    expect(KindArgsSchema.parse({ eventId: 'e', kind: 'done', finishes: true })).toEqual({
+      eventId: 'e',
+      kind: 'done',
+    });
+  });
+
+  it('makes a kind op with finishes false the same change as one without, so it never clashes', () => {
+    const parse = (a: object): Op => OpSchema.parse({ op: 'kind', a, rev: 0, by: 'minh' });
+    const off = parse({ eventId: 'p31', kind: 'handoff', finishes: false });
+    const plain = parse({ eventId: 'p31', kind: 'handoff' });
+    expect(sameOp(off, plain)).toBe(true);
+    const main = {
+      rev: 1,
+      crId: 'c',
+      crNum: 1,
+      mergedBy: 'minh',
+      mergedAt: at('2026-10-09T10:00'),
+      ops: [plain],
+      resolutions: [],
+    };
+    expect(clashesOf([off], [main])).toEqual([]);
+  });
+});
+
+describe('fix round: labels carry the finishing flag', () => {
+  const state = () =>
+    buildState({
+      people: [{ id: 'p', name: 'Lan' }],
+      workItems: [item],
+      queue: {
+        events: [
+          {
+            id: 'q',
+            kind: 'handoff',
+            at: at('2026-10-05T16:00'),
+            by: 'p',
+            text: 'Handed over.',
+            finishes: true,
+            addedBy: null,
+            agent: false,
+            createdAt: at('2026-10-05T16:00'),
+          },
+        ],
+        items: [],
+      },
+    });
+
+  it('names the kind with the note only for a finishing Handoff', () => {
+    expect(kindText({ kind: 'handoff', finishes: true })).toBe('Handoff, finishes the work item');
+    expect(kindText({ kind: 'handoff' })).toBe('Handoff');
+    expect(kindText({ kind: 'done', finishes: true })).toBe('Done');
+  });
+
+  it('names a finishing Handoff in attach and addEvent changes', () => {
+    const label = 'Handoff by Lan, finishes the work item';
+    expect(applyOp(state(), makeOp('attach', { eventId: 'q', workItemId: 'w' })).entry.item).toBe(
+      label,
+    );
+    const added = applyOp(
+      state(),
+      makeOp('addEvent', {
+        workItemId: 'w',
+        ev: {
+          id: 'n',
+          kind: 'handoff',
+          at: at('2026-10-05T16:00'),
+          by: 'p',
+          text: 'x',
+          finishes: true,
+        },
+      }),
+    );
+    expect(added.entry.item).toBe(label);
+  });
+});
+
+describe('fix round: time spent', () => {
+  it('shows hours only under a day, and hours with days from a day on', () => {
+    const from = at('2026-10-01T09:00');
+    const after = (minutes: number) => new Date(Date.parse(from) + minutes * 60_000).toISOString();
+    expect(timeSpent(from, from)).toBe('0 h');
+    expect(timeSpent(from, after(60))).toBe('1 h');
+    expect(timeSpent(from, after(23 * 60 + 20))).toBe('23 h');
+    expect(timeSpent(from, after(23 * 60 + 54))).toBe('24 h (1.0 days)');
+    expect(timeSpent(from, after(36 * 60))).toBe('36 h (1.5 days)');
+  });
+});
+
+describe('fix round: a cancelled source hands nothing over', () => {
+  const view: View = {
+    hiddenRows: new Set(),
+    hiddenTeams: new Set(),
+    asOf: at('2026-10-09T18:00'),
+    timeZone: TIME_ZONE,
+    windowStart: '2026-09-10',
+    windowEnd: '2026-10-17',
+  };
+  const cancelled = () => {
+    const s = larkspurState();
+    s.events.push(
+      event({
+        id: 'cancel203',
+        workItemId: 'pg203',
+        kind: 'cancelled',
+        at: at('2026-10-08T10:00'),
+        text: 'The field stays free text.',
+      }),
+    );
+    return s;
+  };
+
+  it('marks a cancelled source as cancelled, in the neutral tone, with no handoff', () => {
+    const before = layoutTracker(larkspurState(), view).handoffs.find((h) => h.fromId === 'pg203')!;
+    expect(before).toMatchObject({ cancelled: false, wait: true });
+    const L = layoutTracker(cancelled(), view);
+    const h = L.handoffs.find((x) => x.fromId === 'pg203')!;
+    expect(h).toMatchObject({
+      cancelled: true,
+      wait: false,
+      tone: 'isolated',
+      eventId: null,
+      tooltip: 'Cancelled · Test the CRS section end to end no longer gets it from here',
+    });
+    expect(h.x).toBeGreaterThan(L.x(Date.parse(at('2026-10-08T10:00'))));
+  });
+
+  it('tells the receiver that its source was cancelled', () => {
+    const wait = (s: ReturnType<typeof larkspurState>) =>
+      layoutTracker(s, view).segments.find((x) => x.workItemId === 'test' && x.kind === 'wait');
+    expect(wait(larkspurState())).toMatchObject({ text: 'Waiting for PG-203' });
+    expect(wait(cancelled())).toMatchObject({ text: 'PG-203 was cancelled' });
+  });
+
+  it('does not start the empty receiver at the cancel', () => {
+    const L = layoutTracker(cancelled(), view);
+    const seg = L.segments.find((x) => x.workItemId === 'test')!;
+    const pg202 = itemInfo(
+      larkspurState().workItems.find((w) => w.id === 'pg202')!,
+      larkspurState().events,
+    ).finishedAt!;
+    expect(seg.x1).toBeCloseTo(L.x(Date.parse(pg202)), 6);
   });
 });

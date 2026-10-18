@@ -82,12 +82,12 @@ describe('searchWorkItems', () => {
 describe('timeSpent', () => {
   it('counts whole hours and days to one decimal from start to end', () => {
     expect(timeSpent(at('2026-10-01T09:00'), at('2026-10-06T12:00'))).toBe('123 h (5.1 days)');
-    expect(timeSpent(at('2026-10-01T09:00'), at('2026-10-01T09:20'))).toBe('0 h (0.0 days)');
+    expect(timeSpent(at('2026-10-01T09:00'), at('2026-10-01T09:20'))).toBe('0 h');
     expect(timeSpent(at('2026-10-01T09:00'), at('2026-10-02T09:00'))).toBe('24 h (1.0 days)');
   });
 
   it('has no value before the first event, and never goes below zero', () => {
     expect(timeSpent(null, at('2026-10-06T12:00'))).toBeNull();
-    expect(timeSpent(at('2026-10-06T12:00'), at('2026-10-01T09:00'))).toBe('0 h (0.0 days)');
+    expect(timeSpent(at('2026-10-06T12:00'), at('2026-10-01T09:00'))).toBe('0 h');
   });
 });

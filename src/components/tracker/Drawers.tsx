@@ -14,6 +14,8 @@ import {
   formatDay,
   formatDeadline,
   formatStamp,
+  FINISHES_NOTE,
+  isFinishingHandoff,
   itemInfo,
   itemStatus,
   KIND_LABEL,
@@ -773,7 +775,7 @@ export function WorkItemDrawer({
                 </b>
                 <small>
                   {formatStamp(ev.at, tz)}
-                  {ev.kind === 'handoff' && ev.finishes && ' · finishes the work item'}
+                  {isFinishingHandoff(ev) && ` · ${FINISHES_NOTE}`}
                   {ev.hidden && <span className="chipx"> hidden</span>}
                 </small>
                 <span>{ev.text}</span>
