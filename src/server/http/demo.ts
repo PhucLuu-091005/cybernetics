@@ -1,16 +1,15 @@
 import { randomUUID } from 'node:crypto';
-import { isIP, isIPv4 } from 'node:net';
+import { isIP } from 'node:net';
 import type { AuthEnvironment } from '../env';
 import { AppError } from '../errors';
 import type { HttpIdentityStore } from './identity-store';
 import { assertRequestOrigin } from './origin';
-import type { MemoryRateLimiter } from './rate-limit';
+import type { RateLimiter } from './rate-limit';
 import { returnPath } from './return-path';
 import { DEMO_SESSION_TTL_MS, readSession, sessionCookie, signSession } from './session';
 
 export const DEMO_ENTRY = '/api/auth/demo';
-// One abuser behind one address hits the per-address limit long before the cap for all.
-export const DEMO_LIMITS = { perAddress: 20, perHour: 300 };
+export const DEMO_PER_ADDRESS_PER_HOUR = 30;
 const HOUR = 3_600_000;
 const BOT =
   /bot|crawler|spider|preview|slackbot|facebookexternalhit|whatsapp|telegrambot|discordbot|curl/i;
@@ -18,8 +17,7 @@ const BOT =
 export type DemoDeps = {
   env: AuthEnvironment;
   store: HttpIdentityStore;
-  limiter: Pick<MemoryRateLimiter, 'consumeAll'>;
-  limits?: typeof DEMO_LIMITS;
+  limiter: RateLimiter;
 };
 export type DemoAnswer = { location: string; cookie?: string };
 
@@ -42,33 +40,10 @@ function isPageVisit(request: Request): boolean {
   );
 }
 
-function slash64(address: string): string {
-  const [head, tail = ''] = address.split('::');
-  const left = head ? head.split(':') : [];
-  const right = tail ? tail.split(':') : [];
-  const groups = address.includes('::')
-    ? [...left, ...Array(8 - left.length - right.length).fill('0'), ...right]
-    : left;
-  return `${groups
-    .slice(0, 4)
-    .map((g) => parseInt(g, 16).toString(16))
-    .join(':')}::/64`;
-}
-
-/**
- * Cloud Run's front end appends the real client address as the last X-Forwarded-For value; the
- * values before it come from the client. TRUSTED_PROXY_HOPS counts more proxies of our own after it.
- */
-export function clientAddress(
-  request: Request,
-  hops = Number(process.env.TRUSTED_PROXY_HOPS) || 0,
-): string {
-  const values = (request.headers.get('x-forwarded-for') ?? '').split(',').map((v) => v.trim());
-  const value = values.length - 1 - hops >= 0 ? values[values.length - 1 - hops] : '';
-  const v4 = value.slice(value.lastIndexOf(':') + 1);
-  if (value.includes('.') && isIPv4(v4)) return v4;
-  if (isIP(value) === 6) return slash64(value.toLowerCase());
-  return 'unknown';
+/** Cloud Run's front end appends the real client address last; the values before it come from the client. */
+export function clientAddress(request: Request): string {
+  const last = request.headers.get('x-forwarded-for')?.split(',').at(-1)?.trim() ?? '';
+  return isIP(last) ? last : 'unknown';
 }
 
 async function hasSession(request: Request, { env, store }: DemoDeps): Promise<boolean> {
@@ -81,24 +56,20 @@ async function hasSession(request: Request, { env, store }: DemoDeps): Promise<b
 }
 
 async function newSandbox(request: Request, deps: DemoDeps, next: string): Promise<DemoAnswer> {
-  const { env, store, limiter, limits = DEMO_LIMITS } = deps;
+  const { env, store, limiter } = deps;
   const now = Date.now();
-  const address = clientAddress(request);
-  const full = limiter.consumeAll(
-    [
-      { key: 'demo:all', limit: limits.perHour },
-      { key: `demo:${address}`, limit: limits.perAddress },
-    ],
-    now,
-    HOUR,
-  );
-  if (full) return { location: `/welcome?reason=${full === 'demo:all' ? 'full' : 'busy'}` };
+  try {
+    limiter.consume(`demo:${clientAddress(request)}`, DEMO_PER_ADDRESS_PER_HOUR, now, HOUR);
+  } catch (error) {
+    if (error instanceof AppError && error.code === 'RATE_LIMITED')
+      return { location: '/welcome?reason=busy' };
+    throw error;
+  }
   const { userId } = await store.provisionUser({
     subject: `demo:${randomUUID()}`,
     email: null,
     name: 'Demo visitor',
   });
-  console.log(JSON.stringify({ event: 'demo_sandbox', address }));
   const cookie = sessionCookie(
     signSession({ userId, expiresAt: now + DEMO_SESSION_TTL_MS }, env.sessionSecret),
     env,

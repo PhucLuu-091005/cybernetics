@@ -14,12 +14,7 @@ export const metadata: Metadata = {
 const REFUSED: Record<string, { title: string; text: string; retry: boolean }> = {
   busy: {
     title: 'Too many new demo copies',
-    text: 'Your network opened many new demo copies in the last hour. Try again later.',
-    retry: false,
-  },
-  full: {
-    title: 'Too many new demo copies',
-    text: 'The demo made many new copies in the last hour. Try again later.',
+    text: 'This network opened many new demo copies in the last hour. Try again later.',
     retry: false,
   },
   cookies: {
