@@ -1755,13 +1755,13 @@ describe('layoutTracker: team summary rows', () => {
   const lane = (id: string, M = L) => M.lanes.find((l) => l.teamId === id)!;
   const xt = L.x(Date.parse(AS_OF));
 
-  it('counts late, not yet and done work items, and names them in the label', () => {
+  it('counts late, not yet and done work items, and names only the counts above zero', () => {
     expect(lane('engineering').summary).toMatchObject({
       count: 4,
       late: 2,
       notYet: 0,
       done: 2,
-      ariaLabel: 'Engineering, 4 work items: 2 late, 0 not yet, 2 done',
+      ariaLabel: 'Engineering, 4 work items: 2 late, 2 done',
     });
     expect(lane('implementation').summary).toMatchObject({
       count: 3,
@@ -1812,7 +1812,10 @@ describe('layoutTracker: team summary rows', () => {
   it('keeps a team with no work items open, as a drop target', () => {
     const s = buildState({ teams: [{ id: 't', name: 'Team', leadId: null }] });
     const E = layoutTracker(s, view({ collapsedTeams: new Set(['t']) }));
-    expect(E.lanes[0]).toMatchObject({ collapsed: false, summary: { count: 0, bar: null } });
+    expect(E.lanes[0]).toMatchObject({
+      collapsed: false,
+      summary: { count: 0, bar: null, ariaLabel: 'Team, 0 work items' },
+    });
   });
 
   it('keeps the receivers in a collapsed team on the handoff mark, with their team', () => {
@@ -1823,6 +1826,21 @@ describe('layoutTracker: team summary rows', () => {
     expect(C.handoffs.find((h) => h.fromId === 'pg203')!.targets).toMatchObject([
       { id: 'test', team: 'Digitization QA' },
     ]);
+  });
+
+  it('flags the summary of a team that holds a change of the change request', () => {
+    const marks = { ...noMarks(), events: new Set(['p31']) };
+    const C = layoutTracker(
+      larkspurState(),
+      view({ collapsedTeams: new Set(['engineering']) }),
+      marks,
+    );
+    expect(lane('engineering', C).summary.changed).toBe(true);
+    expect(lane('engineering', C).summary.ariaLabel).toBe(
+      'Engineering, 4 work items: 2 late, 2 done, changed in this change request',
+    );
+    expect(lane('implementation', C).summary.changed).toBe(false);
+    expect(lane('engineering').summary.changed).toBe(false);
   });
 
   it('says in the chip that a source sits in a collapsed team', () => {

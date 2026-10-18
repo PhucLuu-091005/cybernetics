@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { collapsedTeams, lateTeams, teamsGivenWork } from '../../../src/tracker/teams';
+import {
+  changedTeams,
+  collapsedTeams,
+  lateTeams,
+  openTeams,
+  teamsOfOps,
+} from '../../../src/tracker/teams';
 import {
   AS_OF,
   TIME_ZONE,
@@ -79,19 +85,23 @@ describe('collapsedTeams', () => {
   });
 });
 
-describe('teamsGivenWork', () => {
-  it('names the teams that a placed, new or moved work item lands in', () => {
+describe('teamsOfOps', () => {
+  const state = larkspurState();
+
+  it('names the team of every work item an op targets, or the team it lands in', () => {
     expect(
-      teamsGivenWork([
-        { op: 'place', a: { itemId: 'q1', teamId: 'qa' } },
-        { op: 'team', a: { workItemId: 'w1', teamId: 'it' } },
-        { op: 'rename', a: { workItemId: 'w1', title: 'New' } },
+      teamsOfOps(state, [
+        { op: 'place', a: { itemId: 'q1', teamId: 'digitization-qa' } },
+        { op: 'team', a: { workItemId: 'pg203', teamId: 'it' } },
+        { op: 'attach', a: { eventId: 'q-ev', workItemId: 'golive' } },
+        { op: 'move', a: { eventId: 'p31', to: 'analyse' } },
+        { op: 'rename', a: { workItemId: 'incident', title: 'New' } },
         {
           op: 'fromEvent',
           a: {
             id: 'w2',
             eventId: 'e1',
-            teamId: 'qa',
+            teamId: 'digitization-qa',
             title: 'T',
             doneBy: 'p',
             requestedBy: 'p',
@@ -100,6 +110,76 @@ describe('teamsGivenWork', () => {
           },
         },
       ]),
-    ).toEqual(['qa', 'it']);
+    ).toEqual(['digitization-qa', 'it', 'implementation', 'digitization', 'customer-success']);
+  });
+
+  it('takes the work item of an added event', () => {
+    const ev = { ...state.events.find((e) => e.workItemId === 'crs')!, id: 'new' };
+    expect(teamsOfOps(state, [{ op: 'addEvent', a: { workItemId: 'crs', ev } }])).toEqual([
+      'implementation',
+    ]);
+  });
+});
+
+describe('changedTeams', () => {
+  it('lists the teams that hold a changed row, event or planned finish', () => {
+    const marks = {
+      workItems: new Set(['golive']),
+      events: new Set(['p31']),
+      milestones: new Set(['golive']),
+      dates: new Set(['secret', 'ms:golive']),
+    };
+    expect([...changedTeams(larkspurState(), marks)].sort()).toEqual([
+      'engineering',
+      'implementation',
+      'it',
+    ]);
+    expect(changedTeams(larkspurState(), undefined).size).toBe(0);
+  });
+});
+
+describe('collapsedTeams with changes', () => {
+  it('opens a team with changes by default, and the toggle still wins', () => {
+    const base = { asOf: AS_OF, timeZone: TIME_ZONE, toggles: new Map(), active: false };
+    const changed = new Set(['digitization']);
+    expect(collapsedTeams(larkspurState(), { ...base, changed }).has('digitization')).toBe(false);
+    expect(
+      collapsedTeams(larkspurState(), {
+        ...base,
+        changed,
+        toggles: new Map([['digitization', false]]),
+      }).has('digitization'),
+    ).toBe(true);
+  });
+});
+
+describe('openTeams', () => {
+  const view = { asOf: AS_OF, timeZone: TIME_ZONE, toggles: new Map<string, boolean>() };
+
+  it('stores an open toggle for a collapsed team when the graph is whole', () => {
+    expect(openTeams(larkspurState(), view, ['implementation', 'engineering'], false)).toEqual({
+      toggles: new Map([['implementation', true]]),
+      active: [],
+    });
+  });
+
+  it('opens a team only for the narrowed graph, so the stored toggles come back', () => {
+    expect(openTeams(larkspurState(), view, ['implementation'], true)).toEqual({
+      toggles: null,
+      active: ['implementation'],
+    });
+  });
+
+  it('stores a team that the state does not know yet, as a new team gets its first row', () => {
+    expect(openTeams(larkspurState(), view, ['brand-new'], false).toggles).toEqual(
+      new Map([['brand-new', true]]),
+    );
+  });
+
+  it('changes nothing for a team that is open already', () => {
+    expect(openTeams(larkspurState(), view, ['engineering'], false)).toEqual({
+      toggles: null,
+      active: [],
+    });
   });
 });

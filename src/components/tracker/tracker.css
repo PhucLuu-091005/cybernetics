@@ -1477,6 +1477,7 @@ svg.tg .row-label {
 }
 /* A highlighter stroke painted under the text, like a marker on paper. */
 svg.tg .row-label.changed,
+svg.tg .sum-name.changed,
 svg.tg .ms-label.changed {
   fill: var(--change-text);
   paint-order: stroke;

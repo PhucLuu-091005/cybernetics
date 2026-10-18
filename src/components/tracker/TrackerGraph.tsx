@@ -412,13 +412,21 @@ export function TrackerGraph(props: Props) {
     const onDown = (event: PointerEvent) => {
       if (!viewRef.current?.contains(event.target as Node)) setViewMenu(false);
     };
+    // The menu closes on Esc wherever the focus is, as the screen leaves Esc to it while it is open.
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      const inside = viewRef.current?.contains(document.activeElement);
+      setViewMenu(false);
+      if (inside) viewRef.current?.querySelector<HTMLElement>('.view-btn')?.focus();
+    };
     document.addEventListener('pointerdown', onDown);
-    return () => document.removeEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [viewMenu]);
-  const closeViewMenu = () => {
-    setViewMenu(false);
-    viewRef.current?.querySelector<HTMLElement>('.view-btn')?.focus();
-  };
   // Label text measures differ by glyph, so a clip keeps a long label off the buttons.
   const clipId = `labels-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const labelEnd = X0 - (props.onFocusItem ? 54 : 36);
@@ -531,36 +539,60 @@ export function TrackerGraph(props: Props) {
         const btn = tall ? 18 : 15;
         const by = line2 - 4 - btn / 2;
         const { summary } = lane;
+        // An empty team has nothing to open or collapse, so its summary is plain text.
+        const toggles = summary.count > 0;
+        const counts = [
+          { n: summary.late, word: 'late', cls: 'late' },
+          { n: summary.notYet, word: 'not yet', cls: undefined },
+          { n: summary.done, word: 'done', cls: 'done' },
+        ].filter((p) => p.n > 0);
         return (
           <Fragment key={lane.teamId}>
-            <rect
-              className="sum-hit"
-              data-teamsum={lane.teamId}
-              x={0}
-              y={lane.top}
-              width={SIDE}
-              height={lane.head}
-              aria-expanded={!lane.collapsed}
-              {...button(summary.ariaLabel)}
+            {toggles ? (
+              <rect
+                className="sum-hit"
+                data-teamsum={lane.teamId}
+                x={0}
+                y={lane.top}
+                width={SIDE}
+                height={lane.head}
+                aria-expanded={!lane.collapsed}
+                {...button(summary.ariaLabel)}
+              >
+                <title>{`${summary.ariaLabel}. ${lane.collapsed ? 'Expand' : 'Collapse'} the team`}</title>
+              </rect>
+            ) : null}
+            {toggles && (
+              <g
+                className="sum-chev"
+                transform={lane.collapsed ? `rotate(-90 14 ${line1 - 4})` : undefined}
+              >
+                <SvgIcon name="chev" x={14} y={line1 - 4} size={12} />
+              </g>
+            )}
+            <text
+              className={cls(
+                'lane-name',
+                'sum-name',
+                lane.collapsed && summary.changed && 'changed',
+              )}
+              x={24}
+              y={line1}
             >
-              <title>{`${summary.ariaLabel}. ${lane.collapsed ? 'Expand' : 'Collapse'} the team`}</title>
-            </rect>
-            <g
-              className="sum-chev"
-              transform={lane.collapsed ? `rotate(-90 14 ${line1 - 4})` : undefined}
-            >
-              <SvgIcon name="chev" x={14} y={line1 - 4} size={12} />
-            </g>
-            <text className="lane-name sum-name" x={24} y={line1}>
               {lane.label}
               <tspan className="sum-count"> · {summary.count}</tspan>
               {lane.label !== lane.name.toUpperCase() && <title>{lane.name}</title>}
             </text>
-            <text className="sum-counts" x={24} y={line2}>
-              {summary.late > 0 && <tspan className="late">{summary.late} late · </tspan>}
-              <tspan>{summary.notYet} not yet · </tspan>
-              <tspan className="done">{summary.done} done</tspan>
-            </text>
+            {counts.length > 0 && (
+              <text className="sum-counts" x={24} y={line2}>
+                {counts.map((p, i) => (
+                  <tspan key={p.word} className={p.cls}>
+                    {i ? ' · ' : ''}
+                    {p.n} {p.word}
+                  </tspan>
+                ))}
+              </text>
+            )}
             {props.onFocusTeam && (
               <g
                 className={cls('eye', 'focus-btn', lane.focused && 'on')}
@@ -765,8 +797,14 @@ export function TrackerGraph(props: Props) {
       {bands(SIDE, L.width - SIDE)}
       {grid}
       {L.lanes.map(({ teamId, top, head, summary }) => (
-        <g key={`sum-${teamId}`} className="sum" data-teamsum={teamId}>
-          <rect className="sum-hit" x={SIDE} y={top} width={L.width - SIDE} height={head} />
+        <g
+          key={`sum-${teamId}`}
+          className="sum"
+          data-teamsum={summary.count > 0 ? teamId : undefined}
+        >
+          {summary.count > 0 && (
+            <rect className="sum-hit" x={SIDE} y={top} width={L.width - SIDE} height={head} />
+          )}
           {summary.bar && (
             <rect
               className="sum-bar"
@@ -821,6 +859,7 @@ export function TrackerGraph(props: Props) {
           <line
             key={`seg-${s.workItemId}-${i}`}
             className={cls('seg', dimCls(s.workItemId))}
+            data-line={s.workItemId}
             x1={s.x1}
             x2={s.x2}
             y1={s.y}
@@ -1029,9 +1068,9 @@ export function TrackerGraph(props: Props) {
             {h.height < MIN_HIT && (
               <rect
                 className="hand-hit"
-                x={0}
+                x={Math.min(0, (h.width - MIN_HIT) / 2)}
                 y={(h.height - MIN_HIT) / 2}
-                width={h.width}
+                width={Math.max(MIN_HIT, h.width)}
                 height={MIN_HIT}
               />
             )}
@@ -1173,17 +1212,7 @@ export function TrackerGraph(props: Props) {
               <Icon name="rows" size={14} />
             </button>
             {viewMenu && (
-              <div
-                id={viewId}
-                className="view-pop"
-                role="dialog"
-                aria-label="Row height and teams"
-                onKeyDown={(event) => {
-                  if (event.key !== 'Escape') return;
-                  event.preventDefault();
-                  closeViewMenu();
-                }}
-              >
+              <div id={viewId} className="view-pop" role="dialog" aria-label="Row height and teams">
                 <p className="q-label">Row height</p>
                 <span className="seg" role="group" aria-label="Row height">
                   {(Object.keys(DENSITY_LABEL) as Density[]).map((d) => (

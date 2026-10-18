@@ -220,6 +220,8 @@ export type LayoutTeamSummary = {
   done: number;
   bar: { x1: number; x2: number; y: number } | null;
   ticks: Array<{ x: number; tone: Tone }>;
+  /** The team holds a change of the change request on screen. */
+  changed: boolean;
   ariaLabel: string;
 };
 export type LayoutLane = {
@@ -510,11 +512,16 @@ function treeOrder(shown: WorkItem[]): Array<{ w: WorkItem; depth: number }> {
 function summaryOf(c: Ctx, name: string, shown: WorkItem[], top: number): LayoutTeamSummary {
   let late = 0;
   let done = 0;
+  let changed = false;
   let x1 = Infinity;
   let x2 = -Infinity;
   const ticks: LayoutTeamSummary['ticks'] = [];
   for (const w of shown) {
     const info = c.infos.get(w.id)!;
+    changed ||=
+      !!c.marks?.workItems.has(w.id) ||
+      !!c.marks?.dates.has(w.id) ||
+      info.events.some((e) => c.marks?.events.has(e.id));
     if (info.done) done += 1;
     else if (itemStatus(w, c.eventsOf(w.id), c.view.asOf, c.tz) === 'late') late += 1;
     x1 = Math.min(x1, c.x(startOf(c, w)));
@@ -531,7 +538,12 @@ function summaryOf(c: Ctx, name: string, shown: WorkItem[], top: number): Layout
   }
   const notYet = shown.length - late - done;
   const count = shown.length;
-  const parts = [...(late ? [`${late} late`] : []), `${notYet} not yet`, `${done} done`];
+  const parts = [
+    ...(late ? [`${late} late`] : []),
+    ...(notYet ? [`${notYet} not yet`] : []),
+    ...(done ? [`${done} done`] : []),
+    ...(changed ? ['changed in this change request'] : []),
+  ];
   return {
     count,
     late,
@@ -541,7 +553,8 @@ function summaryOf(c: Ctx, name: string, shown: WorkItem[], top: number): Layout
       ? { x1: Math.max(X0, x1), x2: Math.min(c.x1, Math.max(x1, x2)), y: top + c.level.head / 2 }
       : null,
     ticks,
-    ariaLabel: `${name}, ${count} work item${count === 1 ? '' : 's'}: ${parts.join(', ')}`,
+    changed,
+    ariaLabel: `${name}, ${count} work item${count === 1 ? '' : 's'}${parts.length ? `: ${parts.join(', ')}` : ''}`,
   };
 }
 

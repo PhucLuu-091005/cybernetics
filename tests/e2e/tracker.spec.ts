@@ -793,11 +793,12 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
   test('a click on a row opens its details, and an event brief leads to its work item', async ({
     page,
   }) => {
-    await signIn(page, 'tracker-click');
+    // This walk runs on the shipped view: Compact rows, and teams without late work collapsed.
+    await signIn(page, 'tracker-click', { classic: false });
     const drawer = page.locator('.drawer');
     const pop = page.locator('.pop');
 
-    await page.locator('svg.pg [data-loop="pg203"]').click({ position: { x: 40, y: 15 } });
+    await page.locator('svg.pg [data-loop="pg203"]').click({ position: { x: 40, y: 9 } });
     await expect(drawer.locator('h4')).toHaveText('PG-203 Country list field type');
     await expect(pop).toHaveCount(0);
     await expect(page.locator('svg.pg .hit.sel[data-loop="pg203"]')).toHaveCount(1);
@@ -817,8 +818,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(page.locator('svg.pg [data-loop="pg203"]')).toBeFocused();
     expect(await stroke('pg203')).not.toBe('none');
 
-    await page.locator('svg.pg-side .label-hit[data-rowlabel="crs"]').click();
-    await expect(drawer.locator('h4')).toHaveText('CRS tax residency section with DealCloud sync');
+    await page.locator('svg.pg-side .label-hit[data-rowlabel="dynamics"]').click();
+    await expect(drawer.locator('h4')).toHaveText('Dynamics CRM sync scope');
     await expect(page.locator('svg.pg .hit.sel')).toHaveCount(1);
     await page.keyboard.press('Escape');
     await expect(drawer).toHaveCount(0);
@@ -1312,6 +1313,11 @@ test.describe('row height and collapsible teams', () => {
       );
       await pop.getByRole('button', { name: 'Dense' }).click();
     });
+    // Esc closes the menu also when the focus has left it.
+    await page.getByRole('button', { name: 'Row height and teams' }).click();
+    await page.getByRole('combobox', { name: 'Search work items' }).focus();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: 'Row height and teams' })).toBeHidden();
     await expect
       .poll(async () => (await rowY(page, 'syncmon')) - (await rowY(page, 'dynamics')))
       .toBe(12);
@@ -1359,19 +1365,40 @@ test.describe('row height and collapsible teams', () => {
     await expect(page.locator('svg.pg [data-loop]')).toHaveCount(14);
   });
 
-  test('a search pick, a filter and a handoff pick open a collapsed team', async ({ page }) => {
+  test('search, the filter panel, a search pick and a handoff pick open a collapsed team', async ({
+    page,
+  }) => {
     await signIn(page, 'tracker-collapse-pick', { classic: false });
     const side = page.locator('svg.pg-side');
     const qa = side.getByRole('button', { name: /^Digitization QA, 1 work item/ });
+    const testRow = page.locator('svg.pg [data-loop="test"]');
     await expect(qa).toHaveAttribute('aria-expanded', 'false');
 
     // While the search text narrows the graph, every team with a match shows open.
     const search = page.getByRole('combobox', { name: 'Search work items' });
     await search.fill('Test the CRS');
-    await expect(page.locator('svg.pg [data-loop="test"]')).toHaveCount(1);
+    await expect(testRow).toHaveCount(1);
     await search.fill('');
-    await expect(page.locator('svg.pg [data-loop="test"]')).toHaveCount(0);
+    await expect(testRow).toHaveCount(0);
 
+    // A filter from the panel opens the team too, and a pick inside it stores nothing.
+    await page.locator('.tfilter-btn').click();
+    const panel = page.getByRole('group', { name: 'Filter the graph' });
+    await panel.locator('.fchip', { hasText: /^Digitization QA$/ }).click();
+    await expect(testRow).toHaveCount(1);
+    await expect(qa).toHaveAttribute('aria-expanded', 'true');
+    await page.keyboard.press('Escape');
+    await search.fill('Test the CRS');
+    await page.getByRole('option').first().click();
+    await expect(page.locator('.drawer h4')).toHaveText('Test the CRS section end to end');
+    await page.keyboard.press('Escape');
+    await page.locator('.tfilter-btn').click();
+    await page.getByRole('button', { name: 'Clear filters' }).click();
+    await page.keyboard.press('Escape');
+    await expect(qa).toHaveAttribute('aria-expanded', 'false');
+    await expect(testRow).toHaveCount(0);
+
+    // On the whole graph a pick opens the team and keeps it open.
     await search.fill('Go-live date');
     await page.getByRole('option').first().click();
     await expect(page.locator('.drawer h4')).toHaveText('Go-live date');
@@ -1385,21 +1412,78 @@ test.describe('row height and collapsible teams', () => {
     await mark.focus();
     await page.keyboard.press('Enter');
     await expect(qa).toHaveAttribute('aria-expanded', 'true');
-    await expect(page.locator('svg.pg [data-loop="test"]')).toHaveCount(1);
+    await expect(testRow).toHaveCount(1);
   });
 
-  test('an event on the graph takes the colour of its kind, and the line keeps its status', async ({
+  test('a details link and a milestone member open a collapsed team', async ({ page }) => {
+    await signIn(page, 'tracker-collapse-links', { classic: false });
+    const side = page.locator('svg.pg-side');
+    const drawer = page.locator('.drawer');
+    const qa = side.getByRole('button', { name: /^Digitization QA, 1 work item/ });
+    const implementation = side.getByRole('button', { name: /^Implementation, 3 work items/ });
+    await expect(qa).toHaveAttribute('aria-expanded', 'false');
+    await expect(implementation).toHaveAttribute('aria-expanded', 'false');
+
+    await page.locator('svg.pg [data-loop="pg203"]').click({ position: { x: 40, y: 9 } });
+    await expect(drawer.locator('h4')).toHaveText('PG-203 Country list field type');
+    await drawer.getByRole('button', { name: 'Test the CRS section end to end' }).click();
+    await expect(drawer.locator('h4')).toHaveText('Test the CRS section end to end');
+    await expect(qa).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('svg.pg [data-loop="test"]')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+
+    await page.locator('svg.tg [data-ms="golive"] .ms-hit').dispatchEvent('click');
+    await expect(drawer.locator('h4')).toContainText('Go-live and first close');
+    await drawer.getByRole('button', { name: 'Go-live date' }).click();
+    await expect(drawer.locator('h4')).toHaveText('Go-live date');
+    await expect(implementation).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('svg.pg [data-loop="golive"]')).toHaveCount(1);
+  });
+
+  test('an event added to a work item of a collapsed team opens that team', async ({ page }) => {
+    const { graph } = await signIn(page, 'tracker-collapse-attach', { classic: false });
+    await page.goto(crPath(graph, 4));
+    await hydrated(page);
+    await actAs(page, 'Hà Đỗ');
+    const implementation = page
+      .locator('svg.pg-side')
+      .getByRole('button', { name: /^Implementation, 3 work items/ });
+    await expect(implementation).toHaveAttribute('aria-expanded', 'false');
+
+    await page
+      .locator('.cr-side')
+      .getByRole('button', { name: /^Queue/ })
+      .click();
+    const card = page.locator('[data-qevent]').first();
+    const eventId = await card.getAttribute('data-qevent');
+    await card.click();
+    const dialog = page.getByRole('dialog', { name: 'Add this event to a work item' });
+    await dialog.getByLabel('Work item').selectOption({ label: 'Go-live date' });
+    await dialog.getByRole('button', { name: 'Add to work item' }).click();
+
+    await expect(implementation).toHaveAttribute('aria-expanded', 'true');
+    await expect(
+      page.locator(
+        `svg.pg [data-in="golive"][data-act="${eventId}"], svg.pg [data-in="golive"][data-stack*="${eventId}"]`,
+      ),
+    ).toHaveCount(1);
+  });
+
+  test('an event takes the colour of its kind while its row line keeps the status colour', async ({
     page,
   }) => {
     await signIn(page, 'tracker-kinds', { classic: false });
-    const task = page.locator('svg.pg [data-act="p31"] circle.bg');
-    await expect(task).toHaveCSS('stroke', 'rgb(96, 100, 108)');
-    await expect(page.locator('svg.pg [data-act="p31"] g[style]').last()).toHaveCSS(
-      'color',
+    // PG-203 is open, so its line starts in the Not finished blue; p31 on it is a Task.
+    await expect(page.locator('svg.pg [data-line="pg203"]').first()).toHaveCSS(
+      'stroke',
+      'rgb(0, 144, 255)',
+    );
+    await expect(page.locator('svg.pg [data-act="p31"] circle.bg')).toHaveCSS(
+      'stroke',
       'rgb(96, 100, 108)',
     );
-    await expect(page.locator('svg.pg line.seg').first()).not.toHaveCSS(
-      'stroke',
+    await expect(page.locator('svg.pg [data-act="p31"] g[style]').last()).toHaveCSS(
+      'color',
       'rgb(96, 100, 108)',
     );
     await expect(
