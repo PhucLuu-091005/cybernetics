@@ -17,3 +17,27 @@ export function newTeamOp(
   if (taken) return { ok: false, message: `${taken.name} is already a team.` };
   return { ok: true, op: { op: 'addTeam', a: { id: team.id, name, leadId: null } } };
 }
+
+export function focusAction(name: string, focused: boolean): { text: string; label: string } {
+  const text = focused ? 'Leave focus' : 'Focus';
+  return { text, label: `${text} on ${name}` };
+}
+
+export type TeamAction = 'collapse' | 'focus' | 'hide';
+
+/** On a phone the pinned name column has no room for the row buttons, so a menu holds them. */
+export function teamMenuItems(team: {
+  name: string;
+  count: number;
+  collapsed: boolean;
+  focused: boolean;
+}): { action: TeamAction; text: string; label: string }[] {
+  const toggle = team.collapsed ? 'Expand' : 'Collapse';
+  return [
+    ...(team.count > 0
+      ? [{ action: 'collapse' as const, text: toggle, label: `${toggle} ${team.name}` }]
+      : []),
+    { action: 'focus', ...focusAction(team.name, team.focused) },
+    { action: 'hide', text: 'Hide', label: `Hide ${team.name}` },
+  ];
+}

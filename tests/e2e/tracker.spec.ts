@@ -473,6 +473,29 @@ test.describe('the top bar', () => {
 test.describe('milestone deadlines, hiding and the time zoom', () => {
   test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
 
+  test('the details panel has Focus beside Hide on a wide screen too', async ({ page }) => {
+    await signIn(page, 'tracker-drawer-focus', { classic: false });
+    const drawer = page.locator('.drawer');
+    await page.locator('svg.pg-side .label-hit[data-rowlabel="pg203"]').click();
+    const focus = drawer.getByRole('button', { name: 'Focus on PG-203 Country list field type' });
+    const hide = drawer.getByRole('button', {
+      name: 'Hide from the graph: PG-203 Country list field type',
+    });
+    await expect(focus).toBeVisible();
+    await expect(hide).toBeVisible();
+    const [f, h] = [(await focus.boundingBox())!, (await hide.boundingBox())!];
+    expect(Math.abs(f.y - h.y)).toBeLessThan(2);
+    await focus.click();
+    await expect(
+      page.getByRole('complementary', { name: 'Focus on PG-203 Country list field type' }),
+    ).toBeVisible();
+    await expect(
+      page
+        .locator('svg.pg-side')
+        .getByRole('button', { name: 'Focus on PG-203 Country list field type' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+  });
+
   test('marks the milestone deadline on every member row and opens the milestone from it', async ({
     page,
   }) => {
@@ -1135,6 +1158,11 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await page.locator('.zoombar').getByRole('button', { name: 'Zoom in' }).focus();
       await expect(menu).toHaveCount(0);
       await mark.click();
+      await expect(menu).toBeVisible();
+      // A second click on the open mark closes its list and does not open it again.
+      await mark.click();
+      await expect(menu).toHaveCount(0);
+      await mark.click();
       await menu.getByRole('menuitem', { name: /PG-203 Country list field type/ }).click();
       await expect(menu).toHaveCount(0);
       await expect(row('pg203')).toHaveCount(1);
@@ -1439,6 +1467,91 @@ test.describe('the tracker at phone width', () => {
     expect(
       await page.locator('.gscroll').evaluate((el) => el.scrollWidth - el.clientWidth),
     ).toBeLessThanOrEqual(0);
+    await noHorizontalScroll(page);
+  });
+
+  test('the details panel focuses a work item, and a tap on a team name opens its Focus and Hide menu', async ({
+    page,
+  }) => {
+    await page.goto('/signin?label=tracker-phone-focus');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    const side = page.locator('.gscroll svg.pg-side');
+    await expect(side).toHaveAttribute('viewBox', /^0 64 128 /);
+    const rows = page.locator('svg.pg [data-loop]');
+    const drawer = page.locator('.drawer');
+    await expect(rows.first()).toBeVisible();
+    const all = await rows.count();
+
+    await side.locator('.label-hit[data-rowlabel="pg203"]').click();
+    await expect(drawer.locator('h4')).toHaveText('PG-203 Country list field type');
+    await expect(
+      drawer.getByRole('button', { name: 'Hide from the graph: PG-203 Country list field type' }),
+    ).toBeVisible();
+    const focus = drawer.getByRole('button', { name: 'Focus on PG-203 Country list field type' });
+    await expect(focus).toHaveText('Focus');
+    await expect(focus).toHaveAttribute('aria-pressed', 'false');
+    await noHorizontalScroll(page);
+    await focus.click();
+    await expect(
+      page.getByRole('complementary', { name: 'Focus on PG-203 Country list field type' }),
+    ).toBeVisible();
+    await expect.poll(() => rows.count()).toBeLessThan(all);
+    // The focus panel covers the graph on a phone, so search opens the details again.
+    await page.getByRole('combobox', { name: 'Search work items' }).fill('PG-203');
+    await page.keyboard.press('Enter');
+    const leave = drawer.getByRole('button', {
+      name: 'Leave focus on PG-203 Country list field type',
+    });
+    await expect(leave).toHaveAttribute('aria-pressed', 'true');
+    await leave.click();
+    await expect(rows).toHaveCount(all);
+    await expect(focus).toHaveAttribute('aria-pressed', 'false');
+    await page.keyboard.press('Escape');
+    await expect(drawer).toHaveCount(0);
+
+    const team = side.getByRole('button', { name: /^Engineering, 4 work items/ });
+    await expect(team).toHaveAttribute('aria-haspopup', 'menu');
+    const menu = page.getByRole('menu', { name: 'Engineering' });
+    await team.click();
+    await expect(menu).toBeVisible();
+    await expect(team).toHaveAttribute('aria-expanded', 'true');
+    await expect(menu.getByRole('menuitem')).toHaveText(['Collapse', 'Focus', 'Hide']);
+    const box = (await menu.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(390);
+    await noHorizontalScroll(page);
+    await menu.getByRole('menuitem', { name: 'Focus on Engineering' }).click();
+    await expect(menu).toHaveCount(0);
+    const panel = page.getByRole('complementary', { name: 'Focus on Engineering' });
+    await expect(panel).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(panel).toHaveCount(0);
+    await expect(team).toBeFocused();
+    await team.click();
+    await expect(menu).toBeVisible();
+    await team.click();
+    await expect(menu).toHaveCount(0);
+    await expect(page.getByRole('complementary')).toHaveCount(0);
+    await expect(rows).toHaveCount(all);
+
+    await team.focus();
+    await page.keyboard.press('Enter');
+    await expect(menu.getByRole('menuitem', { name: 'Collapse Engineering' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(menu.getByRole('menuitem', { name: 'Focus on Engineering' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
+    await expect(team).toBeFocused();
+    await page.keyboard.press(' ');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('svg.pg [data-loop="pg203"]')).toHaveCount(0);
+    await team.click();
+    await expect(menu.getByRole('menuitem', { name: 'Expand Engineering' })).toBeVisible();
+    await menu.getByRole('menuitem', { name: 'Hide Engineering' }).click();
+    await expect(team).toHaveCount(0);
+    await expect(page.locator('.hid-menu > summary')).toContainText('1 hidden');
+    await expect(page.locator('.hid-menu > summary')).toBeFocused();
     await noHorizontalScroll(page);
   });
 
