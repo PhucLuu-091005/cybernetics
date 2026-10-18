@@ -6,12 +6,14 @@ Promise Graph exposes one project to your own AI agent (for example, Claude Code
 
 1. Open the project and go to **Settings** (`/projects/<projectId>/settings/tokens`).
 2. Enter a label and keep the default scopes: `project:read`, `records:import`, `graph:propose`.
-3. Select `graph:merge` only if you want the agent to merge, revert or restore when you tell it to. Select `escalations:write` only if the agent must save complaint analyses.
+3. Select `graph:merge` only if you want the agent to merge, revert or restore when you tell it to. The page calls it "Approve without you".
 4. Copy the secret (`inv_` followed by 43 characters). The app shows it once and stores only its SHA-256 hash.
 
 The settings page calls `POST /api/v1/projects/<projectId>/agent-tokens` with the signed-in session; a token cannot create another token.
 
 A token belongs to one project and expires after 30 days. Revoke it on the same page. A revoked or expired token fails every call with `UNAUTHENTICATED`, including a retry of an earlier call.
+
+To check the connection, ask the agent to list its tools, then press **Check again** on the page. The **Last call** column of the token shows the time of that call, or "Never". The server writes the time at most once a minute for each token.
 
 ## 2. Configure the MCP client
 
@@ -56,7 +58,9 @@ Record bodies, titles and author names come from outside the app. Quote and cite
 - Proposal results and previews omit the candidate snapshot. Page it with `get_snapshot` and `view: {"kind":"proposal","proposalId":"…","proposalRevision":N}`.
 - `get_commit`, `diff_proposal`, `preview_rebase`, `preview_revert` and `preview_restore` return a `diffSummary` in place of the full diff. It holds `total`, per-collection `counts` (`added`, `removed`, `changed`) and up to 50 `collection/id` keys in each of `added`, `removed` and `changed`. `conflicts` lists up to 50 conflicts as `{ collection, id, reason }`, and `conflictCount` gives the total. Read the entity values with `get_snapshot` on the commit or proposal view. The `digest`, revisions and `T` are complete, so a revert, restore or merge works with the previewed `digest`.
 - Every mutation needs an `idempotencyKey`. A retry with the same key and the same input returns the original result, after the current authorization checks.
+- A note (an `annotations` value) may cite a step in its text as `[act:<act id>]`, with the act id in lowercase. Every cited id must be in `actIds`. Another id fails with a `VALIDATION` field error on `text`, and the server saves nothing.
 - A token makes at most 60 calls per minute. The `initialize` and `notifications/initialized` POSTs of each connection also count toward this budget, so keep one client connected.
+- A token with no scope still authenticates. Each tool then fails with `FORBIDDEN` and the message `Scope <scope> is required`, where `<scope>` is the scope that the tool needs.
 - An error returns `isError: true` with `{ code, message, errors?, details?, requestId }`. The codes are `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `VALIDATION`, `CONFLICT`, `RATE_LIMITED`, `LIMIT_EXCEEDED` and `INTERNAL`. A `CONFLICT` carries the actual revisions in `details`.
 
 ## 6. Example `update_proposal` batch

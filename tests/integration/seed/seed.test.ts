@@ -6,7 +6,7 @@ import history from '../../../fixtures/history.json';
 import proposals from '../../../fixtures/proposals.json';
 import records from '../../../fixtures/records.json';
 import { uuidFromKey } from '../../../scripts/build-fixtures';
-import type { ActorContext, GraphSnapshot } from '../../../src/contracts';
+import { ACT_MARKER, type ActorContext, type GraphSnapshot } from '../../../src/contracts';
 import { canonicalHash } from '../../../src/lib/canonical-json';
 import { seedOnUserCreated } from '../../../src/server/app';
 import { DbIdentityStore } from '../../../src/server/db/identity-store';
@@ -19,7 +19,6 @@ import {
 } from '../../../src/server/db/schema';
 import { requireProject } from '../../../src/server/domain/access';
 import { listHistory } from '../../../src/server/domain/commits';
-import { getEscalation, listEscalations } from '../../../src/server/domain/escalations';
 import { getGraphView } from '../../../src/server/domain/graph';
 import { listProjects } from '../../../src/server/domain/projects';
 import {
@@ -39,6 +38,18 @@ import { createTestDatabase, type TestDb } from '../../support/db';
 
 const stableKinds = (changes: { collection: string; id: string; kind: string }[]) =>
   changes.map(({ collection, id, kind }) => `${collection}/${id}/${kind}`).sort();
+
+describe('rekeyFixture', () => {
+  it('re-keys an [act:] marker in note text with the same ID as the cited act', () => {
+    const act = uuidFromKey('act:fixture');
+    const note = rekeyFixture(
+      { text: `See [act:${act}].`, actIds: [act] },
+      { versionIds: new Map(), entityId: (id) => uuidFromKey(`project:${id}`) },
+    );
+    expect(note.actIds[0]).not.toBe(act);
+    expect([...note.text.matchAll(ACT_MARKER)].map((match) => match[1])).toEqual(note.actIds);
+  });
+});
 
 describe.skipIf(!process.env.TEST_DATABASE_URL)('seeded sandbox', () => {
   let t: TestDb;
@@ -126,7 +137,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('seeded sandbox', () => {
     expect([...ids.versionIds.values()].every(Boolean)).toBe(true);
     const main = await mainSnapshot(project.id);
     expect(canonicalHash(main)).toBe(
-      canonicalHash(rekeyFixture(history[2].snapshot as GraphSnapshot, ids)),
+      canonicalHash(rekeyFixture(history.at(-1)!.snapshot as GraphSnapshot, ids)),
     );
     expect(main.loops.map((loop) => loop.id)).not.toContain(uuidFromKey('loop:go-live'));
 
@@ -142,7 +153,11 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('seeded sandbox', () => {
       history.map((item) => item.message),
     );
     expect(commits[4].targetCommitId).toBe(commits[2].id);
-    expect(commits.slice(1, 4).every((commit) => commit.proposalId !== null)).toBe(true);
+    expect(
+      commits
+        .filter((commit) => commit.kind === 'merge')
+        .every((commit) => commit.proposalId !== null),
+    ).toBe(true);
 
     const graph = await getGraphView(t.db, ctx, { projectId: project.id, view: { kind: 'main' } });
     const derived = graph.engine.loops
@@ -254,59 +269,6 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('seeded sandbox', () => {
     expect(rebase.conflicts.map((item) => `${item.collection}/${item.id}`)).toEqual([
       `loops/${ids.entityId(uuidFromKey('loop:crm-sync'))}`,
     ]);
-  });
-
-  it('opens the three SRD 15 escalations, each with one current saved analysis whose verdicts equal gold', async () => {
-    const { userId } = await seededStore().provisionUser({
-      subject: `google:${randomUUID()}`,
-      email: null,
-      name: 'G',
-    });
-    const ctx = await actorFor(userId);
-    const [project] = await listProjects(t.db, ctx);
-    const ids = await fixtureIds(project.id);
-    const listed = (await listEscalations(t.db, ctx, { projectId: project.id })).items;
-    expect(listed.map((item) => item.complaint).sort()).toEqual(
-      gold.escalations.map((item) => item.complaint).sort(),
-    );
-    for (const fixture of gold.escalations) {
-      const escalation = listed.find((item) => item.complaint === fixture.complaint)!;
-      expect(escalation.latestAnalysisRevision).toBe(1);
-      const view = await getEscalation(t.db, ctx, {
-        projectId: project.id,
-        escalationId: escalation.id,
-      });
-      expect(view.stale).toBe(false);
-      expect(view.analyses).toHaveLength(1);
-      const [analysis] = view.analyses;
-      expect(analysis).toMatchObject({
-        graphCommitId: project.mainCommitId,
-        evidenceRevision: project.evidenceRevision,
-        approval: null,
-      });
-      expect(
-        analysis.claims.map(({ id, text, verdict, supportingActIds, contradictingActIds }) => ({
-          id,
-          text,
-          verdict,
-          supportingActIds,
-          contradictingActIds,
-        })),
-      ).toEqual(
-        fixture.claims.map((claim) => ({
-          id: ids.entityId(claim.id),
-          text: claim.text,
-          verdict: claim.verdict,
-          supportingActIds: claim.supportingActIds.map(ids.entityId),
-          contradictingActIds: claim.contradictingActIds.map(ids.entityId),
-        })),
-      );
-      for (const actId of analysis.claims.flatMap((claim) => [
-        ...claim.supportingActIds,
-        ...claim.contradictingActIds,
-      ]))
-        expect(analysis.answerText).toContain(`[act:${actId}]`);
-    }
   });
 
   it('runs inside the provisioning transaction, so a failure after the seed leaves no user, project or record', async () => {

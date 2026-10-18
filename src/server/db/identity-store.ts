@@ -105,6 +105,7 @@ export class DbIdentityStore implements HttpIdentityStore {
       createdAt: toIso(row.createdAt),
       expiresAt: toIso(row.expiresAt),
       revokedAt: row.revokedAt === null ? null : toIso(row.revokedAt),
+      lastUsedAt: row.lastUsedAt === null ? null : toIso(row.lastUsedAt),
       ...(row.requestDigest === null ? {} : { requestDigest: row.requestDigest }),
     };
   }
@@ -124,6 +125,7 @@ export class DbIdentityStore implements HttpIdentityStore {
         createdAt: token.createdAt,
         expiresAt: token.expiresAt,
         revokedAt: token.revokedAt,
+        lastUsedAt: token.lastUsedAt,
       });
     } catch (error) {
       if (isUniqueViolation(error, 'agent_tokens_creation_key_unique'))
@@ -151,6 +153,7 @@ export class DbIdentityStore implements HttpIdentityStore {
         createdAt: t.createdAt,
         expiresAt: t.expiresAt,
         revokedAt: t.revokedAt,
+        lastUsedAt: t.lastUsedAt,
       })
       .from(t)
       .where(
@@ -168,7 +171,11 @@ export class DbIdentityStore implements HttpIdentityStore {
       createdAt: toIso(row.createdAt),
       expiresAt: toIso(row.expiresAt),
       revokedAt: row.revokedAt === null ? null : toIso(row.revokedAt),
+      lastUsedAt: row.lastUsedAt === null ? null : toIso(row.lastUsedAt),
     }));
+  }
+  async touchToken(tokenId: string, at: string): Promise<void> {
+    await this.db.update(agentTokens).set({ lastUsedAt: at }).where(eq(agentTokens.id, tokenId));
   }
   async revokeToken(input: {
     userId: string;

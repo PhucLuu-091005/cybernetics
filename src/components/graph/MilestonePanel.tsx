@@ -1,10 +1,13 @@
 'use client';
 import type { DerivedLoop, DerivedMilestone } from '../../contracts/engine';
-import { BREAKDOWN_LABEL, MILESTONE_STATUS_LABEL, shortDate, stateLabel } from './labels';
+import { MILESTONE_STATUS_LABEL, milestoneLoopCounts, shortDate, stateLabel } from './labels';
+import { panelHeadings, type PanelLevel } from './headings';
+import { ProblemTag } from './ProblemTag';
 
 type Props = {
   milestone: DerivedMilestone;
   loops: readonly DerivedLoop[];
+  headingLevel?: PanelLevel;
   onOpenLoop(loopId: string): void;
   onClose(): void;
 };
@@ -15,14 +18,18 @@ const STATUS_COLOR = {
   on_track: 'var(--route)',
 } as const;
 
-export function MilestonePanel({ milestone, loops, onOpenLoop, onClose }: Props) {
+export function MilestonePanel({ milestone, loops, headingLevel = 2, onOpenLoop, onClose }: Props) {
+  const { Title, Sub } = panelHeadings(headingLevel);
   const { milestone: entity, status, reason, currentDate } = milestone;
   const assigned = loops.filter((loop) => milestone.loopIds.includes(loop.loop.id));
+  const counts = milestoneLoopCounts(assigned);
   return (
     <aside className="drawer" role="complementary" aria-label="Milestone panel">
       <div className="drawer-h">
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h2 style={{ marginBottom: 6 }}>{entity.name}</h2>
+          <Title className="h2" style={{ marginBottom: 6 }}>
+            {entity.name}
+          </Title>
           <span className="st" style={{ '--c': STATUS_COLOR[status] } as React.CSSProperties}>
             {MILESTONE_STATUS_LABEL[status]}
           </span>
@@ -48,11 +55,13 @@ export function MilestonePanel({ milestone, loops, onOpenLoop, onClose }: Props)
           </dd>
           <dt>Loops</dt>
           <dd>
-            {milestone.openLoopCount} open, {milestone.brokenLoopCount} broken
+            {counts.open} open, {counts.broken} broken
           </dd>
         </dl>
         <div>
-          <h3 style={{ marginBottom: 8 }}>Assigned loops</h3>
+          <Sub className="h3" style={{ marginBottom: 8 }}>
+            Assigned loops
+          </Sub>
           {assigned.length === 0 ? (
             <p className="faint" style={{ fontSize: 13 }}>
               No loop is assigned to this milestone.
@@ -73,9 +82,7 @@ export function MilestonePanel({ milestone, loops, onOpenLoop, onClose }: Props)
                     {stateLabel(loop.state)}
                   </span>
                   {loop.breakdowns.map((item) => (
-                    <span key={item.type} className={`bd ${item.severity}`}>
-                      {item.severity === 'broken' ? '✕' : '!'} {BREAKDOWN_LABEL[item.type]}
-                    </span>
+                    <ProblemTag loop={loop} item={item} key={item.type} />
                   ))}
                 </li>
               ))}

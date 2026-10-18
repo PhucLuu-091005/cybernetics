@@ -19,18 +19,22 @@ import { ConflictBanner } from '../review/ConflictBanner';
 import { useDraftEdit, type EditTarget } from '../review/draft-edit';
 import { changeActType, hideAct, moveAct, setLoopMilestone, toAct } from '../review/operations';
 import { Glyph } from './Glyph';
+import { panelHeadings, type PanelLevel } from './headings';
 import {
   ACT_LABEL,
   BREAKDOWN_LABEL,
+  PROBLEM_HEADING,
   STATE_COLOR,
   loopColor,
   dueLabel,
   partyDetail,
   partyName,
+  problemTone,
   shortStamp,
   stateLabel,
   type Directory,
 } from './labels';
+import { ProblemTag } from './ProblemTag';
 
 type Props = {
   projectId: string;
@@ -47,6 +51,8 @@ type Props = {
   snapshot: Pick<GraphSnapshot, 'acts' | 'recordDecisions'>;
   /** Acts added or changed by an agent-authored proposal; only a proposal view can derive this. */
   agentActIds: ReadonlySet<string>;
+  readOnly?: boolean;
+  headingLevel?: PanelLevel;
   /** The promise a task belongs to, the tasks that hand off to it, and a promise's own tasks. */
   relations: LoopRelations;
   onOpenLoop(loopId: string): void;
@@ -273,11 +279,14 @@ export function LoopPanel({
   loops,
   snapshot,
   agentActIds,
+  readOnly = false,
+  headingLevel = 2,
   relations,
   onOpenLoop,
   onViewRecord,
   onClose,
 }: Props) {
+  const { Title, Sub } = panelHeadings(headingLevel);
   const { acts: evidence, rateLimited } = useEvidence(projectId, loop.loop.id, T, view);
   const steps = relationSteps(loop, relations);
   const edit = useDraftEdit(projectId, target);
@@ -317,7 +326,9 @@ export function LoopPanel({
     <aside className="drawer" role="complementary" aria-label="Loop panel">
       <div className="drawer-h">
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h2 style={{ marginBottom: 6 }}>{loop.loop.title}</h2>
+          <Title className="h2" style={{ marginBottom: 6 }}>
+            {loop.loop.title}
+          </Title>
           <div className="row">
             <span
               className="st"
@@ -330,9 +341,7 @@ export function LoopPanel({
               {stateLabel(loop.state)}
             </span>
             {loop.breakdowns.map((item) => (
-              <span key={item.type} className={`bd ${item.severity}`} title={item.sentence}>
-                {item.severity === 'broken' ? '✕' : '!'} {BREAKDOWN_LABEL[item.type]}
-              </span>
+              <ProblemTag loop={loop} item={item} key={item.type} />
             ))}
             {loop.dueSoon && <span className="bd warning">! Due soon</span>}
           </div>
@@ -350,10 +359,9 @@ export function LoopPanel({
         {loop.breakdowns.length > 0 && (
           <div className="bdlist">
             {loop.breakdowns.map((item) => (
-              <div key={item.type} className={`bdrow ${item.severity}`}>
+              <div key={item.type} className={`bdrow ${problemTone(loop, item)}`}>
                 <b style={{ fontSize: 12 }}>
-                  {item.severity === 'broken' ? '✕ Broken' : '! Warning'}:{' '}
-                  {BREAKDOWN_LABEL[item.type]}
+                  {PROBLEM_HEADING[problemTone(loop, item)]}: {BREAKDOWN_LABEL[item.type]}
                 </b>
                 <p>{item.sentence}</p>
               </div>
@@ -362,19 +370,19 @@ export function LoopPanel({
         )}
         <div className="parties">
           <div className="party">
-            <small>Customer</small>
+            <small>Requested by</small>
             <b>{partyName(loop.loop.customer, directory)}</b>
             <br />
             <span className="faint">{partyDetail(loop.loop.customer, directory)}</span>
           </div>
           <div className="party">
-            <small>Performer</small>
+            <small>Done by</small>
             <b>{partyName(loop.loop.performer, directory)}</b>
             <br />
             <span className="faint">{partyDetail(loop.loop.performer, directory)}</span>
           </div>
         </div>
-        <LoopWork relations={relations} onOpenLoop={onOpenLoop} />
+        <LoopWork relations={relations} Sub={Sub} onOpenLoop={onOpenLoop} />
         <dl className="kv">
           <dt>Original due</dt>
           <dd>{dueLabel(loop.originalDue)}</dd>
@@ -384,30 +392,34 @@ export function LoopPanel({
             {changed && <span className="faint"> (changed)</span>}
           </dd>
           <dt>Milestone</dt>
-          <dd>
-            <select
-              aria-label="Milestone"
-              value={milestone?.id ?? ''}
-              disabled={!edit.editable || edit.busy}
-              onChange={(event) => {
-                void edit.apply(setLoopMilestone(loop.loop, event.target.value || null), title);
-              }}
-            >
-              <option value="">None</option>
-              {milestones.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>{' '}
-            <span className="faint" style={{ fontSize: 12 }}>
-              {!edit.editable
-                ? 'This change set is closed, so it cannot change.'
-                : onMain
-                  ? 'The approved graph is read-only. A change here starts a change set first.'
-                  : 'Changes go into this change set.'}
-            </span>
-          </dd>
+          {readOnly ? (
+            <dd>{milestone?.name ?? 'None'}</dd>
+          ) : (
+            <dd>
+              <select
+                aria-label="Milestone"
+                value={milestone?.id ?? ''}
+                disabled={!edit.editable || edit.busy}
+                onChange={(event) => {
+                  void edit.apply(setLoopMilestone(loop.loop, event.target.value || null), title);
+                }}
+              >
+                <option value="">None</option>
+                {milestones.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>{' '}
+              <span className="faint" style={{ fontSize: 12 }}>
+                {!edit.editable
+                  ? 'This change set is closed, so it cannot change.'
+                  : onMain
+                    ? 'The approved graph is read-only. A change here starts a change set first.'
+                    : 'Changes go into this change set.'}
+              </span>
+            </dd>
+          )}
         </dl>
         {edit.failure && (
           <ConflictBanner
@@ -432,7 +444,9 @@ export function LoopPanel({
           />
         )}
         <div>
-          <h3 style={{ marginBottom: 8 }}>Steps</h3>
+          <Sub className="h3" style={{ marginBottom: 8 }}>
+            Steps
+          </Sub>
           {rateLimited && (
             <p role="status" className="faint" style={{ fontSize: 12, marginBottom: 8 }}>
               Too many requests — try again in a minute.
@@ -499,37 +513,39 @@ export function LoopPanel({
                       {agentActIds.has(act.id) && (
                         <span className="badge b-agent">agent proposed</span>
                       )}
-                      <details className="menu">
-                        <summary aria-label="Act actions">⋯</summary>
-                        <ul>
-                          <li className="hint">
-                            {!edit.editable
-                              ? 'This change set is closed.'
-                              : act.quote === null
-                                ? 'Unavailable evidence: edit this act in a change set.'
-                                : onMain
-                                  ? 'The approved graph is read-only. An edit starts a change set first.'
-                                  : 'Edits go into this change set.'}
-                          </li>
-                          {(
-                            [
-                              ['type', 'Change type'],
-                              ['move', 'Move to another loop'],
-                              ['hide', 'Hide this act'],
-                            ] as const
-                          ).map(([action, label]) => (
-                            <li key={action}>
-                              <button
-                                type="button"
-                                disabled={!edit.editable || act.quote === null || edit.busy}
-                                onClick={(event) => openStep(event, { actId: act.id, action })}
-                              >
-                                {label}
-                              </button>
+                      {!readOnly && (
+                        <details className="menu">
+                          <summary aria-label="Act actions">⋯</summary>
+                          <ul>
+                            <li className="hint">
+                              {!edit.editable
+                                ? 'This change set is closed.'
+                                : act.quote === null
+                                  ? 'Unavailable evidence: edit this act in a change set.'
+                                  : onMain
+                                    ? 'The approved graph is read-only. An edit starts a change set first.'
+                                    : 'Edits go into this change set.'}
                             </li>
-                          ))}
-                        </ul>
-                      </details>
+                            {(
+                              [
+                                ['type', 'Change type'],
+                                ['move', 'Move to another loop'],
+                                ['hide', 'Hide this act'],
+                              ] as const
+                            ).map(([action, label]) => (
+                              <li key={action}>
+                                <button
+                                  type="button"
+                                  disabled={!edit.editable || act.quote === null || edit.busy}
+                                  onClick={(event) => openStep(event, { actId: act.id, action })}
+                                >
+                                  {label}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
                     </div>
                     {stepEdit?.actId === act.id && (
                       <StepEditor
@@ -690,9 +706,11 @@ function SubIssue({ loop, onOpenLoop }: { loop: RelatedLoop; onOpenLoop(id: stri
 
 function LoopWork({
   relations,
+  Sub,
   onOpenLoop,
 }: {
   relations: LoopRelations;
+  Sub: ReturnType<typeof panelHeadings>['Sub'];
   onOpenLoop(id: string): void;
 }) {
   const { parent, after, next, tasks } = relations;
@@ -711,7 +729,7 @@ function LoopWork({
       )}
       {tasks.length > 0 && (
         <div className="subissues">
-          <h3>
+          <Sub className="h3">
             Sub-issues
             <span
               className="progress"
@@ -726,7 +744,7 @@ function LoopWork({
             <span className="faint">
               {done} of {tasks.length} done
             </span>
-          </h3>
+          </Sub>
           <ul>
             {tasks.map((task) => (
               <SubIssue key={task.id} loop={task} onOpenLoop={onOpenLoop} />

@@ -1,18 +1,8 @@
 import type { SnapshotDiff } from '../../contracts';
-import { changeClass, entityTitle, newestImage, type Names } from '../review/describe';
+import { changeClass, entityTitle, KIND, newestImage, type Names } from '../review/describe';
 import { ChangeCells } from '../review/DiffView';
 
 const MAX_ROWS = 150;
-const COLLECTION = {
-  acts: 'acts',
-  loops: 'loops',
-  annotations: 'annotations',
-  recordDecisions: 'record decisions',
-  people: 'people',
-  departments: 'departments',
-  milestones: 'milestones',
-  context: 'context',
-} as const;
 
 export function CommitDiff({ diff, names }: { diff: SnapshotDiff; names: Names }) {
   const counts = diff.changes.reduce<Record<string, number>>(
@@ -22,15 +12,15 @@ export function CommitDiff({ diff, names }: { diff: SnapshotDiff; names: Names }
   return (
     <div className="stack" style={{ gap: 6 }}>
       <p className="faint" style={{ fontSize: 12 }}>
-        {diff.changes.length} {diff.changes.length === 1 ? 'entity' : 'entities'}:{' '}
-        {counts.added ?? 0} added, {counts.changed ?? 0} changed, {counts.removed ?? 0} removed.
+        {diff.changes.length} {diff.changes.length === 1 ? 'item' : 'items'}: {counts.added ?? 0}{' '}
+        added, {counts.changed ?? 0} changed, {counts.removed ?? 0} removed.
       </p>
       <div className="tablewrap" style={{ border: 0 }}>
-        <table aria-label="Commit changes">
+        <table aria-label="Changes in this version">
           <thead>
             <tr>
-              <th>Collection</th>
-              <th>Entity</th>
+              <th>Kind</th>
+              <th>Item</th>
               <th>Change</th>
               <th>Before</th>
               <th>After</th>
@@ -39,7 +29,7 @@ export function CommitDiff({ diff, names }: { diff: SnapshotDiff; names: Names }
           <tbody>
             {diff.changes.slice(0, MAX_ROWS).map((change) => (
               <tr key={`${change.collection}/${change.id}`}>
-                <td>{COLLECTION[change.collection]}</td>
+                <td>{KIND[change.collection]}</td>
                 <td>
                   {entityTitle(
                     change.collection,

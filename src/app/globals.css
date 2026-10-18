@@ -131,7 +131,9 @@
   }
   h1,
   h2,
-  h3 {
+  h3,
+  .h2,
+  .h3 {
     margin: 0;
     font-weight: 600;
     letter-spacing: -0.015em;
@@ -139,10 +141,12 @@
   h1 {
     font-size: 20px;
   }
-  h2 {
+  h2,
+  .h2 {
     font-size: 17px;
   }
-  h3 {
+  h3,
+  .h3 {
     font-size: 14px;
   }
   p {
@@ -408,6 +412,10 @@
   .bd.warning {
     color: var(--caution);
     background: var(--caution-bg);
+  }
+  .bd.past {
+    color: var(--ink-2);
+    background: var(--rule-2);
   }
   .pill {
     display: inline-flex;
@@ -725,7 +733,21 @@
   }
   .lane-col > .side {
     font-size: 11px;
+    font-weight: 600;
     color: var(--ink-3);
+  }
+  .lane-grip {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 6px;
+    cursor: row-resize;
+    touch-action: none;
+  }
+  .lane-grip:hover,
+  .lane-grip:active {
+    background: color-mix(in srgb, var(--focus) 45%, transparent);
   }
   .lod-0 .br-title,
   .lod-0 .ms-name {
@@ -1071,6 +1093,27 @@
     align-items: center;
     gap: 5px;
   }
+  .graph-empty {
+    display: grid;
+    gap: 6px;
+    justify-items: center;
+    padding: 72px 24px;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    background: var(--surface);
+    text-align: center;
+  }
+  .graph-empty h2 {
+    font-size: 16px;
+  }
+  .graph-empty p {
+    color: var(--ink-2);
+  }
+  .graph-empty a {
+    color: var(--route);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
   .br {
     cursor: pointer;
     transition: opacity 0.15s;
@@ -1117,6 +1160,68 @@
     inset: -3px;
     border-radius: 50%;
     box-shadow: 0 0 0 2px var(--focus);
+  }
+  .hover-card {
+    position: absolute;
+    z-index: 7;
+    box-sizing: border-box;
+    padding: 8px 10px 9px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--tone) 7%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--tone) 45%, var(--rule));
+    box-shadow: var(--shadow);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .hc-loop {
+    margin-bottom: 3px;
+    font-size: 11px;
+    color: var(--ink-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hc-loop b {
+    font-weight: 650;
+    color: var(--ink);
+  }
+  .hc-list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    max-height: 320px;
+    overflow: auto;
+  }
+  .hc-list > div + div {
+    border-top: 1px solid var(--rule);
+    padding-top: 6px;
+  }
+  .hc-more {
+    font-size: 11px;
+    color: var(--ink-3);
+  }
+  .hover-card .ev-q.one {
+    min-height: 0;
+    margin: 0;
+    -webkit-line-clamp: 1;
+  }
+  .line-tag {
+    position: absolute;
+    z-index: 7;
+    pointer-events: none;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--ink);
+    color: var(--surface);
+    font-size: 12px;
+    white-space: nowrap;
+    box-shadow: var(--shadow);
+  }
+  .line-tag b {
+    font-weight: 600;
+  }
+  .line-tag span {
+    opacity: 0.7;
   }
   .ev-card {
     box-sizing: border-box;
@@ -1264,7 +1369,7 @@
     flex-direction: column;
     gap: 6px;
   }
-  .work h3 {
+  .work .h3 {
     font-size: 13px;
   }
   .work small {
@@ -1316,7 +1421,7 @@
     margin: 0;
     padding: 0;
   }
-  .work h3 {
+  .work .h3 {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1425,6 +1530,10 @@
   .bdrow.warning {
     --c: var(--caution);
     background: var(--caution-bg);
+  }
+  .bdrow.past {
+    --c: var(--isolated);
+    background: var(--rule-2);
   }
   .bdrow p {
     font-size: 13px;
@@ -1934,101 +2043,6 @@
     border-color: var(--draft);
   }
 
-  .claims {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-  .claim {
-    border: 1px solid var(--rule);
-    border-radius: 8px;
-    background: var(--surface);
-    padding: 12px 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    overflow-wrap: anywhere;
-  }
-  .verdict {
-    font-size: 12px;
-    font-weight: 700;
-    padding: 2px 9px;
-    border-radius: 999px;
-    display: inline-flex;
-    gap: 5px;
-    align-items: center;
-    white-space: nowrap;
-  }
-  .v-supported {
-    background: var(--proceed-bg);
-    color: var(--proceed);
-  }
-  .v-contradicted {
-    background: var(--danger-bg);
-    color: var(--danger);
-  }
-  .v-contested {
-    background: var(--caution-bg);
-    color: var(--caution);
-  }
-  .v-insufficient {
-    background: var(--sunk);
-    color: var(--ink-2);
-  }
-  .cites {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 8px;
-    font-size: 13px;
-  }
-  .cites h4 {
-    margin: 0 0 4px;
-    font-size: 12px;
-    color: var(--ink-3);
-    font-weight: 600;
-  }
-  .actref {
-    all: unset;
-    cursor: pointer;
-    display: inline;
-    border-bottom: 1.5px solid var(--route);
-    color: var(--route);
-    font-weight: 600;
-    font-size: 13px;
-  }
-  .actref:focus-visible {
-    outline: 2px solid var(--focus);
-  }
-  .answer {
-    font-family: var(--f-doc);
-    font-size: 15px;
-    line-height: 1.65;
-    padding: 14px 16px;
-    background: var(--panel);
-    border-radius: 8px;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
-  .answer .actref {
-    font-family: var(--f-ui);
-    font-size: 12px;
-    padding: 0 5px;
-    border: 1px solid var(--route);
-    border-radius: 8px;
-    margin: 0 2px;
-  }
-  .scopes {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-  .chip.risk {
-    color: var(--caution);
-    border-color: var(--caution);
-  }
   .scope-row {
     display: flex;
     gap: 10px;
@@ -2319,8 +2333,7 @@
     .editor {
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
-    .conf,
-    .cites {
+    .conf {
       grid-template-columns: minmax(0, 1fr);
     }
     .conf > div {

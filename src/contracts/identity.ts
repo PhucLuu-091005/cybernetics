@@ -12,7 +12,6 @@ export const ScopeSchema = z.enum([
   'records:import',
   'graph:propose',
   'graph:merge',
-  'escalations:write',
 ]);
 export type Scope = z.infer<typeof ScopeSchema>;
 export const DEFAULT_AGENT_SCOPES: readonly Scope[] = [
@@ -51,6 +50,7 @@ export const AgentTokenSchema = z.strictObject({
   createdAt: TimestampSchema,
   expiresAt: TimestampSchema,
   revokedAt: TimestampSchema.nullable(),
+  lastUsedAt: TimestampSchema.nullable(),
 });
 export type AgentToken = z.infer<typeof AgentTokenSchema>;
 export const CreateAgentTokenInputSchema = z.strictObject({

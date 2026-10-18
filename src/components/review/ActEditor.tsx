@@ -157,7 +157,7 @@ export function ActEditor({
           </select>
         )}
       </SelectField>
-      <SelectField label="Customer">
+      <SelectField label="Requested by">
         {(id) => (
           <select
             id={id}
@@ -169,7 +169,7 @@ export function ActEditor({
           </select>
         )}
       </SelectField>
-      <SelectField label="Performer">
+      <SelectField label="Done by">
         {(id) => (
           <select
             id={id}
@@ -214,7 +214,7 @@ export function ActEditor({
           maxLength={2000}
           disabled={disabled}
           onChange={(event) => set('action', event.target.value)}
-          placeholder="What the performer is asked or promises to do"
+          placeholder="What is asked or promised"
         />
       </label>
       <label className="check">

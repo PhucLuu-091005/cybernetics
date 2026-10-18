@@ -22,7 +22,6 @@ import type {
   Person,
   RecordDecision,
   RecordInput,
-  Verdict,
 } from '../src/contracts';
 
 // Type-only imports from src keep this script runnable with plain `node --experimental-strip-types`.
@@ -111,13 +110,6 @@ interface IsolationSource extends ProjectSource {
   channel: string;
   story: StoryLoop[];
 }
-interface ClaimSource {
-  text: string;
-  type: string;
-  verdict: Verdict;
-  supporting: string[];
-  contradicting: string[];
-}
 interface HistorySource {
   key: string;
   kind: 'merge' | 'revert';
@@ -148,7 +140,6 @@ interface StorySource {
   project: LarkspurSource;
   story: StoryLoop[];
   nonacts: NonActSource[];
-  escalations: { key: string; complaint: string; claims: ClaimSource[] }[];
   history: HistorySource[];
   proposals: ProposalSource[];
   isolation: IsolationSource;
@@ -699,18 +690,6 @@ export function buildFixtures(source: StorySource) {
     T: project.asOfOverride,
     loops: expectations(story, ''),
     milestones: Object.fromEntries(project.milestones.map((item) => [item.name, item.expect])),
-    escalations: source.escalations.map((escalation) => ({
-      key: escalation.key,
-      complaint: escalation.complaint,
-      claims: escalation.claims.map((claim, index) => ({
-        id: uuidFromKey(`claim:${escalation.key}:${index}`),
-        text: claim.text,
-        type: claim.type,
-        verdict: claim.verdict,
-        supportingActIds: claim.supporting.map(larkspur.actId),
-        contradictingActIds: claim.contradicting.map(larkspur.actId),
-      })),
-    })),
     isolation: {
       loops: expectations(source.isolation.story, 'isolation:'),
       milestones: Object.fromEntries(

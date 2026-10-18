@@ -53,7 +53,9 @@
   border-radius: 10px;
   padding: 12px 14px;
 }
-.queue-detail .box h3 {
+/* Direct children only: the embedded graph panels bring their own headings. */
+.queue-detail .box > h3,
+.queue-detail .box-h > h3 {
   margin: 0 0 8px;
   color: var(--ink-3);
   font-size: 12px;
@@ -65,6 +67,53 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+.cs-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+.cs-title {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.queue-detail .box-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+.queue-detail .box-h h3 {
+  margin: 0;
+}
+.queue-detail .box-h .lnk {
+  font-size: 13px;
+}
+.review-graph {
+  container-type: inline-size;
+}
+.review-graph > .screen {
+  padding: 0;
+}
+.review-graph .stage:not(:fullscreen) {
+  --stage-h: 560px;
+}
+/* The box is narrower than the screen, so the loop panel goes under the canvas well before the 1100px screen rule. */
+@container (max-width: 900px) {
+  .review-graph .stage.open:not(:fullscreen) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .review-graph .stage:not(:fullscreen) .drawer {
+    height: auto;
+    max-height: var(--stage-h);
+    position: static;
+  }
+  .review-graph .stage:not(:fullscreen) .panel-handle {
+    display: none;
+  }
 }
 .banner.warn {
   border-color: var(--caution);

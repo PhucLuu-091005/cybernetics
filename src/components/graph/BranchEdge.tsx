@@ -1,6 +1,6 @@
 import type { Edge, EdgeProps } from '@xyflow/react';
 import type { ActGlyph, BranchLayout, BranchSegment } from '../../contracts/layout';
-import { CARD } from '../../lib/graph-layout';
+import { CARD, SCREEN_MIN, atLeast } from '../../lib/graph-layout';
 import { TONE_COLOR } from './labels';
 import { loopKey, useGraphUi } from './ui-context';
 
@@ -61,13 +61,23 @@ export function BranchEdge({ data }: EdgeProps<BranchEdgeType>) {
     last = branch.segments.at(-1)!;
   const selected = ui.selectedLoopId === branch.loopId;
   const width = Math.max(branch.xEnd - branch.xStart, 0);
+  const line = atLeast(3, SCREEN_MIN.line, ui.zoom),
+    mark = Math.max(1, 7 / (7.5 * ui.zoom)),
+    hitR = atLeast(11, SCREEN_MIN.icon / 2 + 3, ui.zoom),
+    hitH = atLeast(14, 12, ui.zoom);
   return (
     <g
       className={`${ui.faded.has(branch.loopId) ? 'br-faded' : ''}${selected ? ' br-sel' : ''}`}
       style={{ transition: 'opacity .15s' }}
     >
       {ui.halo.has(branch.loopId) && <path className="halo" d={branch.path} data-testid="halo" />}
-      <path className="line" d={fork} fill="none" stroke={TONE_COLOR[first.tone]} strokeWidth={3} />
+      <path
+        className="line"
+        d={fork}
+        fill="none"
+        stroke={TONE_COLOR[first.tone]}
+        strokeWidth={line}
+      />
       {branch.segments.map(
         (segment, index) =>
           segment.endX > segment.startX && (
@@ -79,7 +89,7 @@ export function BranchEdge({ data }: EdgeProps<BranchEdgeType>) {
               x2={segment.endX}
               y2={y}
               stroke={TONE_COLOR[segment.tone]}
-              strokeWidth={segment.tone === 'amber' && segment.startX >= xT ? 5 : 3}
+              strokeWidth={segment.tone === 'amber' && segment.startX >= xT ? line * (5 / 3) : line}
               strokeDasharray={DASH[segment.style]}
               strokeLinecap={segment.style === 'dotted' || segment.startX >= xT ? 'round' : 'butt'}
             />
@@ -91,7 +101,7 @@ export function BranchEdge({ data }: EdgeProps<BranchEdgeType>) {
           d={merge}
           fill="none"
           stroke={TONE_COLOR[last.tone]}
-          strokeWidth={3}
+          strokeWidth={line}
         />
       )}
       {branch.glyphs.map((glyph) => {
@@ -122,7 +132,11 @@ export function BranchEdge({ data }: EdgeProps<BranchEdgeType>) {
         <rect x={branch.xEnd - 1} y={y - 6} width={8} height={12} fill="var(--isolated)" />
       )}
       {branch.breakdownMarkers.map((marker) => (
-        <g key={`${marker.x}-${marker.label}`} aria-hidden="true">
+        <g
+          key={`${marker.x}-${marker.label}`}
+          aria-hidden="true"
+          transform={`translate(${marker.x} ${y}) scale(${mark}) translate(${-marker.x} ${-y})`}
+        >
           <circle
             cx={marker.x}
             cy={y}
@@ -172,10 +186,10 @@ export function BranchEdge({ data }: EdgeProps<BranchEdgeType>) {
         <rect
           className="hit"
           x={branch.xStart - 6}
-          y={y - 7}
+          y={y - hitH / 2}
           width={width + 12}
-          height={14}
-          rx={7}
+          height={hitH}
+          rx={hitH / 2}
         />
         {branch.glyphs.map((glyph) => (
           <circle
@@ -184,7 +198,7 @@ export function BranchEdge({ data }: EdgeProps<BranchEdgeType>) {
             data-act={glyph.id}
             cx={glyph.x}
             cy={y}
-            r={11}
+            r={hitR}
             onClick={(event) => event.stopPropagation()}
             onPointerDown={(event) => ui.startDrag(event, glyph, 'icon')}
           >

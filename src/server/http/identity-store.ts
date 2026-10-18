@@ -34,6 +34,8 @@ export interface HttpIdentityStore {
     offset: number;
     limit: number;
   }): Promise<AgentToken[]>;
+  /** Called on every authenticated agent call; the caller limits it to once a minute. */
+  touchToken(tokenId: string, at: string): Promise<void>;
   revokeToken(input: {
     userId: string;
     workspaceId: string;
@@ -48,5 +50,4 @@ export const browserScopes: Scope[] = [
   'records:import',
   'graph:propose',
   'graph:merge',
-  'escalations:write',
 ];

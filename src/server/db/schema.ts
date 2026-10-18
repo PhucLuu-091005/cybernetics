@@ -17,8 +17,6 @@ import {
 import type {
   ActorReference,
   Alias,
-  AnswerApproval,
-  ClaimAssessment,
   Commit,
   GraphSnapshot,
   Project,
@@ -268,54 +266,6 @@ export const graphProposals = pgTable(
     ),
   ],
 );
-export const escalations = pgTable(
-  'escalations',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    workspaceId: tenantWorkspaceId(),
-    projectId: tenantProjectId(),
-    complaint: text('complaint').notNull(),
-    author: jsonb('author').$type<ActorReference>().notNull(),
-    createdAt: createdAt(),
-  },
-  (table) => [
-    index('escalations_project_idx').on(table.projectId),
-    unique('escalations_project_id_unique').on(table.projectId, table.id),
-    inProject('escalations', table),
-  ],
-);
-export const escalationAnalyses = pgTable(
-  'escalation_analyses',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    workspaceId: tenantWorkspaceId(),
-    projectId: tenantProjectId(),
-    escalationId: uuid('escalation_id').notNull(),
-    revision: integer('revision').notNull(),
-    graphCommitId: uuid('graph_commit_id').notNull(),
-    evidenceRevision: integer('evidence_revision').notNull(),
-    claims: jsonb('claims').$type<ClaimAssessment[]>().notNull(),
-    answerText: text('answer_text').notNull(),
-    author: jsonb('author').$type<ActorReference>().notNull(),
-    contentHash: text('content_hash').notNull(),
-    approval: jsonb('approval').$type<AnswerApproval>(),
-    createdAt: createdAt(),
-  },
-  (table) => [
-    unique('escalation_analyses_escalation_revision_unique').on(table.escalationId, table.revision),
-    inProject('escalation_analyses', table),
-    sameProject(
-      'escalation_analyses_escalation_fk',
-      [table.projectId, table.escalationId],
-      (): Pair => [escalations.projectId, escalations.id],
-    ),
-    sameProject(
-      'escalation_analyses_commit_fk',
-      [table.projectId, table.graphCommitId],
-      (): Pair => [graphCommits.projectId, graphCommits.id],
-    ),
-  ],
-);
 export const agentTokens = pgTable(
   'agent_tokens',
   {
@@ -335,6 +285,7 @@ export const agentTokens = pgTable(
     createdAt: createdAt(),
     expiresAt: tz('expires_at').notNull(),
     revokedAt: tz('revoked_at'),
+    lastUsedAt: tz('last_used_at'),
     revokeKey: text('revoke_key'),
   },
   (table) => [

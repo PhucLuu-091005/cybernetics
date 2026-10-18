@@ -16,6 +16,8 @@ export type GraphUi = {
   /** Loops a proposal changes; they carry the violet halo from the design. */
   halo: ReadonlySet<string>;
   currentActId: string | null;
+  /** The canvas zoom; marks read it to keep their `SCREEN_MIN` size. */
+  zoom: number;
   activeKey: string | null;
   navKeyDown(event: KeyboardEvent, key: string): void;
   navFocus(event: FocusEvent, key: string): void;

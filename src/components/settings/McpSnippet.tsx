@@ -35,7 +35,8 @@ export function McpSnippet({ endpoint }: { endpoint: string }) {
     <section className="card pad stack" aria-labelledby="connect-agent">
       <h2 id="connect-agent">Connect your agent</h2>
       <p className="muted" style={{ fontSize: 13 }}>
-        MCP endpoint, Streamable HTTP with a bearer token:{' '}
+        Paste this into your agent&apos;s MCP settings. Replace inv_... with the secret of your
+        token. Address:{' '}
         <span className="id" data-testid="mcp-endpoint">
           {endpoint}
         </span>

@@ -4,10 +4,6 @@ import {
   ListAgentTokensInputSchema,
   ListAgentTokensResultSchema,
 } from '../../../src/contracts/identity';
-import {
-  GetEscalationInputSchema,
-  GetEscalationResultSchema,
-} from '../../../src/contracts/escalations';
 import { DomainErrorSchema } from '../../../src/contracts/primitives';
 
 const id = '10000000-0000-4000-8000-000000000001';
@@ -27,41 +23,6 @@ it('accepts the next token-page cursor and bounded requested page size', () => {
   expect(
     ListAgentTokensInputSchema.safeParse({ projectId: id, cursor: result.nextCursor, limit: 51 })
       .success,
-  ).toBe(false);
-});
-it('accepts the next escalation-analysis cursor and bounded requested page size', () => {
-  const escalation = {
-    id,
-    projectId: id,
-    complaint: 'Mapping is late',
-    author: { kind: 'user', userId: 'user_clerk' },
-    createdAt: '2026-10-12T02:00:00Z',
-    latestAnalysisRevision: null,
-  };
-  const result = GetEscalationResultSchema.parse({
-    projectId: id,
-    escalation,
-    analyses: [],
-    mainCommitId: id,
-    evidenceRevision: 0,
-    stale: false,
-    nextCursor: 'analysis-page-2',
-    requestId: 'req',
-  });
-  const input = GetEscalationInputSchema.safeParse({
-    projectId: id,
-    escalationId: id,
-    cursor: result.nextCursor,
-    limit: 25,
-  });
-  expect(input.success).toBe(true);
-  expect(
-    GetEscalationInputSchema.safeParse({
-      projectId: id,
-      escalationId: id,
-      cursor: result.nextCursor,
-      limit: 51,
-    }).success,
   ).toBe(false);
 });
 it('requires a bounded retry key for token creation', () => {

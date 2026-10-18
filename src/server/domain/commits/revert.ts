@@ -124,7 +124,7 @@ export async function proposalFromInverse(
             candidate: inverse.snapshot,
             revision: 0,
             author: actorReference(ctx),
-            title: `Revert: ${target.message}`.slice(0, 200),
+            title: `Undo: ${target.message}`.slice(0, 200),
             rationale,
             evidenceRevision,
             status: 'draft',

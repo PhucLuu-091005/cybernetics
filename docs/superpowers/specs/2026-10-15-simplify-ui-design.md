@@ -108,9 +108,11 @@ The list computes only the cheap states. The detail runs the rebase preview for 
 
 ### 6.3 Change set detail
 
-- Title, author (agent badge for an MCP author), rationale.
-- Actions: **View on graph** (graph with `?proposal=`), **Edit** (existing proposal workspace), **Reject** (existing close endpoint), **Approve**.
-- **What changes**: the existing diff, in plain sentences.
+Update 16 October 2026: the owner moved Reject and Approve to the right of the title, removed View on graph and added the "On the graph" box. The list below shows the current screen.
+
+- Title, author (agent badge for an MCP author), rationale. **Reject** (existing close endpoint) and **Approve** sit on the right of the title and wrap under it in a narrow pane.
+- **What changes**: the existing diff, in plain sentences. **Edit** (existing proposal workspace) sits on the right of its heading.
+- **On the graph**: the change set graph, read-only, first centred on the changed steps. **Open full graph** opens the graph with `?proposal=`.
 - **Effect on the loops**: the existing effects table.
 - **Quotes**: the cited quotes with source, person and time.
 - A note when records are still pending: "N new records are not reviewed yet. You can approve this change set before them." No checkbox.

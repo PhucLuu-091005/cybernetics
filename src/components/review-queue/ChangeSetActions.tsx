@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { CommitReceipt, Proposal, RebasePreview } from '../../contracts';
 import { send, updateDraft, type ApiError } from '../inbox/api';
 import { ConflictBanner } from '../review/ConflictBanner';
@@ -22,8 +22,8 @@ type Props = {
   review: Review | null;
   current: { mainCommitId: string; evidenceRevision: number };
   T: string;
-  graphHref: string;
-  editHref: string;
+  /** The title block; the buttons sit on its right and wrap under it when the pane is narrow. */
+  children: ReactNode;
 };
 
 export function ChangeSetActions({
@@ -33,8 +33,7 @@ export function ChangeSetActions({
   review,
   current,
   T,
-  graphHref,
-  editHref,
+  children,
 }: Props) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -163,45 +162,42 @@ export function ChangeSetActions({
 
   return (
     <div className="stack">
-      <div className="actions" role="group" aria-label="Change set actions">
-        <Link className="btn" href={graphHref}>
-          View on graph
-        </Link>
-        <Link className="btn" href={editHref}>
-          Edit
-        </Link>
-        {confirmReject ? (
-          <>
-            <button className="btn btn-danger" type="button" disabled={busy} onClick={reject}>
-              Confirm reject
-            </button>
+      <div className="cs-head">
+        <div className="cs-title">{children}</div>
+        <div className="actions" role="group" aria-label="Change set actions">
+          {confirmReject ? (
+            <>
+              <button className="btn btn-danger" type="button" disabled={busy} onClick={reject}>
+                Confirm reject
+              </button>
+              <button
+                className="btn"
+                type="button"
+                disabled={busy}
+                onClick={() => setConfirmReject(false)}
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
             <button
-              className="btn"
+              className="btn btn-danger"
               type="button"
-              disabled={busy}
-              onClick={() => setConfirmReject(false)}
+              disabled={!hydrated || busy}
+              onClick={() => setConfirmReject(true)}
             >
-              Cancel
+              Reject
             </button>
-          </>
-        ) : (
+          )}
           <button
-            className="btn btn-danger"
+            className="btn btn-ink"
             type="button"
-            disabled={!hydrated || busy}
-            onClick={() => setConfirmReject(true)}
+            disabled={!hydrated || busy || state !== 'ready' || review === null}
+            onClick={approve}
           >
-            Reject
+            Approve
           </button>
-        )}
-        <button
-          className="btn btn-ink"
-          type="button"
-          disabled={!hydrated || busy || state !== 'ready' || review === null}
-          onClick={approve}
-        >
-          Approve
-        </button>
+        </div>
       </div>
       {banner}
       {failure && (

@@ -371,7 +371,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('revert, restore and history', (
     const first = await mergeChange((s) => {
       s.loops[0].title = 'First';
       s.loops[1].title = 'First B';
-    });
+    }, 'Retitle two loops');
     await mergeChange((s) => {
       s.loops[0].title = 'Touched later';
     });
@@ -406,6 +406,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('revert, restore and history', (
       revision: 0,
       evidenceRevision: 1,
       status: 'draft',
+      title: 'Undo: Retitle two loops',
     });
     expect(draft.candidate.loops.map((loop) => loop.title).sort()).toEqual([
       'Original B',

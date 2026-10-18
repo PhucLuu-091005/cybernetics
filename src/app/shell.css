@@ -193,6 +193,50 @@
 .proj-menu a[aria-current='true'] {
   background: var(--rule-2);
 }
+.proj-new {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--rule-2);
+}
+.proj-new button {
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.proj-new button:hover:not(:disabled) {
+  background: var(--rule-2);
+}
+.new-project {
+  box-sizing: border-box;
+  width: min(420px, calc(100vw - 32px));
+  max-width: none;
+  padding: 18px 20px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+.new-project::backdrop {
+  background: rgb(0 0 0 / 0.32);
+}
+.new-project form {
+  display: grid;
+  gap: 12px;
+}
+.new-project h2 {
+  font-size: 16px;
+}
+.new-project-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
 @media (max-width: 760px) {
   .app {
     grid-template-columns: minmax(0, 1fr);

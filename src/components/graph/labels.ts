@@ -115,13 +115,49 @@ export function partyDetail(party: Party, directory: Directory): string {
   return department ? `${side}, ${department}` : side;
 }
 
-/** The colour of a loop as a whole: broken red, warning amber, closed green, ended grey, else blue. */
+type Breakdown = DerivedLoop['breakdowns'][number];
+
+export const isEnded = (state: LoopState | null) =>
+  state === 'closed' || state === 'declined' || state === 'cancelled';
+
+export type ProblemTone = 'broken' | 'warning' | 'past';
+export const problemTone = (loop: DerivedLoop, item: Breakdown): ProblemTone =>
+  isEnded(loop.state) ? 'past' : item.severity;
+export const PROBLEM_MARK: Record<ProblemTone, string> = {
+  broken: '✕',
+  warning: '!',
+  past: 'Past:',
+};
+export const PROBLEM_HEADING: Record<ProblemTone, string> = {
+  broken: '✕ Broken',
+  warning: '! Warning',
+  past: 'Past problem',
+};
+
+export function problemCounts(loops: readonly DerivedLoop[]) {
+  const current = loops.filter((loop) => !isEnded(loop.state));
+  const broken = current.filter((loop) =>
+    loop.breakdowns.some((item) => item.severity === 'broken'),
+  ).length;
+  return {
+    broken,
+    warning: current.filter((loop) => loop.breakdowns.length).length - broken,
+    past: loops.filter((loop) => isEnded(loop.state) && loop.breakdowns.length).length,
+  };
+}
+
+export function milestoneLoopCounts(loops: readonly DerivedLoop[]) {
+  return {
+    open: loops.filter((loop) => !isEnded(loop.state)).length,
+    broken: problemCounts(loops).broken,
+  };
+}
+
+/** The colour of a loop as a whole: a finished loop shows its end; an open one shows its worst problem. */
 export function loopColor(loop: DerivedLoop): string {
+  if (loop.state === 'closed') return TONE_COLOR.green;
+  if (loop.state === 'declined' || loop.state === 'cancelled') return TONE_COLOR.gray;
   if (loop.breakdowns.some((item) => item.severity === 'broken')) return TONE_COLOR.red;
   if (loop.breakdowns.length || loop.dueSoon) return TONE_COLOR.amber;
-  return loop.state === 'closed'
-    ? TONE_COLOR.green
-    : loop.state === 'declined' || loop.state === 'cancelled'
-      ? TONE_COLOR.gray
-      : TONE_COLOR.blue;
+  return TONE_COLOR.blue;
 }

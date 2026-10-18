@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { eq } from 'drizzle-orm';
 import { createTestDatabase, testActor, type TestDb } from '../../support/db';
 import { projectRow, record } from '../../support/evidence';
 import { ingestText, proposalIds, putAct, putLoop, seedProject } from '../../support/proposals';
@@ -12,6 +13,7 @@ import {
   resetApp,
   revokeAgentToken,
 } from '../../../src/server/app';
+import { agentTokens } from '../../../src/server/db/schema';
 import { createProject } from '../../../src/server/domain/projects';
 import { AppError } from '../../../src/server/errors';
 import { toolError, toolResult } from '../../../src/server/mcp/results';
@@ -419,7 +421,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP adapter', () => {
   });
   it('lists all tools and none accepts a projectId argument', async () => {
     const { tools } = await (await connect(defaultToken.secret)).listTools();
-    expect(tools).toHaveLength(27);
+    expect(tools).toHaveLength(24);
     for (const tool of tools)
       expect(Object.keys(tool.inputSchema.properties ?? {})).not.toContain('projectId');
     expect(JSON.stringify({ tools }).length).toBeLessThanOrEqual(50_000);
@@ -429,7 +431,6 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP adapter', () => {
       'create_proposal',
       'diff_proposal',
       'get_commit',
-      'get_escalation',
       'get_graph',
       'get_loop',
       'get_project',
@@ -442,13 +443,11 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP adapter', () => {
       'list_loops',
       'list_milestones',
       'merge_proposal',
-      'open_escalation',
       'preview_rebase',
       'preview_restore',
       'preview_revert',
       'restore_commit',
       'revert_commit',
-      'save_escalation_analysis',
       'search_records',
       'update_proposal',
     ]);
@@ -475,12 +474,23 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP adapter', () => {
       isError: true,
       structuredContent: { code: 'FORBIDDEN' },
     });
-    expect(
-      await call(client, 'open_escalation', {
-        complaint: 'Where is the mapping?',
-        idempotencyKey: 'e1',
-      }),
-    ).toMatchObject({ isError: true, structuredContent: { code: 'FORBIDDEN' } });
+  });
+  it('lists no escalation tool', async () => {
+    const { tools } = await (await connect(defaultToken.secret)).listTools();
+    expect(tools.map((tool) => tool.name).filter((name) => name.includes('escalation'))).toEqual(
+      [],
+    );
+  });
+  it('a token with no scope left authenticates and every tool refuses it', async () => {
+    const created = await token(['project:read']);
+    await t.db.update(agentTokens).set({ scopes: [] }).where(eq(agentTokens.id, created.token.id));
+    const client = await connect(created.secret);
+    const { tools } = await client.listTools();
+    for (const { name } of tools) {
+      const reply = await call(client, name);
+      expect(reply).toMatchObject({ isError: true, structuredContent: { code: 'FORBIDDEN' } });
+      expect(JSON.stringify(reply.content)).toMatch(/Scope \S+ is required/);
+    }
   });
   it('marks successful responses private and uncacheable', async () => {
     const rpc = (id: number, method: string, params: Record<string, unknown>) =>

@@ -15,10 +15,19 @@ import {
   type LayoutOffsets,
 } from '../../lib/graph-layout';
 import type { EditTarget } from '../review/draft-edit';
+import { EmptyGraph } from './EmptyGraph';
 import { FilterBar } from './FilterBar';
+import type { PanelLevel } from './headings';
 import { applyFilters, filtersToSearch, type GraphFilters } from './filters';
 import type { CardInfo } from './CardNode';
-import { ACT_LABEL, loopColor, partyName, shortStamp, type Directory } from './labels';
+import {
+  ACT_LABEL,
+  loopColor,
+  partyName,
+  problemCounts,
+  shortStamp,
+  type Directory,
+} from './labels';
 import type { IndexEntry } from './LoopIndex';
 import { RecordPreview } from './RecordPreview';
 import { ResizeHandle } from './ResizeHandle';
@@ -47,7 +56,6 @@ export type GraphScreenProps = {
   engine: EngineOutput;
   pendingEvidenceCount: number;
   initialFilters: GraphFilters;
-  escalation: EscalationFocus | null;
   view: ViewSelection;
   edit: EditTarget;
   snapshot: Pick<GraphSnapshot, 'acts' | 'recordDecisions'>;
@@ -57,10 +65,12 @@ export type GraphScreenProps = {
   changedLoopIds?: readonly string[];
   agentActIds?: readonly string[];
   heading?: string;
-  headingLevel?: 1 | 2;
+  headingLevel?: 1 | 2 | 3 | 4;
+  initialFocus?: { actIds: readonly string[]; loopIds: readonly string[] };
+  /** Hides the edit controls, writes no browser storage and takes keys only from inside the graph. */
+  readOnly?: boolean;
+  listInitiallyClosed?: boolean;
 };
-export type EscalationFocus =
-  { state: 'cited'; loopIds: string[] } | { state: 'no-analysis' } | { state: 'missing' };
 
 const dayAndTime = (stamp: string) => {
   const at = stamp.lastIndexOf(' ');
@@ -77,7 +87,6 @@ export function GraphScreen({
   engine,
   pendingEvidenceCount,
   initialFilters,
-  escalation,
   view: graphView,
   edit,
   snapshot,
@@ -86,9 +95,13 @@ export function GraphScreen({
   agentActIds,
   heading = 'Main graph',
   headingLevel = 1,
+  initialFocus,
+  readOnly = false,
+  listInitiallyClosed = false,
 }: GraphScreenProps) {
-  const Heading = headingLevel === 1 ? 'h1' : 'h2';
-  const escalationLoopIds = escalation?.state === 'cited' ? escalation.loopIds : null;
+  const Heading = (['h1', 'h2', 'h3', 'h4'] as const)[headingLevel - 1];
+  // A page heading is h1, and its panels are h2; an embedded graph's panels sit at its own level.
+  const panelLevel = Math.max(2, headingLevel) as PanelLevel;
   const halo = useMemo(() => new Set(changedLoopIds ?? []), [changedLoopIds]);
   const agentActs = useMemo(() => new Set(agentActIds ?? []), [agentActIds]);
   const loopTargets = useMemo(
@@ -118,7 +131,12 @@ export function GraphScreen({
   const lastFocus = useRef<string | null>(null);
 
   const stageRef = useRef<HTMLDivElement>(null);
-  const [panelWidth, setPanelWidth] = useStoredSize('promise-graph:width:panel', 320, 720);
+  const [panelWidth, setPanelWidth] = useStoredSize(
+    'promise-graph:width:panel',
+    320,
+    720,
+    !readOnly,
+  );
   const [preview, setPreview] = useState<{ versionId: string; quote: string | null } | null>(null);
   const viewRecord = useCallback(
     (versionId: string, quote: string | null) => setPreview({ versionId, quote }),
@@ -213,16 +231,16 @@ export function GraphScreen({
           const shift = range ? Math.min(range[1], Math.max(range[0], change.shift)) : change.shift;
           next = withOffset(previous, 'loops', change.id, exact(shift));
         }
-        if (done) writeOffsets(browserStore(), projectId, next);
+        if (done && !readOnly) writeOffsets(browserStore(), projectId, next);
         return next;
       });
     },
-    [baseLayout, projectId],
+    [baseLayout, projectId, readOnly],
   );
   const resetLayout = useCallback(() => {
-    writeOffsets(browserStore(), projectId, NO_OFFSETS);
+    if (!readOnly) writeOffsets(browserStore(), projectId, NO_OFFSETS);
     setOffsets(NO_OFFSETS);
-  }, [projectId]);
+  }, [projectId, readOnly]);
   const cards = useMemo(() => {
     const map = new Map<string, CardInfo>();
     for (const loop of visibleLoops)
@@ -289,7 +307,7 @@ export function GraphScreen({
   const actIndex =
     selectedLoop && actId ? selectedLoop.acts.findIndex((act) => act.id === actId) : -1;
 
-  // SRD 7.3: a selection keeps its loops at full opacity; an escalation focus fades the loops it does not cite.
+  // SRD 7.3: a selection keeps its loops at full opacity.
   const faded = useMemo(() => {
     // A selected promise or task keeps its whole family at full strength: the promise and every task.
     const family = (loop: DerivedLoop) => {
@@ -305,13 +323,11 @@ export function GraphScreen({
       ? new Set(family(selectedLoop))
       : selectedMilestone
         ? new Set(selectedMilestone.loopIds)
-        : escalationLoopIds
-          ? new Set(escalationLoopIds)
-          : null;
+        : null;
     return new Set(
       keep ? visibleLoops.map((loop) => loop.loop.id).filter((id) => !keep.has(id)) : [],
     );
-  }, [selectedLoop, selectedMilestone, escalationLoopIds, visibleLoops]);
+  }, [selectedLoop, selectedMilestone, visibleLoops]);
 
   const update = useCallback(
     (next: Partial<Omit<GraphFilters, 'view' | 'loopId'>>) =>
@@ -360,6 +376,8 @@ export function GraphScreen({
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (view !== 'graph' || isTyping(event.target)) return;
+      if (readOnly && !(event.target instanceof Node && stageRef.current?.contains(event.target)))
+        return;
       const menu = event.target instanceof Element ? event.target.closest('details[open]') : null;
       if (menu) {
         if (event.key === 'Escape') {
@@ -384,23 +402,32 @@ export function GraphScreen({
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [selectedLoop, selectedMilestone, actIndex, close, view]);
+  }, [selectedLoop, selectedMilestone, actIndex, close, view, readOnly]);
+
+  // A press on a card, an icon or the loop list leaves focus on the page, where read-only keys do not reach.
+  const openedKey = selectedLoop?.loop.id ?? selectedMilestone?.milestone.id ?? null;
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!readOnly || openedKey === null || !stage || stage.contains(document.activeElement)) return;
+    stage
+      .querySelector<HTMLElement>('.drawer-h button[aria-label^="Close"]')
+      ?.focus({ preventScroll: true });
+  }, [readOnly, openedKey]);
 
   const counts = useMemo(() => {
-    const broken = visibleLoops.filter((loop) =>
-      loop.breakdowns.some((item) => item.severity === 'broken'),
-    ).length;
-    const warning = visibleLoops.filter(
-      (loop) =>
-        loop.breakdowns.length && !loop.breakdowns.some((item) => item.severity === 'broken'),
-    ).length;
     const closed = visibleLoops.filter((loop) => loop.state === 'closed').length;
     const ended = visibleLoops.filter(
       (loop) => loop.state === 'declined' || loop.state === 'cancelled',
     ).length;
-    return { broken, warning, closed, ended, open: visibleLoops.length - closed - ended };
+    return {
+      ...problemCounts(visibleLoops),
+      closed,
+      ended,
+      open: visibleLoops.length - closed - ended,
+    };
   }, [visibleLoops]);
   const panelOpen = view === 'graph' && (selectedLoop !== null || selectedMilestone !== null);
+  const noWork = graphView.kind === 'main' && engine.loops.length === 0;
 
   return (
     <section className="screen" aria-labelledby="graph-heading" style={{ paddingTop: 0 }}>
@@ -425,6 +452,11 @@ export function GraphScreen({
           <span className="warn">! {counts.warning} warning</span>, {counts.open} open,{' '}
           {counts.closed} closed, {counts.ended} declined or cancelled
         </span>
+        {counts.past > 0 && (
+          <span>
+            {counts.past} finished {counts.past === 1 ? 'loop' : 'loops'} had a problem earlier.
+          </span>
+        )}
         {pendingEvidenceCount > 0 && (
           <span>
             {pendingEvidenceCount} {pendingEvidenceCount === 1 ? 'record waits' : 'records wait'}{' '}
@@ -434,23 +466,14 @@ export function GraphScreen({
         {engine.unavailableEvidenceCount > 0 && (
           <span>
             {engine.unavailableEvidenceCount}{' '}
-            {engine.unavailableEvidenceCount === 1 ? 'act cites' : 'acts cite'} withdrawn evidence.
+            {engine.unavailableEvidenceCount === 1 ? 'step cites' : 'steps cite'} withdrawn
+            evidence.
           </span>
-        )}
-        {escalationLoopIds && (
-          <span>
-            Escalation focus: {escalationLoopIds.length} cited{' '}
-            {escalationLoopIds.length === 1 ? 'loop' : 'loops'} at full strength.
-          </span>
-        )}
-        {escalation?.state === 'no-analysis' && (
-          <span>Escalation focus: no analysis yet, so no loop is faded.</span>
-        )}
-        {escalation?.state === 'missing' && (
-          <span>Escalation focus: this escalation was not found.</span>
         )}
       </p>
-      {view === 'list' ? (
+      {noWork ? (
+        <EmptyGraph projectId={projectId} />
+      ) : view === 'list' ? (
         <LoopList
           loops={visibleLoops}
           directory={directory}
@@ -485,6 +508,7 @@ export function GraphScreen({
               />
             )}
             <PromiseGraph
+              laneScaleKey={`promise-graph:lane-scale:${projectId}`}
               title={title}
               context={context}
               layout={layout}
@@ -501,9 +525,14 @@ export function GraphScreen({
               onResetLayout={hasOffsets(offsets) ? resetLayout : null}
               index={{ entries: indexEntries, only, onToggleOnly: toggleOnly, onShowAll: showAll }}
               onSelectLoop={selectLoop}
+              panelOpen={panelOpen}
+              onClosePanel={close}
               onSelectMilestone={selectMilestone}
               onViewRecord={viewRecord}
               stageRef={stageRef}
+              initialFocus={initialFocus}
+              listInitiallyClosed={listInitiallyClosed}
+              persist={!readOnly}
             />
             {selectedLoop && (
               <LoopPanel
@@ -520,6 +549,8 @@ export function GraphScreen({
                 loops={loopTargets}
                 snapshot={snapshot}
                 agentActIds={agentActs}
+                readOnly={readOnly}
+                headingLevel={panelLevel}
                 relations={relations}
                 onOpenLoop={selectLoop}
                 onViewRecord={viewRecord}
@@ -530,6 +561,7 @@ export function GraphScreen({
               <MilestonePanel
                 milestone={selectedMilestone}
                 loops={engine.loops}
+                headingLevel={panelLevel}
                 onOpenLoop={selectLoop}
                 onClose={close}
               />

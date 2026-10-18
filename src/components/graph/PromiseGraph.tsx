@@ -29,7 +29,15 @@ import {
   CARD_MIN_ZOOM,
   MAX_ZOOM,
   MIN_ZOOM,
+  SCREEN_MIN,
+  atLeast,
+  displayLayout,
+  displayY,
   fitViewport,
+  focusViewport,
+  stackGlyphs,
+  type GlyphStack,
+  type LaneScale,
   lodOf,
   nextZoom,
   zoomAround,
@@ -43,7 +51,8 @@ import { BranchEdge, type BranchEdgeType } from './BranchEdge';
 import { CanvasControls } from './CanvasControls';
 import { CardNode, type CardInfo, type CardNodeType } from './CardNode';
 import { GATEWAY_SIZE, GatewayNode, type GatewayNodeType } from './GatewayNode';
-import { LaneColumn } from './LaneColumn';
+import { HoverCard, type Hover } from './HoverCard';
+import { LANE_SCALE, LaneColumn } from './LaneColumn';
 import { LaneLabel, type LaneLabelNode } from './LaneLabel';
 import { LoopIndex, type IndexEntry } from './LoopIndex';
 import { ResizeHandle } from './ResizeHandle';
@@ -60,6 +69,7 @@ import {
   type GraphUi,
 } from './ui-context';
 
+const TRUNK_VIEW_TOP = 40;
 const CURVE = 16,
   PAN_MARGIN = 400,
   // Wide enough that the stripes never end inside the view, even at 10 %.
@@ -113,11 +123,26 @@ export type PromiseGraphProps = {
     onShowAll(): void;
   };
   onSelectLoop(loopId: string, actId?: string): void;
+  /** The loop list hides while a panel is open. */
+  panelOpen: boolean;
+  onClosePanel(): void;
   onSelectMilestone(milestoneId: string): void;
   onViewRecord(recordVersionId: string, quote: string | null): void;
+  /** Where this project's lane heights are remembered. */
+  laneScaleKey: string;
+  /** The first view shows these acts, or else these loops, instead of the whole project. */
+  initialFocus?: { actIds: readonly string[]; loopIds: readonly string[] };
+  /** The loop list starts closed, whatever the stored choice and the screen width. */
+  listInitiallyClosed?: boolean;
+  /** False keeps list, size and lane changes in memory, so this view never changes what the main graph reads. */
+  persist?: boolean;
 };
 
-function Backdrop({ layout, content }: Pick<PromiseGraphProps, 'layout'> & { content: Box }) {
+function Backdrop({
+  layout,
+  content,
+  zoom,
+}: Pick<PromiseGraphProps, 'layout'> & { content: Box; zoom: number }) {
   const { xT, days } = layout;
   const last = days.at(-1);
   const x0 = content.x0 - STRIPE_OVERHANG,
@@ -178,7 +203,7 @@ function Backdrop({ layout, content }: Pick<PromiseGraphProps, 'layout'> & { con
             d={connector.path}
             fill="none"
             stroke={TONE_COLOR[connector.tone]}
-            strokeWidth={2.4}
+            strokeWidth={atLeast(2.4, 1.8, zoom)}
             strokeDasharray={DASH[connector.style]}
             strokeLinecap="round"
           />
@@ -200,7 +225,7 @@ function Backdrop({ layout, content }: Pick<PromiseGraphProps, 'layout'> & { con
         x2={layout.width}
         y2={layout.trunkY}
         stroke="var(--trunk)"
-        strokeWidth={4}
+        strokeWidth={atLeast(4, SCREEN_MIN.trunk, zoom)}
         strokeLinecap="round"
       />
       <line
@@ -241,7 +266,7 @@ function Backdrop({ layout, content }: Pick<PromiseGraphProps, 'layout'> & { con
 
 function Graph(props: PromiseGraphProps) {
   const {
-    layout,
+    layout: source,
     context,
     T,
     milestoneStatus,
@@ -257,11 +282,62 @@ function Graph(props: PromiseGraphProps) {
     onResetLayout,
     index,
     onSelectLoop,
+    panelOpen,
+    onClosePanel,
     onSelectMilestone,
     onViewRecord,
+    laneScaleKey,
+    initialFocus,
+    listInitiallyClosed = false,
+    persist = true,
   } = props;
   const flow = useReactFlow<GraphNode, BranchEdgeType>();
   const viewport = useViewport();
+  const compact = viewport.zoom < CARD_MIN_ZOOM;
+  // Above the card zoom the display layout does not depend on the zoom, so it is built once.
+  const displayZoom = compact ? viewport.zoom : 1;
+  // Marks keep their screen size only below this zoom, so normal zooms never re-render every node.
+  const markZoom = viewport.zoom < 0.9 ? Math.round(viewport.zoom * 1000) / 1000 : 1;
+  const [laneScale, setLaneScale] = useState<LaneScale>({});
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(laneScaleKey) ?? '{}') as unknown;
+      if (stored && typeof stored === 'object')
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setLaneScale(
+          Object.fromEntries(
+            Object.entries(stored).filter(
+              ([, value]) =>
+                typeof value === 'number' && value >= LANE_SCALE.min && value <= LANE_SCALE.max,
+            ),
+          ),
+        );
+    } catch {
+      // Blocked or broken storage: every lane keeps its natural height.
+    }
+  }, [laneScaleKey]);
+  const resizeLane = useCallback(
+    (departmentId: string, scale: number | null, done: boolean) =>
+      setLaneScale((previous) => {
+        const next = { ...previous };
+        if (scale === null) delete next[departmentId];
+        else next[departmentId] = Math.round(scale * 1000) / 1000;
+        if (done && persist)
+          try {
+            window.localStorage.setItem(laneScaleKey, JSON.stringify(next));
+          } catch {
+            // Blocked storage keeps the heights for this page view only.
+          }
+        return next;
+      }),
+    [laneScaleKey, persist],
+  );
+  const layout = useMemo(
+    () => displayLayout(source, displayZoom, laneScale),
+    [source, displayZoom, laneScale],
+  );
+  // Zoom to a loop ends at 60 % or more, where the cards show, so it aims at that layout.
+  const readingLayout = useMemo(() => displayLayout(source, 1, laneScale), [source, laneScale]);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
   const [activeKey, setActiveKey] = useState<string | null>(null);
@@ -298,18 +374,6 @@ function Graph(props: PromiseGraphProps) {
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
-  // SRD 7.2 (14 Oct 2026): the first view is 100 % with T at 80 % of the width and the trunk at the centre.
-  const placed = useRef(false);
-  useEffect(() => {
-    if (placed.current || size.width === 0) return;
-    placed.current = true;
-    void flow.setViewport({
-      x: size.width * 0.8 - xT,
-      y: size.height / 2 - layout.trunkY,
-      zoom: 1,
-    });
-  }, [size, flow, xT, layout.trunkY]);
-
   // A browser leaves full screen when a link opens in another tab, and only a click may enter it again,
   // so a link that ends full screen leaves a one-click way back.
   const [resume, setResume] = useState(false);
@@ -345,10 +409,15 @@ function Graph(props: PromiseGraphProps) {
     else void stageRef.current?.requestFullscreen().catch(() => undefined);
   }, [stageRef]);
 
-  const fit = useCallback(
-    () => void flow.setViewport(fitViewport(content, sizeNow()), { duration: 200 }),
-    [sizeNow, flow, content],
+  // The trunk is the top of the graph, so a zoom keeps it where it was on screen, and a fit puts it at the top.
+  const trunkAt = useCallback(
+    (zoom: number) => displayY(source, zoom, laneScale).trunkY * zoom,
+    [source, laneScale],
   );
+  const fit = useCallback(() => {
+    const view = fitViewport(content, sizeNow());
+    void flow.setViewport({ ...view, y: TRUNK_VIEW_TOP - trunkAt(view.zoom) }, { duration: 200 });
+  }, [sizeNow, flow, content, trunkAt]);
   // A second press during the 150 ms animation steps from the target, not from a zoom halfway there.
   const target = useRef<{ view: Viewport; until: number } | null>(null);
   const step = useCallback(
@@ -358,46 +427,107 @@ function Graph(props: PromiseGraphProps) {
           target.current && target.current.until > performance.now()
             ? target.current.view
             : flow.getViewport();
-      const view = zoomAround(current, nextZoom(current.zoom, direction), {
+      const zoomed = zoomAround(current, nextZoom(current.zoom, direction), {
         x: canvas.width / 2,
         y: canvas.height / 2,
       });
+      const view = { ...zoomed, y: current.y + trunkAt(current.zoom) - trunkAt(zoomed.zoom) };
       target.current = { view, until: performance.now() + 150 };
       void flow.setViewport(view, { duration: 150 });
     },
-    [sizeNow, flow],
+    [sizeNow, flow, trunkAt],
   );
-  // Zoom to a loop stops at 150 %, so its text stays a normal reading size.
-  const zoomToLoop = useCallback(
-    (loopId: string) => {
-      const branch = layout.branches.find((item) => item.loopId === loopId);
-      if (!branch) return;
-      const cards = branch.glyphs.flatMap((glyph) => (glyph.card ? [glyph.card] : []));
+  // Zoom to loops stops at 150 %, so their text stays a normal reading size.
+  const loopsView = useCallback(
+    (loopIds: readonly string[]): Viewport | null => {
+      const branches = readingLayout.branches.filter((item) => loopIds.includes(item.loopId));
+      if (!branches.length) return null;
+      const cards = branches.flatMap((branch) =>
+        branch.glyphs.flatMap((glyph) => (glyph.card ? [glyph.card] : [])),
+      );
       const box = {
-        x0: Math.min(branch.xStart - CURVE, ...cards.map((card) => card.x)),
-        x1: Math.max(branch.xEnd + CURVE, ...cards.map((card) => card.x + CARD.width)),
-        y0: Math.min(branch.y - 30, ...cards.map((card) => card.y)),
-        y1: branch.y + 30,
+        x0: Math.min(
+          ...branches.map((branch) => branch.xStart - CURVE),
+          ...cards.map((card) => card.x),
+        ),
+        x1: Math.max(
+          ...branches.map((branch) => branch.xEnd + CURVE),
+          ...cards.map((card) => card.x + CARD.width),
+        ),
+        y0: Math.min(...branches.map((branch) => branch.y - 30), ...cards.map((card) => card.y)),
+        y1: Math.max(...branches.map((branch) => branch.y + 30)),
       };
       const canvas = sizeNow(),
         fit = fitViewport(box, canvas, JUMP_PADDING, 1.5);
       // A long loop would fit only at an unreadable zoom; show its start at a reading zoom instead.
-      const view =
-        fit.zoom >= JUMP_MIN_ZOOM
-          ? fit
-          : {
-              zoom: JUMP_MIN_ZOOM,
-              x: JUMP_PADDING - box.x0 * JUMP_MIN_ZOOM,
-              y: (canvas.height - (box.y1 - box.y0) * JUMP_MIN_ZOOM) / 2 - box.y0 * JUMP_MIN_ZOOM,
-            };
-      void flow.setViewport(view, { duration: 200 });
+      return fit.zoom >= JUMP_MIN_ZOOM
+        ? fit
+        : {
+            zoom: JUMP_MIN_ZOOM,
+            x: JUMP_PADDING - box.x0 * JUMP_MIN_ZOOM,
+            y: (canvas.height - (box.y1 - box.y0) * JUMP_MIN_ZOOM) / 2 - box.y0 * JUMP_MIN_ZOOM,
+          };
     },
-    [layout, sizeNow, flow],
+    [readingLayout, sizeNow],
   );
+  const zoomToLoop = useCallback(
+    (loopId: string) => {
+      const view = loopsView([loopId]);
+      if (view) void flow.setViewport(view, { duration: 200 });
+    },
+    [loopsView, flow],
+  );
+  // Acts open at up to 100 %; acts too far apart for the reading zoom open on the earliest one.
+  const actsView = useCallback(
+    (actIds: readonly string[]): Viewport | null => {
+      const glyphs = readingLayout.branches
+        .flatMap((branch) => branch.glyphs)
+        .filter((glyph) => actIds.includes(glyph.id));
+      if (!glyphs.length) return null;
+      const half = ACT_NODE_SIZE / 2;
+      const boxes = glyphs.map(({ x, y, card }) => ({
+        x0: Math.min(x - half, card?.x ?? Infinity),
+        x1: Math.max(x + half, card ? card.x + CARD.width : -Infinity),
+        y0: Math.min(y - half, card?.y ?? Infinity),
+        y1: Math.max(y + half, card ? card.y + CARD.height : -Infinity),
+      }));
+      return focusViewport(boxes, sizeNow(), JUMP_PADDING, JUMP_MIN_ZOOM, 1);
+    },
+    [readingLayout, sizeNow],
+  );
+  // Place once, on the first measured size: on the focus when there is one, else on the whole project, not 10 days around T.
+  const placed = useRef(false);
+  useEffect(() => {
+    if (placed.current || size.width === 0) return;
+    placed.current = true;
+    const focus = initialFocus
+      ? (actsView(initialFocus.actIds) ?? loopsView(initialFocus.loopIds))
+      : null;
+    if (focus) {
+      // Loops sit under the trunk, so the view moves up to the trunk instead of showing empty canvas above it.
+      void flow.setViewport({
+        ...focus,
+        y: Math.min(focus.y, TRUNK_VIEW_TOP - trunkAt(focus.zoom)),
+      });
+      return;
+    }
+    const view = fitViewport(content, size);
+    void flow.setViewport({ ...view, y: TRUNK_VIEW_TOP - trunkAt(view.zoom) });
+  }, [size, flow, content, trunkAt, initialFocus, actsView, loopsView]);
 
   const stageBox = useRef<HTMLDivElement>(null);
-  const [laneWidth, setLaneWidth] = useStoredSize('promise-graph:width:lane-column', 88, 320);
-  const [listWidth, setListWidth] = useStoredSize('promise-graph:width:loop-list', 200, 480);
+  const [laneWidth, setLaneWidth] = useStoredSize(
+    'promise-graph:width:lane-column',
+    88,
+    320,
+    persist,
+  );
+  const [listWidth, setListWidth] = useStoredSize(
+    'promise-graph:width:loop-list',
+    200,
+    480,
+    persist,
+  );
   const laneMeasure = useCallback(
     () => stageBox.current?.querySelector('.lane-col')?.getBoundingClientRect().width ?? 132,
     [],
@@ -410,6 +540,7 @@ function Graph(props: PromiseGraphProps) {
   const [listOpen, setListOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   useEffect(() => {
+    if (listInitiallyClosed) return;
     let stored: string | null = null;
     try {
       stored = window.localStorage.getItem(LIST_KEY);
@@ -418,37 +549,44 @@ function Graph(props: PromiseGraphProps) {
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setListOpen(stored === null ? window.innerWidth >= LIST_MIN_SCREEN : stored === 'open');
-  }, []);
+  }, [listInitiallyClosed]);
+  const listShown = listOpen && !panelOpen;
   const toggleList = useCallback(() => {
+    if (panelOpen) {
+      onClosePanel();
+      if (listOpen) return;
+    }
     setListOpen((value) => {
-      try {
-        window.localStorage.setItem(LIST_KEY, value ? 'closed' : 'open');
-      } catch {
-        // Blocked storage keeps the choice for this page view only.
-      }
+      if (persist)
+        try {
+          window.localStorage.setItem(LIST_KEY, value ? 'closed' : 'open');
+        } catch {
+          // Blocked storage keeps the choice for this page view only.
+        }
       return !value;
     });
-  }, []);
-  // A loop hidden by "Show only" comes back first; the jump waits for the layout that holds it.
+  }, [panelOpen, listOpen, onClosePanel, persist]);
+  // The jump waits for the panel, which narrows the canvas, and for the layout that holds a loop hidden by "Show only".
   const pendingJump = useRef<string | null>(null);
+  // A list jump zooms to its loop itself; the reveal that follows a selection would cut that zoom short.
+  const jumpedTo = useRef<string | null>(null);
   const jump = useCallback(
     (loopId: string) => {
       setActiveId(loopId);
-      if (layout.branches.some((branch) => branch.loopId === loopId)) zoomToLoop(loopId);
-      else {
-        pendingJump.current = loopId;
-        index.onToggleOnly(loopId);
-      }
+      jumpedTo.current = loopId;
+      pendingJump.current = loopId;
+      onSelectLoop(loopId);
+      if (!layout.branches.some((branch) => branch.loopId === loopId)) index.onToggleOnly(loopId);
     },
-    [layout, zoomToLoop, index],
+    [layout, index, onSelectLoop],
   );
   useEffect(() => {
     const loopId = pendingJump.current;
-    if (loopId && layout.branches.some((branch) => branch.loopId === loopId)) {
+    if (panelOpen && loopId && layout.branches.some((branch) => branch.loopId === loopId)) {
       pendingJump.current = null;
       zoomToLoop(loopId);
     }
-  }, [layout, zoomToLoop]);
+  }, [layout, zoomToLoop, panelOpen]);
 
   const order = useMemo(
     () => [
@@ -494,6 +632,8 @@ function Graph(props: PromiseGraphProps) {
     [pointOfKey, flow],
   );
   useEffect(() => {
+    if (selectedLoopId === jumpedTo.current) return;
+    jumpedTo.current = null;
     if (selectedLoopId && size.width > 0) reveal(loopKey(selectedLoopId));
   }, [selectedLoopId, size.width, reveal]);
 
@@ -564,13 +704,24 @@ function Graph(props: PromiseGraphProps) {
     [flow, onDrag, onSelectLoop],
   );
 
+  const [hover, setHover] = useState<(Hover & { loopId: string | null }) | null>(null);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const hoverLoopId = hover?.loopId ?? null;
+  const shownFaded = useMemo(
+    () =>
+      hoverLoopId
+        ? new Set(layout.branches.map((branch) => branch.loopId).filter((id) => id !== hoverLoopId))
+        : faded,
+    [hoverLoopId, layout, faded],
+  );
   const ui: GraphUi = useMemo(
     () => ({
       selectedLoopId,
       selectedMilestoneId,
-      faded,
+      faded: shownFaded,
       halo,
       currentActId,
+      zoom: markZoom,
       activeKey: tabStop,
       navFocus: (_event: FocusEvent, key: string) => {
         setActiveKey(key);
@@ -603,9 +754,10 @@ function Graph(props: PromiseGraphProps) {
     [
       selectedLoopId,
       selectedMilestoneId,
-      faded,
+      shownFaded,
       halo,
       currentActId,
+      markZoom,
       tabStop,
       order,
       reveal,
@@ -617,6 +769,19 @@ function Graph(props: PromiseGraphProps) {
     ],
   );
 
+  // With the cards hidden, near icons of one branch merge so none covers another.
+  const stacks = useMemo(
+    () =>
+      compact
+        ? new Map(
+            layout.branches.map((branch) => [
+              branch.loopId,
+              stackGlyphs(branch.glyphs, displayZoom),
+            ]),
+          )
+        : null,
+    [compact, layout, displayZoom],
+  );
   const nodes = useMemo<GraphNode[]>(() => {
     const fixed = {
       draggable: false,
@@ -651,7 +816,10 @@ function Graph(props: PromiseGraphProps) {
       data: { milestone, status: milestoneStatus.get(milestone.id) ?? 'on_track', index },
     }));
     const acts: ActNodeType[] = layout.branches.flatMap((branch) =>
-      branch.glyphs.map((glyph) => {
+      (
+        stacks?.get(branch.loopId) ??
+        branch.glyphs.map((glyph): GlyphStack => ({ lead: glyph, glyphs: [glyph] }))
+      ).map(({ lead: glyph, glyphs }) => {
         const segment =
           branch.segments.find((item) => item.startX <= glyph.x && glyph.x <= item.endX) ??
           branch.segments.at(-1)!;
@@ -662,7 +830,7 @@ function Graph(props: PromiseGraphProps) {
           position: { x: glyph.x - ACT_NODE_SIZE / 2, y: glyph.y - ACT_NODE_SIZE / 2 },
           width: ACT_NODE_SIZE,
           height: ACT_NODE_SIZE,
-          data: { glyph, color: TONE_COLOR[segment.tone] },
+          data: { glyph, color: TONE_COLOR[segment.tone], stacked: glyphs.length },
         };
       }),
     );
@@ -702,7 +870,7 @@ function Graph(props: PromiseGraphProps) {
       data: { gateway },
     }));
     return [...lanes, ...milestones, ...acts, ...gateways, ...cardNodes];
-  }, [layout, milestoneStatus, cards]);
+  }, [layout, milestoneStatus, cards, stacks]);
   const edges = useMemo<BranchEdgeType[]>(
     () =>
       layout.branches.map((branch) => ({
@@ -721,16 +889,130 @@ function Graph(props: PromiseGraphProps) {
     [layout, xT],
   );
 
+  const findHover = useCallback(
+    (clientX: number, clientY: number): (Hover & { loopId: string | null }) | null => {
+      const area = wrapRef.current?.getBoundingClientRect(),
+        stage = stageBox.current?.getBoundingClientRect();
+      if (!area || !stage || !stacks) return null;
+      const view = flow.getViewport(),
+        sx = clientX - area.left,
+        sy = clientY - area.top;
+      const box = { stageWidth: stage.width, stageHeight: stage.height };
+      const toStage = (x: number, y: number) => ({
+        x: area.left - stage.left + view.x + x * view.zoom,
+        y: area.top - stage.top + view.y + y * view.zoom,
+      });
+      const at = (x: number, y: number) =>
+        Math.hypot(view.x + x * view.zoom - sx, view.y + y * view.zoom - sy);
+      const radius = SCREEN_MIN.icon / 2 + 3;
+      let best: { stack: GlyphStack; loopId: string; distance: number } | null = null;
+      for (const branch of layout.branches)
+        for (const stack of stacks.get(branch.loopId) ?? []) {
+          const distance = at(stack.lead.x, stack.lead.y);
+          if (distance <= radius && (!best || distance < best.distance))
+            best = { stack, loopId: branch.loopId, distance };
+        }
+      if (best) {
+        const branch = layout.branches.find((item) => item.loopId === best.loopId)!;
+        const segment =
+          branch.segments.find(
+            (item) => item.startX <= best.stack.lead.x && best.stack.lead.x <= item.endX,
+          ) ?? branch.segments.at(-1)!;
+        const events = best.stack.glyphs.flatMap((glyph) => {
+          const info = cards.get(glyph.id);
+          return info ? [info] : [];
+        });
+        if (!events.length) return null;
+        return {
+          kind: 'events',
+          loopId: branch.loopId,
+          loopTitle: branch.title,
+          department:
+            layout.lanes.find((lane) => lane.departmentId === branch.departmentId)?.name ?? '',
+          color:
+            best.stack.lead.type === 'reject' && events.length === 1
+              ? 'var(--danger)'
+              : TONE_COLOR[segment.tone],
+          events,
+          radius,
+          ...box,
+          ...toStage(best.stack.lead.x, best.stack.lead.y),
+        };
+      }
+      const point = toStage(0, 0),
+        pointer = { x: point.x + (sx - view.x), y: point.y + (sy - view.y) };
+      const milestone = layout.milestones.find(
+        (item) => at(item.x, item.y) <= atLeast(9, 7, view.zoom) * view.zoom + 4,
+      );
+      if (milestone)
+        return {
+          kind: 'label',
+          loopId: null,
+          title: milestone.label,
+          detail: 'milestone',
+          ...box,
+          ...pointer,
+        };
+      const worldX = (sx - view.x) / view.zoom;
+      let line: (typeof layout.branches)[number] | null = null;
+      for (const branch of layout.branches) {
+        const distance = Math.abs(view.y + branch.y * view.zoom - sy);
+        if (
+          worldX >= branch.xStart &&
+          worldX <= branch.xEnd &&
+          distance <= 6 &&
+          (!line || distance < Math.abs(view.y + line.y * view.zoom - sy))
+        )
+          line = branch;
+      }
+      if (!line) return null;
+      const detail = line.accessibleName.replace(`Loop: ${line.title}, `, '');
+      return { kind: 'label', loopId: line.loopId, title: line.title, detail, ...box, ...pointer };
+    },
+    [flow, layout, stacks, cards],
+  );
+  const keepHover = useCallback(() => clearTimeout(hideTimer.current), []);
+  const leaveHover = useCallback(() => {
+    clearTimeout(hideTimer.current);
+    // A short wait lets the pointer cross from an icon into its card.
+    hideTimer.current = setTimeout(() => setHover(null), 180);
+  }, []);
+  const onCanvasPointer = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      if (!compact || event.buttons !== 0 || event.pointerType === 'touch') return;
+      const next = findHover(event.clientX, event.clientY);
+      if (!next) {
+        if (hover) leaveHover();
+        return;
+      }
+      clearTimeout(hideTimer.current);
+      setHover((previous) =>
+        previous?.kind === 'events' &&
+        next.kind === 'events' &&
+        previous.x === next.x &&
+        previous.y === next.y
+          ? previous
+          : next,
+      );
+    },
+    [compact, findHover, hover, leaveHover],
+  );
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!compact) setHover(null);
+  }, [compact]);
+  useEffect(() => () => clearTimeout(hideTimer.current), []);
+
   const lod = lodOf(viewport.zoom);
   return (
     <GraphUiContext.Provider value={ui}>
       <div
         ref={stageBox}
-        className={`canvas-stage lod-${lod}${viewport.zoom < CARD_MIN_ZOOM ? ' cards-off' : ''}${listOpen ? ' list-open' : ''}`}
+        className={`canvas-stage lod-${lod}${viewport.zoom < CARD_MIN_ZOOM ? ' cards-off' : ''}${listShown ? ' list-open' : ''}`}
         style={
           {
             ...(laneWidth ? { '--lane-col': `${laneWidth}px` } : {}),
-            ...(listOpen && listWidth ? { '--list-w': `${listWidth}px` } : {}),
+            ...(listShown && listWidth ? { '--list-w': `${listWidth}px` } : {}),
           } as CSSProperties
         }
       >
@@ -741,7 +1023,7 @@ function Graph(props: PromiseGraphProps) {
           measure={laneMeasure}
           onResize={setLaneWidth}
         />
-        {listOpen && (
+        {listShown && (
           <ResizeHandle
             className="list-handle"
             label="Loop list width"
@@ -760,7 +1042,12 @@ function Graph(props: PromiseGraphProps) {
             width={size.width}
           />
         </div>
-        <LaneColumn layout={layout} viewport={viewport} />
+        <LaneColumn
+          layout={layout}
+          viewport={viewport}
+          laneScale={laneScale}
+          onResizeLane={resizeLane}
+        />
         <div
           ref={wrapRef}
           className="gwrap"
@@ -768,6 +1055,10 @@ function Graph(props: PromiseGraphProps) {
           aria-label={`Promise graph for ${props.title}`}
           data-zoom={viewport.zoom.toFixed(2)}
           data-ready={size.width > 0 ? 'true' : undefined}
+          onPointerMove={onCanvasPointer}
+          onPointerLeave={() => hover && leaveHover()}
+          onPointerDown={() => setHover(null)}
+          onWheel={() => hover && setHover(null)}
         >
           <ReactFlow<GraphNode, BranchEdgeType>
             nodes={nodes}
@@ -801,10 +1092,18 @@ function Graph(props: PromiseGraphProps) {
             proOptions={{ hideAttribution: true }}
           >
             <ViewportPortal>
-              <Backdrop layout={layout} content={content} />
+              <Backdrop layout={layout} content={content} zoom={markZoom} />
             </ViewportPortal>
           </ReactFlow>
         </div>
+        {hover && (
+          <HoverCard
+            hover={hover}
+            onKeep={keepHover}
+            onLeave={leaveHover}
+            onViewRecord={(info) => onViewRecord(info.recordVersionId, info.quote)}
+          />
+        )}
         <CanvasControls
           zoom={viewport.zoom}
           onStep={step}
@@ -813,7 +1112,7 @@ function Graph(props: PromiseGraphProps) {
           fullscreenEnabled={fullscreenEnabled}
           onFullscreen={toggleFullscreen}
           onResetLayout={onResetLayout}
-          listOpen={listOpen}
+          listOpen={listShown}
           onList={toggleList}
         />
         {resume && (
@@ -839,7 +1138,7 @@ function Graph(props: PromiseGraphProps) {
             </button>
           </div>
         )}
-        {listOpen && (
+        {listShown && (
           <LoopIndex
             entries={index.entries}
             only={index.only}

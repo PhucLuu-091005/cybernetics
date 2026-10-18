@@ -62,7 +62,7 @@ export function memoryStore(): MemoryStore {
         .reverse()
         .slice(offset, offset + limit)
         .map(
-          ({ id, userId, projectId, prefix, label, scopes, createdAt, expiresAt, revokedAt }) => ({
+          ({
             id,
             userId,
             projectId,
@@ -72,8 +72,24 @@ export function memoryStore(): MemoryStore {
             createdAt,
             expiresAt,
             revokedAt,
+            lastUsedAt,
+          }) => ({
+            id,
+            userId,
+            projectId,
+            prefix,
+            label,
+            scopes,
+            createdAt,
+            expiresAt,
+            revokedAt,
+            lastUsedAt,
           }),
         );
+    },
+    async touchToken(tokenId, at) {
+      const token = [...tokens.values()].find((t) => t.id === tokenId);
+      if (token) token.lastUsedAt = at;
     },
     async revokeToken(input) {
       const token = [...tokens.values()].find(

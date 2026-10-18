@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { Fragment } from 'react';
 import type { Act, ActorContext, GraphSnapshot, ProposalReview } from '../../../../../contracts';
+import { GraphScreen } from '../../../../../components/graph/GraphScreen';
 import { shortStamp } from '../../../../../components/graph/labels';
 import { ChangeSetActions } from '../../../../../components/review-queue/ChangeSetActions';
 import { changeSetState } from '../../../../../components/review-queue/state';
+import { changeSetGraph } from '../../../../../components/review/change-set-graph';
 import { CitedSources } from '../../../../../components/review/CitedSources';
 import { capRecordIds, namesFrom } from '../../../../../components/review/describe';
 import { DiffView } from '../../../../../components/review/DiffView';
@@ -11,7 +13,7 @@ import { EffectsTable } from '../../../../../components/review/EffectsTable';
 import { OmittedRecordsNote } from '../../../../../components/review/fields';
 import { AuthorBadge } from '../../../../../components/review/ProposalFrame';
 import { getApp } from '../../../../../server/app';
-import { evaluationTime, resolveView } from '../../../../../server/domain/graph';
+import { evaluationTime, getGraphView, resolveView } from '../../../../../server/domain/graph';
 import { diffProposal, getProposal } from '../../../../../server/domain/proposals';
 import { readCitedRecords } from '../../../../../server/domain/records';
 import { AppError } from '../../../../../server/errors';
@@ -19,6 +21,7 @@ import { notFoundOn } from '../../../../../server/http/rsc';
 
 type Props = {
   projectId: string;
+  projectTitle: string;
   proposalId: string;
   actor: ActorContext;
   current: { mainCommitId: string; evidenceRevision: number; snapshot: GraphSnapshot };
@@ -28,6 +31,7 @@ type Props = {
 
 export async function ChangeSetDetail({
   projectId,
+  projectTitle,
   proposalId,
   actor,
   current,
@@ -52,6 +56,16 @@ export async function ChangeSetDetail({
   } catch (error) {
     if (!(error instanceof AppError) || error.code !== 'CONFLICT') throw error;
   }
+  const graph = review
+    ? await getGraphView(db, actor, {
+        projectId,
+        view: { kind: 'proposal', proposalId: proposal.id, proposalRevision: proposal.revision },
+        T: review.T,
+      }).catch((error) => {
+        if (error instanceof AppError && error.code === 'CONFLICT') return null;
+        throw error;
+      })
+    : null;
   const state = changeSetState(proposal, current, review ? review.conflicts.length : null);
 
   const changedActs = review
@@ -74,6 +88,17 @@ export async function ChangeSetDetail({
           )
         ).snapshot;
   const cited = await readCitedRecords(db, actor, { projectId, recordVersionIds: wanted.ids });
+  const embed =
+    review && graph
+      ? {
+          graph,
+          ...changeSetGraph(
+            proposal,
+            { mainCommitId: graph.mainCommitId, evidenceRevision: graph.evidenceRevision },
+            review.diff.changes,
+          ),
+        }
+      : null;
   const names = namesFrom(
     [proposal.candidate, base, current.snapshot],
     Object.fromEntries([...cited].map(([versionId, record]) => [versionId, record.title])),
@@ -81,13 +106,6 @@ export async function ChangeSetDetail({
 
   return (
     <>
-      <div className="stack" style={{ gap: 6 }}>
-        <h2>{proposal.title}</h2>
-        <div className="row" style={{ fontSize: 13 }}>
-          <AuthorBadge author={proposal.author} viewerUserId={actor.userId} prefix="By" />
-        </div>
-        {proposal.rationale.trim() && <p className="faint">{proposal.rationale}</p>}
-      </div>
       <ChangeSetActions
         key={review?.digest ?? `${proposal.id}:${proposal.revision}`}
         projectId={projectId}
@@ -104,16 +122,61 @@ export async function ChangeSetDetail({
         }
         current={{ mainCommitId: current.mainCommitId, evidenceRevision: current.evidenceRevision }}
         T={evaluationTime(proposal.candidate)}
-        graphHref={`/projects/${projectId}/graph?${new URLSearchParams({ proposal: proposal.id, rev: String(proposal.revision) })}`}
-        editHref={`/projects/${projectId}/proposals/${proposal.id}`}
-      />
+      >
+        <div className="stack" style={{ gap: 6 }}>
+          <h2>{proposal.title}</h2>
+          <div className="row" style={{ fontSize: 13 }}>
+            <AuthorBadge author={proposal.author} viewerUserId={actor.userId} prefix="By" />
+          </div>
+          {proposal.rationale.trim() && <p className="faint">{proposal.rationale}</p>}
+        </div>
+      </ChangeSetActions>
       {review && (
         <>
           <OmittedRecordsNote omitted={wanted.omitted} />
           <section className="box" aria-labelledby="what-changes">
-            <h3 id="what-changes">What changes</h3>
+            <div className="box-h">
+              <h3 id="what-changes">What changes</h3>
+              <Link className="btn" href={`/projects/${projectId}/proposals/${proposal.id}`}>
+                Edit
+              </Link>
+            </div>
             <DiffView changes={review.diff.changes} names={names} />
           </section>
+          {embed && (
+            <section className="box" aria-labelledby="on-graph">
+              <div className="box-h">
+                <h3 id="on-graph">On the graph</h3>
+                <Link
+                  className="lnk"
+                  href={`/projects/${projectId}/graph?${new URLSearchParams({ proposal: proposal.id, rev: String(proposal.revision) })}`}
+                >
+                  Open full graph
+                </Link>
+              </div>
+              <div className="review-graph">
+                <GraphScreen
+                  key={`review-${proposal.id}-${proposal.revision}-${embed.graph.T}`}
+                  {...embed.props}
+                  projectId={projectId}
+                  title={projectTitle}
+                  context={proposal.candidate.context}
+                  engine={embed.graph.engine}
+                  pendingEvidenceCount={embed.graph.pendingEvidenceCount}
+                  sources={embed.graph.sources}
+                  snapshot={{
+                    acts: proposal.candidate.acts,
+                    recordDecisions: proposal.candidate.recordDecisions,
+                  }}
+                  initialFocus={embed.focus}
+                  heading="Change set graph"
+                  headingLevel={4}
+                  readOnly
+                  listInitiallyClosed
+                />
+              </div>
+            </section>
+          )}
           <section className="box" aria-labelledby="loop-effects">
             <h3 id="loop-effects">Effect on the loops</h3>
             <EffectsTable

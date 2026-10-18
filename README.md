@@ -13,23 +13,23 @@ It is for customer success and implementation managers. They must reconstruct a 
 
 ## Screenshots
 
-The screenshots come from a local development server on 15 October 2026, with the seeded sandbox.
+The screenshots come from a local development server on 16 October 2026, with the seeded sandbox.
 
 The approved graph with the loop panel open. The red branch has an `unanswered_request` breakdown, and the panel shows the cited quote in its message:
 
 ![Approved graph with the loop panel for the client secret renewal loop](docs/screenshots/graph-loop-panel.png)
 
-The Review screen with a change set selected: the change, its effect on the loops, the quotes and the Approve and Reject buttons:
+The Review screen with a change set selected: the title with the Reject and Approve buttons, the change, and the change set on the graph:
 
 ![Review screen with a change set](docs/screenshots/review-queue.png)
 
-The Settings page: the agent access scopes, the MCP client snippet and a created token:
+The Settings page: the agent permissions, the MCP client snippet and a created token:
 
 ![Settings page with agent access](docs/screenshots/agent-tokens.png)
 
 The design file is [docs/design/2026-10-13-promise-graph-ui.html](docs/design/2026-10-13-promise-graph-ui.html). Open it in a browser to see every screen. The requirements are in [docs/superpowers/specs/2026-10-12-promise-graph-srd.md](docs/superpowers/specs/2026-10-12-promise-graph-srd.md).
 
-Your first sign-in creates a private sandbox: a copy of the fictional Larkspur Capital onboarding project with 121 records and 30 reviewed loops ([fixtures/README.md](fixtures/README.md)).
+Your first sign-in creates a private sandbox: a copy of the fictional Larkspur Capital onboarding project with 137 records and 36 reviewed loops ([fixtures/README.md](fixtures/README.md)).
 
 ## Connect an agent
 
@@ -41,6 +41,7 @@ Your first sign-in creates a private sandbox: a copy of the fictional Larkspur C
    ```
 
 3. Follow the recipe in [docs/mcp-agent-recipe.md](docs/mcp-agent-recipe.md): read the project, read pending records, create a proposal, send operations, read the diff.
+4. Ask the agent to list its tools. Then press **Check again** in Settings. The **Last call** column of the token shows the time of that call.
 
 ## Local setup
 
@@ -181,9 +182,9 @@ On this budget the first sign-in, which seeds the sandbox, can take about 10 sec
 Offline evaluation (`pnpm eval`) on the hand-written gold fixtures:
 
 ```
-transition/breakdown accuracy: 100.0% (30/30)
-quote validity: 100.0% (116/116)
-expected diff matches: 100.0% (6/6)
+transition/breakdown accuracy: 100.0% (36/36)
+quote validity: 100.0% (132/132)
+expected diff matches: 100.0% (7/7)
 conflict detection: 100.0% (6/6)
 revert/restore correctness: 100.0% (4/4)
 ```
@@ -199,7 +200,6 @@ Live external-agent run (to fill in after step 7 of the deploy):
 ## Known limits
 
 - **Coverage.** The graph covers only imported and reviewed records. Pending records are a coverage limit: the graph header shows how many records wait for review, so an empty warning list is not proof of health.
-- **Verdicts.** An escalation verdict classifies only the evidence that a person or an agent submitted with the analysis. It does not search for other evidence.
 - **No connectors.** The P1 connectors (Slack events, Slack history, Gmail fetch, scheduled collection) are not built. Records arrive through paste or MCP import only.
 - **Free hosting.** The free web service sleeps after 15 minutes without traffic, and the free database expires 30 days after creation. On its 0.1 CPU the graph paints in several seconds and the first sign-in can take about 10 seconds, so the SRD 14 timing budgets hold only on a larger instance. See [Deploy on Render](#deploy-on-render-free-plan) and [Measured results](#measured-results).
 - **One instance.** Rate limits (60 reads and 20 writes a minute for each user, 60 calls a minute for each token) are kept in process memory.

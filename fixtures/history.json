@@ -10355,7 +10355,7 @@
   {
     "key": "revert-ignore-out-of-office",
     "kind": "revert",
-    "message": "Revert \"Ignore the out-of-office reply and note why Tom did not answer\"",
+    "message": "Undo \"Ignore the out-of-office reply and note why Tom did not answer\"",
     "targetKey": "ignore-out-of-office",
     "snapshot": {
       "schemaVersion": 1,

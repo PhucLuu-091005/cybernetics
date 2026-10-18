@@ -91,8 +91,8 @@ test('create a proposal from an inbox citation, correct its loop, review the dif
   await editor.getByLabel('Act type').selectOption({ label: 'Promise' });
   await editor.getByLabel('Actor').selectOption({ label: 'Tom Becker' });
   await editor.getByLabel('Loop').selectOption({ label: 'Dynamics CRM sync scope' });
-  await editor.getByLabel('Customer').selectOption({ label: 'Quang Nguyễn' });
-  await editor.getByLabel('Performer').selectOption({ label: 'Tom Becker' });
+  await editor.getByLabel('Requested by').selectOption({ label: 'Quang Nguyễn' });
+  await editor.getByLabel('Done by').selectOption({ label: 'Tom Becker' });
   await editor.getByLabel('Action').fill('Renew the Azure client secret for the sync app');
   await editor.getByLabel('Due date').fill('2026-10-12');
   await editor.getByRole('button', { name: 'Save act to change set' }).click();
@@ -239,7 +239,7 @@ test('revert preview: a conflicting inverse becomes a proposal, an unrelated lat
   await preview.getByRole('button', { name: 'Create a change set that undoes it' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/proposals/[0-9a-f-]{36}$`));
   await expect(
-    page.getByRole('heading', { level: 1, name: /^Revert: Ignore the out-of-office reply/ }),
+    page.getByRole('heading', { level: 1, name: /^Undo: Ignore the out-of-office reply/ }),
   ).toBeVisible();
 
   await page.goto(`/projects/${projectId}/history`);
@@ -250,12 +250,10 @@ test('revert preview: a conflicting inverse becomes a proposal, an unrelated lat
     page.getByRole('heading', { level: 2, name: /^Note the SOW phase 2 scope/ }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Preview undo' }).click();
-  await expect(preview.getByRole('table', { name: 'Touched entities' })).toContainText(
-    'Annotation',
-  );
+  await expect(preview.getByRole('table', { name: 'Touched items' })).toContainText('Note:');
   await expect(preview.getByTestId('preserved')).toContainText('Unrelated later work stays');
   await expect(preview.getByTestId('preserved')).toContainText(
-    'Revert "Ignore the out-of-office reply',
+    'Undo "Ignore the out-of-office reply',
   );
   await preview.getByRole('button', { name: 'Apply undo as a new version' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/history/[0-9a-f-]{36}$`));
@@ -284,21 +282,75 @@ test('restore preview lists removed later changes and apply creates a new restor
   await page.goto(`/projects/${projectId}/history`);
   const before = await commits(page).getByRole('link').count();
   await commits(page)
-    .getByRole('link', { name: /^Seed Larkspur main snapshot/ })
+    .getByRole('link', { name: /^Larkspur history up to 9 October/ })
     .click();
   await expect(
-    page.getByRole('heading', { level: 2, name: /^Seed Larkspur main snapshot/ }),
+    page.getByRole('heading', { level: 2, name: /^Larkspur history up to 9 October/ }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Preview go back' }).click();
   const preview = page.getByRole('region', { name: /Go back preview/ });
-  await expect(preview.getByTestId('removed-later')).toContainText('Removes annotation');
+  await expect(preview.getByTestId('removed-later')).toContainText('Removes note');
   await expect(preview.getByTestId('removed-later')).toContainText('Note the SOW phase 2 scope');
   await preview.getByRole('button', { name: 'Apply go back as a new version' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/history/[0-9a-f-]{36}$`));
   await expect(commits(page).getByRole('link')).toHaveCount(before + 1);
   const top = commits(page).getByRole('link').first();
   await expect(top).toContainText('Go back');
-  await expect(top).toContainText('Seed Larkspur main snapshot');
+  await expect(top).toContainText('Larkspur history up to 9 October');
+});
+
+test('Activity uses plain words and logs no console error', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  const projectId = await signIn(page, 'review-activity');
+  await page.goto(`/projects/${projectId}/history`);
+  await expect(page.getByRole('columnheader', { name: 'Kind' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Item' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Collection' })).toHaveCount(0);
+  await expect(page.getByRole('columnheader', { name: 'Entity' })).toHaveCount(0);
+  await expect(page.getByRole('table', { name: 'Changes in this version' })).toBeVisible();
+  await expect(page.getByText(/^\d+ items?: \d+ added/)).toBeVisible();
+
+  await commits(page)
+    .getByRole('link', { name: /^Ignore the out-of-office reply/ })
+    .click();
+  await expect(
+    page.getByRole('heading', { level: 2, name: /^Ignore the out-of-office reply/ }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Preview undo' }).click();
+  const undoPreview = page.getByRole('region', { name: /Undo preview/ });
+  await expect(undoPreview).toBeVisible();
+  await expect(undoPreview).toContainText('Undo conflicts with later changes.');
+  await expect(undoPreview).toContainText('A later change removed this item.');
+  await expect(undoPreview).not.toContainText(/revert|restore|entity|postimage|inverse/i);
+  await page.getByText('Technical details').last().click();
+
+  await commits(page)
+    .getByRole('link', { name: /^Note the SOW phase 2 scope/ })
+    .click();
+  await expect(
+    page.getByRole('heading', { level: 2, name: /^Note the SOW phase 2 scope/ }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Preview undo' }).click();
+  const table = page.getByRole('table', { name: 'Touched items' });
+  await expect(table.getByRole('columnheader', { name: 'Item' })).toBeVisible();
+  await expect(table.getByRole('columnheader', { name: 'Entity' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Preview go back' }).click();
+  await expect(page.getByRole('region', { name: /Go back preview/ })).toBeVisible();
+
+  await page.goto(`/projects/${projectId}/history`);
+  await commits(page)
+    .getByRole('link', { name: /^Note the SOW phase 2 scope/ })
+    .click();
+  const changes = page.getByRole('table', { name: 'Changes in this version' });
+  await expect(changes.getByRole('cell', { name: 'Note', exact: true })).toBeVisible();
+  await expect(changes).toContainText('supports the client reading. [1][2]');
+
+  await page.goto(`/projects/${projectId}/history`);
+  await expect(commits(page).getByText(/^Undo "Ignore the out-of-office reply/)).toBeVisible();
+  expect(errors).toEqual([]);
 });
 
 test('loop panel edits on main open a proposal first; change type, move and hide then edit that draft; main stays unchanged', async ({
