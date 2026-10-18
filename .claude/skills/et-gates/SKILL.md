@@ -34,7 +34,7 @@ The script prints one line per gate (`tsc rc=0`), the Vitest and Playwright summ
 ## Read the result
 
 - Vitest: `Test Files N passed` and `Tests N passed`, with no `failed`. Compare N with the baseline in your brief. A lower count means that tests were lost.
-- Playwright: `N passed` and no `failed` or `flaky` line.
+- Playwright: `N passed` and no `failed` or `flaky` line, once for the main suite (`e2e`, AUTH_MODE=local) and once for the demo suite (`e2e-demo`, `playwright.demo.config.ts`, AUTH_MODE=demo). The two runs go one after the other, because both use `.next`.
 - On a failure, open the log of that gate. Fix the cause, then run all the gates again. Do not report a partial rerun as a pass.
 
 ## Report

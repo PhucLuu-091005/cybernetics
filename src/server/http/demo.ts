@@ -29,6 +29,7 @@ function isPageVisit(request: Request): boolean {
   return (
     request.method === 'GET' &&
     !isBot(request.headers.get('user-agent')) &&
+    !request.headers.has('next-router-prefetch') &&
     (accept.includes('text/html') || request.headers.get('rsc') === '1')
   );
 }

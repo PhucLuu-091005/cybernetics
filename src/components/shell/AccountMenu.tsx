@@ -1,5 +1,6 @@
 'use client';
 import { useId } from 'react';
+import { useDemoMode } from './demo-mode';
 import { RailIcon } from './icons';
 import { useDismissibleDetails } from './Popover';
 import { THEME_LABEL, THEMES, useTheme } from './theme';
@@ -19,6 +20,7 @@ export function AccountMenu({ name, detail, color }: Account) {
   const ref = useDismissibleDetails();
   const [theme, setTheme] = useTheme();
   const themeLabel = useId();
+  const demo = useDemoMode();
   const signOut = async () => {
     await fetch('/api/auth/session', { method: 'DELETE' });
     // A full load drops every cached page, and replace keeps Back off the signed-in page. Plain /signin,
@@ -27,7 +29,7 @@ export function AccountMenu({ name, detail, color }: Account) {
   };
   return (
     <details ref={ref} className="acct me">
-      <summary aria-label={`${name}: theme and sign out`} title={name}>
+      <summary aria-label={`${name}: theme and ${demo ? 'start over' : 'sign out'}`} title={name}>
         <span className="acct-av" style={color ? { background: color } : undefined}>
           {initials(name)}
         </span>
@@ -42,6 +44,7 @@ export function AccountMenu({ name, detail, color }: Account) {
           {name}
           {detail && <small>{detail}</small>}
         </p>
+        {demo && <p className="acct-note">Your own demo copy. Nobody else sees your changes.</p>}
         <hr />
         <p className="acct-label" id={themeLabel}>
           Theme
@@ -60,9 +63,18 @@ export function AccountMenu({ name, detail, color }: Account) {
           ))}
         </div>
         <hr />
-        <button className="acct-item" type="button" onClick={() => void signOut()}>
-          <RailIcon name="signOut" /> Sign out
-        </button>
+        {demo ? (
+          // A form post, so the new cookie and the fresh sandbox arrive in one full page load.
+          <form action="/api/auth/demo" method="post">
+            <button className="acct-item" type="submit">
+              <RailIcon name="restart" /> Start over
+            </button>
+          </form>
+        ) : (
+          <button className="acct-item" type="button" onClick={() => void signOut()}>
+            <RailIcon name="signOut" /> Sign out
+          </button>
+        )}
       </div>
     </details>
   );
