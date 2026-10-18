@@ -4,7 +4,7 @@ Promise Graph is an event tracker for a whole project. Each team has rows of wor
 
 Main is read-only. People and their agents add events and work items to a Queue. A person places them in a change request, and a person with the Merge right merges it into Main. The app never calls an AI model and holds no provider key.
 
-To put the app online, follow [docs/deploy-cloud-run-neon.md](docs/deploy-cloud-run-neon.md) (Google Cloud Run and Neon).
+To put the app online, follow [docs/deploy-cloud-run-neon.md](docs/deploy-cloud-run-neon.md) (Google Cloud Run and Neon). The hosted app opens with no login: each visitor gets their own copy of the demo project (`AUTH_MODE=demo`).
 
 ![The Larkspur demo project on Main: teams, work items, events, milestones and the legend](docs/screenshots/tracker-main.png)
 
@@ -16,7 +16,7 @@ To put the app online, follow [docs/deploy-cloud-run-neon.md](docs/deploy-cloud-
 - **Members.** The people of the project, their teams and their grants. The project lead edits them.
 - **Settings.** The project facts and the agent tokens.
 
-Your first sign-in creates a private sandbox: the fictional Larkspur Capital project with 7 teams, a Queue and 4 change requests ([fixtures/README.md](fixtures/README.md)). The **Demo** select at the top right changes who you work as. The full behaviour is in the [spec](docs/superpowers/specs/2026-10-16-event-tracker-design.md).
+Your first visit (or your first sign-in in `local` and `google` modes) creates a private sandbox: the fictional Larkspur Capital project with 7 teams, a Queue and 4 change requests ([fixtures/README.md](fixtures/README.md)). The **Demo** select at the top right changes who you work as. The full behaviour is in the [spec](docs/superpowers/specs/2026-10-16-event-tracker-design.md).
 
 ## Run it locally
 
