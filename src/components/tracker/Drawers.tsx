@@ -19,6 +19,7 @@ import {
   itemInfo,
   itemStatus,
   KIND_LABEL,
+  kindWithArticle,
   lateBy,
   mainState,
   milestoneStatus,
@@ -508,8 +509,8 @@ export function WorkItemDrawer({
         <p className="wi-hint" role="note" aria-label="Start of the work item">
           <Icon name="info" size={14} />
           <span>
-            This work item starts with a {KIND_LABEL[hint]}. Add the event that started it, such as
-            a Message, an Idea or a Task.
+            This work item starts with {kindWithArticle(hint)}. Add the event that started it, such
+            as a Message, an Idea or a Task.
           </span>
         </p>
       )}

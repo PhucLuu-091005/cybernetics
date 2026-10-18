@@ -4,6 +4,7 @@ import {
   KIND_GROUPS,
   KIND_LABEL,
   kindText,
+  kindWithArticle,
   STATUS_LABEL,
   type Milestone,
   type TrackerEvent,
@@ -65,6 +66,14 @@ describe('event kinds', () => {
       ['Finish', ['handoff', 'done', 'cancelled']],
     ]);
     expect(KIND_GROUPS.flatMap((g) => g.kinds).sort()).toEqual([...EVENT_KINDS].sort());
+  });
+
+  it('puts the right article before each kind', () => {
+    expect(kindWithArticle('issue')).toBe('an Issue');
+    expect(kindWithArticle('idea')).toBe('an Idea');
+    expect(kindWithArticle('meeting')).toBe('a Meeting');
+    expect(kindWithArticle('handoff')).toBe('a Handoff');
+    expect(kindWithArticle('done')).toBe('a Done');
   });
 
   it('has a Cancelled status with a neutral tone', () => {

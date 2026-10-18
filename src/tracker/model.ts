@@ -25,6 +25,9 @@ export const KIND_LABEL: Record<EventKind, string> = {
   cancelled: 'Cancelled',
 };
 
+export const kindWithArticle = (kind: EventKind) =>
+  `${/^[AEIOU]/.test(KIND_LABEL[kind]) ? 'an' : 'a'} ${KIND_LABEL[kind]}`;
+
 export const FINISHES_NOTE = 'finishes the work item';
 
 export const isFinishingHandoff = (e: { kind: EventKind; finishes?: boolean }) =>
