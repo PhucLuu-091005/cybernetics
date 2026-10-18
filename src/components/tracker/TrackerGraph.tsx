@@ -44,6 +44,41 @@ const TIP_ROOM = 180;
 /** The space between a menu and its anchor; `.hand-menu` moves by the same 6 px. */
 const MENU_GAP = 6;
 const OPEN_QUIET_MS = 300;
+// The first change sits this far above the sticky zoom bar.
+const BAR_ROOM = 12;
+
+/**
+ * The page scroll that shows the first change of a change request above the sticky zoom bar. The
+ * page stops where a block below the sticky top bar starts, so no row of buttons is cut in half.
+ */
+function changeInView(
+  graph: HTMLElement | null,
+  bar: HTMLElement,
+  axis: HTMLElement | null,
+): number | null {
+  const marks = Array.from(graph?.querySelectorAll('svg.pg .halo') ?? []).map((mark) =>
+    mark.getBoundingClientRect(),
+  );
+  if (!marks.length) return null;
+  const y = window.scrollY;
+  const first = marks.reduce((a, b) => (b.top < a.top ? b : a));
+  const barTop = window.innerHeight - BAR_ROOM - bar.offsetHeight;
+  const need = first.bottom + y - (barTop - BAR_ROOM);
+  if (need <= 0) return 0;
+  const top =
+    parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tk-top')) || 0;
+  const below = top + (axis?.offsetHeight ?? 0);
+  const board = graph?.closest('.tk.board');
+  const stops = Array.from(
+    board?.querySelectorAll(
+      ':scope > .p-head > *, :scope > .bbar, :scope > .ro-note, .p-side, .gwrap',
+    ) ?? [],
+  )
+    .map((el) => el.getBoundingClientRect().top + y - top)
+    .filter((stop) => stop >= need && first.top + y - stop >= below)
+    .sort((a, b) => a - b);
+  return Math.round(stops[0] ?? need);
+}
 
 export type PopKind = 'act' | 'stack';
 export type DatePreview = { kind: 'item' | 'ms'; id: string; x: number; label?: string };
@@ -669,19 +704,34 @@ export function TrackerGraph(props: Props) {
   }, []);
   useLayoutEffect(fitLegend);
   // On a phone the page scrolls under the sticky controls, so the first change of a change request
-  // would open under them; the page scrolls it clear once, before the person scrolls.
-  const cleared = useRef(false);
-  const hasRows = L.rows.length > 0;
+  // would open under them. Until the person scrolls or touches the page, every new layout (the saved
+  // fold loads after the first one) places the change above the bar again.
+  const touched = useRef(false);
+  const placedAt = useRef<number | null>(null);
+  useEffect(() => {
+    const stop = () => {
+      touched.current = true;
+    };
+    const onScroll = () => {
+      if (placedAt.current === null || Math.abs(window.scrollY - placedAt.current) > 2) stop();
+    };
+    const kinds = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
+    for (const kind of kinds) window.addEventListener(kind, stop, { capture: true, passive: true });
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      for (const kind of kinds) window.removeEventListener(kind, stop, { capture: true });
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, []);
   useEffect(() => {
     const bar = barRef.current;
-    if (cleared.current || !hasRows || !bar) return;
-    cleared.current = true;
+    if (touched.current || !bar || !L.rows.length) return;
     if (!window.matchMedia('(max-width: 760px)').matches) return;
-    const marks = Array.from(root.current?.querySelectorAll('svg.pg .halo') ?? []);
-    const first = Math.min(...marks.map((mark) => mark.getBoundingClientRect().bottom));
-    const gap = first - (bar.getBoundingClientRect().top - 12);
-    if (marks.length && gap > 0) window.scrollBy(0, gap);
-  }, [hasRows]);
+    const target = changeInView(root.current, bar, head.current);
+    if (target === null) return;
+    placedAt.current = target;
+    if (Math.abs(window.scrollY - target) > 1) window.scrollTo(0, target);
+  }, [L]);
   useEffect(() => {
     if (!legendOpen) return;
     const bar = barRef.current;

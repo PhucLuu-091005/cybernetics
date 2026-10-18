@@ -1581,6 +1581,35 @@ test.describe('the tracker at phone width', () => {
     await noHorizontalScroll(page);
   });
 
+  test('a change request opens with its first change above the zoom bar when every team is open', async ({
+    page,
+  }) => {
+    await page.goto('/signin?label=tracker-phone-open-cr');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    await expect(page.locator('svg.pg')).toBeVisible();
+    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Expand all' }).click());
+    await page.goto(new URL(page.url()).pathname.replace(/graph$/, 'changes/4'));
+    const changed = page.locator('svg.pg .halo').first();
+    await expect(changed).toBeVisible();
+    const place = () =>
+      page.evaluate(() => {
+        const box = (s: string) => document.querySelector(s)!.getBoundingClientRect();
+        const rail = box('.rail');
+        const change = box('svg.pg .halo');
+        const history = box('.hist-btn');
+        return {
+          clear: change.top >= rail.bottom && change.bottom <= box('.zoombar').top,
+          whole: history.top >= rail.bottom || history.bottom <= rail.bottom,
+          rail: rail.top === 0,
+        };
+      });
+    await expect.poll(place).toEqual({ clear: true, whole: true, rail: true });
+    // The saved fold loads after the first layout, so the place must still hold a moment later.
+    await page.waitForTimeout(500);
+    expect(await place()).toEqual({ clear: true, whole: true, rail: true });
+  });
+
   test('the menu of the lowest team on the screen opens above the zoom bar with every item in reach', async ({
     page,
   }) => {
