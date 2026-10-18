@@ -18,8 +18,12 @@ export function returnPath(raw: unknown): string | null {
   } catch {
     return null;
   }
-  if (url.origin !== BASE || url.pathname === '/' || NOT_A_PAGE.test(url.pathname)) return null;
-  return url.pathname + url.search;
+  if (url.origin !== BASE) return null;
+  // Dot segments collapse during parsing ("/.//evil.com" becomes "//evil.com"), so check the result again.
+  const path = url.pathname + url.search;
+  if (path.startsWith('//') || path.includes('\\')) return null;
+  if (url.pathname === '/' || NOT_A_PAGE.test(url.pathname)) return null;
+  return new URL(path, BASE).origin === BASE ? path : null;
 }
 
 export const signinPath = (next: string | null) =>
