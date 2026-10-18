@@ -119,7 +119,7 @@ async function scopeOf(
     tenant: {
       workspaceId: project.workspaceId,
       projectId: project.id,
-      ...(ctx.kind === 'agent' ? { byAgent: true } : {}),
+      ...(ctx.kind === 'agent' ? { byAgent: true, viaKey: ctx.keyLabel } : {}),
     },
   };
 }

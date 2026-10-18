@@ -7,6 +7,7 @@ import {
   SCOPE_INFO,
   scopeBlock,
   type Creator,
+  type KeyKind,
   type Scope,
   type TokenCreated,
 } from '../../contracts';
@@ -16,21 +17,25 @@ import { useHydrated } from '../shell/hydrated';
 import { Checkbox } from '../tracker/Checkbox';
 import { Select } from '../tracker/Select';
 import { allowedScopes, firstScopes, selectAllState, toggleAll } from './scopes';
+import { KEY_COPY } from './copy';
 import { SecretReveal } from './SecretReveal';
 
 export type ExpiryOption = { days: number; label: string };
 
 export function TokenCreate({
-  projectId,
+  kind = 'project',
+  api,
   endpoint,
   expiryOptions,
   creator,
 }: {
-  projectId: string;
+  kind?: KeyKind;
+  api: string;
   endpoint: string;
   expiryOptions: ExpiryOption[];
   creator: Creator;
 }) {
+  const copy = KEY_COPY[kind];
   const router = useRouter();
   const hydrated = useHydrated();
   const id = useId();
@@ -55,7 +60,7 @@ export function TokenCreate({
     setBusy(true);
     setFailure(null);
     // A reused creation key answers CONFLICT and never replays the secret (SRD 3), so every attempt gets a fresh key.
-    const result = await send<TokenCreated>(`/api/v1/projects/${projectId}/agent-tokens`, 'POST', {
+    const result = await send<TokenCreated>(api, 'POST', {
       label: label.trim(),
       scopes: SCOPE_INFO.map((info) => info.scope).filter((scope) => scopes.has(scope)),
       expiresAt: new Date(Date.now() + days * 86_400_000).toISOString(),
@@ -71,8 +76,8 @@ export function TokenCreate({
     router.refresh();
   };
   return (
-    <form className="pg-sec pg-create" aria-label="Create a token" onSubmit={submit}>
-      <h2>Create a token</h2>
+    <form className="pg-sec pg-create" aria-label={copy.create} onSubmit={submit}>
+      <h2>{copy.create}</h2>
       {created && (
         <SecretReveal
           secret={created.secret}
@@ -81,7 +86,7 @@ export function TokenCreate({
           onClose={() => setCreated(null)}
         />
       )}
-      {failure && <ConflictBanner title="The token was not created." error={failure} />}
+      {failure && <ConflictBanner title={copy.notCreated} error={failure} />}
       <div className="pg-form">
         <label className="field pg-grow">
           Label
@@ -111,8 +116,7 @@ export function TokenCreate({
       <fieldset className="pg-scopes" aria-describedby={`${id}-hint`}>
         <legend>Permissions</legend>
         <p className="pg-hint" id={`${id}-hint`}>
-          Each permission is one of your own rights. The agent can never manage tokens, delete the
-          project or hand over the project lead.
+          {copy.hint}
         </p>
         <div className="pg-all">
           <Checkbox
@@ -132,7 +136,7 @@ export function TokenCreate({
             <h3>{group}</h3>
             {SCOPE_GROUP_NOTE[group] && <p className="pg-warn">{SCOPE_GROUP_NOTE[group]}</p>}
             {SCOPE_INFO.filter((info) => info.group === group).map((info) => {
-              const blocked = scopeBlock(info, creator);
+              const blocked = scopeBlock(info, creator, kind);
               return (
                 <Checkbox
                   key={info.scope}
@@ -157,7 +161,7 @@ export function TokenCreate({
         type="submit"
         disabled={!hydrated || busy || created !== null || !label.trim() || !scopes.size}
       >
-        Create token
+        {copy.button}
       </button>
     </form>
   );

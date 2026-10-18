@@ -109,7 +109,7 @@ export type TrackerEvent = {
   text: string;
   /** Only a Handoff reads it: true makes the Handoff finish its work item. */
   finishes?: boolean;
-  addedBy: 'agent' | string | null;
+  addedBy: string | null;
   hidden: boolean;
 };
 

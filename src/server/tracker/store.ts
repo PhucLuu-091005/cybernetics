@@ -12,7 +12,10 @@ import {
   trackerQueue,
   trackerTeamMembers,
   trackerTeams,
+  users,
 } from '../db/schema';
+import { photosOn } from '../avatars/config';
+import { photoUrl } from '../avatars/store';
 import { toIso, type Db, type Tx } from '../db/tx';
 
 export type Reader = Db | Tx;
@@ -20,10 +23,10 @@ export type TrackerRow = typeof trackerProjects.$inferSelect;
 export type CrRow = typeof trackerCrs.$inferSelect;
 export type QueueDbRow = typeof trackerQueue.$inferSelect;
 /**
- * byAgent rides along with every tenant spread; only tables with a byAgent column keep it, so each
- * change request comment records that an agent wrote it for its person.
+ * byAgent and viaKey ride along with every tenant spread; only tables with those columns keep them,
+ * so each change request comment records the key that wrote it for its person.
  */
-export type Tenant = { workspaceId: string; projectId: string; byAgent?: boolean };
+export type Tenant = { workspaceId: string; projectId: string; byAgent?: boolean; viaKey?: string };
 
 const isoOrNull = (value: string | null) => (value === null ? null : toIso(value));
 
@@ -113,20 +116,26 @@ export async function loadTeams(db: Reader, projectId: string): Promise<TeamRow[
 
 export async function loadMembers(db: Reader, projectId: string): Promise<Member[]> {
   const rows = await db
-    .select()
+    .select({ member: trackerMembers, avatarKey: users.avatarKey })
     .from(trackerMembers)
+    .leftJoin(users, eq(users.id, trackerMembers.userId))
     .where(eq(trackerMembers.projectId, projectId))
     .orderBy(asc(trackerMembers.seq));
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    roleLabel: row.roleLabel,
-    color: row.color,
-    userId: row.userId,
-    active: row.removedAt === null && !isInvite(row),
-    removed: row.removedAt !== null,
-    grants: grantsOf(row),
-  }));
+  const photos = photosOn();
+  return rows.map(({ member: row, avatarKey }) => {
+    const photo = photos ? photoUrl(row.userId, avatarKey) : null;
+    return {
+      id: row.id,
+      name: row.name,
+      roleLabel: row.roleLabel,
+      color: row.color,
+      userId: row.userId,
+      active: row.removedAt === null && !isInvite(row),
+      removed: row.removedAt !== null,
+      grants: grantsOf(row),
+      ...(photo ? { photo } : {}),
+    };
+  });
 }
 
 export const grantsOf = (row: typeof trackerMembers.$inferSelect): Grants => ({
@@ -255,6 +264,7 @@ export async function loadCrs(
       body: comment.body,
       opIndex: comment.opIndex,
       agent: comment.byAgent,
+      viaKey: comment.viaKey,
       createdAt: toIso(comment.createdAt),
     })),
   }));

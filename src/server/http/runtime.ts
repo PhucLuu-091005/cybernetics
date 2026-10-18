@@ -1,6 +1,8 @@
 import type {
   ActorContext,
   CreateAgentTokenInput,
+  CreatePersonalKeyInput,
+  RevokePersonalKeyInput,
   ListAgentTokensResult,
   RevokeAgentTokenInput,
   RevokeAgentTokenResult,
@@ -8,8 +10,13 @@ import type {
   TokenCreated,
 } from '../../contracts';
 import { readAuthEnvironment } from '../env';
-import { createTokenService, type CreatorOf, type ListTokensInput } from '../domain/tokens/service';
-import { createIdentityServices, type BrowserSession } from './actors';
+import {
+  createTokenService,
+  type CreatorOf,
+  type ListKeysInput,
+  type ListTokensInput,
+} from '../domain/tokens/service';
+import { createIdentityServices, type BrowserSession, type LimitBucket } from './actors';
 import type { HttpIdentityStore } from './identity-store';
 import { MemoryRateLimiter } from './rate-limit';
 const state = globalThis as typeof globalThis & {
@@ -24,17 +31,22 @@ export function getHttpIdentityStore(): HttpIdentityStore {
   if (!state.promiseIdentityStore) throw new Error('Identity persistence is unavailable');
   return state.promiseIdentityStore;
 }
-function identities() {
-  const store = getHttpIdentityStore();
+export function getRateLimiter(): MemoryRateLimiter {
   state.promiseRateLimiter ??= new MemoryRateLimiter();
+  return state.promiseRateLimiter;
+}
+function identities() {
   return createIdentityServices({
-    store,
+    store: getHttpIdentityStore(),
     env: readAuthEnvironment(),
-    limiter: state.promiseRateLimiter,
+    limiter: getRateLimiter(),
   });
 }
-export async function getBrowserActor(request: Request): Promise<ActorContext> {
-  return identities().getBrowserActor(request);
+export async function getBrowserActor(
+  request: Request,
+  bucket?: LimitBucket,
+): Promise<ActorContext> {
+  return identities().getBrowserActor(request, bucket);
 }
 export async function getBrowserSession(request: Request): Promise<BrowserSession> {
   return identities().resolveBrowserSession(request);
@@ -50,11 +62,12 @@ export async function getTokenActor(request: Request, scope: Scope | null): Prom
 }
 // Loaded on use: the app module imports this one, and the creator's rights live in the tracker.
 const creatorOf: CreatorOf = async (ctx, projectId) => {
-  const [{ getApp }, { tokenCreator }] = await Promise.all([
+  const [{ getApp }, { personalCreator, tokenCreator }] = await Promise.all([
     import('../app'),
     import('../domain/account'),
   ]);
-  return tokenCreator(getApp().db, ctx, projectId);
+  const db = getApp().db;
+  return projectId === null ? personalCreator(db, ctx) : tokenCreator(db, ctx, projectId);
 };
 const tokenService = () => createTokenService(getHttpIdentityStore(), creatorOf);
 
@@ -75,4 +88,22 @@ export async function listTokens(
   input: ListTokensInput,
 ): Promise<ListAgentTokensResult> {
   return tokenService().listTokens(ctx, input);
+}
+export async function createPersonalKey(
+  ctx: ActorContext,
+  input: Omit<CreatePersonalKeyInput, 'scopes'> & { scopes?: Scope[] },
+): Promise<TokenCreated> {
+  return tokenService().createPersonalKey(ctx, input);
+}
+export async function revokePersonalKey(
+  ctx: ActorContext,
+  input: RevokePersonalKeyInput,
+): Promise<RevokeAgentTokenResult> {
+  return tokenService().revokePersonalKey(ctx, input);
+}
+export async function listPersonalKeys(
+  ctx: ActorContext,
+  input: ListKeysInput,
+): Promise<ListAgentTokensResult> {
+  return tokenService().listPersonalKeys(ctx, input);
 }

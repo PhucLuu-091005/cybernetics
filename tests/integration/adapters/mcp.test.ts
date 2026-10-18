@@ -29,6 +29,8 @@ describe('MCP result envelopes', () => {
     kind: 'agent',
     userId: randomUUID(),
     tokenId: randomUUID(),
+    key: 'project',
+    keyLabel: 'Agent',
     workspaceId: randomUUID(),
     projectId: randomUUID(),
     scopes: ['project:read'],

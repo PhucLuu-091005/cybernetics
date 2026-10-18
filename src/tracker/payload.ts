@@ -18,6 +18,8 @@ export type Member = {
   removed: boolean;
   /** The stored grants; `rightsOf` adds the project lead and team lead rules. */
   grants: Grants;
+  /** The photo URL; without it the avatar shows initials. */
+  photo?: string;
 };
 
 export type CrStatus = 'draft' | 'ready' | 'merged' | 'closed';
@@ -74,8 +76,9 @@ export type Cr = {
     kind: CrCommentKind;
     body: string | null;
     opIndex: number | null;
-    /** An agent wrote it for memberId. */
+    /** An agent wrote it for memberId; audit only. */
     agent: boolean;
+    viaKey: string | null;
     createdAt: string;
   }>;
 };

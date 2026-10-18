@@ -28,6 +28,10 @@ export type Scope = z.infer<typeof ScopeSchema>;
 export const knownScopes = (stored: readonly string[]): Scope[] =>
   stored.filter((scope): scope is Scope => ScopeSchema.safeParse(scope).success);
 export const DEFAULT_AGENT_SCOPES: readonly Scope[] = ['project:read', 'queue:add'];
+/** A project key works in one project; a personal key works in every project of its person. */
+export const KeyKindSchema = z.enum(['project', 'personal']);
+export type KeyKind = z.infer<typeof KeyKindSchema>;
+const KeyLabelSchema = z.string().min(1).max(200);
 const verified = {
   workspaceId: IdSchema,
   projectId: IdSchema,
@@ -41,15 +45,25 @@ export const ActorContextSchema = z.discriminatedUnion('kind', [
     ...verified,
     projectId: IdSchema.nullable(),
   }),
-  z.strictObject({ kind: z.literal('agent'), userId: TextSchema, tokenId: IdSchema, ...verified }),
+  // A personal key has no project until a call names one; the MCP adapter then binds it per call.
+  z.strictObject({
+    kind: z.literal('agent'),
+    userId: TextSchema,
+    tokenId: IdSchema,
+    key: KeyKindSchema,
+    keyLabel: KeyLabelSchema,
+    ...verified,
+    projectId: IdSchema.nullable(),
+  }),
 ]);
 export type ActorContext = z.infer<typeof ActorContextSchema>;
 export const AgentTokenSchema = z.strictObject({
   id: IdSchema,
   userId: TextSchema,
-  projectId: IdSchema,
+  kind: KeyKindSchema,
+  projectId: IdSchema.nullable(),
   prefix: TextSchema,
-  label: z.string().min(1).max(200),
+  label: KeyLabelSchema,
   scopes: z.array(ScopeSchema),
   createdAt: TimestampSchema,
   expiresAt: TimestampSchema,
@@ -64,10 +78,12 @@ export const CreateAgentTokenInputSchema = z.strictObject({
     .min(1)
     .default(() => [...DEFAULT_AGENT_SCOPES]),
   expiresAt: TimestampSchema.optional(),
-  label: z.string().min(1).max(200),
+  label: KeyLabelSchema,
   idempotencyKey: IdempotencyKeySchema,
 });
 export type CreateAgentTokenInput = z.infer<typeof CreateAgentTokenInputSchema>;
+export const CreatePersonalKeyInputSchema = CreateAgentTokenInputSchema.omit({ projectId: true });
+export type CreatePersonalKeyInput = z.infer<typeof CreatePersonalKeyInputSchema>;
 
 /** The secret is returned once. Persist only its hash; a reused creation key must conflict, never replay the secret. */
 export const TokenCreatedSchema = z.strictObject({
@@ -80,21 +96,24 @@ export const RevokeAgentTokenInputSchema = z.strictObject({
   tokenId: IdSchema,
   idempotencyKey: z.string().min(1).max(256),
 });
+export const RevokePersonalKeyInputSchema = RevokeAgentTokenInputSchema.omit({ projectId: true });
 export const RevokeAgentTokenResultSchema = z.strictObject({
-  projectId: IdSchema,
+  projectId: IdSchema.nullable(),
   tokenId: IdSchema,
   revokedAt: TimestampSchema,
   requestId: TextSchema,
 });
 export const ListAgentTokensInputSchema = PageInputSchema.extend({ projectId: IdSchema });
+export const ListPersonalKeysInputSchema = PageInputSchema;
 export const ListAgentTokensResultSchema = z.strictObject({
-  projectId: IdSchema,
+  projectId: IdSchema.nullable(),
   items: z.array(AgentTokenSchema).max(50),
   nextCursor: z.string().nullable(),
   requestId: TextSchema,
 });
 export type TokenCreated = z.infer<typeof TokenCreatedSchema>;
 export type RevokeAgentTokenInput = z.infer<typeof RevokeAgentTokenInputSchema>;
+export type RevokePersonalKeyInput = z.infer<typeof RevokePersonalKeyInputSchema>;
 export type RevokeAgentTokenResult = z.infer<typeof RevokeAgentTokenResultSchema>;
 export type ListAgentTokensInput = z.infer<typeof ListAgentTokensInputSchema>;
 export type ListAgentTokensResult = z.infer<typeof ListAgentTokensResultSchema>;

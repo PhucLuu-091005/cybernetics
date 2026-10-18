@@ -89,6 +89,8 @@ export function agentActor(user: ActorContext, projectId: string, scopes: Scope[
     kind: 'agent',
     userId: user.userId,
     tokenId: randomUUID(),
+    key: 'project',
+    keyLabel: 'Agent',
     workspaceId: user.workspaceId,
     projectId,
     scopes: [...scopes],

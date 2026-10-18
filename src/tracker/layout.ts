@@ -1304,7 +1304,7 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     folded: new Set(),
     eventsOf,
     rows: new Map(),
-    name: (id) => (id === 'agent' ? 'Agent' : (people.get(id) ?? id)),
+    name: (id) => people.get(id) ?? id,
     dayStart,
     deadlineX: (m) => Math.min(x1 - 4, x(milestoneDeadline(m, tz))),
     lateFrom: (w) => itemDeadline(w, tz),
