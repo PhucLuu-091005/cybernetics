@@ -134,10 +134,11 @@ Requirements: Node.js 24, Docker. pnpm is not needed globally; the commands use 
 | Variable | Value |
 |---|---|
 | `AUTH_MODE` | `google` in production. `local` works only on a loopback origin and only when `NODE_ENV` is not `production`. |
-| `NEXT_PUBLIC_APP_URL` | The public origin, for example `https://promise-graph.onrender.com`. Production requires `https`. The server reads it at run time. |
+| `NEXT_PUBLIC_APP_URL` | The public origin, for example `https://promise-graph-<project number>.asia-southeast1.run.app`. Production requires `https`. The server reads it at run time. |
 | `SESSION_SECRET` | At least 32 bytes. It signs the session cookie. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | The Google OAuth web client. Required when `AUTH_MODE=google`. |
-| `DATABASE_URL` | The PostgreSQL connection URL. |
+| `DATABASE_URL` | The PostgreSQL connection URL. On Neon, the pooled (`-pooler`) URL. |
+| `MIGRATE_DATABASE_URL` | Optional. The direct URL that `scripts/migrate.mjs` uses. Set it when `DATABASE_URL` is a Neon pooled URL. |
 
 ### Commands
 
@@ -150,42 +151,14 @@ Requirements: Node.js 24, Docker. pnpm is not needed globally; the commands use 
 | `TEST_DATABASE_URL=<admin url> E2E_PORT=3300 npx pnpm@11.25.0 test:e2e` | Playwright suite. It starts `next dev` on `E2E_PORT` (default 3300) against a throwaway `pg_e2e_*` database. Stop any dev server in the same checkout first, because both write to `.next`. |
 | `npx pnpm@11.25.0 build` | Production build (Next.js 16, Turbopack, standalone output) |
 
-## Deploy on Render (free plan)
+## Deploy
 
-[render.yaml](render.yaml) is a Render Blueprint. It declares one Docker web service (`plan: free`, health check `/api/health`) and one PostgreSQL 17 database (`plan: free`) in the Singapore region. The container applies pending migrations on each start, then starts the server. If a migration fails, the container stops and Render keeps the previous deploy.
-
-**The tracker needs a fresh database.** One baseline migration (`0000_baseline.sql`) creates the whole schema; the old promise data (records, proposals and graph commits) is not part of it. An account seeds its sandbox only on its first sign-in. An account that signed in before the tracker therefore keeps a project with no tracker, and its graph page says "This project has no tracker yet." Before the first tracker deploy, point the service at an empty database. Each account then gets the Larkspur sandbox on its first sign-in.
-
-On a deployment that already runs the promise version, delete the old database in the Render dashboard. Then sync the Blueprint, so that Render creates a new empty `promise-graph-db`, and deploy. For a new deployment, follow the steps below.
-
-The free plan has two limits that affect the demo:
-
-- A free web service sleeps after 15 minutes without traffic. The first request after that waits about one minute.
-- A free database expires 30 days after creation. Render deletes it after a further 14 days. A workspace can have only one free database.
-
-Do these steps in this order:
-
-1. **Create the Google OAuth client.** In Google Cloud Console, go to **APIs & Services → Credentials → Create credentials → OAuth client ID**. Select **Web application**. Leave the redirect URI empty for now. Configure the consent screen with the scopes `openid`, `email` and `profile`, and set its publishing status to **In production**. In **Testing** status, only the listed test users can sign in. Keep the client ID and the client secret.
-2. **Create the services from the Blueprint.** In the Render dashboard, select **New → Blueprint**, connect this repository and select the branch to deploy. Render reads `render.yaml` and creates an empty database. A database created on 16 October stays alive until about 15 November, which is after 22 October.
-3. **Enter the prompted values.** Render asks for the three `sync: false` variables:
-   - `NEXT_PUBLIC_APP_URL`: `https://<service>.onrender.com`. The service name in `render.yaml` is `promise-graph`. If Render adds a suffix, use the URL that the service page shows, and correct the variable after the first deploy.
-   - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`: the values from step 1.
-
-   Render generates `SESSION_SECRET` and connects `DATABASE_URL` to the database over its private network. The database accepts no external connections (`ipAllowList: []`).
-4. **Add the redirect URI.** In the Google OAuth client, add the authorized redirect URI `https://<service>.onrender.com/api/auth/google/callback`. It must equal `NEXT_PUBLIC_APP_URL` followed by `/api/auth/google/callback`.
-5. **Deploy and check.** The service has `autoDeploy: false`, so start each deploy with **Manual Deploy**. Then check:
-   - `https://<service>.onrender.com/api/health` returns `{"status":"ok"}`.
-   - The deploy log shows `{"event":"migrations_applied",…}`.
-   - **Continue with Google** signs you in and shows the Larkspur tracker. The first sign-in of each account builds its sandbox, so it takes longer than later sign-ins. If the callback page is reloaded after that, Google refuses the used code, and the page shows a link to start again.
-6. **Keep the demo awake until 22 October.** Create a free monitor at [UptimeRobot](https://uptimerobot.com) (or a similar service): type HTTP(S), URL `https://<service>.onrender.com/api/health`, interval 10 minutes. One always-on free service uses about 744 of the 750 free instance hours in a 31-day month, so do not run a second free service in the same workspace.
-7. **Walk through the demo.** Sign in with a Google account that has never signed in, and do the 13 steps of the [Demo walkthrough](#demo-walkthrough). Then connect a real agent with the MCP snippet and let it add one event to the Queue.
-
-The app runs as one process because the rate limiter is in memory. Do not scale the service to more than one instance.
+[docs/deploy-cloud-run-neon.md](docs/deploy-cloud-run-neon.md) deploys the app on Google Cloud Run with a Neon database, step by step.
 
 ## Known limits
 
 - **No sync.** Email and Slack are not connected. People add events with **Add**, and agents add them through MCP.
 - **Demo members.** The 5 demo members live in your sandbox, and the **Demo** select switches between them. The app cannot invite real users by email.
 - **No revert.** A merge into Main is final. The app has no revert or restore of Main.
-- **Free hosting.** The free web service sleeps after 15 minutes without traffic, and the free database expires 30 days after creation. See [Deploy on Render](#deploy-on-render-free-plan).
+- **Cold starts.** On the free setup, Cloud Run and Neon stop when idle. The first request after an idle time waits a few seconds. See [docs/deploy-cloud-run-neon.md](docs/deploy-cloud-run-neon.md).
 - **One instance.** Rate limits (300 reads and 120 writes a minute for each user, 60 calls a minute for each token) are kept in process memory.
