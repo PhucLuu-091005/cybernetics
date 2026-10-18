@@ -344,3 +344,34 @@ test('Revoke shows Revoking until the table shows the token as revoked', async (
   await expect(row).toContainText(/Revoked \d{1,2} [A-Z][a-z]{2}/);
   await expect(row.getByRole('status')).toHaveCount(0);
 });
+
+test('every page has one main landmark and a Skip to content link that shows on keyboard focus', async ({
+  page,
+}) => {
+  const skip = page.getByRole('link', { name: 'Skip to content' });
+  const main = page.getByRole('main');
+  const check = async () => {
+    await expect(main).toHaveCount(1);
+    await expect(skip).toHaveCount(1);
+    const hidden = (await skip.boundingBox())!;
+    expect(hidden.y + hidden.height).toBeLessThanOrEqual(0);
+    await page.keyboard.press('Tab');
+    await expect(skip).toBeFocused();
+    expect((await skip.boundingBox())!.y).toBeGreaterThanOrEqual(0);
+    await page.keyboard.press('Enter');
+    await expect(main).toBeFocused();
+  };
+  await page.goto('/signin?label=shell-main');
+  await check();
+  await page.getByRole('button', { name: /continue/i }).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  const projectId = new URL(page.url()).pathname.split('/')[2];
+  for (const path of ['graph', 'changes/2', 'members', 'settings/tokens']) {
+    await page.goto(`/projects/${projectId}/${path}`);
+    await hydrated(page);
+    await check();
+  }
+  await page.goto('/no-such-page');
+  await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+  await check();
+});

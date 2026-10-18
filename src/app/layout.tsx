@@ -23,7 +23,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         <ThemeScript />
       </head>
-      <body>{children}</body>
+      <body>
+        <a className="skip" href="#content">
+          Skip to content
+        </a>
+        {children}
+      </body>
     </html>
   );
 }
