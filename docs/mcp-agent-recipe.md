@@ -8,7 +8,7 @@ Promise Graph exposes the event tracker of one project to your own AI agent (for
 2. Enter a label and tick the permissions. Each permission is one right of yours, with a line that says what the agent can then do. **Select all** ticks every permission you hold today. A permission that you do not hold shows greyed out with the reason, for example "You do not have the Merge right in this project".
 3. Copy the secret (`inv_` followed by 43 characters). The app shows it once and stores only its SHA-256 hash.
 
-The settings page calls `POST /api/v1/projects/<projectId>/agent-tokens` with the signed-in session. No scope and no tool lets a token create, list or revoke tokens, or delete the project.
+The settings page calls `POST /api/v1/projects/<projectId>/agent-tokens` with the signed-in session. No scope and no tool lets a token create, list or revoke tokens, delete the project or hand over the project lead; a person does those in the browser. The page refuses, and so does the server (VALIDATION), a permission whose right you do not hold today.
 
 A token belongs to one project and expires after 30 days. Revoke it on the same page. A revoked or expired token fails every call with `UNAUTHENTICATED`.
 
@@ -33,12 +33,11 @@ Every token lists every tool. A tool outside the token's scopes answers `FORBIDD
 | `queue:dismiss` | Remove Queue cards | Create | `remove_queue_card` |
 | `crs:edit` | Edit change requests | Create | `create_change_request`, `add_change`, `remove_change`, `hand_over_change_request`, `share_change_request`, `ask_to_edit`, `cancel_ask_to_edit`, `decline_ask_to_edit` |
 | `crs:ready` | Mark ready | Create | `mark_ready`, `mark_draft` |
-| `crs:comment` | Comment | a member | `comment_change_request` |
+| `crs:comment` | Comment | View Main | `comment_change_request` |
 | `crs:merge` | Merge into Main | Merge | `merge_change_request`, `request_changes` |
-| `crs:close` | Cancel change requests | the author, the editor or Merge | `cancel_change_request` |
+| `crs:close` | Cancel change requests | View Main; author or editor, else Merge and the `crs:merge` scope | `cancel_change_request` |
 | `members:manage` | Manage members | project lead | `invite_member`, `set_member_grants`, `remove_member` |
-| `teams:manage` | Manage teams | project lead | `add_team`, `update_team`, `delete_team` |
-| `project:lead` | Hand over the project lead | project lead | `make_project_lead` |
+| `teams:manage` | Manage teams (a team lead can create and edit change requests) | project lead | `add_team`, `update_team`, `delete_team` |
 
 Each tool description in `tools/list` says what the tool does, when to use it, its scope, and an example where the input shape is not obvious. The server instructions explain the project, Main, the Queue, change requests, ops, work items, events, milestones and statuses.
 

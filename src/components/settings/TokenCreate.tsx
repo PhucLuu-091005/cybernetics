@@ -2,6 +2,7 @@
 import { useRouter } from 'next/navigation';
 import { useId, useState, type FormEvent } from 'react';
 import {
+  SCOPE_GROUP_NOTE,
   SCOPE_GROUPS,
   SCOPE_INFO,
   scopeBlock,
@@ -108,8 +109,8 @@ export function TokenCreate({
       <fieldset className="pg-scopes" aria-describedby={`${id}-hint`}>
         <legend>Permissions</legend>
         <p className="pg-hint" id={`${id}-hint`}>
-          Each permission is one of your own rights. The agent can never manage tokens or delete the
-          project.
+          Each permission is one of your own rights. The agent can never manage tokens, delete the
+          project or hand over the project lead.
         </p>
         <div className="pg-all">
           <Checkbox
@@ -127,6 +128,7 @@ export function TokenCreate({
         {SCOPE_GROUPS.map((group) => (
           <div className="pg-group" key={group} role="group" aria-label={group}>
             <h3>{group}</h3>
+            {SCOPE_GROUP_NOTE[group] && <p className="pg-warn">{SCOPE_GROUP_NOTE[group]}</p>}
             {SCOPE_INFO.filter((info) => info.group === group).map((info) => {
               const blocked = scopeBlock(info, creator);
               return (

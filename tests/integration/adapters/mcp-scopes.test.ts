@@ -2,11 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { configureApp, createAgentToken, resetApp } from '../../../src/server/app';
+import { configureApp, createAgentToken, listAgentTokens, resetApp } from '../../../src/server/app';
+import { eq } from 'drizzle-orm';
+import { agentTokens } from '../../../src/server/db/schema';
 import {
   getTrackerPayload,
   inviteMember,
   listProjectMembers,
+  removeMember,
   updateMember,
 } from '../../../src/server/tracker';
 import { MCP_TOOLS } from '../../../src/server/mcp/tools';
@@ -14,7 +17,7 @@ import { DELETE, GET, POST } from '../../../src/app/mcp/route';
 import { ScopeSchema, type ActorContext, type Scope } from '../../../src/contracts';
 import { DEFAULT_GRANTS } from '../../../src/tracker';
 import { createTestDatabase, testActor, type TestDb } from '../../support/db';
-import { seedDemo, type Demo } from '../../support/tracker-db';
+import { seedDemo, workspaceGuest, type Demo } from '../../support/tracker-db';
 
 const origin = 'http://localhost:3000';
 type Structured = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -175,15 +178,40 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP scopes and write tools', ()
     expect(payload.commits.at(-1)!.ops[0]).toMatchObject({ agent: true, by: demo.ids.minh });
   });
 
+  it('refuses at creation a scope whose right the creator lacks, with the reason the page shows', async () => {
+    const { person } = await member();
+    const create = (scopes: Scope[]) =>
+      createAgentToken(person, { ...own(), label: 'Agent', scopes, idempotencyKey: randomUUID() });
+    await expect(create(['crs:edit', 'crs:merge'])).rejects.toMatchObject({
+      code: 'VALIDATION',
+      message: 'You do not have the Merge right in this project',
+    });
+    await expect(create(['members:manage'])).rejects.toMatchObject({
+      code: 'VALIDATION',
+      message: 'Only the project lead can do this',
+    });
+    await expect(create(['project:lead' as Scope])).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect((await create(['crs:edit'])).token.scopes).toEqual(['crs:edit']);
+  });
+
   it('checks the right of the creator at each call, so a lost right is lost for the token too', async () => {
     const { person, id } = await member();
-    const agent = await connect(['crs:edit', 'crs:merge'], person);
-    const first = await call(agent, 'create_change_request', { title: 'While I may' });
+    const grant = (grants: typeof DEFAULT_GRANTS) =>
+      updateMember(t.db, demo.owner, { ...own(), memberId: id, grants });
+    await grant({ ...DEFAULT_GRANTS, mergeCrs: true });
+    const agent = await connect(['crs:edit', 'crs:ready', 'crs:merge'], person);
+    const first = await call(agent, 'create_change_request', {
+      title: 'While I may',
+      ops: [{ op: 'attach', a: { eventId: demo.ids.qe1, workItemId: 'golive' } }],
+    });
     expect(first.isError).toBeFalsy();
+    const { num } = first.structuredContent.changeRequest;
+    const ready = await call(agent, 'mark_ready', { num });
+    await grant(DEFAULT_GRANTS);
     expect(
       await call(agent, 'merge_change_request', {
-        num: first.structuredContent.changeRequest.num,
-        expectedRevision: 0,
+        num,
+        expectedRevision: ready.structuredContent.changeRequest.revision,
       }),
     ).toMatchObject({
       isError: true,
@@ -192,19 +220,89 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP scopes and write tools', ()
         message: 'You cannot merge change requests in this project',
       },
     });
-    await updateMember(t.db, demo.owner, {
-      ...own(),
-      memberId: id,
-      grants: { ...DEFAULT_GRANTS, createCrs: false },
-    });
+    await grant({ ...DEFAULT_GRANTS, createCrs: false });
     expect(await call(agent, 'create_change_request', { title: 'Not any more' })).toMatchObject({
       isError: true,
       structuredContent: { code: 'FORBIDDEN' },
     });
   });
 
-  it('lets the agent of the project lead manage members and teams, and nobody else', async () => {
-    const lead = await connect(['members:manage', 'teams:manage', 'project:lead']);
+  it('stops every write of a token whose creator leaves the project', async () => {
+    const { person, id } = await member();
+    const { secret, token } = await createAgentToken(person, {
+      ...own(),
+      label: 'Leaver',
+      scopes: ['crs:edit'],
+      idempotencyKey: randomUUID(),
+    });
+    const client = new Client({ name: 'test', version: '1.0.0' });
+    await client.connect(
+      new StreamableHTTPClientTransport(new URL(`${origin}/mcp`), {
+        requestInit: { headers: { authorization: `Bearer ${secret}` } },
+        fetch: route,
+      }),
+    );
+    expect((await call(client, 'create_change_request', { title: 'Before' })).isError).toBeFalsy();
+    await removeMember(t.db, demo.owner, { ...own(), memberId: id });
+    await expect(call(client, 'create_change_request', { title: 'After' })).rejects.toThrow(
+      /401|UNAUTHENTICATED/,
+    );
+    // Even a token that someone revives cannot reach the project of a removed member.
+    await t.db.update(agentTokens).set({ revokedAt: null }).where(eq(agentTokens.id, token.id));
+    await expect(call(client, 'create_change_request', { title: 'Revived' })).rejects.toThrow(
+      /404|NOT_FOUND/,
+    );
+  });
+
+  it('lets a workspace person who is no member read, and nothing more', async () => {
+    const guest = await workspaceGuest(t.db, demo.owner);
+    await expect(
+      createAgentToken(guest, {
+        ...own(),
+        label: 'Guest agent',
+        scopes: ['crs:edit'],
+        idempotencyKey: randomUUID(),
+      }),
+    ).rejects.toMatchObject({
+      code: 'VALIDATION',
+      message: 'Only members of the project can do this',
+    });
+    const { secret, token } = await createAgentToken(guest, {
+      ...own(),
+      label: 'Guest agent',
+      idempotencyKey: randomUUID(),
+    });
+    expect(token.scopes).toEqual(['project:read']);
+    const client = new Client({ name: 'test', version: '1.0.0' });
+    await client.connect(
+      new StreamableHTTPClientTransport(new URL(`${origin}/mcp`), {
+        requestInit: { headers: { authorization: `Bearer ${secret}` } },
+        fetch: route,
+      }),
+    );
+    expect((await call(client, 'get_tracker')).isError).toBeFalsy();
+    await t.db
+      .update(agentTokens)
+      .set({ scopes: ['project:read', 'crs:edit', 'queue:add'] })
+      .where(eq(agentTokens.id, token.id));
+    for (const [name, args] of [
+      ['create_change_request', { title: 'Guest CR' }],
+      [
+        'add_queue_event',
+        { kind: 'message', at: '2026-10-09T16:30+07:00', by: 'sarah', text: 'Guest' },
+      ],
+    ] as const)
+      expect(await call(client, name, args), name).toMatchObject({
+        isError: true,
+        structuredContent: {
+          code: 'FORBIDDEN',
+          message: 'You can read this project, but you are not a member of it',
+        },
+      });
+  });
+
+  it('lets the agent of the project lead manage members and teams', async () => {
+    const lead = await connect(['members:manage', 'teams:manage']);
     const email = `${randomUUID()}@example.com`;
     const invited = await call(lead, 'invite_member', { email });
     expect(invited.isError).toBeFalsy();
@@ -225,29 +323,73 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP scopes and write tools', ()
     expect((await call(lead, 'update_team', { teamId, name: 'Bots' })).isError).toBeFalsy();
     expect((await call(lead, 'delete_team', { teamId })).isError).toBeFalsy();
     expect((await call(lead, 'remove_member', { memberId: id })).isError).toBeFalsy();
-
-    const { person } = await member();
-    const other = await connect(['members:manage'], person);
-    expect(
-      await call(other, 'invite_member', { email: `${randomUUID()}@example.com` }),
-    ).toMatchObject({
-      isError: true,
-      structuredContent: { code: 'FORBIDDEN', message: 'Only the project lead can do this' },
-    });
   });
 
-  it('hands over the project lead, and the token then loses the rights of the lead', async () => {
+  it('never hands over the project lead for an agent, and an old project:lead scope grants nothing', async () => {
     const { id } = await member();
-    const lead = await connect(['project:lead', 'members:manage']);
-    expect((await call(lead, 'make_project_lead', { memberId: id })).isError).toBeFalsy();
-    const list = await listProjectMembers(t.db, demo.owner, own());
-    expect(list.leadId).toBe(id);
-    expect(
-      await call(lead, 'invite_member', { email: `${randomUUID()}@example.com` }),
-    ).toMatchObject({
+    const full = await connect(ALL);
+    expect(await call(full, 'make_project_lead', { memberId: id })).toMatchObject({
       isError: true,
-      structuredContent: { code: 'FORBIDDEN' },
+      structuredContent: { code: 'NOT_FOUND' },
     });
+    const asAgent: ActorContext = {
+      kind: 'agent',
+      userId: demo.owner.userId,
+      tokenId: randomUUID(),
+      workspaceId: demo.workspaceId,
+      projectId: demo.projectId,
+      scopes: ALL,
+      requestId: randomUUID(),
+    };
+    await expect(
+      updateMember(t.db, asAgent, { ...own(), memberId: id, projectLead: true }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect((await listProjectMembers(t.db, demo.owner, own())).leadId).toBe(demo.ids.minh);
+
+    const { secret, token } = await createAgentToken(demo.owner, {
+      ...own(),
+      label: 'Round 14 token',
+      scopes: ['project:read'],
+      idempotencyKey: randomUUID(),
+    });
+    await t.db
+      .update(agentTokens)
+      .set({ scopes: ['project:read', 'project:lead'] })
+      .where(eq(agentTokens.id, token.id));
+    const old = new Client({ name: 'test', version: '1.0.0' });
+    await old.connect(
+      new StreamableHTTPClientTransport(new URL(`${origin}/mcp`), {
+        requestInit: { headers: { authorization: `Bearer ${secret}` } },
+        fetch: route,
+      }),
+    );
+    expect((await call(old, 'get_project')).isError).toBeFalsy();
+    const listed = await listAgentTokens(demo.owner, own());
+    expect(listed.items.find((item) => item.id === token.id)!.scopes).toEqual(['project:read']);
+  });
+
+  it('cancels its own change request with crs:close, and needs crs:merge for another one', async () => {
+    const closer = await connect(['project:read', 'crs:edit', 'crs:close']);
+    const mine = await call(closer, 'create_change_request', { title: 'Mine to cancel' });
+    const { num, revision } = mine.structuredContent.changeRequest;
+    const cancelled = await call(closer, 'cancel_change_request', {
+      num,
+      expectedRevision: revision,
+      reason: 'Not needed',
+    });
+    expect(cancelled.structuredContent.changeRequest.status).toBe('closed');
+    const four = (await call(closer, 'get_change_request', { num: 4 })).structuredContent;
+    const args = { num: 4, expectedRevision: four.changeRequest.revision, reason: 'Old' };
+    expect(await call(closer, 'cancel_change_request', args)).toMatchObject({
+      isError: true,
+      structuredContent: {
+        code: 'FORBIDDEN',
+        message: 'Scope crs:merge is also required to cancel this change request',
+      },
+    });
+    const merger = await connect(['crs:close', 'crs:merge']);
+    const done = await call(merger, 'cancel_change_request', args);
+    expect(done.structuredContent.changeRequest.status).toBe('closed');
   });
 
   it('removes a Queue card with queue:dismiss and answers only the removed id', async () => {
@@ -264,16 +406,24 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP scopes and write tools', ()
 
   it('parses every tool input strictly', async () => {
     const agent = await connect(ALL);
+    for (const tool of MCP_TOOLS) {
+      for (const extra of [{ zzz: 1 }, { projectId: demo.projectId }, { actAs: demo.ids.lan }])
+        expect(
+          await call(agent, tool.name, extra),
+          `${tool.name} ${Object.keys(extra)}`,
+        ).toMatchObject({
+          isError: true,
+          structuredContent: { code: 'VALIDATION' },
+        });
+      delete (globalThis as typeof globalThis & { promiseRateLimiter?: unknown })
+        .promiseRateLimiter;
+    }
     const bad: Array<[string, Record<string, unknown>]> = [
-      ['create_change_request', { title: 'X', actAs: demo.ids.lan }],
       ['create_change_request', { title: 'X', ops: [{ op: 'explode', a: {} }] }],
       ['add_change', { num: 2, op: { op: 'hide', a: { eventId: 'e1' } } }],
       ['add_change', { num: 2, expectedRevision: 0, op: { op: 'hide', a: {}, by: 'lan' } }],
       ['merge_change_request', { num: 2 }],
-      ['mark_ready', { num: 2, extra: true }],
       ['set_member_grants', { memberId: demo.ids.lan, grants: { viewMain: true } }],
-      ['make_project_lead', { memberId: demo.ids.lan, projectLead: true }],
-      ['remove_queue_card', { queueId: demo.ids.qe1, projectId: demo.projectId }],
     ];
     for (const [name, args] of bad)
       expect(await call(agent, name, args), name).toMatchObject({

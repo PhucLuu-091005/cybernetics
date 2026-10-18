@@ -86,7 +86,7 @@ Your own agent (for example Claude Code) connects to `/mcp` with a project token
 
 ![Settings: the project facts, an agent token with its permissions in short form, the create form with Select all and one checkbox per right, and the MCP snippet](docs/screenshots/agent-tokens.png)
 
-1. Open **Settings** in the rail of a project and create a token. Tick one permission per right, or **Select all**. A right that you do not hold shows greyed out with the reason. No permission manages tokens or deletes the project. Copy the secret; the app shows it once.
+1. Open **Settings** in the rail of a project and create a token. Tick one permission per right, or **Select all**. A right that you do not hold shows greyed out with the reason. No permission manages tokens, deletes the project or hands over the project lead. Copy the secret; the app shows it once.
 2. Add the server to your MCP client:
 
    ```json

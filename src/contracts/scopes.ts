@@ -1,16 +1,18 @@
 import type { Scope } from './identity';
 
-export const SCOPE_GROUPS = [
-  'Read',
-  'Queue',
-  'Change requests',
-  'People and teams',
-  'Project',
-] as const;
+export const SCOPE_GROUPS = ['Read', 'Queue', 'Change requests', 'People and teams'] as const;
 export type ScopeGroup = (typeof SCOPE_GROUPS)[number];
 
-/** The right of the creator that a scope also needs; the server checks it again at each call. */
-export type ScopeNeed = 'viewMain' | 'member' | 'create' | 'merge' | 'manage';
+/** A quiet warning under a group whose scopes reach other people. */
+export const SCOPE_GROUP_NOTE: Partial<Record<ScopeGroup, string>> = {
+  'People and teams': 'The agent can invite people and give them rights.',
+};
+
+/**
+ * The right of the creator that a scope also needs; the server checks it again at each call. Every
+ * scope but project:read also needs a member, as the writes act as the creator's member.
+ */
+export type ScopeNeed = 'viewMain' | 'create' | 'merge' | 'manage';
 
 export type ScopeInfo = {
   scope: Scope;
@@ -69,7 +71,7 @@ export const SCOPE_INFO: readonly ScopeInfo[] = [
     title: 'Comment',
     short: 'Comment',
     text: 'Comment on a change request or on one of its changes.',
-    need: 'member',
+    need: 'viewMain',
   },
   {
     scope: 'crs:merge',
@@ -84,8 +86,8 @@ export const SCOPE_INFO: readonly ScopeInfo[] = [
     group: 'Change requests',
     title: 'Cancel change requests',
     short: 'Cancel CRs',
-    text: 'Cancel a change request you wrote or edit, or any one if you can merge.',
-    need: 'member',
+    text: 'Cancel a change request you wrote or edit; any other one also needs Merge.',
+    need: 'viewMain',
   },
   {
     scope: 'members:manage',
@@ -100,15 +102,7 @@ export const SCOPE_INFO: readonly ScopeInfo[] = [
     group: 'People and teams',
     title: 'Manage teams',
     short: 'Teams',
-    text: 'Add, rename and delete teams, and set their people and lead.',
-    need: 'manage',
-  },
-  {
-    scope: 'project:lead',
-    group: 'Project',
-    title: 'Hand over the project lead',
-    short: 'Project lead',
-    text: 'Make another member the project lead. You then lose the lead.',
+    text: 'Edit teams, their people and lead. A team lead can create and edit change requests.',
     need: 'manage',
   },
 ];
@@ -119,17 +113,19 @@ export type Creator = {
   rights: { viewMain: boolean; create: boolean; merge: boolean; manage: boolean };
 };
 
+const NOT_MEMBER = 'Only members of the project can do this';
 const BLOCKED: Record<ScopeNeed, string> = {
   viewMain: 'You cannot see Main of this project',
-  member: 'Only members of the project can do this',
   create: 'You cannot create or edit change requests in this project',
   merge: 'You do not have the Merge right in this project',
   manage: 'Only the project lead can do this',
 };
 
 /** Why the creator cannot give this scope today, or null. */
-export function scopeBlock(info: Pick<ScopeInfo, 'need'>, creator: Creator): string | null {
-  const ok = info.need === 'member' ? creator.member : creator.rights[info.need];
-  if (info.need !== 'viewMain' && !creator.member) return BLOCKED.member;
-  return ok ? null : BLOCKED[info.need];
+export function scopeBlock(
+  info: Pick<ScopeInfo, 'scope' | 'need'>,
+  creator: Creator,
+): string | null {
+  if (info.scope !== 'project:read' && !creator.member) return NOT_MEMBER;
+  return creator.rights[info.need] ? null : BLOCKED[info.need];
 }

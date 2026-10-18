@@ -354,6 +354,11 @@ export async function updateMember(
       await set(target.id, closeGrants(input.grants));
       return;
     }
+    if (ctx.kind === 'agent')
+      throw new AppError(
+        'FORBIDDEN',
+        'Only a person in the browser can hand over the project lead',
+      );
     if (target.id === lead) return;
     if (isInvite(target)) throw new AppError('VALIDATION', `${target.email} has not signed in yet`);
     await tx

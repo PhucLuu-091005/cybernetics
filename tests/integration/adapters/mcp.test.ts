@@ -152,7 +152,6 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP adapter', () => {
       'list_change_requests',
       'list_members',
       'list_queue',
-      'make_project_lead',
       'mark_draft',
       'mark_ready',
       'merge_change_request',
