@@ -110,4 +110,11 @@ describe('per-actor minute rate limits', () => {
     expect(() => limiter.consume('user:read', 60, 1000)).not.toThrow();
     expect(() => limiter.consume('user:write', 20, 61_000)).not.toThrow();
   });
+  it('counts a longer window when one is given', () => {
+    const limiter = new MemoryRateLimiter();
+    const hour = 3_600_000;
+    for (let i = 0; i < 3; i++) limiter.consume('demo:ip', 3, 1000 + i * 600_000, hour);
+    expect(() => limiter.consume('demo:ip', 3, 2_000_000, hour)).toThrow();
+    expect(() => limiter.consume('demo:ip', 3, hour, hour)).not.toThrow();
+  });
 });

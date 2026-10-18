@@ -1,5 +1,5 @@
 export type AuthEnvironment = {
-  mode: 'google' | 'local';
+  mode: 'google' | 'local' | 'demo';
   appOrigin: string;
   sessionSecret: string;
   google: { clientId: string; clientSecret: string } | null;
@@ -10,8 +10,9 @@ export function isLoopback(hostname: string): boolean {
 export function readAuthEnvironment(
   values: Record<string, string | undefined> = process.env,
 ): AuthEnvironment {
-  if (values.AUTH_MODE !== 'google' && values.AUTH_MODE !== 'local')
-    throw new Error('AUTH_MODE must be google or local');
+  const mode = values.AUTH_MODE;
+  if (mode !== 'google' && mode !== 'local' && mode !== 'demo')
+    throw new Error('AUTH_MODE must be google, local or demo');
   const url = new URL(values.NEXT_PUBLIC_APP_URL ?? '');
   if (
     !['http:', 'https:'].includes(url.protocol) ||
@@ -30,12 +31,12 @@ export function readAuthEnvironment(
     throw new Error('Local authentication is restricted to loopback development');
   if (Buffer.byteLength(sessionSecret) < 32)
     throw new Error('SESSION_SECRET must contain at least 32 bytes');
-  if (values.AUTH_MODE === 'local')
-    return { mode: 'local', appOrigin: url.origin, sessionSecret, google: null };
-  if (!values.GOOGLE_CLIENT_ID || !values.GOOGLE_CLIENT_SECRET)
-    throw new Error('Google sign-in is not configured');
+  if (mode === 'local') return { mode, appOrigin: url.origin, sessionSecret, google: null };
   if (values.NODE_ENV === 'production' && url.protocol !== 'https:')
     throw new Error('Production requires HTTPS');
+  if (mode === 'demo') return { mode, appOrigin: url.origin, sessionSecret, google: null };
+  if (!values.GOOGLE_CLIENT_ID || !values.GOOGLE_CLIENT_SECRET)
+    throw new Error('Google sign-in is not configured');
   return {
     mode: 'google',
     appOrigin: url.origin,

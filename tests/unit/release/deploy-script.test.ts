@@ -10,12 +10,16 @@ const VALUES = {
   GCP_PROJECT_ID: 'promise-graph-demo',
   NEXT_PUBLIC_APP_URL: URL_,
   SESSION_SECRET: 'session-secret-value-0123456789abcdef',
-  GOOGLE_CLIENT_ID: '1234-abc.apps.googleusercontent.com',
-  GOOGLE_CLIENT_SECRET: 'google-client-secret-value',
   DATABASE_URL:
     'postgresql://neondb_owner:pooled-password@ep-quiet-lake-a1-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=verify-full',
   MIGRATE_DATABASE_URL:
     'postgresql://neondb_owner:direct-password@ep-quiet-lake-a1.ap-southeast-1.aws.neon.tech/neondb?sslmode=verify-full',
+};
+const GOOGLE = {
+  ...VALUES,
+  AUTH_MODE: 'google',
+  GOOGLE_CLIENT_ID: '1234-abc.apps.googleusercontent.com',
+  GOOGLE_CLIENT_SECRET: 'google-client-secret-value',
 };
 const SECRETS = [
   'session-secret-value',
@@ -98,7 +102,18 @@ describe('scripts/deploy-cloud-run.sh', () => {
     expect(run.status).toBe(2);
     for (const name of Object.keys(VALUES).filter((n) => n !== 'GCP_PROJECT_ID'))
       expect(run.stderr).toContain(name);
+    expect(run.stderr).not.toContain('GOOGLE_CLIENT');
     expect(run.calls.trim()).toBe('');
+  });
+
+  it('asks for the Google client only for AUTH_MODE=google, and refuses local mode', () => {
+    const google = deploy({ ...VALUES, AUTH_MODE: 'google' });
+    expect(google.status).toBe(2);
+    expect(google.stderr).toContain('GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET');
+    const local = deploy({ ...VALUES, AUTH_MODE: 'local' });
+    expect(local.status).toBe(2);
+    expect(local.stderr).toContain('AUTH_MODE must be demo or google');
+    expect(google.calls.trim() + local.calls.trim()).toBe('');
   });
 
   it('refuses a plain http origin, a short session secret, a direct app URL and a pooled migration URL', () => {
@@ -121,7 +136,7 @@ describe('scripts/deploy-cloud-run.sh', () => {
     expect(run.calls.trim()).toBe('');
   });
 
-  it('creates a runtime account that reads only the four secrets and the photo bucket, stores the secrets through stdin and deploys asia-southeast1 with one instance at most', () => {
+  it('creates a runtime account that reads only the three secrets and the photo bucket, stores the secrets through stdin and deploys demo mode in asia-southeast1 with one instance at most', () => {
     const run = deploy(VALUES);
     expect(run.stderr).toBe('');
     expect(run.status).toBe(0);
@@ -133,11 +148,9 @@ describe('scripts/deploy-cloud-run.sh', () => {
     expect(run.stdin('secrets create promise-graph-migrate-database-url ')).toBe(
       VALUES.MIGRATE_DATABASE_URL,
     );
-    expect(run.stdin('secrets create promise-graph-google-client-secret ')).toBe(
-      VALUES.GOOGLE_CLIENT_SECRET,
-    );
+    expect(run.calls).not.toContain('google-client');
     const grants = run.lines.filter((c) => c.startsWith('secrets add-iam-policy-binding'));
-    expect(grants).toHaveLength(4);
+    expect(grants).toHaveLength(3);
     for (const grant of grants)
       expect(grant).toContain(
         `--member serviceAccount:${ACCOUNT} --role roles/secretmanager.secretAccessor`,
@@ -150,10 +163,8 @@ describe('scripts/deploy-cloud-run.sh', () => {
       '--min-instances 0 --max-instances 1',
       '--memory 512Mi',
       'httpGet.path=/api/health',
-      `AUTH_MODE=google,NEXT_PUBLIC_APP_URL=${URL_},GOOGLE_CLIENT_ID=${VALUES.GOOGLE_CLIENT_ID}`,
-      'SESSION_SECRET=promise-graph-session-secret:latest',
-      'GOOGLE_CLIENT_SECRET=promise-graph-google-client-secret:latest',
-      'DATABASE_URL=promise-graph-database-url:latest',
+      `--set-env-vars AUTH_MODE=demo,NEXT_PUBLIC_APP_URL=${URL_},AVATAR_STORE=gcs,AVATAR_BUCKET=promise-graph-avatars `,
+      'SESSION_SECRET=promise-graph-session-secret:latest,DATABASE_URL=promise-graph-database-url:latest',
       'MIGRATE_DATABASE_URL=promise-graph-migrate-database-url:latest',
       'AVATAR_STORE=gcs,AVATAR_BUCKET=promise-graph-avatars',
     ])
@@ -162,6 +173,27 @@ describe('scripts/deploy-cloud-run.sh', () => {
       expect(run.calls).not.toContain(secret);
       expect(run.stdout + run.stderr).not.toContain(secret);
     }
+    expect(run.stdout).toContain(`Open the app: ${URL_}`);
+    expect(run.stdout).not.toContain('OAuth');
+  });
+
+  it('with AUTH_MODE=google stores the Google client secret too and prints the OAuth redirect URI', () => {
+    const run = deploy(GOOGLE);
+    expect(run.stderr).toBe('');
+    expect(run.status).toBe(0);
+    expect(run.stdin('secrets create promise-graph-google-client-secret ')).toBe(
+      GOOGLE.GOOGLE_CLIENT_SECRET,
+    );
+    expect(run.lines.filter((c) => c.startsWith('secrets add-iam-policy-binding'))).toHaveLength(4);
+    expect(
+      run.at('storage buckets add-iam-policy-binding gs://promise-graph-avatars'),
+    ).toBeGreaterThan(-1);
+    const deployCall = run.lines[run.at('run deploy')];
+    expect(deployCall).toContain(
+      `AUTH_MODE=google,NEXT_PUBLIC_APP_URL=${URL_},AVATAR_STORE=gcs,AVATAR_BUCKET=promise-graph-avatars,GOOGLE_CLIENT_ID=${GOOGLE.GOOGLE_CLIENT_ID}`,
+    );
+    expect(deployCall).toContain('GOOGLE_CLIENT_SECRET=promise-graph-google-client-secret:latest');
+    expect(run.calls).not.toContain('google-client-secret-value');
     expect(run.stdout).toContain(`${URL_}/api/auth/google/callback`);
   });
 
@@ -255,13 +287,8 @@ describe('scripts/deploy-cloud-run.sh', () => {
       VALUES.SESSION_SECRET,
     );
     const destroyed = run.lines.filter((c) => c.startsWith('secrets versions destroy'));
-    expect(destroyed).toHaveLength(8);
-    for (const name of [
-      'session-secret',
-      'google-client-secret',
-      'database-url',
-      'migrate-database-url',
-    ])
+    expect(destroyed).toHaveLength(6);
+    for (const name of ['session-secret', 'database-url', 'migrate-database-url'])
       for (const version of ['2', '1'])
         expect(destroyed).toContain(
           `secrets versions destroy ${version} --secret promise-graph-${name} --project promise-graph-demo --quiet`,
@@ -290,7 +317,7 @@ describe('scripts/deploy-cloud-run.sh', () => {
 
   it('accepts NEXT_PUBLIC_APP_URL when it is one of the service URLs, though not the status URL', () => {
     const legacy = 'https://promise-graph-abc123-as.a.run.app';
-    const run = deploy(VALUES, { service: { statusUrl: legacy, urls: [URL_, legacy] } });
+    const run = deploy(GOOGLE, { service: { statusUrl: legacy, urls: [URL_, legacy] } });
     expect(run.status).toBe(0);
     expect(run.stdout).toContain(`${URL_}/api/auth/google/callback`);
   });

@@ -86,6 +86,7 @@ $B/prettier --check . > "$LOG/prettier.log" 2>&1; echo "prettier rc=$?"
 node scripts/check-no-model-dependencies.mjs > "$LOG/providers.log" 2>&1; echo "providers rc=$?"
 TEST_DATABASE_URL=$ADMIN $B/vitest run > "$LOG/vitest.log" 2>&1; echo "vitest rc=$?"
 TEST_DATABASE_URL=$ADMIN E2E_PORT=<free port> $B/playwright test > "$LOG/e2e.log" 2>&1; echo "e2e rc=$?"
+TEST_DATABASE_URL=$ADMIN E2E_PORT=<free port> $B/playwright test -c playwright.demo.config.ts > "$LOG/e2e-demo.log" 2>&1; echo "e2e-demo rc=$?"
 ```
 
 - Never pipe a gate into `tail` or `grep` before you take `$?`. The pipe returns the status of the last command, so a failed suite reads as green.
