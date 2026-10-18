@@ -22,6 +22,7 @@ import {
   lateBy,
   mainState,
   milestoneStatus,
+  pickable,
   replayOps,
   startHint,
   STATUS_LABEL,
@@ -427,7 +428,7 @@ export function WorkItemDrawer({
         disabled={busy}
         onChange={(e) => onPick(e.target.value)}
       >
-        {state.people.map((p) => (
+        {pickable(state.people, session.payload.members, value).map((p) => (
           <option key={p.id} value={p.id}>
             {p.name}
           </option>

@@ -10,6 +10,7 @@ const member = (id: string, active = true): Member => ({
   color: '#111',
   userId: null,
   active,
+  removed: !active,
   grants: DEFAULT_GRANTS,
 });
 

@@ -20,6 +20,7 @@ const members: Member[] = [
     color: '#111',
     userId: 'u1',
     active: true,
+    removed: false,
     grants: DEFAULT_GRANTS,
   },
   {
@@ -29,6 +30,7 @@ const members: Member[] = [
     color: '#222',
     userId: null,
     active: true,
+    removed: false,
     grants: DEFAULT_GRANTS,
   },
   {
@@ -38,6 +40,7 @@ const members: Member[] = [
     color: '#333',
     userId: null,
     active: false,
+    removed: true,
     grants: DEFAULT_GRANTS,
   },
   {
@@ -47,6 +50,7 @@ const members: Member[] = [
     color: '#444',
     userId: 'u2',
     active: true,
+    removed: false,
     grants: DEFAULT_GRANTS,
   },
 ];
