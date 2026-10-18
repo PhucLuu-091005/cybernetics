@@ -180,7 +180,7 @@ After the first deploy by hand (steps 1 to 7), GitHub Actions can deploy each ta
 
 Set it up once:
 
-1. Sign in to gcloud as the project owner (step 3), then run the setup script from the repository root:
+1. Sign in to gcloud as the project owner (step 3) and to the GitHub CLI (`gh auth login`). Then run the setup script from the repository root:
 
    ```sh
    GCP_PROJECT_ID=promise-graph GITHUB_REPOSITORY=PhucLuu-091005/cybernetics scripts/setup-github-cd.sh
@@ -189,7 +189,8 @@ Set it up once:
    The script does these things. A second run creates nothing new.
    - It creates the Docker repository `promise-graph` in `asia-southeast1`, with a cleanup policy that keeps the 3 newest images.
    - It creates the account `promise-graph-deployer`. The account gets `roles/run.developer` on the service, `roles/artifactregistry.writer` on the repository and `roles/iam.serviceAccountUser` on the runtime account. It gets no other role.
-   - It creates a Workload Identity pool and an OIDC provider for GitHub. The provider accepts only runs of `PhucLuu-091005/cybernetics` on a tag that starts with `v`.
+   - It reads the ids of the repository and of its owner with `gh api repos/PhucLuu-091005/cybernetics --jq '.id,.owner.id'` (today `1415634185` and `187116949`). Without `gh`, set them yourself in `GITHUB_REPOSITORY_ID` and `GITHUB_OWNER_ID`.
+   - It creates a Workload Identity pool and an OIDC provider for GitHub. The provider accepts only a job of that repository id and owner id, on a tag that starts with `v`, in the environment `production`. Google checks the ids and not the name, so after a rename, a new repository with the old name gets no access.
 
 2. The script prints two `gh variable set` commands. Run them. They set the repository variables `GCP_WIF_PROVIDER` and `GCP_DEPLOYER_SA`. Neither value is secret, so they are variables, not secrets.
 
@@ -201,17 +202,32 @@ git tag v0.1.0 && git push origin v0.1.0
 
 Watch the run in the **Actions** tab or with `gh run watch`. The job summary shows the service URL after `/api/health` returns `ok`. A failed check stops the run before the deploy.
 
-To deploy an earlier tag again, start the workflow from that tag:
+One run waits for the run before it, so an older tag never deploys after a newer one.
+
+To roll back, deploy an earlier tag again. Start the workflow from that tag:
 
 ```sh
 gh workflow run deploy.yml --ref v0.1.0 -f tag=v0.1.0
 ```
 
-The deploy job runs in the GitHub environment `production`. To make each deploy wait for an approval, add a required reviewer to that environment in **Settings → Environments**. To change a secret or an env var, use `scripts/deploy-cloud-run.sh` or `gcloud run services update` as in step 8.
+Do not roll back to an old revision in the Cloud Run console. The cleanup policy keeps only the 3 newest images, so the image of an old revision can be gone. The workflow builds the image of the tag again.
+
+Protect the tags. Anyone who can push a `v*` tag can deploy. In **Settings → Rules → Rulesets**, add a tag ruleset:
+
+1. Target the tags that match `v*`.
+2. Select **Restrict creations**, **Restrict updates** and **Restrict deletions**.
+3. Add only the repository admin (the owner) to the bypass list.
+
+The deploy job runs in the GitHub environment `production`, and Google gives a token only to a job in that environment. In **Settings → Environments → production**, you can also:
+
+- set **Deployment branches and tags** to **Selected branches and tags** with the tag rule `v*`;
+- add a required reviewer, so that each deploy waits for an approval.
+
+GitHub makes the environment at the first run. On a private repository, rulesets and these environment rules can need a paid GitHub plan (Pro or Team). To change a secret or an env var, use `scripts/deploy-cloud-run.sh` or `gcloud run services update` as in step 8.
 
 The free limits that matter here:
 
-- GitHub Actions: a public repository gets free minutes with no limit. A private repository on the Free plan gets 2,000 minutes a month. One tag uses about 20 to 30 minutes, because the checks, the end-to-end tests and the image build each take a runner.
+- GitHub Actions: a public repository gets free minutes with no limit. A private repository on the Free plan gets 2,000 minutes a month. This repository is private today. One tag uses about 20 to 30 minutes, because the checks, the end-to-end tests and the image build each take a runner.
 - Artifact Registry: 0.5 GB of storage for the whole project. The cleanup policy keeps the 3 newest images in `promise-graph` and deletes the others. Artifact Registry runs the policy about once a day. The images of the deploys by hand stay in `cloud-run-source-deploy`, so delete them there (step 9).
 
 ## Troubleshooting
