@@ -1,7 +1,13 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
+import { RETURN_PATH_HEADER } from './server/http/return-path';
+
 /** Actual actor authorization remains in every protected handler. */
-export default function proxy() {
-  return NextResponse.next();
+export default function proxy(request: NextRequest) {
+  const asked = request.nextUrl.clone();
+  asked.searchParams.delete('_rsc');
+  const headers = new Headers(request.headers);
+  headers.set(RETURN_PATH_HEADER, asked.pathname + asked.search);
+  return NextResponse.next({ request: { headers } });
 }
 export const config = {
   matcher: [
