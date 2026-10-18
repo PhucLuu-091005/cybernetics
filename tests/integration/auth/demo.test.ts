@@ -150,6 +150,12 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('demo mode: every visitor gets a
     const head = await HEAD(new Request(url(), { method: 'HEAD', headers: headersOf({}) }));
     expect(head.headers.get('location')).toBe('/welcome');
     expect((await visit({ accept: 'application/json' })).headers.get('location')).toBe('/welcome');
+    const prefetch = await GET(
+      new Request(url(), {
+        headers: { ...headersOf({ accept: '*/*' }), rsc: '1', 'next-router-prefetch': '1' },
+      }),
+    );
+    expect(prefetch.headers.get('location')).toBe('/welcome');
     expect(await demoUsers()).toBe(before);
   });
 
