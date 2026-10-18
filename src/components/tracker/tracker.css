@@ -45,6 +45,22 @@
     --k-done: #3dd68c;
   }
 }
+/* The tint under an event circle and its icon, and the stronger tint of the circles behind a stack.
+   Light keeps 12 % so the darkest kind icon still reads at 4.5:1 on it; dark stays calm. */
+:root {
+  --k-tint: 12%;
+  --k-tint-back: 26%;
+}
+:root[data-theme='dark'] {
+  --k-tint: 16%;
+  --k-tint-back: 30%;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --k-tint: 16%;
+    --k-tint-back: 30%;
+  }
+}
 
 .tk {
   position: relative;
@@ -1589,10 +1605,11 @@ svg.tg .act {
   cursor: pointer;
 }
 svg.tg .act .bg {
-  fill: var(--panel);
+  fill: color-mix(in srgb, var(--kc) var(--k-tint), var(--panel));
   stroke-width: 2;
 }
 svg.tg .act .layer {
+  fill: color-mix(in srgb, var(--kc) var(--k-tint-back), var(--panel));
   stroke-width: 1.5;
 }
 svg.tg .act .act-hit,
@@ -1699,7 +1716,7 @@ svg.tg .hand-count {
 svg.tg .hand-act:hover .bg,
 svg.tg .hand-act:focus .bg,
 svg.tg .hand-act.open .bg {
-  fill: var(--gray-bg);
+  fill: color-mix(in srgb, var(--kc) var(--k-tint-back), var(--panel));
 }
 .tk .hand-menu {
   position: absolute;

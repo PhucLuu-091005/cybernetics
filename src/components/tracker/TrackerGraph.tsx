@@ -536,8 +536,10 @@ export function TrackerGraph(props: Props) {
         const dense = head < 28;
         // Capitals are about 7.6 units tall, so a baseline 3.8 below the centre centres the name.
         const line1 = oneLine ? top + head / 2 + 3.8 : top + (dense ? 10 : 11.5);
-        const line2 = top + (dense ? 20.5 : 23.5);
-        const btn = oneLine ? (dense ? 14 : 16) : dense ? 12 : 14;
+        const line2 = top + (dense ? 20 : 23.5);
+        const countsSize = dense ? { fontSize: 9.5 } : undefined;
+        const btn = dense ? lv.btn : 16;
+        const icon = dense ? lv.btnIcon : 11;
         const by = (oneLine ? top + head / 2 : line2 - 4) - btn / 2;
         // An empty team has nothing to open or collapse, so its summary is plain text.
         const toggles = summary.count > 0;
@@ -582,7 +584,7 @@ export function TrackerGraph(props: Props) {
               {lane.label}
               <tspan className="sum-count"> · {summary.count}</tspan>
               {oneLine && counts.length > 0 && (
-                <tspan className="sum-counts" dx={8}>
+                <tspan className="sum-counts" dx={8} style={countsSize}>
                   {counts.map((p, i) => (
                     <tspan key={p.word} className={p.cls}>
                       {i ? ' · ' : ''}
@@ -594,7 +596,7 @@ export function TrackerGraph(props: Props) {
               {lane.label !== lane.name.toUpperCase() && <title>{lane.name}</title>}
             </text>
             {!oneLine && counts.length > 0 && (
-              <text className="sum-counts" x={24} y={line2}>
+              <text className="sum-counts" x={24} y={line2} style={countsSize}>
                 {counts.map((p, i) => (
                   <tspan key={p.word} className={p.cls}>
                     {i ? ' · ' : ''}
@@ -611,7 +613,7 @@ export function TrackerGraph(props: Props) {
                 {...button(lane.focusLabel)}
               >
                 <rect x={X0 - 43 - btn / 2} y={by} width={btn} height={btn} rx={4} />
-                <SvgIcon name="focus" x={X0 - 43} y={by + btn / 2} size={btn - 6} />
+                <SvgIcon name="focus" x={X0 - 43} y={by + btn / 2} size={icon} />
                 <title>
                   {lane.focused ? 'Leave focus' : 'Focus: show only this team and the work from it'}
                 </title>
@@ -619,7 +621,7 @@ export function TrackerGraph(props: Props) {
             )}
             <g className="eye" data-eyeteam={lane.teamId} {...button(lane.eyeLabel)}>
               <rect x={X0 - 24 - btn / 2} y={by} width={btn} height={btn} />
-              <SvgIcon name="eye" x={X0 - 24} y={by + btn / 2} size={btn - 5} />
+              <SvgIcon name="eye" x={X0 - 24} y={by + btn / 2} size={icon} />
             </g>
             {lane.guide && (
               <line className="guide" x1={16} x2={16} y1={lane.guide.y1} y2={lane.guide.y2} />
@@ -922,7 +924,6 @@ export function TrackerGraph(props: Props) {
             const n = g.eventIds.length;
             // Kinds colour the events; the row line keeps the status colour.
             const stroke = KIND_COLOR[g.kind];
-            const tint = `color-mix(in srgb, ${stroke} 18%, var(--panel))`;
             // The Handoff event icon is the handoff mark itself, so its group takes the mark's hover and click.
             const hand = handByGroup.get(g.topId);
             const tipText = hand && `${hand.tooltip}\n${g.tooltip}`;
@@ -955,7 +956,7 @@ export function TrackerGraph(props: Props) {
                     }
                   : {})}
               >
-                <g>
+                <g style={{ ['--kc' as string]: stroke }}>
                   {dots && <circle className="act-hit" r={MIN_HIT / 2} />}
                   {g.changed && <circle className="halo" r={lv.r + (dots ? 3.5 : 5)} />}
                   {[2, 1]
@@ -966,18 +967,14 @@ export function TrackerGraph(props: Props) {
                         className="layer"
                         cx={-(dots ? 0.9 : 0.35) * lv.r * k}
                         r={lv.r}
-                        style={{ stroke, fill: tint, strokeWidth: dots ? 1 : undefined }}
+                        style={{ stroke, strokeWidth: dots ? 1 : undefined }}
                       />
                     ))}
                   {dots ? (
                     <circle className="dot" r={lv.r} style={{ fill: stroke }} />
                   ) : (
                     <>
-                      <circle
-                        className="bg"
-                        r={lv.r}
-                        style={{ stroke, strokeWidth: lv.r >= 10 ? 2 : 1.6 }}
-                      />
+                      <circle className="bg" r={lv.r} style={{ stroke }} />
                       <SvgIcon kind={g.kind} x={0} y={0} size={lv.icon} color={stroke} />
                     </>
                   )}
