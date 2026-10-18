@@ -12,13 +12,19 @@ const STATUS: Record<ErrorCode, number> = {
   LIMIT_EXCEEDED: 413,
   INTERNAL: 500,
 };
+const BRAND = Symbol.for('promise-graph.AppError');
 export class AppError extends Error {
+  readonly [BRAND] = true;
   constructor(
     public readonly code: ErrorCode,
     message: string,
     public readonly extras: { errors?: FieldError[]; details?: unknown } = {},
   ) {
     super(message);
+  }
+  // next dev bundles this module once per route, and globalThis singletons (limiter, identity store) cross routes.
+  static [Symbol.hasInstance](value: unknown): value is AppError {
+    return typeof value === 'object' && value !== null && BRAND in value;
   }
 }
 export const statusFor = (code: ErrorCode) => STATUS[code];

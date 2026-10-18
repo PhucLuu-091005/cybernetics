@@ -230,6 +230,17 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('demo mode: every visitor gets a
     ).toBeTruthy();
   }, 60_000);
 
+  it('answers the busy page when another route built the shared limiter, as next dev does', async () => {
+    vi.resetModules();
+    const { MemoryRateLimiter } = await import('../../../src/server/http/rate-limit');
+    const limiter = new MemoryRateLimiter();
+    for (let i = 0; i < 30; i++) limiter.consume('demo:203.0.113.10', 30, Date.now(), 3_600_000);
+    limiterState.promiseRateLimiter = limiter;
+    const refused = await visit({ forwarded: '203.0.113.10' });
+    expect(refused.status).toBe(303);
+    expect(refused.headers.get('location')).toBe('/welcome?reason=busy');
+  });
+
   it('answers 404 outside demo mode', async () => {
     vi.stubEnv('AUTH_MODE', 'google');
     vi.stubEnv('GOOGLE_CLIENT_ID', 'id');

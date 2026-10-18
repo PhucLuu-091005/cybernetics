@@ -104,17 +104,17 @@ describe('local signed-session mode', () => {
 describe('per-actor minute rate limits', () => {
   it('blocks the next request at the limit and resets in the next minute', () => {
     const limiter = new MemoryRateLimiter();
-    for (let i = 0; i < 20; i++) limiter.consume('user:write', 20, 1000);
-    expect(() => limiter.consume('user:write', 20, 1000)).toThrow();
-    expect(() => limiter.consume('another:write', 20, 1000)).not.toThrow();
-    expect(() => limiter.consume('user:read', 60, 1000)).not.toThrow();
-    expect(() => limiter.consume('user:write', 20, 61_000)).not.toThrow();
+    for (let i = 0; i < 20; i++) expect(limiter.consume('user:write', 20, 1000)).toBe(true);
+    expect(limiter.consume('user:write', 20, 1000)).toBe(false);
+    expect(limiter.consume('another:write', 20, 1000)).toBe(true);
+    expect(limiter.consume('user:read', 60, 1000)).toBe(true);
+    expect(limiter.consume('user:write', 20, 61_000)).toBe(true);
   });
   it('counts a longer window when one is given', () => {
     const limiter = new MemoryRateLimiter();
     const hour = 3_600_000;
     for (let i = 0; i < 3; i++) limiter.consume('demo:ip', 3, 1000 + i * 600_000, hour);
-    expect(() => limiter.consume('demo:ip', 3, 2_000_000, hour)).toThrow();
-    expect(() => limiter.consume('demo:ip', 3, hour, hour)).not.toThrow();
+    expect(limiter.consume('demo:ip', 3, 2_000_000, hour)).toBe(false);
+    expect(limiter.consume('demo:ip', 3, hour, hour)).toBe(true);
   });
 });
