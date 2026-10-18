@@ -23,7 +23,10 @@ export type Tenant = { workspaceId: string; projectId: string };
 
 const isoOrNull = (value: string | null) => (value === null ? null : toIso(value));
 
-/** Main's team list comes from the project's teams, so a rename or a new lead shows at once in every view. */
+/**
+ * Main's teams and people come from the project, so a rename, a new lead or an invite shows at once
+ * in every view. Removed members stay as people, so the work they did keeps their name.
+ */
 export async function findTracker(db: Reader, projectId: string): Promise<TrackerRow> {
   const [row] = await db
     .select()
@@ -32,10 +35,24 @@ export async function findTracker(db: Reader, projectId: string): Promise<Tracke
     .limit(1);
   if (!row) throw new AppError('NOT_FOUND', 'This project has no tracker yet');
   const teams = await loadTeams(db, projectId);
+  const members = await db
+    .select({ id: trackerMembers.id, name: trackerMembers.name })
+    .from(trackerMembers)
+    .where(eq(trackerMembers.projectId, projectId))
+    .orderBy(asc(trackerMembers.seq));
+  const memberName = new Map(members.map((member) => [member.id, member.name]));
+  const story = new Set(row.base.people.map((person) => person.id));
   return {
     ...row,
     base: {
       ...row.base,
+      people: [
+        ...row.base.people.map((person) => ({
+          id: person.id,
+          name: memberName.get(person.id) ?? person.name,
+        })),
+        ...members.filter((member) => !story.has(member.id)),
+      ],
       teams: teams.map(({ id, name, leadId }) => ({ id, name, leadId })),
     },
   };
