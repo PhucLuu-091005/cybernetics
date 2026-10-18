@@ -24,6 +24,8 @@ import {
   trackerTeams,
   users,
 } from '../db/schema';
+import { photosOn } from '../avatars/config';
+import { photoUrl } from '../avatars/store';
 import { isUniqueViolation, withTransaction, type Db, type Tx } from '../db/tx';
 import { AppError, invalidInput } from '../errors';
 import { requireScope } from '../http/scopes';
@@ -57,6 +59,7 @@ export type ProjectMember = {
   /** An invite that waits until a person signs in with this email. */
   pending: boolean;
   color: string;
+  photo: string | null;
   /** The acting member, so the demo marks the person you work as. */
   you: boolean;
   projectLead: boolean;
@@ -124,16 +127,19 @@ export const DeleteTeamInputSchema = z.strictObject({
 const UNIQUE = ['tracker_members_project_email_unique', 'tracker_members_project_user_unique'];
 const COLORS = ['#2563eb', '#0f766e', '#d97706', '#0891b2', '#65a30d', '#dc2626', '#4f46e5'];
 
-type Row = typeof trackerMembers.$inferSelect & { userEmail: string | null };
+type Row = typeof trackerMembers.$inferSelect & {
+  userEmail: string | null;
+  avatarKey: string | null;
+};
 
 async function memberRows(db: Reader, projectId: string): Promise<Row[]> {
   const rows = await db
-    .select({ member: trackerMembers, userEmail: users.email })
+    .select({ member: trackerMembers, userEmail: users.email, avatarKey: users.avatarKey })
     .from(trackerMembers)
     .leftJoin(users, eq(users.id, trackerMembers.userId))
     .where(eq(trackerMembers.projectId, projectId))
     .orderBy(asc(trackerMembers.seq));
-  return rows.map(({ member, userEmail }) => ({ ...member, userEmail }));
+  return rows.map(({ member, userEmail, avatarKey }) => ({ ...member, userEmail, avatarKey }));
 }
 
 const teamOf = (op: Op): string | null => {
@@ -175,6 +181,7 @@ async function toPayload(db: Reader, ctx: ActorContext, scope: Scope): Promise<M
   const teams = await loadTeams(db, scope.project.id);
   const use = await teamUse(db, scope, teams);
   const live = rows.filter((row) => row.removedAt === null);
+  const photos = photosOn();
   return {
     canManage: mayManage(ctx, scope, 'members:manage'),
     canManageTeams: mayManage(ctx, scope, 'teams:manage'),
@@ -188,6 +195,7 @@ async function toPayload(db: Reader, ctx: ActorContext, scope: Scope): Promise<M
         email: row.email ?? row.userEmail?.toLowerCase() ?? null,
         pending: isInvite(row),
         color: row.color,
+        photo: photos ? photoUrl(row.userId, row.avatarKey) : null,
         you: row.id === scope.me?.id,
         projectLead: row.id === lead,
         grants,

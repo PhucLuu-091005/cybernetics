@@ -5,11 +5,17 @@ import '../../../../../components/tracker/tracker.css';
 import { IdSchema } from '../../../../../contracts';
 import { shortDay } from '../../../../../components/settings/dates';
 import { McpSnippet } from '../../../../../components/settings/McpSnippet';
+import { PhotoSection } from '../../../../../components/settings/PhotoSection';
 import { TokenCreate } from '../../../../../components/settings/TokenCreate';
 import { TokenList } from '../../../../../components/settings/TokenList';
 import { PageHead } from '../../../../../components/shell/PageHead';
 import { getApp, listUserKeys } from '../../../../../server/app';
-import { personalCreator, projectAccount } from '../../../../../server/domain/account';
+import { photosOn } from '../../../../../server/avatars/config';
+import {
+  personalCreator,
+  projectAccount,
+  signedInAccount,
+} from '../../../../../server/domain/account';
 import { getProject } from '../../../../../server/domain/projects';
 import { readAuthEnvironment } from '../../../../../server/env';
 import {
@@ -28,10 +34,11 @@ async function loadProfile(projectId: string, cursor: string | null) {
   const actor = await requireActor(`/projects/${projectId}/profile`);
   const actAs = (await cookies()).get(`pg_act_${projectId}`)?.value;
   const db = getApp().db;
-  const [{ project, timeZone }, page, account, creator] = await Promise.all([
+  const [{ project, timeZone }, page, account, own, creator] = await Promise.all([
     notFoundOn(getProject(db, actor, { projectId })),
     notFoundOnCursor(listUserKeys(actor, { cursor }), cursor),
     projectAccount(db, actor, projectId, actAs),
+    signedInAccount(db, actor.userId),
     personalCreator(db, actor),
   ]);
   const now = Date.now();
@@ -44,6 +51,7 @@ async function loadProfile(projectId: string, cursor: string | null) {
     timeZone,
     page,
     account,
+    own,
     creator,
     expiryOptions,
     now: new Date(now).toISOString(),
@@ -60,7 +68,7 @@ export default async function ProfilePage({
   const [{ id }, search] = await Promise.all([params, searchParams]);
   const cursor = searchCursor(search.cursor);
   if (!IdSchema.safeParse(id).success) notFound();
-  const { project, timeZone, page, account, creator, expiryOptions, now } = await loadProfile(
+  const { project, timeZone, page, account, own, creator, expiryOptions, now } = await loadProfile(
     id,
     cursor,
   );
@@ -70,6 +78,7 @@ export default async function ProfilePage({
       <PageHead title="Profile" project={project} account={account} />
       <div className="pg-body pg-split">
         <div className="pg-main">
+          {photosOn() && <PhotoSection name={own.name} photo={own.photo ?? null} />}
           <TokenList
             kind="personal"
             api={KEYS}

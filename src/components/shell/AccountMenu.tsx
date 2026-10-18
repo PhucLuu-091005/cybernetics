@@ -3,10 +3,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useId } from 'react';
 import { RailIcon } from './icons';
+import { PhotoImg } from './PhotoImg';
 import { useDismissibleDetails } from './Popover';
 import { THEME_LABEL, THEMES, useTheme } from './theme';
 
-export type Account = { name: string; detail?: string; color?: string };
+export type Account = { name: string; detail?: string; color?: string; photo?: string | null };
 
 const initials = (name: string) =>
   name
@@ -17,7 +18,7 @@ const initials = (name: string) =>
     .join('')
     .toUpperCase();
 
-export function AccountMenu({ name, detail, color }: Account) {
+export function AccountMenu({ name, detail, color, photo }: Account) {
   const ref = useDismissibleDetails();
   const project = (usePathname() ?? '').match(/^\/projects\/([^/]+)/)?.[1];
   const [theme, setTheme] = useTheme();
@@ -32,7 +33,7 @@ export function AccountMenu({ name, detail, color }: Account) {
     <details ref={ref} className="acct me">
       <summary aria-label={`${name}: profile, theme and sign out`} title={name}>
         <span className="acct-av" style={color ? { background: color } : undefined}>
-          {initials(name)}
+          {photo ? <PhotoImg src={photo} size={28} /> : initials(name)}
         </span>
         <span className="acct-names">
           <b>{name}</b>

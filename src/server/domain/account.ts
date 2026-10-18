@@ -1,20 +1,27 @@
 import { eq } from 'drizzle-orm';
 import type { ActorContext, Creator } from '../../contracts';
+import { photosOn } from '../avatars/config';
+import { photoUrl } from '../avatars/store';
 import { users } from '../db/schema';
 import type { Db } from '../db/tx';
 import { AppError } from '../errors';
 import { listProjectMembers } from '../tracker/members';
 import { listProjects } from './projects';
 
-export type AccountBadge = { name: string; detail?: string; color?: string };
+export type AccountBadge = { name: string; detail?: string; color?: string; photo?: string | null };
 
 export async function signedInAccount(db: Db, userId: string): Promise<AccountBadge> {
   const [row] = await db
-    .select({ name: users.name, email: users.email })
+    .select({ name: users.name, email: users.email, avatarKey: users.avatarKey })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
-  return { name: row?.name ?? 'You', ...(row?.email ? { detail: row.email } : {}) };
+  const photo = photosOn() ? photoUrl(userId, row?.avatarKey ?? null) : null;
+  return {
+    name: row?.name ?? 'You',
+    ...(row?.email ? { detail: row.email } : {}),
+    ...(photo ? { photo } : {}),
+  };
 }
 
 /** The top right of a project page names the acting member, as the graph does; a person with none sees their own name. */
@@ -31,7 +38,13 @@ export async function projectAccount(
         ...(cookie ? { actAs: cookie } : {}),
       });
       const you = members.find((member) => member.you);
-      if (you) return { name: you.name, detail: you.label || undefined, color: you.color };
+      if (you)
+        return {
+          name: you.name,
+          detail: you.label || undefined,
+          color: you.color,
+          photo: you.photo,
+        };
       break;
     } catch (error) {
       if (!(error instanceof AppError) || error.code === 'RATE_LIMITED') throw error;

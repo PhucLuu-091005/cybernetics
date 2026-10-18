@@ -9,3 +9,5 @@ test-results/
 .superpowers/
 .worktrees/
 *.tsbuildinfo
+# The local photo store (AVATAR_STORE=local) of development.
+.avatars/
