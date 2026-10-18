@@ -18,6 +18,8 @@ export type Member = {
   removed: boolean;
   /** The stored grants; `rightsOf` adds the project lead and team lead rules. */
   grants: Grants;
+  /** The photo URL; without it the avatar shows initials. */
+  photo?: string;
 };
 
 export type CrStatus = 'draft' | 'ready' | 'merged' | 'closed';

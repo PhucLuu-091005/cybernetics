@@ -19,6 +19,8 @@ type RouteModule = Partial<Record<'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', H
 };
 type Reply = { status: number; headers: Headers; body: any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 const expectedRoutes = [
+  '/avatars/:userId/:hash',
+  '/me/avatar',
   '/me/keys',
   '/me/keys/:tokenId',
   '/projects',

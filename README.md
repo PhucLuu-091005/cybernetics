@@ -15,7 +15,7 @@ To put the app online, follow [docs/deploy-cloud-run-neon.md](docs/deploy-cloud-
 - **History.** Every merge into Main, and the cancelled change requests with their reasons.
 - **Members.** The people of the project, their teams and their grants. The project lead edits them.
 - **Settings.** The project facts and the agent tokens.
-- **Profile.** Your personal keys for every project (account menu, **Profile**).
+- **Profile.** Your photo and your personal keys for every project (account menu, **Profile**).
 
 Your first sign-in creates a private sandbox: the fictional Larkspur Capital project with 7 teams, a Queue and 4 change requests ([fixtures/README.md](fixtures/README.md)). The **Demo** select at the top right changes who you work as. The full behaviour is in the [spec](docs/superpowers/specs/2026-10-16-event-tracker-design.md).
 
