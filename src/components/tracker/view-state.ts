@@ -140,6 +140,25 @@ export function writeDensity(store: KeyValueStore | null, userId: string, densit
   }
 }
 
+export const legendKey = (userId: string) => `promise-graph:legend:v1:${userId}`;
+
+/** The legend opens for a newcomer, and stays closed once the person closes it. */
+export function readLegendOpen(store: KeyValueStore | null, userId: string): boolean {
+  try {
+    return store?.getItem(legendKey(userId)) !== 'closed';
+  } catch {
+    return true;
+  }
+}
+
+export function writeLegendOpen(store: KeyValueStore | null, userId: string, open: boolean): void {
+  try {
+    store?.setItem(legendKey(userId), open ? 'open' : 'closed');
+  } catch {
+    // Without storage the legend holds its state for this page view only.
+  }
+}
+
 export const teamOpenKey = (projectId: string) => `promise-graph:team-open:v1:${projectId}`;
 const TeamsSchema = z.strictObject({ v: z.literal(1), open: Ids, closed: Ids });
 

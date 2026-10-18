@@ -5,12 +5,15 @@ import {
   hiddenList,
   keepFocus,
   densityKey,
+  legendKey,
+  readLegendOpen,
   readDensity,
   readNoticeOff,
   readTeamOpen,
   readViewState,
   teamOpenKey,
   writeDensity,
+  writeLegendOpen,
   writeTeamOpen,
   revealRows,
   toggleId,
@@ -217,5 +220,28 @@ describe('row height and team toggles', () => {
     expect(readTeamOpen(null, 'p1').size).toBe(0);
     expect(readTeamOpen(throwing, 'p1').size).toBe(0);
     expect(() => writeTeamOpen(throwing, 'p1', new Map([['it', true]]))).not.toThrow();
+  });
+});
+
+describe('legend popover', () => {
+  it('reads open when nothing is stored, and remembers closed and open again per person', () => {
+    const store = memoryStore();
+    expect(readLegendOpen(store, 'u1')).toBe(true);
+    writeLegendOpen(store, 'u1', false);
+    expect(readLegendOpen(store, 'u1')).toBe(false);
+    expect(readLegendOpen(store, 'u2')).toBe(true);
+    writeLegendOpen(store, 'u1', true);
+    expect(readLegendOpen(store, 'u1')).toBe(true);
+    expect(legendKey('u1')).not.toBe(legendKey('u2'));
+  });
+
+  it('reads open from an unknown value or a missing or throwing store', () => {
+    const store = memoryStore();
+    store.setItem(legendKey('u1'), 'maybe');
+    expect(readLegendOpen(store, 'u1')).toBe(true);
+    expect(readLegendOpen(null, 'u1')).toBe(true);
+    expect(readLegendOpen(throwing, 'u1')).toBe(true);
+    expect(() => writeLegendOpen(throwing, 'u1', false)).not.toThrow();
+    expect(() => writeLegendOpen(null, 'u1', false)).not.toThrow();
   });
 });

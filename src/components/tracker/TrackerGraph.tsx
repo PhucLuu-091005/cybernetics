@@ -11,13 +11,14 @@ import {
   type MouseEvent,
 } from 'react';
 import {
-  EVENT_KINDS,
   GEOMETRY,
+  KIND_GROUPS,
   KIND_LABEL,
   PLUS_GAP,
   STATUS_LABEL,
   STATUS_TONE,
   type Density,
+  type EventKind,
   type LayoutHandoff,
   type LayoutMilestone,
   type Status,
@@ -89,6 +90,9 @@ type Props = {
   onDensity?: (density: Density) => void;
   onExpandAll?: () => void;
   onCollapseAll?: () => void;
+  legend?: boolean;
+  /** Without it, the zoom corner has no Legend button. */
+  onLegend?: (open: boolean) => void;
 };
 
 const DENSITY_LABEL: Record<Density, string> = {
@@ -480,6 +484,43 @@ export function TrackerGraph(props: Props) {
       document.removeEventListener('keydown', onKey);
     };
   }, [viewMenu]);
+  const legendOpen = !!props.onLegend && !!props.legend;
+  const barRef = useRef<HTMLDivElement>(null);
+  const legendRef = useRef<HTMLDivElement>(null);
+  const legendBtn = useRef<HTMLButtonElement>(null);
+  const legendId = `legend-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  useLayoutEffect(() => {
+    const bar = barRef.current;
+    const pop = legendRef.current;
+    if (!legendOpen || !bar || !pop) return;
+    // The pop hangs above the controls; it gets the room between them and the top of the visible
+    // graph (on a phone, the sticky top bar), and scrolls inside when that is not enough.
+    const fit = () => {
+      const box = bar.getBoundingClientRect();
+      const area = (bar.closest('.gcanvas') ?? bar.parentElement)!.getBoundingClientRect();
+      const stickyTop =
+        parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tk-top')) || 0;
+      const top = Math.max(area.top, stickyTop, 0);
+      const h = `${Math.round(Math.max(120, box.top - top - 16))}px`;
+      const w = `${Math.round(Math.max(240, box.right - Math.max(area.left, 0) - 12))}px`;
+      if (pop.style.getPropertyValue('--lg-room-h') !== h) pop.style.setProperty('--lg-room-h', h);
+      if (pop.style.getPropertyValue('--lg-room-w') !== w) pop.style.setProperty('--lg-room-w', w);
+    };
+    fit();
+    const sizes = new ResizeObserver(fit);
+    sizes.observe(bar.closest('.gcanvas') ?? bar);
+    window.addEventListener('resize', fit);
+    document.addEventListener('scroll', fit, { capture: true, passive: true });
+    return () => {
+      sizes.disconnect();
+      window.removeEventListener('resize', fit);
+      document.removeEventListener('scroll', fit, { capture: true });
+    };
+  }, [legendOpen]);
+  const closeLegend = (refocus: boolean) => {
+    props.onLegend?.(false);
+    if (refocus) legendBtn.current?.focus();
+  };
   // Label text measures differ by glyph, so a clip keeps a long label off the buttons.
   const clipId = `labels-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const labelEnd = X0 - (props.onFocusItem ? 54 : 36);
@@ -1239,7 +1280,37 @@ export function TrackerGraph(props: Props) {
           )}
         </div>
       )}
-      <div className="zoombar" role="group" aria-label="View controls">
+      <div className="zoombar" role="group" aria-label="View controls" ref={barRef}>
+        {props.onLegend && (
+          <button
+            ref={legendBtn}
+            type="button"
+            className="lg-btn"
+            aria-label="Legend"
+            title="Legend"
+            aria-expanded={legendOpen}
+            aria-controls={legendId}
+            onClick={() => props.onLegend?.(!legendOpen)}
+          >
+            <Icon name="legend" size={14} />
+          </button>
+        )}
+        {legendOpen && (
+          <div
+            ref={legendRef}
+            id={legendId}
+            className="legend-pop"
+            role="dialog"
+            aria-label="Legend"
+            onKeyDown={(event) => {
+              if (event.key !== 'Escape') return;
+              event.preventDefault();
+              closeLegend(true);
+            }}
+          >
+            <LegendBody onClose={() => closeLegend(true)} />
+          </div>
+        )}
         {props.onDensity && (
           <span className="view-menu" ref={viewRef}>
             <button
@@ -1331,44 +1402,85 @@ export function TrackerGraph(props: Props) {
   );
 }
 
-export function Legend() {
-  const line = (background: string, label: string) => (
-    <span>
-      <i className="ln" style={{ background }} />
-      {label}
+const LINES: Array<{ tone: string; label: string; title?: string }> = [
+  { tone: 'var(--route)', label: 'Not finished' },
+  { tone: 'var(--proceed)', label: 'Done' },
+  { tone: 'var(--danger)', label: 'Late part', title: 'Not finished after its planned finish' },
+  { tone: 'var(--caution)', label: 'Done late', title: 'Done after its planned finish' },
+  { tone: 'var(--isolated)', label: 'Cancelled' },
+];
+// The legend reads in the order of the kind picker (start, progress, finish).
+const LEGEND_KINDS = KIND_GROUPS.flatMap((g) => g.kinds);
+const MILESTONE_SHORT: Partial<Record<Status, string>> = { early: 'Early', ontime: 'On time' };
+
+function LegendKind({ kind }: { kind: EventKind }) {
+  return (
+    <span className="lg-it lg-kd">
+      <span className="lg-ring" style={{ color: KIND_COLOR[kind] }}>
+        <KindIcon kind={kind} size={11} />
+      </span>
+      {KIND_LABEL[kind]}
     </span>
   );
+}
+
+function LegendBody({ onClose }: { onClose: () => void }) {
+  const half = Math.ceil(LEGEND_KINDS.length / 2);
   return (
-    <div className="legend2">
-      {line('var(--route)', 'Not finished')}
-      {line('var(--proceed)', 'Done')}
-      {line('var(--danger)', 'Not finished after its planned finish')}
-      {line('var(--caution)', 'Done after its planned finish')}
-      {line('var(--isolated)', 'Cancelled')}
-      <span>
-        <svg width="12" height="12" viewBox="-7 -7 14 14" aria-hidden="true">
-          <path d={DIAMOND} fill="var(--ink-3)" stroke="var(--ink-3)" strokeWidth="1.5" />
-        </svg>
-        Milestone deadline on its work items
-      </span>
-      {MILESTONE_STATUSES.map((status) => (
-        <span key={status} style={{ color: color(STATUS_TONE[status]) }}>
-          <i className={cls('ms-sw', status !== 'planned' && 'fill')} />
-          <span style={{ color: 'var(--ink-2)' }}>{STATUS_LABEL[status]}</span>
-        </span>
-      ))}
-      <span>
-        <i className="chg">Name</i>
-        Changed in this change request
-      </span>
-      <span className="lg-kinds" role="group" aria-label="Event kinds">
-        {EVENT_KINDS.map((kind) => (
-          <span key={kind} style={{ color: KIND_COLOR[kind] }}>
-            <KindIcon kind={kind} size={13} />
-            <span className="lg-kind">{KIND_LABEL[kind]}</span>
+    <>
+      <button className="x lg-x" type="button" aria-label="Close legend" onClick={onClose}>
+        ×
+      </button>
+      <div className="lg-grid">
+        <div className="lg-sec">
+          <p className="q-label">Line</p>
+          {LINES.map((l) => (
+            <span key={l.label} className="lg-it" title={l.title}>
+              <i className="ln" style={{ background: l.tone }} />
+              {l.label}
+            </span>
+          ))}
+          <p className="q-label">Change</p>
+          <span className="lg-it" title="Changed in this change request">
+            <i className="chg">Name</i>
+            Changed here
           </span>
-        ))}
-      </span>
-    </div>
+        </div>
+        <div className="lg-sec">
+          <p className="q-label">Milestone</p>
+          <span className="lg-it" title="Milestone deadline on its work items">
+            <svg width="12" height="12" viewBox="-7 -7 14 14" aria-hidden="true">
+              <path d={DIAMOND} fill="var(--ink-3)" stroke="var(--ink-3)" strokeWidth="1.5" />
+            </svg>
+            Deadline
+          </span>
+          {MILESTONE_STATUSES.map((status) => (
+            <span
+              key={status}
+              className="lg-it"
+              title={MILESTONE_SHORT[status] && STATUS_LABEL[status]}
+            >
+              <i
+                className={cls('ms-sw', status !== 'planned' && 'fill')}
+                style={{ color: color(STATUS_TONE[status]) }}
+              />
+              {MILESTONE_SHORT[status] ?? STATUS_LABEL[status]}
+            </span>
+          ))}
+        </div>
+        <div className="lg-sec lg-ev" role="group" aria-label="Event kinds">
+          <p className="q-label">Event</p>
+          <div className="lg-ev-cols">
+            {[LEGEND_KINDS.slice(0, half), LEGEND_KINDS.slice(half)].map((kinds) => (
+              <div key={kinds[0]} className="lg-sec">
+                {kinds.map((kind) => (
+                  <LegendKind key={kind} kind={kind} />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
