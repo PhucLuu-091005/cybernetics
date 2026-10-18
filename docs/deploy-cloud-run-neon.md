@@ -185,13 +185,13 @@ Do this only when people must sign in with Google instead of the demo copy.
 
    The script then stores the client secret, sets `GOOGLE_CLIENT_ID`, and prints the OAuth redirect URI. The first sign-in of each Google account builds its Larkspur sandbox.
 
-## Demo sandboxes: size, limits and cleanup
+## Demo sandboxes: size, limit and cleanup
 
 Each visitor's copy is a full Larkspur project in its own workspace, owned by an anonymous person named Demo visitor.
 
 - **Size.** One new copy writes 43 rows (person, workspace, project, 5 members, 7 teams, 5 team places, 6 Queue items, 4 change requests, 9 comments, 1 commit, 1 share) and takes about 28 KB on PostgreSQL, indexes included (measured: 100 copies grew the database by 2.9 MB). The empty schema takes about 9 MB. So 1 GB (the Neon Free storage) holds about 35,000 copies before visitors add their own changes.
-- **When a copy is made.** Only when a browser opens a page with no session: a `GET` that asks for HTML. `HEAD`, `/api/health`, `/mcp`, files and prefetches make nothing. A user agent that names a bot, crawler, spider, preview, Slackbot, facebookexternalhit, WhatsApp, TelegramBot, Discordbot or curl gets a read-only welcome page that links to the app, so link previews make nothing.
-- **Limits.** One address (the first `X-Forwarded-For` value) gets at most 20 new copies an hour; the whole service gets at most 300 an hour. Past a limit, the visitor sees a plain page that says to try again later. The limits live in process memory, which is one more reason for `--max-instances 1`.
+- **When a copy is made.** Only when a browser opens a page with no session: a `GET` that asks for HTML. `HEAD`, `/api/health`, `/mcp`, files and prefetches make nothing. When the cookie does not come back on the next request (cookies off, a frame inside another site), the visitor sees a short page about cookies and no more copies are made. A user agent that names a bot, crawler, spider, preview, Slackbot, facebookexternalhit, WhatsApp, TelegramBot, Discordbot or curl gets a read-only welcome page that links to the app, so link previews make nothing.
+- **Limit.** One address (the last `X-Forwarded-For` value, which Cloud Run appends) gets at most 30 new copies an hour; past it, the welcome page says to try again later.
 - **Cookie.** The session cookie lasts 30 days (`HttpOnly`, `Secure`, `SameSite=Lax`) and is not renewed. After 30 days nobody can open that copy again. **Start over** in the account menu makes a new person and a fresh copy; the old copy stays until the cleanup.
 - **Cleanup.** `scripts/delete-demo-sandboxes.mjs` deletes the copies made more than N days ago (default 30, the cookie lifetime, so it never deletes a copy that a visitor can still open). It is a script that you run, not a cron job. Without `--apply` it only counts:
 

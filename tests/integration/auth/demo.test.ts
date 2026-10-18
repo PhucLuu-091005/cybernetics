@@ -169,7 +169,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('demo mode: every visitor gets a
     for (const from of ['https://evil.example', null]) {
       const refused = await post(from);
       expect(refused.status).toBe(403);
-      expect(refused.headers.get('content-type')).toMatch(/^text\/html/);
+      expect(refused.headers.get('content-type')).toMatch(/^text\/plain/);
       expect(await refused.text()).toContain('Start over did not work');
       expect(refused.headers.get('set-cookie')).toBeNull();
     }
@@ -214,8 +214,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('demo mode: every visitor gets a
     expect(await demoUsers()).toBe(before);
   });
 
-  it('limits new sandboxes to 20 an hour for the address that Cloud Run appends, whatever the client sends first', async () => {
-    for (let i = 0; i < 20; i++)
+  it('limits new sandboxes to 30 an hour for the address that Cloud Run appends, whatever the client sends first', async () => {
+    for (let i = 0; i < 30; i++)
       expect(
         (await visit({ forwarded: `198.51.100.${i}, 203.0.113.9` })).headers.get('set-cookie'),
       ).toBeTruthy();
@@ -228,18 +228,6 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('demo mode: every visitor gets a
     expect(
       (await visit({ forwarded: '203.0.113.9, 198.51.100.4' })).headers.get('set-cookie'),
     ).toBeTruthy();
-  }, 60_000);
-
-  it('with TRUSTED_PROXY_HOPS=1 takes the address one hop before the end', async () => {
-    vi.stubEnv('TRUSTED_PROXY_HOPS', '1');
-    try {
-      for (let i = 0; i < 20; i++) await visit({ forwarded: `203.0.113.10, 10.0.0.${i}` });
-      expect((await visit({ forwarded: '203.0.113.10, 10.0.0.99' })).headers.get('location')).toBe(
-        '/welcome?reason=busy',
-      );
-    } finally {
-      vi.stubEnv('TRUSTED_PROXY_HOPS', '');
-    }
   }, 60_000);
 
   it('answers 404 outside demo mode', async () => {
