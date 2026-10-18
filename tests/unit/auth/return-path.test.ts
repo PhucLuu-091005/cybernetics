@@ -31,6 +31,23 @@ describe('return path after sign-in', () => {
       `/${'a'.repeat(2001)}`,
     ])
       expect(returnPath(raw), raw).toBeNull();
+    for (const raw of [
+      '/.//evil.com',
+      '/a/..//evil.com',
+      '/%2e%2e//evil.com',
+      '/a/%2e%2e//evil.com',
+      '/%2E%2E//evil.com',
+      '/a/%2E%2e//evil.com',
+      '/%2e//evil.com',
+      '/a/.%2e//evil.com',
+      '/a/%2e./%2e%2e//evil.com',
+      '/a/..//evil.com?x=1',
+    ]) {
+      expect(returnPath(raw), raw).toBeNull();
+      expect(returnPath(new URL(raw, 'https://app.invalid').pathname), raw).toBeNull();
+    }
+    for (const raw of ['/a/../signin', '/x/%2e%2e/api/v1', '/./mcp', '/a/..', '/a/%2e%2e/_next/x'])
+      expect(returnPath(raw), raw).toBeNull();
     expect(returnPath(undefined)).toBeNull();
     expect(returnPath(['/projects'])).toBeNull();
   });
