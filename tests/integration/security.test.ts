@@ -5,21 +5,20 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { createTestDatabase, testActor, type TestDb } from '../support/db';
-import { record } from '../support/evidence';
-import { ingestText, seedProject } from '../support/proposals';
+import { seedDemo } from '../support/tracker-db';
 import { configureApp, resetApp, seedOnUserCreated, tokenActor } from '../../src/server/app';
 import { DbIdentityStore } from '../../src/server/db/identity-store';
-import { SANDBOX_TITLE } from '../../src/server/domain/seed';
-import { projects, recordVersions } from '../../src/server/db/schema';
+import { projects } from '../../src/server/db/schema';
 import { browserScopes } from '../../src/server/http/identity-store';
 import { route } from '../../src/server/http/route';
 import { SESSION_COOKIE, signSession } from '../../src/server/http/session';
-import * as graphRoute from '../../src/app/api/v1/projects/[projectId]/graph/route';
-import * as inboxRoute from '../../src/app/api/v1/projects/[projectId]/inbox/route';
-import * as recordsRoute from '../../src/app/api/v1/projects/[projectId]/records/route';
-import * as versionRoute from '../../src/app/api/v1/projects/[projectId]/record-versions/[versionId]/route';
-import * as proposalsRoute from '../../src/app/api/v1/projects/[projectId]/proposals/route';
-import * as commitsRoute from '../../src/app/api/v1/projects/[projectId]/commits/route';
+import { getTrackerPayload } from '../../src/server/tracker';
+import { LARKSPUR_PROJECT } from '../../src/server/tracker/seed/larkspur';
+import * as projectRoute from '../../src/app/api/v1/projects/[projectId]/route';
+import * as trackerRoute from '../../src/app/api/v1/projects/[projectId]/tracker/route';
+import * as queueRoute from '../../src/app/api/v1/projects/[projectId]/tracker/queue/route';
+import * as queueCardRoute from '../../src/app/api/v1/projects/[projectId]/tracker/queue/[queueId]/route';
+import * as crsRoute from '../../src/app/api/v1/projects/[projectId]/tracker/crs/route';
 import * as tokensRoute from '../../src/app/api/v1/projects/[projectId]/agent-tokens/route';
 import * as tokenRoute from '../../src/app/api/v1/projects/[projectId]/agent-tokens/[tokenId]/route';
 import * as sessionRoute from '../../src/app/api/auth/session/route';
@@ -42,8 +41,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
     bob: ActorContext,
     aliceProject: string,
     bobProject: string,
-    bobVersion: string,
-    aliceVersion: string;
+    aliceCard: string;
   let seededBodies: string[];
   const marker = `Confidential Larkspur escrow detail ${randomUUID()}`;
   const logs: string[] = [];
@@ -95,19 +93,28 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
   };
   const tool = async (client: Client, name: string, args: Record<string, unknown> = {}) =>
     (await client.callTool({ name, arguments: args })) as ToolReply;
-  const createToken = async (as: ActorContext, projectId: string, label: string) => {
+  const createToken = async (
+    as: ActorContext,
+    projectId: string,
+    label: string,
+    scopes?: string[],
+  ) => {
     const created = await call(
       tokensRoute.POST,
       'POST',
       `/projects/${projectId}/agent-tokens`,
       { projectId },
       as,
-      { body: { label, idempotencyKey: `token-${label}` } },
+      { body: { label, idempotencyKey: `token-${label}`, ...(scopes ? { scopes } : {}) } },
     );
     expect(created.status).toBe(201);
     return created.body as { token: { id: string }; secret: string };
   };
   const leaksMarker = (text: string) => text.includes(marker);
+  const queueEvent = (text: string) => ({
+    kind: 'event',
+    fields: { kind: 'message', at: '2026-10-09T16:30:00+07:00', by: 'sarah', text },
+  });
 
   beforeAll(async () => {
     t = await createTestDatabase();
@@ -138,18 +145,28 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
     [{ id: aliceProject }] = await t.db
       .select({ id: projects.id })
       .from(projects)
-      .where(and(eq(projects.workspaceId, alice.workspaceId), eq(projects.title, SANDBOX_TITLE)));
-    aliceVersion = await ingestText(t.db, alice, aliceProject, marker);
-    seededBodies = (
-      await t.db
-        .select({ body: recordVersions.bodyText })
-        .from(recordVersions)
-        .where(eq(recordVersions.projectId, aliceProject))
-    )
-      .map((row) => row.body)
-      .filter((body) => body.length >= 24);
+      .where(
+        and(
+          eq(projects.workspaceId, alice.workspaceId),
+          eq(projects.title, LARKSPUR_PROJECT.title),
+        ),
+      );
+    const added = await call(
+      queueRoute.POST,
+      'POST',
+      `/projects/${aliceProject}/tracker/queue`,
+      { projectId: aliceProject },
+      alice,
+      { body: queueEvent(marker) },
+    );
+    expect(added.status).toBe(201);
+    aliceCard = added.body.queue.events.find((event: { text: string }) => event.text === marker).id;
+    const seeded = await getTrackerPayload(t.db, alice, { projectId: aliceProject });
+    seededBodies = [...seeded.base.events, ...seeded.queue.events]
+      .map((event) => event.text)
+      .filter((text) => text.length >= 24 && text !== marker);
     bob = await testActor(t.db, { name: 'Bob' });
-    ({ projectId: bobProject, versionId: bobVersion } = await seedProject(t.db, bob));
+    ({ projectId: bobProject } = await seedDemo(t.db, bob));
   }, 120_000);
   beforeEach(() => {
     delete limiterState.promiseRateLimiter;
@@ -165,41 +182,30 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
   });
 
   it('seeds a real sandbox for the first browser user', () => {
-    expect(seededBodies.length).toBeGreaterThan(50);
+    expect(seededBodies.length).toBeGreaterThan(20);
   });
 
-  it('isolates two browser users on REST: every route into the other project is 404 and leaks no record text', async () => {
+  it('isolates two browser users on REST: every route into the other project is 404 and leaks no event text', async () => {
     const p = { projectId: aliceProject };
     const attempts = [
-      await call(graphRoute.GET, 'GET', `/projects/${aliceProject}/graph`, p, bob),
-      await call(inboxRoute.GET, 'GET', `/projects/${aliceProject}/inbox`, p, bob),
-      await call(
-        versionRoute.GET,
-        'GET',
-        `/projects/${aliceProject}/record-versions/${aliceVersion}`,
-        { ...p, versionId: aliceVersion },
-        bob,
-      ),
-      await call(proposalsRoute.GET, 'GET', `/projects/${aliceProject}/proposals`, p, bob),
-      await call(commitsRoute.GET, 'GET', `/projects/${aliceProject}/commits`, p, bob),
+      await call(projectRoute.GET, 'GET', `/projects/${aliceProject}`, p, bob),
+      await call(trackerRoute.GET, 'GET', `/projects/${aliceProject}/tracker`, p, bob),
       await call(tokensRoute.GET, 'GET', `/projects/${aliceProject}/agent-tokens`, p, bob),
-      await call(recordsRoute.POST, 'POST', `/projects/${aliceProject}/records`, p, bob, {
-        body: {
-          source: 'paste',
-          sourceLabel: 'paste',
-          records: [record('x', 'Intrusion attempt')],
-          idempotencyKey: 'bob-1',
-        },
+      await call(queueRoute.POST, 'POST', `/projects/${aliceProject}/tracker/queue`, p, bob, {
+        body: queueEvent('Intrusion attempt'),
+      }),
+      await call(crsRoute.POST, 'POST', `/projects/${aliceProject}/tracker/crs`, p, bob, {
+        body: { title: 'Intrusion' },
       }),
       await call(tokensRoute.POST, 'POST', `/projects/${aliceProject}/agent-tokens`, p, bob, {
         body: { label: 'stolen', idempotencyKey: 'bob-2' },
       }),
-      // Bob's own project route with Alice's version ID: the ID alone grants nothing.
+      // Bob's own project route with Alice's card ID: the ID alone grants nothing.
       await call(
-        versionRoute.GET,
-        'GET',
-        `/projects/${bobProject}/record-versions/${aliceVersion}`,
-        { projectId: bobProject, versionId: aliceVersion },
+        queueCardRoute.DELETE,
+        'DELETE',
+        `/projects/${bobProject}/tracker/queue/${aliceCard}`,
+        { projectId: bobProject, queueId: aliceCard },
         bob,
       ),
     ];
@@ -210,44 +216,34 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
       });
       denied.push(attempt.text);
     }
-    const own = await call(
-      versionRoute.GET,
-      'GET',
-      `/projects/${aliceProject}/record-versions/${aliceVersion}`,
-      { ...p, versionId: aliceVersion },
-      alice,
-    );
+    const own = await call(trackerRoute.GET, 'GET', `/projects/${aliceProject}/tracker`, p, alice);
     expect(own.status).toBe(200);
     expect(own.text).toContain(marker);
   });
 
-  it('isolates two users on MCP: a token reads only its own project and a foreign ID is NOT_FOUND', async () => {
+  it('isolates two users on MCP: a token reads only its own project', async () => {
     const bobAgent = await connect((await createToken(bob, bobProject, 'bob-agent')).secret);
-    const foreign = await tool(bobAgent, 'get_record', { recordVersionId: aliceVersion });
-    expect(foreign).toMatchObject({ isError: true, structuredContent: { code: 'NOT_FOUND' } });
-    const search = await tool(bobAgent, 'search_records', { query: 'escrow' });
-    expect(search.isError).toBeFalsy();
-    expect(search.structuredContent.projectId).toBe(bobProject);
+    const queue = await tool(bobAgent, 'list_queue');
+    expect(queue.isError).toBeFalsy();
+    expect(queue.structuredContent.projectId).toBe(bobProject);
     const project = await tool(bobAgent, 'get_project', {});
     expect(project.structuredContent.project.id).toBe(bobProject);
-    denied.push(JSON.stringify(foreign), JSON.stringify(search), JSON.stringify(project));
+    // Bob's own demo holds the same story texts, so only the project read joins the leak check.
+    expect(JSON.stringify(queue)).not.toContain(marker);
+    denied.push(JSON.stringify(project));
 
     const aliceAgent = await connect(
       (await createToken(alice, aliceProject, 'alice-agent')).secret,
     );
-    expect(await tool(aliceAgent, 'get_record', { recordVersionId: bobVersion })).toMatchObject({
-      isError: true,
-      structuredContent: { code: 'NOT_FOUND' },
-    });
-    expect(
-      (await tool(aliceAgent, 'get_record', { recordVersionId: aliceVersion })).structuredContent
-        .text,
-    ).toBe(marker);
+    const aliceQueue = await tool(aliceAgent, 'list_queue');
+    expect(aliceQueue.structuredContent.events.map((e: { id: string }) => e.id)).toContain(
+      aliceCard,
+    );
     // A token for one project cannot be pointed at another project's REST path.
     const bobToken = await createToken(bob, bobProject, 'bob-path');
     await expect(
       tokenActor(
-        new Request(`${origin}/api/v1/projects/${aliceProject}/graph`, {
+        new Request(`${origin}/api/v1/projects/${aliceProject}/tracker`, {
           headers: { authorization: `Bearer ${bobToken.secret}` },
         }),
         'project:read',
@@ -255,16 +251,14 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
-  it('revoking a token stops every later MCP call, including a replay of an earlier receipt', async () => {
-    const created = await createToken(alice, aliceProject, 'revoke-me');
+  it('revoking a token stops every later MCP call', async () => {
+    const created = await createToken(alice, aliceProject, 'revoke-me', [
+      'project:read',
+      'queue:add',
+    ]);
     const agent = await connect(created.secret);
-    const args = {
-      source: 'agent',
-      sourceLabel: 'notion',
-      records: [record('revocation', 'Please send the revised fee schedule.')],
-      idempotencyKey: 'rev-import',
-    };
-    expect((await tool(agent, 'import_records', args)).isError).toBeFalsy();
+    const args = queueEvent('Please send the revised fee schedule.').fields;
+    expect((await tool(agent, 'add_queue_event', args)).isError).toBeFalsy();
     const revoked = await call(
       tokenRoute.DELETE,
       'DELETE',
@@ -274,24 +268,19 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
       { body: { idempotencyKey: 'rev-1' } },
     );
     expect(revoked.status).toBe(200);
-    await expect(tool(agent, 'import_records', args)).rejects.toThrow(/401|UNAUTHENTICATED/);
+    await expect(tool(agent, 'add_queue_event', args)).rejects.toThrow(/401|UNAUTHENTICATED/);
     await expect(tool(agent, 'get_project', {})).rejects.toThrow(/401|UNAUTHENTICATED/);
     await expect(connect(created.secret)).rejects.toThrow(/401|UNAUTHENTICATED/);
   });
 
   it('rejects browser mutations with a foreign or missing Origin, and MCP calls with a foreign Origin', async () => {
     const p = { projectId: aliceProject };
-    const body = {
-      source: 'paste',
-      sourceLabel: 'paste',
-      records: [record('origin', 'Origin probe')],
-      idempotencyKey: 'origin-1',
-    };
+    const body = queueEvent('Origin probe');
     for (const sent of ['https://evil.example', 'http://localhost:3001', null]) {
       const attempt = await call(
-        recordsRoute.POST,
+        queueRoute.POST,
         'POST',
-        `/projects/${aliceProject}/records`,
+        `/projects/${aliceProject}/tracker/queue`,
         p,
         alice,
         { body, origin: sent },
@@ -315,10 +304,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
     ).toBeFalsy();
   });
 
-  it('answers 429 on the 21st browser write in one minute while reads still work, and on the 61st token call', async () => {
+  it('answers 429 on the 121st browser write in one minute while reads still work, and on the 61st token call', async () => {
     vi.useFakeTimers({ toFake: ['Date'], now: Math.floor(Date.now() / 60_000) * 60_000 + 1_000 });
     const p = { projectId: aliceProject };
-    for (let write = 1; write <= 20; write++) {
+    for (let write = 1; write <= 120; write++) {
       const opened = await call(
         tokensRoute.POST,
         'POST',
@@ -335,14 +324,14 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
       `/projects/${aliceProject}/agent-tokens`,
       p,
       alice,
-      { body: { label: 'Write 21', idempotencyKey: 'rate-21' } },
+      { body: { label: 'Write 121', idempotencyKey: 'rate-121' } },
     );
     expect(limited).toMatchObject({
       status: 429,
       body: { code: 'RATE_LIMITED', requestId: expect.any(String) },
     });
     expect(
-      (await call(graphRoute.GET, 'GET', `/projects/${aliceProject}/graph`, p, alice)).status,
+      (await call(trackerRoute.GET, 'GET', `/projects/${aliceProject}/tracker`, p, alice)).status,
     ).toBe(200);
     expect(
       (
@@ -376,7 +365,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
     const reply = await call(
       failing,
       'GET',
-      `/projects/${aliceProject}/graph`,
+      `/projects/${aliceProject}/tracker`,
       { projectId: aliceProject },
       alice,
     );
@@ -390,14 +379,14 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
     expect(JSON.parse(line!)).toEqual({ requestId: reply.body.requestId, error: 'Error' });
   });
 
-  it('no denied response and no log line contains a seeded record body, the confidential marker or a secret', () => {
-    expect(denied.length).toBeGreaterThanOrEqual(12);
+  it('no denied response and no log line contains a seeded event text, the confidential marker or a secret', () => {
+    expect(denied.length).toBeGreaterThanOrEqual(9);
     for (const text of denied) {
       expect(leaksMarker(text), text.slice(0, 200)).toBe(false);
       for (const body of seededBodies)
         expect(
           text.includes(body),
-          `denied response holds a record body: ${text.slice(0, 120)}`,
+          `denied response holds an event text: ${text.slice(0, 120)}`,
         ).toBe(false);
     }
     for (const line of logs) {
@@ -405,7 +394,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
       expect(line).not.toContain(secret);
       expect(line).not.toMatch(/inv_[A-Za-z0-9_-]{43}/);
       for (const body of seededBodies)
-        expect(line.includes(body), `log line holds a record body: ${line.slice(0, 120)}`).toBe(
+        expect(line.includes(body), `log line holds an event text: ${line.slice(0, 120)}`).toBe(
           false,
         );
     }

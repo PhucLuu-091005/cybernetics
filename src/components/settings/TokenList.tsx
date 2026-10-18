@@ -2,10 +2,10 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { AgentToken, RevokeAgentTokenResult } from '../../contracts';
-import { shortDay, shortStamp } from '../graph/labels';
-import { send, type ApiError } from '../inbox/api';
-import { ConflictBanner } from '../review/ConflictBanner';
-import { useHydrated } from '../review/hydrated';
+import { shortDay, shortStamp } from './dates';
+import { send, type ApiError } from '../shell/api';
+import { ConflictBanner } from '../shell/ConflictBanner';
+import { useHydrated } from '../shell/hydrated';
 import { Pager } from '../shell/Pager';
 import { permissionTitles } from './scopes';
 

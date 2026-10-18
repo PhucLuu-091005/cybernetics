@@ -1,47 +1,80 @@
 # Promise Graph
 
-Promise Graph shows who asked for what, who committed, what was delivered and where a project stalled. Every line on the graph points to the message that made it.
+Promise Graph is an event tracker for a whole project. It shows what happened at every step, which work led to which work across teams, and why plans changed.
 
-It is for customer success and implementation managers. They must reconstruct a project history from evidence in chat, email and documents, for example before they answer a customer complaint.
+People and their agents add events and work items to a Queue. A person drags them onto the graph. Main is read-only: every change goes through a change request, and the owner of Main merges it.
 
-## How it works
+![The Larkspur demo project on Main: teams, work items, events, milestones and the Queue](docs/screenshots/tracker-main.png)
 
-- **Evidence store.** Records enter the New records list through paste or MCP import. A record version never changes. An import never changes the graph.
-- **Versioned graph.** The graph has a main line, draft proposals, a diff, an explicit merge, history, revert and restore. Each act cites an exact quote with UTF-16 offsets in a record version. The screens call a proposal a "change set" and a merge an "approval". The API and the MCP tools keep their names.
-- **Deterministic engine.** A pure function derives loop states and 7 breakdown types (for example `silent_overdue` and `unanswered_request`) from the graph at a time `T`.
-- **No AI in the app.** The app and its server call no AI model and hold no provider key. You connect your own agent (for example Claude Code) to `/mcp` with a project token. The agent reads evidence, submits a proposal and reads its diff. A person reviews the proposal and merges it. A default token cannot merge.
+## What it does
 
-## Screenshots
+- **Events.** An event is a Message, Task, Handoff, Decision, Meeting, Delivery, Issue or Done. Each event sits on the row of one work item.
+- **Work items and teams.** Each work item has one row under its team. A work item can have a parent and can lead from other work items. It is done when it has a Done event. The eye buttons hide a row or a whole team for you only.
+- **Milestones.** A milestone has 5 statuses: Planned, Finished early, Finished on time, Late and Finished late. It is done when all its work items are done.
+- **Planned finish.** Each work item has a Planned finish date and the same 5 statuses. To move a Planned finish or a milestone date, you must write a reason. The app keeps the first date and every move: who, when, from, to and why.
+- **Queue.** New events and work items wait in the Queue. People add them with **Add**, and agents add them through MCP. Drag a card onto a work item or a team to place it. Every drag also has a click way.
+- **Main is read-only.** A drag on Main opens "Main is read-only" with **New change request**. Your change goes into the new change request.
+- **Change requests.** A change request is a Draft, Ready, Merged or Closed. It always shows the latest Main plus its own changes. **Share** gives a person Can edit or Can view. Everyone in the project can view every change request.
+- **One editor at a time.** A person with Can edit presses **Ask to edit**. The current editor presses **Hand over** or **Not now**.
+- **Ready.** **Mark as ready** locks the change request. The editor presses **Edit again** to unlock it.
+- **Review.** The owner of Main reviews a ready change request on its own page: **Changes** (before and after, the reason of each date move, comments), **On the graph** (Before and After) and **Conversation**. The owner can merge it, request changes or close it.
+- **Clashes.** A change clashes when Main took a different change on the same spot after the change request made its change. The owner picks Main or the change request for each clash. The merge records each pick.
+- **History.** History lists every merge into Main, newest first, with **See changes** and **Open graph**.
 
-The screenshots come from a local development server on 16 October 2026, with the seeded sandbox.
+The app never calls an AI model and holds no provider key.
 
-The approved graph with the loop panel open. The red branch has an `unanswered_request` breakdown, and the panel shows the cited quote in its message:
+| | |
+|---|---|
+| ![The Go-live date flag: first planned 30 Sept, moved once to 15 Oct, with the reason](docs/screenshots/date-moves.png) | ![Change request #5 with its Changes drawer: an event from the Queue and a date move with its reason](docs/screenshots/change-request.png) |
+| The date flag of a work item: the first date, each move and its reason. | A change request with 2 changes. The second change moves a date and shows why. |
+| ![The review of #3 with one clash with Main on the PG-203 name](docs/screenshots/review-clash.png) | ![Main history with the merges and the resolved clash](docs/screenshots/history.png) |
+| The review page. **Merge into Main** stays off until the owner picks a version for the clash. | History records each merge and each resolved clash. |
 
-![Approved graph with the loop panel for the client secret renewal loop](docs/screenshots/graph-loop-panel.png)
+<img src="docs/screenshots/phone.png" alt="The tracker at phone width: the Queue above the graph" width="300">
 
-The Review screen with a change set selected: the title with the Reject and Approve buttons, the change, and the change set on the graph:
+The screenshots come from a local development server on 16 October 2026, with the seeded sandbox and the light theme. The desktop shots use a 1440 x 900 viewport; the phone shot uses a 390 x 844 viewport.
 
-![Review screen with a change set](docs/screenshots/review-queue.png)
+The prototype is [docs/design/2026-10-16-event-tracker-v8.html](docs/design/2026-10-16-event-tracker-v8.html). The design is [docs/superpowers/specs/2026-10-16-event-tracker-design.md](docs/superpowers/specs/2026-10-16-event-tracker-design.md).
 
-The Settings page: the agent permissions, the MCP client snippet and a created token:
+## Demo walkthrough
 
-![Settings page with agent access](docs/screenshots/agent-tokens.png)
+Your first sign-in creates a private sandbox: the fictional Larkspur Capital onboarding project with 7 teams, 2 milestones, a Queue and 4 change requests ([fixtures/README.md](fixtures/README.md)). The demo clock stands at 9 October 2026, 18:00 (Asia/Ho_Chi_Minh).
 
-The design file is [docs/design/2026-10-13-promise-graph-ui.html](docs/design/2026-10-13-promise-graph-ui.html). Open it in a browser to see every screen. The requirements are in [docs/superpowers/specs/2026-10-12-promise-graph-srd.md](docs/superpowers/specs/2026-10-12-promise-graph-srd.md).
+Use the **Demo** select at the top right to change who you work as. Minh Trần owns Main. Lan Phạm, Quang Nguyễn, Hà Đỗ and Khoa Lê are members. The select shows only in the demo project. In your own projects, you work as yourself.
 
-Your first sign-in creates a private sandbox: a copy of the fictional Larkspur Capital onboarding project with 137 records and 36 reviewed loops ([fixtures/README.md](fixtures/README.md)).
+1. Anyone: click the flag at the end of the Go-live date row. See the first date (30 Sept), the new date (15 Oct) and the reason.
+2. Lan: drag the Queue event "Where is the root cause report…" onto Sync incident report. Main is read-only, so the app asks. Press **New change request**, then **Create**.
+3. Lan: drag the PG-203 flag to the right. Pick the date, write the reason, then press **Move the date**.
+4. Lan: press **Share**, pick Khoa Lê with **Can edit**, then press **Add**.
+5. Khoa: Lan's change request opens, and Lan is editing. Press **Ask to edit**.
+6. Lan: the yellow row says that Khoa asks to edit. Press **Hand over**.
+7. Khoa: drag the event "Scope call…" onto Dynamics CRM sync scope.
+8. Khoa: press **Mark as ready**.
+9. Minh: on #2, press **Review and merge**. Look at the Changes and On the graph tabs, then press **Merge into Main**.
+10. Minh: open #3 by Quang. Its PG-203 name clashes with #2. Pick one version, then merge.
+11. Minh: open #5 and read why the PG-203 date moves. Press **Request changes**. Then Khoa: press **Read**, then **Mark as ready** again.
+12. Anyone: press **History**, then **See changes** on a merge.
+13. Anyone: open a merged change request (**History**, **Open graph**) and drag an event. The app asks you to start a new change request.
+
+[tests/e2e/tracker.spec.ts](tests/e2e/tracker.spec.ts) runs these 13 steps in a browser.
 
 ## Connect an agent
 
-1. Open **Settings** in a project and create a token. Copy the secret; the app shows it once.
+Your own agent (for example Claude Code) connects to `/mcp` with a project token. It reads the project and adds events and work items to the Queue. No tool changes Main: a person places each card through a change request, and the owner of Main merges it.
+
+![Settings: the two agent permissions, the MCP snippet and a created token](docs/screenshots/agent-tokens.png)
+
+1. Open **Settings** in a project and create a token. Keep both permissions: **Read the project** (`project:read`) and **Add to the Queue** (`queue:add`). Copy the secret; the app shows it once.
 2. Add the server to your MCP client:
 
    ```json
    {"mcpServers":{"promise-graph":{"type":"http","url":"https://<host>/mcp","headers":{"Authorization":"Bearer inv_..."}}}}
    ```
 
-3. Follow the recipe in [docs/mcp-agent-recipe.md](docs/mcp-agent-recipe.md): read the project, read pending records, create a proposal, send operations, read the diff.
-4. Ask the agent to list its tools. Then press **Check again** in Settings. The **Last call** column of the token shows the time of that call.
+3. Ask the agent to list its tools. Then press **Check again** in Settings. The **Last call** column of the token shows the time of that call.
+4. Follow the recipe in [docs/mcp-agent-recipe.md](docs/mcp-agent-recipe.md):
+   - `project:read`: `get_project`, `get_tracker`, `list_queue`, `list_change_requests`, `get_change_request`.
+   - `queue:add`: `add_queue_event` and `add_queue_item`. A card that an agent adds shows an **Agent** chip in the Queue.
 
 ## Local setup
 
@@ -67,7 +100,7 @@ Requirements: Node.js 24, Docker. pnpm is not needed globally; the commands use 
    node --env-file=.env.local scripts/migrate.mjs
    ```
 
-4. Start the app and open <http://localhost:3000>. With `AUTH_MODE=local`, **Continue (local dev)** signs you in without Google.
+4. Start the app and open <http://localhost:3000>. With `AUTH_MODE=local`, **Continue (local dev)** signs you in without Google. `/signin?label=<label>` signs in a separate local user with its own sandbox. A label is 1 to 40 lowercase letters, digits or hyphens, for example `/signin?label=lan-test`. The sign-in page ignores any other label and uses the default local user.
 
    ```sh
    npx pnpm@11.25.0 dev
@@ -90,14 +123,17 @@ Requirements: Node.js 24, Docker. pnpm is not needed globally; the commands use 
 | `npx pnpm@11.25.0 typecheck` | TypeScript check |
 | `npx pnpm@11.25.0 lint` | ESLint |
 | `TEST_DATABASE_URL=<admin url> npx pnpm@11.25.0 test` | Unit and integration tests. Each integration file creates and drops its own database. Without `TEST_DATABASE_URL`, the integration tests skip. |
-| `npx pnpm@11.25.0 eval` | Offline deterministic evaluation (no network, no model) |
 | `npx pnpm@11.25.0 check:providers` | Fails if a model SDK, provider credential or analysis job kind appears |
-| `TEST_DATABASE_URL=<admin url> npx pnpm@11.25.0 test:e2e` | Playwright suite against a dev server and a throwaway database |
+| `TEST_DATABASE_URL=<admin url> E2E_PORT=3300 npx pnpm@11.25.0 test:e2e` | Playwright suite. It starts `next dev` on `E2E_PORT` (default 3300) against a throwaway `pg_e2e_*` database. Stop any dev server in the same checkout first, because both write to `.next`. |
 | `npx pnpm@11.25.0 build` | Production build (Next.js 16, Turbopack, standalone output) |
 
 ## Deploy on Render (free plan)
 
 [render.yaml](render.yaml) is a Render Blueprint. It declares one Docker web service (`plan: free`, health check `/api/health`) and one PostgreSQL 17 database (`plan: free`) in the Singapore region. The container applies pending migrations on each start, then starts the server. If a migration fails, the container stops and Render keeps the previous deploy.
+
+**The tracker needs a fresh database.** Migration 0004 adds the tracker tables, and migration 0005 drops the old promise data (records, proposals and graph commits). An account seeds its sandbox only on its first sign-in. An account that signed in before the tracker therefore keeps a project with no tracker, and its graph page says "This project has no tracker yet." Before the first tracker deploy, point the service at an empty database. Each account then gets the Larkspur sandbox on its first sign-in.
+
+On a deployment that already runs the promise version, delete the old database in the Render dashboard. Then sync the Blueprint, so that Render creates a new empty `promise-graph-db`, and deploy. For a new deployment, follow the steps below.
 
 The free plan has two limits that affect the demo:
 
@@ -107,7 +143,7 @@ The free plan has two limits that affect the demo:
 Do these steps in this order:
 
 1. **Create the Google OAuth client.** In Google Cloud Console, go to **APIs & Services → Credentials → Create credentials → OAuth client ID**. Select **Web application**. Leave the redirect URI empty for now. Configure the consent screen with the scopes `openid`, `email` and `profile`, and set its publishing status to **In production**. In **Testing** status, only the listed test users can sign in. Keep the client ID and the client secret.
-2. **Apply the Blueprint as soon as possible, no later than 15 October.** The free database lives 30 days, so a database created by 15 October stays alive until about 14 November. That date is after 22 October. In the Render dashboard, select **New → Blueprint**, connect this repository and select the branch to deploy. Render reads `render.yaml`.
+2. **Create the services from the Blueprint.** In the Render dashboard, select **New → Blueprint**, connect this repository and select the branch to deploy. Render reads `render.yaml` and creates an empty database. A database created on 16 October stays alive until about 15 November, which is after 22 October.
 3. **Enter the prompted values.** Render asks for the three `sync: false` variables:
    - `NEXT_PUBLIC_APP_URL`: `https://<service>.onrender.com`. The service name in `render.yaml` is `promise-graph`. If Render adds a suffix, use the URL that the service page shows, and correct the variable after the first deploy.
    - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`: the values from step 1.
@@ -117,89 +153,16 @@ Do these steps in this order:
 5. **Deploy and check.** The service has `autoDeploy: false`, so start each deploy with **Manual Deploy**. Then check:
    - `https://<service>.onrender.com/api/health` returns `{"status":"ok"}`.
    - The deploy log shows `{"event":"migrations_applied",…}`.
-   - **Continue with Google** signs you in and shows the seeded Larkspur graph. The first sign-in of each account builds its sandbox, so on the free plan it can take about 10 seconds. If the callback page is reloaded after that, Google refuses the used code and the page shows a **Sign-in expired — start again** link.
+   - **Continue with Google** signs you in and shows the Larkspur tracker. The first sign-in of each account builds its sandbox, so it takes longer than later sign-ins. If the callback page is reloaded after that, Google refuses the used code, and the page shows a link to start again.
 6. **Keep the demo awake until 22 October.** Create a free monitor at [UptimeRobot](https://uptimerobot.com) (or a similar service): type HTTP(S), URL `https://<service>.onrender.com/api/health`, interval 10 minutes. One always-on free service uses about 744 of the 750 free instance hours in a 31-day month, so do not run a second free service in the same workspace.
-7. **Run the live release walkthrough** (see [Release checks](#release-checks)) with a Google account that has never signed in. Then connect a real agent with the MCP snippet and let it create one proposal. Record the agent, the model and the date in the table under [Measured results](#measured-results).
+7. **Walk through the demo.** Sign in with a Google account that has never signed in, and do the 13 steps of the [Demo walkthrough](#demo-walkthrough). Then connect a real agent with the MCP snippet and let it add one event to the Queue.
 
 The app runs as one process because the rate limiter is in memory. Do not scale the service to more than one instance.
 
-## Release checks
-
-The release walkthrough [tests/e2e/release.spec.ts](tests/e2e/release.spec.ts) follows the ten-minute demo (SRD 15.1 items 1, 2, 4–7 and 9) against `BASE_URL`. It uses [playwright.release.config.ts](playwright.release.config.ts) and starts no server.
-
-**Local production image.** Production refuses local sign-in and a non-HTTPS origin. The check therefore runs the image with `AUTH_MODE=google` behind a local TLS proxy. It creates each test user in a throwaway database and signs a session cookie with the container's `SESSION_SECRET`. Only the Google code exchange is skipped; a separate test checks the Google redirect, its `state` and its PKCE challenge.
-
-```sh
-docker build -t promise-graph:rc .
-# rc.env: DATABASE_URL (throwaway database, host.docker.internal), AUTH_MODE=google,
-# NEXT_PUBLIC_APP_URL=https://localhost:3443, SESSION_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
-docker run -d --name pg-rc -p 3001:3000 --env-file rc.env promise-graph:rc
-openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 2 -subj /CN=localhost -addext subjectAltName=DNS:localhost
-node tests/support/tls-proxy.mjs 3443 http://127.0.0.1:3001 key.pem cert.pem &
-BASE_URL=https://localhost:3443 RELEASE_INSECURE_TLS=1 \
-  RELEASE_DATABASE_URL=<same database, host view> RELEASE_SESSION_SECRET=<same secret> \
-  ./node_modules/.bin/playwright test -c playwright.release.config.ts
-```
-
-**Timing budgets.** The walkthrough always records the first contentful paint and the graph API p50 and p95. It enforces the SRD 14 budgets (paint under 2 s, p95 under 500 ms) only when `RELEASE_TIMING_BUDGET` is set, for example `RELEASE_TIMING_BUDGET=1`. Leave it unset against the free Render plan, which does not meet these budgets (see [Measured results](#measured-results)).
-
-**Live deployment.** Sign in with Google once and save the session, then run the walkthrough. Each test waits for a new minute so that one user stays under the limit of 20 writes a minute.
-
-```sh
-npx playwright codegen --save-storage=live-session.json https://<service>.onrender.com/signin
-BASE_URL=https://<service>.onrender.com RELEASE_STORAGE_STATE=live-session.json \
-  ./node_modules/.bin/playwright test -c playwright.release.config.ts
-```
-
-If Google refuses to sign in inside the codegen browser, sign in with your normal browser, copy the `pg_session` cookie value from the developer tools, and write it into `live-session.json`:
-
-```json
-{"cookies":[{"name":"pg_session","value":"<cookie value>","domain":"<service>.onrender.com","path":"/","expires":-1,"httpOnly":true,"secure":true,"sameSite":"Lax"}],"origins":[]}
-```
-
-Delete `live-session.json` after the run. It holds a valid session cookie.
-
-## Measured results
-
-Environment: Apple M4 (10 cores), 16 GB RAM, macOS 26.6.2, Docker Desktop 29.5.2. The app ran as the production image (`node:24-alpine`, Turbopack build, `NODE_ENV=production`) on the same machine as PostgreSQL 17.11 and the Playwright Chromium browser. These numbers come from one machine; they are not a benchmark of the free Render plan, which has 0.1 CPU for the database and a shared CPU for the web service.
-
-| Measure | Target (SRD 14) | Result |
-|---|---|---|
-| Layout of 300 loops and 3,000 acts, median of 5 runs | under 50 ms | 5.91 ms (Node 26.8.2, Apple M4) |
-| First contentful paint of the seeded graph (reload, warm server and browser cache) | under 2 s | 76 ms |
-| `GET /api/v1/projects/:id/graph` on the seed, 25 sequential calls | p95 under 500 ms | p50 22 ms, p95 40 ms |
-
-**Local approximation of Render Free.** A reviewer ran the same production image in a container limited to 0.1 CPU and 512 MB of memory, with the release walkthrough and `RELEASE_TIMING_BUDGET` unset. This is a local approximation of the free plan, not a measurement on Render:
-
-| Measure | Target (SRD 14) | Result (0.1 CPU, 512 MB, local) |
-|---|---|---|
-| Container healthy after start, empty database | none | 38 s |
-| First contentful paint of the seeded graph | under 2 s | about 7.6 s (misses the target) |
-| `GET /api/v1/projects/:id/graph` on the seed | p95 under 500 ms | p50 about 0.8 s, p95 about 3.2 s (misses the target) |
-
-On this budget the first sign-in, which seeds the sandbox, can take about 10 seconds.
-
-Offline evaluation (`pnpm eval`) on the hand-written gold fixtures:
-
-```
-transition/breakdown accuracy: 100.0% (36/36)
-quote validity: 100.0% (132/132)
-expected diff matches: 100.0% (7/7)
-conflict detection: 100.0% (6/6)
-revert/restore correctness: 100.0% (4/4)
-```
-
-These figures measure the deterministic engine and the version control on fixtures. They do not measure AI accuracy.
-
-Live external-agent run (to fill in after step 7 of the deploy):
-
-| Date | Agent | Model | Proposal created | Incorrect links observed |
-|---|---|---|---|---|
-| not run yet | | | | |
-
 ## Known limits
 
-- **Coverage.** The graph covers only imported and reviewed records. Pending records are a coverage limit: the graph header shows how many records wait for review, so an empty warning list is not proof of health.
-- **No connectors.** The P1 connectors (Slack events, Slack history, Gmail fetch, scheduled collection) are not built. Records arrive through paste or MCP import only.
-- **Free hosting.** The free web service sleeps after 15 minutes without traffic, and the free database expires 30 days after creation. On its 0.1 CPU the graph paints in several seconds and the first sign-in can take about 10 seconds, so the SRD 14 timing budgets hold only on a larger instance. See [Deploy on Render](#deploy-on-render-free-plan) and [Measured results](#measured-results).
-- **One instance.** Rate limits (60 reads and 20 writes a minute for each user, 60 calls a minute for each token) are kept in process memory.
+- **No sync.** Email and Slack are not connected. People add events with **Add**, and agents add them through MCP.
+- **Demo members.** The 5 demo members live in your sandbox, and the **Demo** select switches between them. The app cannot invite real users by email.
+- **No revert.** A merge into Main is final. The app has no revert or restore of Main.
+- **Free hosting.** The free web service sleeps after 15 minutes without traffic, and the free database expires 30 days after creation. See [Deploy on Render](#deploy-on-render-free-plan).
+- **One instance.** Rate limits (300 reads and 120 writes a minute for each user, 60 calls a minute for each token) are kept in process memory.

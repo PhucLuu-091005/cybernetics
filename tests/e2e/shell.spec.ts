@@ -10,10 +10,11 @@ test('the rail folds to icons, keeps the state after a reload, and opens again',
   await expect(page.getByText(PROJECT).first()).toBeVisible();
   const nav = page.getByRole('navigation', { name: 'Project' });
   await expect(nav.getByRole('link', { name: 'Graph' })).toBeVisible();
-  await expect(nav.getByRole('link', { name: /^Review/ })).toBeVisible();
-  await expect(nav.getByRole('link', { name: 'Escalations' })).toHaveCount(0);
-  await expect(nav.getByRole('link', { name: 'Inbox' })).toHaveCount(0);
-  await expect(nav.getByRole('link', { name: 'Proposals' })).toHaveCount(0);
+  for (const gone of [/^Review/, 'Escalations', 'Inbox', 'Proposals'])
+    await expect(nav.getByRole('link', { name: gone })).toHaveCount(0);
+  await expect(page.getByText('Nothing changes the graph until a person approves it.')).toHaveCount(
+    0,
+  );
 
   const fold = page.getByRole('button', { name: 'Collapse sidebar' });
   await fold.click();
@@ -31,8 +32,8 @@ test('the rail folds to icons, keeps the state after a reload, and opens again',
     .poll(() => graph.evaluate((link) => getComputedStyle(link, '::before').content))
     .toBe('"Graph"');
 
-  await page.getByRole('link', { name: /^Review/ }).click();
-  await expect(page).toHaveURL(/\/review/);
+  await page.locator('.rail').getByRole('link', { name: 'Settings' }).click();
+  await expect(page).toHaveURL(/\/settings\/tokens$/);
   await expect(page.locator('.rail')).toHaveAttribute('data-state', 'collapsed');
 
   await page.getByRole('button', { name: 'Expand sidebar' }).click();
@@ -40,11 +41,10 @@ test('the rail folds to icons, keeps the state after a reload, and opens again',
   await expect(nav.getByText('Graph', { exact: true })).toBeVisible();
 });
 
-test('popovers close on Escape and on a press outside', async ({ page }) => {
+test('the project switcher closes on Escape', async ({ page }) => {
   await page.goto('/signin?label=shell-pop');
   await page.getByRole('button', { name: /continue/i }).click();
   await expect(page.getByText(PROJECT).first()).toBeVisible();
-  const projectId = new URL(page.url()).pathname.split('/')[2];
   // The fold button stays disabled until React hydrates, and the close handlers need React.
   await expect(page.getByRole('button', { name: 'Collapse sidebar' })).toBeEnabled();
 
@@ -54,26 +54,9 @@ test('popovers close on Escape and on a press outside', async ({ page }) => {
   await page.keyboard.press('Escape');
   await expect(switcher).not.toHaveAttribute('open');
   await expect(switcher.locator('summary')).toBeFocused();
-
-  const filter = page.locator('details.filter-pop');
-  await filter.locator('summary').click();
-  await expect(filter).toHaveAttribute('open', '');
-  await page
-    .locator('.topbar')
-    .first()
-    .click({ position: { x: 5, y: 5 } });
-  await expect(filter).not.toHaveAttribute('open');
-
-  await page.goto(`/projects/${projectId}/review`);
-  await expect(page.getByRole('button', { name: 'Collapse sidebar' })).toBeEnabled();
-  const newSet = page.locator('details.new-set');
-  await newSet.locator('summary').click();
-  await expect(newSet).toHaveAttribute('open', '');
-  await page.locator('.queue').click({ position: { x: 5, y: 5 } });
-  await expect(newSet).not.toHaveAttribute('open');
 });
 
-test('the project switcher creates a project, opens its empty graph and lists both projects', async ({
+test('the project switcher creates a project, opens its graph and lists both projects', async ({
   page,
 }) => {
   await page.goto('/signin?label=new-project');
@@ -99,18 +82,7 @@ test('the project switcher creates a project, opens its empty graph and lists bo
   await page.waitForURL(
     (url) => url.pathname !== larkspur && /^\/projects\/[0-9a-f-]{36}\/graph$/.test(url.pathname),
   );
-  const created = new URL(page.url()).pathname;
   await expect(dialog).toBeHidden();
-  const empty = page.locator('.graph-empty');
-  await expect(empty.getByText('This project has no work yet.')).toBeVisible();
-  await expect(empty.getByRole('link', { name: 'Review', exact: true })).toHaveAttribute(
-    'href',
-    created.replace(/graph$/, 'review'),
-  );
-  await expect(empty.getByRole('link', { name: 'Settings', exact: true })).toHaveAttribute(
-    'href',
-    created.replace(/graph$/, 'settings/tokens'),
-  );
 
   await switcher.locator('summary').click();
   const projects = page.getByRole('list', { name: 'Projects' }).getByRole('link');
@@ -176,12 +148,9 @@ test('Settings shows plain permission names, and Last call changes from Never af
 
   const form = page.getByRole('form', { name: 'Create a token' });
   const permissions = form.getByRole('group', { name: 'Permissions' });
-  await expect(permissions.getByText('Read the project')).toBeVisible();
-  await expect(permissions.getByText('Approve without you')).toBeVisible();
-  await expect(permissions.getByText('graph:merge')).toBeVisible();
-  await expect(
-    permissions.getByRole('checkbox', { name: /Approve without you/ }),
-  ).not.toBeChecked();
+  await expect(permissions.getByRole('checkbox')).toHaveCount(2);
+  await expect(permissions.getByRole('checkbox', { name: /Read the project/ })).toBeChecked();
+  await expect(permissions.getByRole('checkbox', { name: /Add to the Queue/ })).toBeChecked();
 
   await expect(form.getByRole('button', { name: 'Create token' })).toBeDisabled();
   await form.getByLabel('Label').fill('Last call agent');
@@ -196,7 +165,7 @@ test('Settings shows plain permission names, and Last call changes from Never af
 
   const row = page.getByRole('row').filter({ hasText: 'Last call agent' });
   await expect(row.getByTestId('last-call')).toHaveText('Never');
-  await expect(row.getByText('Read the project, Add records, Suggest changes')).toBeVisible();
+  await expect(row.getByText('Read the project, Add to the Queue')).toBeVisible();
 
   const response = await page.request.post('/mcp', {
     headers: {

@@ -45,9 +45,4 @@ export interface HttpIdentityStore {
     idempotencyKey: string;
   }): Promise<string | null>;
 }
-export const browserScopes: Scope[] = [
-  'project:read',
-  'records:import',
-  'graph:propose',
-  'graph:merge',
-];
+export const browserScopes: Scope[] = ['project:read', 'queue:add'];

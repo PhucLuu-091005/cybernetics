@@ -12,16 +12,8 @@ export type Handler = (
   params: Params,
   input: Input,
 ) => Promise<unknown>;
-// Route segments use short names; domain inputs use the contract field names.
-const FIELD: Record<string, string> = { versionId: 'recordVersionId' };
-// Query strings carry only text, so contract numbers and arrays are restored here and Zod still validates them.
-const NUMBERS = new Set([
-  'limit',
-  'proposalRevision',
-  'expectedProposalRevision',
-  'expectedEvidenceRevision',
-]);
-const ARRAYS = new Set(['states', 'departmentIds']);
+// Query strings carry only text, so contract numbers are restored here and Zod still validates them.
+const NUMBERS = new Set(['limit']);
 const invalid = (path: string, message: string) =>
   new AppError('VALIDATION', message, { errors: [{ path, message }] });
 
@@ -41,6 +33,8 @@ async function readBody(request: Request): Promise<Input> {
       chunks.push(next.value);
     }
   }
+  // A DELETE names its target in the path, so fetch callers may send no body at all.
+  if (size === 0 && request.method === 'DELETE') return {};
   let parsed: unknown;
   try {
     parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)));
@@ -56,10 +50,8 @@ function readQuery(request: Request): Input {
     query = new URL(request.url).searchParams;
   for (const key of new Set(query.keys())) {
     const values = query.getAll(key);
-    if (ARRAYS.has(key)) input[key] = values;
-    else if (values.length > 1) throw invalid(key, 'Repeat only list parameters');
-    else
-      input[key] = NUMBERS.has(key) && /^\d{1,15}$/.test(values[0]) ? Number(values[0]) : values[0];
+    if (values.length > 1) throw invalid(key, 'Give each query parameter once');
+    input[key] = NUMBERS.has(key) && /^\d{1,15}$/.test(values[0]) ? Number(values[0]) : values[0];
   }
   return input;
 }
@@ -76,13 +68,13 @@ export function route(handler: Handler, opts: { status?: number } = {}) {
         request.method === 'GET' || request.method === 'HEAD'
           ? readQuery(request)
           : await readBody(request);
-      for (const [name, value] of Object.entries(params)) {
-        const field = FIELD[name] ?? name;
+      for (const [field, value] of Object.entries(params)) {
         if (input[field] !== undefined && input[field] !== value)
           throw invalid(field, `${field} must match the route`);
         input[field] = value;
       }
-      return privateJson(await handler(ctx, request, params, input), opts.status);
+      const result = await handler(ctx, request, params, input);
+      return result instanceof Response ? result : privateJson(result, opts.status);
     } catch (error) {
       return errorResponse(error, ctx?.requestId ?? newRequestId());
     }
@@ -90,31 +82,6 @@ export function route(handler: Handler, opts: { status?: number } = {}) {
 }
 
 // The cast is safe because every domain entry point re-validates its input with Zod.
-export function domain<I, R>(
-  fn: (db: Db, ctx: ActorContext, input: I) => Promise<R>,
-  map: (input: Input) => Input = (input) => input,
-): Handler {
-  return (ctx, _request, _params, input) => fn(getApp().db, ctx, map(input) as I);
-}
-
-/** Mirrors the inbox query shape so every browser read selects a view the same way. */
-export function withView({ commitId, proposalId, proposalRevision, ...rest }: Input): Input {
-  if (proposalId !== undefined) {
-    if (commitId !== undefined || proposalRevision === undefined)
-      throw invalid('proposalRevision', 'A proposal view needs proposalRevision and no commitId');
-    return { ...rest, view: { kind: 'proposal', proposalId, proposalRevision } };
-  }
-  if (proposalRevision !== undefined)
-    throw invalid('proposalId', 'proposalRevision needs proposalId');
-  return {
-    ...rest,
-    view: commitId !== undefined ? { kind: 'commit', commitId } : { kind: 'main' },
-  };
-}
-
-/** SRD 11 lists browser imports as paste; other source kinds arrive through MCP or connectors. */
-export function pasteImport(input: Input): Input {
-  if ((input.source ?? 'paste') !== 'paste')
-    throw invalid('source', 'Browser imports must use source paste');
-  return { ...input, source: 'paste' };
+export function domain<I, R>(fn: (db: Db, ctx: ActorContext, input: I) => Promise<R>): Handler {
+  return (ctx, _request, _params, input) => fn(getApp().db, ctx, input as I);
 }

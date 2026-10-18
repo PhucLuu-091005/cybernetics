@@ -1,10 +1,9 @@
-import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import type { ActorContext, Scope } from '../contracts';
 import { createDatabase } from './db/client';
 import { DbIdentityStore, type UserCreatedHook } from './db/identity-store';
 import type { Db } from './db/tx';
-import { browserScopes, type HttpIdentityStore } from './http/identity-store';
+import type { HttpIdentityStore } from './http/identity-store';
 import type { BrowserSession } from './http/actors';
 import {
   configureHttpIdentityStore,
@@ -18,17 +17,10 @@ import {
 } from './http/runtime';
 export type App = { db: Db; identity: HttpIdentityStore; pool: Pool };
 const state = globalThis as typeof globalThis & { promiseApp?: App };
-/** Loaded on first sign-in only, so routes do not carry the fixture JSON. */
+/** Loaded on first sign-in only, so routes do not carry the demo seed. */
 export const seedOnUserCreated: UserCreatedHook = async (tx, { userId, workspaceId }) => {
-  const { seedSandbox } = await import('./domain/seed');
-  await seedSandbox(tx, {
-    kind: 'user',
-    userId,
-    workspaceId,
-    projectId: null,
-    scopes: [...browserScopes],
-    requestId: randomUUID(),
-  });
+  const { seedTrackerDemo } = await import('./tracker');
+  await seedTrackerDemo(tx, { workspaceId, userId });
 };
 const identityStore = (db: Db) => new DbIdentityStore(db, { onUserCreated: seedOnUserCreated });
 export function getApp(): App {

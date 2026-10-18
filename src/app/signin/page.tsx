@@ -38,62 +38,81 @@ function GoogleLogo() {
   );
 }
 
+function Flag({ x, y, color }: { x: number; y: number; color: string }) {
+  return (
+    <g stroke={color} fill={color}>
+      <line x1={x} y1={y} x2={x} y2={y - 18} strokeWidth="1.5" />
+      <path d={`M${x} ${y - 18} l10 4 -10 4 z`} />
+    </g>
+  );
+}
+
 function Hero() {
+  const label = { textAnchor: 'middle', fontSize: 12, fill: 'var(--ink-2)' } as const;
+  const event = { r: 7, fill: 'var(--surface)', stroke: 'var(--proceed)', strokeWidth: 2.5 };
   return (
     <svg
       className="hero-svg"
-      viewBox="0 0 560 150"
+      viewBox="0 0 560 172"
       role="img"
-      aria-label="A request forks from the project trunk, gets a promise, a delivery, and merges back when the client accepts"
+      aria-label="Two work items on a project graph: events along each row, a planned finish that moved with a reason, and the milestone they lead to"
     >
-      <line x1="10" y1="118" x2="550" y2="118" stroke="var(--trunk)" strokeWidth="3" />
-      <path
-        className="draw"
-        d="M70 118 C95 118 85 48 115 48 H405 C435 48 425 118 450 118"
-        fill="none"
-        stroke="var(--proceed)"
-        strokeWidth="3"
+      <line x1="10" y1="34" x2="550" y2="34" stroke="var(--trunk)" strokeWidth="3" />
+      <polygon
+        points="480,26 488,34 480,42 472,34"
+        fill="var(--surface)"
+        stroke="var(--trunk)"
+        strokeWidth="2"
       />
-      <g className="pop" style={{ animationDelay: '.7s' }}>
-        <circle
-          cx="130"
-          cy="48"
-          r="7"
-          fill="var(--surface)"
-          stroke="var(--proceed)"
-          strokeWidth="2.5"
-        />
-        <text x="130" y="30" textAnchor="middle" fontSize="12" fill="var(--ink-2)">
-          Request
+      <text x="480" y="16" {...label}>
+        Go-live
+      </text>
+      <path className="draw" d="M40 84 H290" fill="none" stroke="var(--proceed)" strokeWidth="3" />
+      <g className="pop" style={{ animationDelay: '.5s' }}>
+        <circle cx="60" cy="84" {...event} />
+        <text x="60" y="66" {...label}>
+          Message
         </text>
       </g>
-      <g className="pop" style={{ animationDelay: '1.2s' }}>
-        <circle cx="220" cy="48" r="7" fill="var(--proceed)" />
-        <text x="220" y="30" textAnchor="middle" fontSize="12" fill="var(--ink-2)">
-          Promise
+      <g className="pop" style={{ animationDelay: '1s' }}>
+        <circle cx="170" cy="84" {...event} />
+        <text x="170" y="66" {...label}>
+          Handoff
         </text>
       </g>
-      <g className="pop" style={{ animationDelay: '1.8s' }}>
-        <path d="M330 41 A7 7 0 0 1 330 55 Z" fill="var(--proceed)" />
-        <circle cx="330" cy="48" r="7" fill="none" stroke="var(--proceed)" strokeWidth="2.5" />
-        <text x="330" y="30" textAnchor="middle" fontSize="12" fill="var(--ink-2)">
+      <g className="pop" style={{ animationDelay: '1.5s' }}>
+        <circle cx="290" cy="84" r="7" fill="var(--proceed)" />
+        <text x="290" y="66" {...label}>
           Done
         </text>
       </g>
-      <g className="pop" style={{ animationDelay: '2.4s' }}>
-        <circle cx="450" cy="118" r="6" fill="var(--proceed)" />
-        <text x="450" y="142" textAnchor="middle" fontSize="12" fill="var(--ink-2)">
-          Accepted
+      <path
+        className="draw"
+        d="M290 84 C318 84 306 136 334 136 H450"
+        fill="none"
+        stroke="var(--route)"
+        strokeWidth="3"
+      />
+      <g className="pop" style={{ animationDelay: '2s' }}>
+        <path d="M450 136 H500" fill="none" stroke="var(--danger)" strokeWidth="3" />
+        <Flag x={400} y={136} color="var(--ink-3)" />
+        <Flag x={450} y={136} color="var(--danger)" />
+        <path d="M406 106 H440" stroke="var(--ink-3)" strokeWidth="1" />
+        <path d="M444 106 l-6 -3.5 v7 z" fill="var(--ink-3)" />
+        <text x="425" y="162" {...label}>
+          Moved, with a reason
         </text>
       </g>
-      <polygon points="40,110 48,118 40,126 32,118" fill="var(--trunk)" />
-      <text x="40" y="142" textAnchor="middle" fontSize="12" fill="var(--ink-2)">
-        Kickoff
-      </text>
-      <polygon points="520,110 528,118 520,126 512,118" fill="var(--trunk)" />
-      <text x="520" y="142" textAnchor="middle" fontSize="12" fill="var(--ink-2)">
-        Go-live
-      </text>
+      <line
+        className="pop"
+        style={{ animationDelay: '2.4s' }}
+        x1="500"
+        y1="136"
+        x2="480"
+        y2="42"
+        stroke="var(--ink-3)"
+        strokeWidth="1"
+      />
     </svg>
   );
 }
@@ -114,10 +133,11 @@ export default async function SignInPage({
           <BrandMark />
           <b>Promise Graph</b>
         </div>
-        <h1>Every promise, traced to the message that made it.</h1>
+        <h1>See every step of a project, and why the plan changed.</h1>
         <p className="lede">
-          See who asked for what, who committed, what was delivered and where the project stalled.
-          Every line on the graph points to its source message.
+          Every team, work item and event sits on one graph. A planned date keeps its first value
+          and every move, with who moved it and why. Main changes only when its owner merges a
+          change request.
         </p>
         <Hero />
       </div>
@@ -144,13 +164,12 @@ export default async function SignInPage({
         )}
         <p className="muted" style={{ fontSize: 13 }}>
           Your first visit creates a private sandbox: a copy of the Larkspur Capital demo project
-          with its imported records and reviewed loops. Building it can take about 10 seconds on the
-          free host.
+          with its teams, work items and change requests.
         </p>
         <hr style={{ border: 0, borderTop: '1px solid var(--rule-2)', width: '100%' }} />
         <p className="faint" style={{ fontSize: 12 }}>
-          The app never calls an AI model. Your own agent reads evidence and submits proposals
-          through MCP. Nothing changes the graph until a person approves it.
+          The app never calls an AI model. Your own agent reads the tracker and adds events and work
+          items to the Queue through MCP.
         </p>
       </div>
     </main>

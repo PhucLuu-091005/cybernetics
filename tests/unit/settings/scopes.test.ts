@@ -3,22 +3,17 @@ import { DEFAULT_AGENT_SCOPES, ScopeSchema } from '../../../src/contracts';
 import { SCOPES, permissionTitles } from '../../../src/components/settings/scopes';
 
 describe('permission titles', () => {
-  it('gives every scope one plain title, and only the merge scope carries the risk flag', () => {
+  it('gives every scope one plain title', () => {
     expect(SCOPES.map((item) => item.scope)).toEqual(ScopeSchema.options);
-    expect(SCOPES.map((item) => item.title)).toEqual([
-      'Read the project',
-      'Add records',
-      'Suggest changes',
-      'Approve without you',
-    ]);
-    expect(SCOPES.filter((item) => item.risk).map((item) => item.scope)).toEqual(['graph:merge']);
+    expect(SCOPES.map((item) => item.title)).toEqual(['Read the project', 'Add to the Queue']);
   });
-  it('leaves the risk scope out of the defaults', () => {
-    expect(DEFAULT_AGENT_SCOPES).not.toContain('graph:merge');
+  it('offers only the read and Queue scopes, and a new token gets both', () => {
+    expect(ScopeSchema.options).toEqual(['project:read', 'queue:add']);
+    expect(DEFAULT_AGENT_SCOPES).toEqual(['project:read', 'queue:add']);
   });
   it('joins the titles in a fixed order and names an empty list', () => {
-    expect(permissionTitles(['graph:merge', 'project:read'])).toBe(
-      'Read the project, Approve without you',
+    expect(permissionTitles(['queue:add', 'project:read'])).toBe(
+      'Read the project, Add to the Queue',
     );
     expect(permissionTitles([])).toBe('No permissions');
   });

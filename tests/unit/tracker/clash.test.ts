@@ -1,0 +1,236 @@
+import { describe, expect, it } from 'vitest';
+import {
+  clashesOf,
+  crState,
+  liveOps,
+  mainState,
+  newerOps,
+  type Commit,
+} from '../../../src/tracker/clash';
+import { sameOp, type Op } from '../../../src/tracker/ops';
+import type { Cr } from '../../../src/tracker/payload';
+import { at, larkspurBase, larkspurQueueRows, makeOp } from '../../support/tracker-fixture';
+
+const base = larkspurBase();
+const rows = larkspurQueueRows();
+
+function commit(rev: number, ops: Op[]): Commit {
+  return {
+    rev,
+    crId: `cr${rev}`,
+    crNum: rev,
+    mergedBy: 'minh',
+    mergedAt: at('2026-10-09T17:00'),
+    ops,
+    resolutions: [],
+  };
+}
+
+const rename = (title: string, rev: number, by = 'lan') =>
+  makeOp('rename', { workItemId: 'pg203', title }, rev, by);
+
+function cr(partial: Partial<Cr>): Pick<Cr, 'status' | 'ops' | 'mergedRev' | 'closedRev'> {
+  return { status: 'draft', ops: [], mergedRev: null, closedRev: null, ...partial };
+}
+
+describe('clashesOf', () => {
+  it('reports a different change on the same spot that Main took after the CR change', () => {
+    const y = rename('PG-203 Country list field type, on staging', 0, 'quang');
+    const x = rename('PG-203 Country list field (multi-select)', 0);
+    const commits = [commit(1, [y])];
+    expect(clashesOf([x], commits)).toEqual([
+      { key: 'loop:pg203:title', index: 0, x, y, commit: commits[0] },
+    ]);
+  });
+
+  it('drops an identical change silently', () => {
+    const y = rename('Same name', 0, 'quang');
+    const x = rename('Same name', 0);
+    const commits = [commit(1, [y])];
+    expect(clashesOf([x], commits)).toEqual([]);
+    expect(liveOps([x], commits)).toEqual([]);
+  });
+
+  it('drops a date move to the same date silently, whoever moved it, when and why', () => {
+    const due = (date: string, why: string, by: string, time: string, rev = 0) =>
+      makeOp('due', { workItemId: 'pg203', date, why, by, at: at(time) }, rev, by);
+    const msDate = (date: string, why: string, by: string, time: string) =>
+      makeOp('msDate', { milestoneId: 'golive', date, why, by, at: at(time) }, 0, by);
+    const y = due('2026-10-14', 'Lan sends the list on 10 October.', 'quang', '2026-10-09T10:00');
+    const x = due('2026-10-14', 'Quang needs the list first.', 'lan', '2026-10-09T11:30');
+    const ms = msDate('2026-10-20', 'The CRS section slips.', 'minh', '2026-10-09T12:00');
+    const msX = msDate('2026-10-20', 'Sarah agreed on a new date.', 'lan', '2026-10-09T13:00');
+    const commits = [commit(1, [y, ms])];
+    expect(sameOp(x, y)).toBe(true);
+    expect(sameOp(msX, ms)).toBe(true);
+    expect(clashesOf([x, msX], commits)).toEqual([]);
+    expect(liveOps([x, msX], commits)).toEqual([]);
+    const later = due('2026-10-15', 'Quang needs the list first.', 'lan', '2026-10-09T11:30');
+    expect(sameOp(later, y)).toBe(false);
+    expect(clashesOf([later], commits).map((c) => c.key)).toEqual(['loop:pg203:due']);
+    const other = makeOp(
+      'due',
+      { workItemId: 'pg201', date: '2026-10-14', why: 'x', by: 'lan', at: at('2026-10-09T11:30') },
+      0,
+      'lan',
+    );
+    expect(sameOp(other, y)).toBe(false);
+  });
+
+  it('does not clash with a Main change the editor already saw', () => {
+    const commits = [commit(1, [rename('Main name', 0, 'quang')])];
+    const x = rename('CR name', 1);
+    expect(clashesOf([x], commits)).toEqual([]);
+    expect(liveOps([x], commits)).toEqual([x]);
+  });
+
+  it('does not clash on two different fields of one work item', () => {
+    const commits = [commit(1, [rename('Main name', 0, 'quang')])];
+    const x = makeOp('msAdd', { workItemId: 'pg203', milestoneId: 'golive' }, 0);
+    expect(clashesOf([x], commits)).toEqual([]);
+  });
+
+  it('reports the latest matching Main op', () => {
+    const first = rename('First', 0, 'quang');
+    const last = rename('Last', 1, 'quang');
+    const commits = [commit(1, [first]), commit(2, [makeOp('hide', { eventId: 'x2' }, 1), last])];
+    const [clash] = clashesOf([rename('Mine', 0)], commits);
+    expect(clash.y).toBe(last);
+    expect(clash.commit.rev).toBe(2);
+  });
+
+  it('gives the index of the CR op', () => {
+    const commits = [commit(1, [rename('Main name', 0, 'quang')])];
+    const ops = [makeOp('hide', { eventId: 'x2' }, 0), rename('CR name', 0)];
+    expect(clashesOf(ops, commits).map((c) => c.index)).toEqual([1]);
+  });
+  it.each<[string, Op, Op, string]>([
+    [
+      'attach and fromEvent of one queue event',
+      makeOp('attach', { eventId: 'qe3', workItemId: 'golive' }, 0, 'lan'),
+      makeOp(
+        'fromEvent',
+        {
+          id: 'w1',
+          eventId: 'qe3',
+          teamId: 'implementation',
+          title: 'Explain the slip',
+          doneBy: 'minh',
+          requestedBy: 'sarah',
+          after: null,
+          plannedFinish: '2026-10-12',
+        },
+        0,
+        'quang',
+      ),
+      'event:qe3',
+    ],
+    [
+      'place of one queue item onto two teams',
+      makeOp('place', { itemId: 'q1', teamId: 'engineering' }, 0, 'lan'),
+      makeOp('place', { itemId: 'q1', teamId: 'digitization' }, 0, 'quang'),
+      'item:q1',
+    ],
+    [
+      'move and kind of one event',
+      makeOp('move', { eventId: 'p32', to: 'test' }, 0, 'lan'),
+      makeOp('kind', { eventId: 'p32', kind: 'issue' }, 0, 'quang'),
+      'act:p32',
+    ],
+  ])('reports two different ops on one key: %s', (_, x, y, key) => {
+    const commits = [commit(1, [y])];
+    expect(clashesOf([x], commits)).toEqual([{ key, index: 0, x, y, commit: commits[0] }]);
+  });
+});
+
+describe('liveOps', () => {
+  const commits = [commit(1, [rename('Main name', 0, 'quang')])];
+  const x = rename('CR name', 0);
+  const key = 'loop:pg203:title';
+
+  it('keeps a clashing op without picks', () => {
+    expect(liveOps([x], commits)).toEqual([x]);
+  });
+
+  it('drops the CR op when the owner picks Main', () => {
+    expect(liveOps([x], commits, { [key]: 'main' })).toEqual([]);
+  });
+
+  it('keeps the CR op when the owner picks the CR', () => {
+    expect(liveOps([x], commits, { [key]: 'cr' })).toEqual([x]);
+  });
+
+  it('keeps the CR ops that do not clash when the owner picks Main', () => {
+    const hide = makeOp('hide', { eventId: 'x2' }, 0);
+    const place = makeOp('place', { itemId: 'q1', teamId: 'engineering' }, 0);
+    expect(liveOps([hide, x, place], commits, { [key]: 'main' })).toEqual([hide, place]);
+  });
+});
+
+describe('newerOps', () => {
+  it('lists the ops of commits after the revision in order', () => {
+    const a = rename('A', 0);
+    const b = rename('B', 1);
+    const c = rename('C', 2);
+    const commits = [commit(3, [c]), commit(1, [a]), commit(2, [b])];
+    expect(newerOps(commits, 1).map((n) => [n.commit.rev, n.y])).toEqual([
+      [2, b],
+      [3, c],
+    ]);
+  });
+});
+
+describe('mainState and crState', () => {
+  const merge1 = commit(1, [
+    makeOp('attach', { eventId: 'qe3', workItemId: 'golive' }, 0),
+    makeOp('msDate', {
+      milestoneId: 'golive',
+      date: '2026-10-15',
+      why: 'The CRS section is not ready.',
+      by: 'minh',
+      at: at('2026-10-08T16:55'),
+    }),
+  ]);
+  const merge2 = commit(2, [rename('PG-203 on staging', 1, 'quang')]);
+  const commits = [merge1, merge2];
+
+  it('replays every merge, or the merges up to a revision', () => {
+    const latest = mainState(base, rows, commits);
+    expect(latest.milestones.find((m) => m.id === 'golive')?.planned).toBe('2026-10-15');
+    expect(latest.queue.events.map((e) => e.id)).not.toContain('qe3');
+    expect(latest.workItems.find((w) => w.id === 'pg203')?.title).toBe('PG-203 on staging');
+    const first = mainState(base, rows, commits, 1);
+    expect(first.workItems.find((w) => w.id === 'pg203')?.title).toBe(
+      'PG-203 Country list field type',
+    );
+    expect(mainState(base, rows, commits, 0).queue.events).toHaveLength(4);
+  });
+
+  it('shows an open CR as the latest Main plus its live ops', () => {
+    const ops = [
+      makeOp('place', { itemId: 'q1', teamId: 'engineering' }, 1, 'lan'),
+      rename('PG-203 on staging', 1, 'lan'),
+    ];
+    const view = crState(base, rows, commits, cr({ status: 'ready', ops }));
+    expect(view.entries).toHaveLength(1);
+    expect(view.state.workItems.find((w) => w.id === 'q1')?.teamId).toBe('engineering');
+    expect([...view.marks.workItems]).toEqual(['q1']);
+  });
+
+  it('shows a merged CR as Main right after its merge', () => {
+    const view = crState(base, rows, commits, cr({ status: 'merged', mergedRev: 1 }));
+    expect(view.state.milestones.find((m) => m.id === 'golive')?.planned).toBe('2026-10-15');
+    expect(view.state.workItems.find((w) => w.id === 'pg203')?.title).toBe(
+      'PG-203 Country list field type',
+    );
+    expect([...view.marks.milestones]).toEqual(['golive']);
+    expect([...view.marks.events]).toEqual(['qe3']);
+  });
+
+  it('shows a closed CR as Main at its close revision plus its ops', () => {
+    const ops = [rename('Closed name', 0, 'lan')];
+    const view = crState(base, rows, commits, cr({ status: 'closed', closedRev: 1, ops }));
+    expect(view.state.workItems.find((w) => w.id === 'pg203')?.title).toBe('Closed name');
+    expect(view.state.milestones.find((m) => m.id === 'golive')?.planned).toBe('2026-10-15');
+  });
+});
