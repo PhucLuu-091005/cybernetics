@@ -12,12 +12,7 @@ const stepAt = (time: string) => {
   return Math.floor((hour * 60 + minute) / 30);
 };
 
-/**
- * A time in the app's own 24-hour format ("14:30"). People type it ("1430", "9", "9:5") or pick it
- * from a list in 30-minute steps. An optional box may stay empty: the deadline is then the end of
- * the day. Text that is not a time keeps the last good time and marks the box until it loses the
- * focus.
- */
+/** Empty in an optional box means no time: the deadline is then the end of the day. */
 export function TimeInput({
   value,
   onChange,

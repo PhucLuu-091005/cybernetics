@@ -142,10 +142,7 @@ function Calendar({
   );
 }
 
-/**
- * A day in the app's own format ("6 Oct 2026"). People type it, or pick it in the app's calendar.
- * Text that is not a day keeps the last good day and marks the box until it loses the focus.
- */
+/** Bad text keeps the last good day, so a half-typed day never reaches a change request. */
 export function DateInput({
   value,
   label,
