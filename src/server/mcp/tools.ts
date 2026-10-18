@@ -90,7 +90,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     'add_queue_event',
     'queue:add',
     AddQueueEventInputSchema,
-    `Add an event (kind message, task, handoff, decision, meeting, delivery, issue or done; at as ISO 8601 with offset; by; text) to the Queue. Main does not change until a person places it through a change request. ${PEOPLE}`,
+    `Add an event (kind idea, message, issue, task, meeting, decision, delivery, handoff, done or cancelled; at as ISO 8601 with offset; by; text; optional finishes) to the Queue. Done, Cancelled and a Handoff with finishes true finish the work item; Cancelled needs the reason as its text. Main does not change until a person places it through a change request. ${PEOPLE}`,
     addQueueEvent,
   ),
   tool(

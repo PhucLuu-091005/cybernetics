@@ -161,7 +161,7 @@ const TICK_ROOM = 64;
 const T_PILL_ROOM = 66;
 
 export type Tone =
-  'proceed' | 'route' | 'danger' | 'caution' | 'teal' | 'ink-2' | 'ink-3' | 'change';
+  'proceed' | 'route' | 'danger' | 'caution' | 'teal' | 'ink-2' | 'ink-3' | 'isolated' | 'change';
 
 export const STATUS_TONE: Record<Status, Tone> = {
   planned: 'ink-3',
@@ -169,6 +169,7 @@ export const STATUS_TONE: Record<Status, Tone> = {
   ontime: 'proceed',
   late: 'danger',
   flate: 'caution',
+  cancelled: 'isolated',
 };
 
 /** Rows that match the filters, and their ancestors, which show dimmed so the tree stays readable. */
@@ -218,6 +219,7 @@ export type LayoutTeamSummary = {
   late: number;
   notYet: number;
   done: number;
+  cancelled: number;
   bar: { x1: number; x2: number; y: number } | null;
   ticks: Array<{ x: number; tone: Tone }>;
   /** The team holds a change of the change request on screen. */
@@ -430,8 +432,10 @@ type MsStatus = ReturnType<typeof milestoneStatus>;
 
 const trunc = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const later = (a: string, b: string) => (compareDay(a, b) >= 0 ? a : b);
-const baseTone = (info: ItemInfo): Tone => (info.done ? 'proceed' : 'route');
-const lateTone = (info: ItemInfo): Tone => (info.done ? 'caution' : 'danger');
+const baseTone = (info: ItemInfo): Tone =>
+  info.cancelled ? 'isolated' : info.done ? 'proceed' : 'route';
+const lateTone = (info: ItemInfo): Tone =>
+  info.cancelled ? 'isolated' : info.done ? 'caution' : 'danger';
 
 function windowDays(
   state: TrackerState,
@@ -512,6 +516,7 @@ function treeOrder(shown: WorkItem[]): Array<{ w: WorkItem; depth: number }> {
 function summaryOf(c: Ctx, name: string, shown: WorkItem[], top: number): LayoutTeamSummary {
   let late = 0;
   let done = 0;
+  let cancelled = 0;
   let changed = false;
   let x1 = Infinity;
   let x2 = -Infinity;
@@ -522,7 +527,8 @@ function summaryOf(c: Ctx, name: string, shown: WorkItem[], top: number): Layout
       !!c.marks?.workItems.has(w.id) ||
       !!c.marks?.dates.has(w.id) ||
       info.events.some((e) => c.marks?.events.has(e.id));
-    if (info.done) done += 1;
+    if (info.cancelled) cancelled += 1;
+    else if (info.done) done += 1;
     else if (itemStatus(w, c.eventsOf(w.id), c.view.asOf, c.tz) === 'late') late += 1;
     x1 = Math.min(x1, c.x(startOf(c, w)));
     x2 = Math.max(
@@ -536,12 +542,13 @@ function summaryOf(c: Ctx, name: string, shown: WorkItem[], top: number): Layout
       ticks.push({ x: c.x(at), tone: at > lateFrom ? lateTone(info) : baseTone(info) });
     }
   }
-  const notYet = shown.length - late - done;
+  const notYet = shown.length - late - done - cancelled;
   const count = shown.length;
   const parts = [
     ...(late ? [`${late} late`] : []),
     ...(notYet ? [`${notYet} not yet`] : []),
     ...(done ? [`${done} done`] : []),
+    ...(cancelled ? [`${cancelled} cancelled`] : []),
     ...(changed ? ['changed in this change request'] : []),
   ];
   return {
@@ -549,6 +556,7 @@ function summaryOf(c: Ctx, name: string, shown: WorkItem[], top: number): Layout
     late,
     notYet,
     done,
+    cancelled,
     bar: count
       ? { x1: Math.max(X0, x1), x2: Math.min(c.x1, Math.max(x1, x2)), y: top + c.level.head / 2 }
       : null,
@@ -666,7 +674,7 @@ function linesOf(c: Ctx, shown: LayoutRow[]): LayoutSegment[] {
     const lateFrom = c.lateFrom(w);
     const line = (x1: number, x2: number, tone: Tone) =>
       segments.push({ kind: 'line', workItemId: w.id, x1, x2, y: r.y, tone });
-    if (endAt > lateFrom) {
+    if (endAt > lateFrom && !info.cancelled) {
       const lx = Math.max(sx, c.x(lateFrom));
       if (lx > sx) line(sx, lx, baseTone(info));
       line(lx, c.x(endAt), lateTone(info));
@@ -773,6 +781,7 @@ function handoffsOf(c: Ctx, groups: LayoutEventGroup[]): LayoutHandoff[] {
 function makesLate(c: Ctx, w: WorkItem, m: Milestone): boolean {
   const info = c.infos.get(w.id)!;
   const deadline = milestoneDeadline(m, c.tz);
+  if (info.cancelled) return false;
   if (info.finishedAt) return Date.parse(info.finishedAt) > deadline;
   return Date.parse(c.view.asOf) > deadline || itemDeadline(w, c.tz) > deadline;
 }

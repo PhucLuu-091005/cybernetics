@@ -14,6 +14,8 @@
   --k-delivery: #54722b;
   --k-issue: #be282d;
   --k-done: #1e744e;
+  --k-idea: #3a5bc7;
+  --k-cancelled: #60646c;
 }
 :root[data-theme='dark'] {
   --change: #ffe629;
@@ -28,6 +30,8 @@
   --k-delivery: #d4ff70;
   --k-issue: #ff9592;
   --k-done: #3dd68c;
+  --k-idea: #9eb1ff;
+  --k-cancelled: #b0b4ba;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
@@ -43,6 +47,8 @@
     --k-delivery: #d4ff70;
     --k-issue: #ff9592;
     --k-done: #3dd68c;
+    --k-idea: #9eb1ff;
+    --k-cancelled: #b0b4ba;
   }
 }
 
@@ -1084,6 +1090,9 @@
 .tk .fdot.st-flate {
   background: var(--caution);
 }
+.tk .fdot.st-cancelled {
+  background: var(--isolated);
+}
 .tk .tfilter-foot {
   display: flex;
   align-items: center;
@@ -1999,6 +2008,11 @@ svg.tg .deadline-name {
   background: var(--caution-bg);
   color: var(--caution-ink);
 }
+.tk .st-cancelled {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--rule);
+  color: var(--ink-2);
+}
 .tk .moves {
   list-style: none;
   padding: 0;
@@ -2211,6 +2225,28 @@ svg.tg .deadline-name {
 }
 .tk .wi-acts {
   margin-top: 10px;
+  gap: 4px;
+}
+/* Add an event, Mark done and Cancel work item fit on one line of the 380px drawer. */
+.tk .wi-acts .btn {
+  padding: 4px 8px;
+}
+.tk .wi-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--r-ctl);
+  background: var(--sunk);
+  color: var(--ink-2);
+  font-size: var(--fs-s);
+  line-height: 1.45;
+}
+.tk .wi-hint svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--ink-3);
 }
 /* O1 work item panel: a label and value list in three groups, the same in read and edit views. */
 .tk .wi-top .sp {
@@ -2949,10 +2985,38 @@ svg.tg .lane-drop.glow {
     var(--shadow-sm),
     0 0 0 1px var(--rule);
 }
+.tk .kind-groups {
+  display: grid;
+  gap: 8px;
+}
+.tk .kind-group {
+  display: grid;
+  gap: 4px;
+}
+.tk .kg-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-3);
+}
 .tk .kinds {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
+}
+.tk .check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: var(--fs-s);
+  color: var(--ink);
+  cursor: pointer;
+}
+.tk .check input {
+  margin: 0;
+  accent-color: var(--ink);
 }
 .tk .kind {
   display: flex;
@@ -3107,9 +3171,6 @@ svg.tg .lane-drop.glow {
 }
 
 @media (max-width: 760px) {
-  .tk .kinds {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
   .tk .grid2 {
     grid-template-columns: minmax(0, 1fr);
   }

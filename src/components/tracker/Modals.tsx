@@ -12,10 +12,10 @@ import {
   can,
   addDays,
   dayOf,
-  EVENT_KINDS,
   formatDeadline,
   formatStamp,
   itemInfo,
+  KIND_GROUPS,
   KIND_LABEL,
   toInstant,
   wallTimeInstant,
@@ -38,7 +38,7 @@ export type ModalState =
   | { mode: 'add'; what: 'event' | 'item' }
   | { mode: 'attach'; eventId: string }
   | { mode: 'placeItem'; itemId: string }
-  | { mode: 'event'; workItemId: string; done?: boolean }
+  | { mode: 'event'; workItemId: string; done?: boolean; cancel?: boolean }
   | { mode: 'fromEvent'; eventId: string; teamId: string }
   | { mode: 'ms' }
   | { mode: 'team' }
@@ -162,6 +162,7 @@ function Foot({
   busy,
   disabled,
   extra,
+  cancelLabel = 'Cancel',
   onCancel,
   onCreate,
 }: {
@@ -170,13 +171,14 @@ function Foot({
   busy: boolean;
   disabled?: boolean;
   extra?: ReactNode;
+  cancelLabel?: string;
   onCancel: () => void;
   onCreate: () => void;
 }) {
   return (
     <div className="m-foot">
       <button className="btn big" type="button" onClick={onCancel}>
-        Cancel
+        {cancelLabel}
       </button>
       {extra}
       <button
@@ -193,22 +195,81 @@ function Foot({
 
 export function KindGrid({ value, onPick }: { value: EventKind; onPick: (k: EventKind) => void }) {
   return (
-    <div className="kinds" role="group" aria-label="Kind">
-      {EVENT_KINDS.map((k) => (
-        <button
-          key={k}
-          className={`kind${k === value ? ' on' : ''}`}
-          type="button"
-          aria-pressed={k === value}
-          onClick={() => onPick(k)}
-        >
-          <KindIcon kind={k} size={18} />
-          <span>{KIND_LABEL[k]}</span>
-        </button>
+    <div className="kind-groups" role="group" aria-label="Kind">
+      {KIND_GROUPS.map((group) => (
+        <div key={group.label} className="kind-group" role="group" aria-label={group.label}>
+          <span className="kg-label" aria-hidden="true">
+            {group.label}
+          </span>
+          <div className="kinds">
+            {group.kinds.map((k) => (
+              <button
+                key={k}
+                className={`kind${k === value ? ' on' : ''}`}
+                type="button"
+                aria-pressed={k === value}
+                onClick={() => onPick(k)}
+              >
+                <KindIcon kind={k} size={18} />
+                <span>{KIND_LABEL[k]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       ))}
     </div>
   );
 }
+
+export function FinishesCheck({
+  checked,
+  disabled,
+  onChange,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="check">
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      This finishes the work item
+    </label>
+  );
+}
+
+function EventText({
+  kind,
+  value,
+  placeholder,
+  onChange,
+}: {
+  kind: EventKind;
+  value: string;
+  placeholder?: string;
+  onChange: (value: string) => void;
+}) {
+  const cancel = kind === 'cancelled';
+  return (
+    <label className="field">
+      {cancel ? 'Why is it cancelled? (required)' : 'What happened?'}
+      <textarea
+        value={value}
+        required={cancel}
+        placeholder={cancel ? 'For example: The client keeps the free text field.' : placeholder}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
+const finishFields = (kind: EventKind, finishes: boolean) =>
+  kind === 'handoff' && finishes ? { finishes: true } : {};
 
 function PeopleSelect({
   state,
@@ -253,6 +314,9 @@ function ItemSelect({
   );
 }
 
+const blankText = (kind: EventKind) =>
+  kind === 'cancelled' ? 'Write why the work item is cancelled.' : 'Write what happened first.';
+
 const personOr = (state: TrackerState, id: string | null | undefined) =>
   id && state.people.some((p) => p.id === id) ? id : (state.people[0]?.id ?? '');
 
@@ -288,6 +352,7 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
   const me = personOr(state, session.me);
   const [what, setWhat] = useState(modal.what);
   const [kind, setKind] = useState<EventKind>('message');
+  const [finishes, setFinishes] = useState(true);
   const [text, setText] = useState('');
   const [by, setBy] = useState(me);
   const [when, setWhen] = useState(localInput(hourBefore(asOf, tz), tz));
@@ -301,8 +366,11 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
   const create = () => {
     if (what === 'event') {
       const at = fromLocalInput(when, tz);
-      if (!text.trim() || !at) return on.toast('Write what happened first.');
-      return on.addToQueue({ kind: 'event', fields: { kind, at, by, text: text.trim() } });
+      if (!text.trim() || !at) return on.toast(blankText(kind));
+      return on.addToQueue({
+        kind: 'event',
+        fields: { kind, at, by, text: text.trim(), ...finishFields(kind, finishes) },
+      });
     }
     if (!title.trim()) return on.toast('Give the work item a name.');
     on.addToQueue({
@@ -339,14 +407,13 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
         <>
           <p className="q-label">Kind</p>
           <KindGrid value={kind} onPick={setKind} />
-          <label className="field">
-            What happened?
-            <textarea
-              value={text}
-              placeholder="For example: Lan sent the list of tax ID formats to Quang."
-              onChange={(event) => setText(event.target.value)}
-            />
-          </label>
+          {kind === 'handoff' && <FinishesCheck checked={finishes} onChange={setFinishes} />}
+          <EventText
+            kind={kind}
+            value={text}
+            placeholder="For example: Lan sent the list of tax ID formats to Quang."
+            onChange={setText}
+          />
           <div className="grid2">
             <label className="field">
               Who
@@ -562,33 +629,37 @@ function EventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<
   const tz = session.tz;
   const start = state.workItems.find((w) => w.id === modal.workItemId);
   const [workItemId, setWorkItemId] = useState(modal.workItemId);
-  const [kind, setKind] = useState<EventKind>(modal.done ? 'done' : 'message');
+  const [kind, setKind] = useState<EventKind>(
+    modal.cancel ? 'cancelled' : modal.done ? 'done' : 'message',
+  );
+  const [finishes, setFinishes] = useState(true);
   const [text, setText] = useState(modal.done ? 'Done.' : '');
   const [by, setBy] = useState(personOr(state, start?.requestedBy));
   const [when, setWhen] = useState(localInput(hourBefore(asOf, tz), tz));
   if (!start) return <Gone onClose={onClose} />;
   const create = () => {
     const at = fromLocalInput(when, tz);
-    if (!text.trim() || !at) return on.toast('Write what happened first.');
+    if (!text.trim() || !at) return on.toast(blankText(kind));
     on.commit([
       {
         op: 'addEvent',
-        a: { workItemId, ev: { id: newId(), kind, at, by, text: text.trim() } },
+        a: {
+          workItemId,
+          ev: { id: newId(), kind, at, by, text: text.trim(), ...finishFields(kind, finishes) },
+        },
       },
     ]);
   };
   return (
-    <ModalFrame title="Add an event" onClose={onClose}>
+    <ModalFrame title={modal.cancel ? 'Cancel this work item' : 'Add an event'} onClose={onClose}>
       <label className="field">
         Work item
         <ItemSelect state={state} value={workItemId} onChange={setWorkItemId} />
       </label>
       <p className="q-label">Kind</p>
       <KindGrid value={kind} onPick={setKind} />
-      <label className="field">
-        What happened?
-        <textarea value={text} onChange={(event) => setText(event.target.value)} />
-      </label>
+      {kind === 'handoff' && <FinishesCheck checked={finishes} onChange={setFinishes} />}
+      <EventText kind={kind} value={text} onChange={setText} />
       <div className="grid2">
         <label className="field">
           Who
@@ -599,7 +670,13 @@ function EventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<
           <DateTimeInput label="When" value={when} today={dayOf(asOf, tz)} onChange={setWhen} />
         </div>
       </div>
-      <Foot label="Add event" busy={busy} onCancel={onClose} onCreate={create} />
+      <Foot
+        label={modal.cancel && kind === 'cancelled' ? 'Cancel work item' : 'Add event'}
+        cancelLabel={modal.cancel ? 'Back' : 'Cancel'}
+        busy={busy}
+        onCancel={onClose}
+        onCreate={create}
+      />
     </ModalFrame>
   );
 }

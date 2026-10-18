@@ -1490,4 +1490,99 @@ test.describe('row height and collapsible teams', () => {
       page.locator('.legend2').getByRole('group', { name: 'Event kinds' }),
     ).toContainText('Meeting');
   });
+
+  test('Cancelled and a finishing Handoff end a work item, and the details hint at a missing start', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    await signIn(page, 'tracker-finish');
+    await actAs(page, 'Lan Phạm');
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
+    await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/changes\/5$/);
+    const drawer = page.locator('.drawer');
+    const search = page.getByRole('combobox', { name: 'Search work items' });
+    const details = async (text: string, title: string) => {
+      await search.fill(text);
+      await expect(page.getByRole('option').first()).toContainText(title);
+      await page.keyboard.press('Enter');
+      await expect(drawer).toHaveAttribute('aria-label', title);
+    };
+    const hint = drawer.getByRole('note', { name: 'Start of the work item' });
+    const line = (id: string) => page.locator(`svg.pg [data-line="${id}"]`);
+
+    await test.step('the kind picker groups the kinds into Start, Progress and Finish', async () => {
+      await details('Test the CRS', 'Test the CRS section end to end');
+      await expect(hint).toHaveCount(0);
+      await drawer.getByRole('button', { name: 'Add an event' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Add an event' });
+      const group = (name: string) => dialog.getByRole('group', { name, exact: true });
+      await expect(group('Start').getByRole('button')).toHaveText(['Idea', 'Message', 'Issue']);
+      await expect(group('Progress').getByRole('button')).toHaveText([
+        'Task',
+        'Meeting',
+        'Decision',
+        'Delivery',
+      ]);
+      await expect(group('Finish').getByRole('button')).toHaveText([
+        'Handoff',
+        'Done',
+        'Cancelled',
+      ]);
+      await dialog.getByRole('button', { name: 'Delivery', exact: true }).click();
+      await dialog.getByLabel('What happened?').fill('Ha sends the first test report.');
+      await dialog.getByRole('button', { name: 'Add event' }).click();
+      await expect(dialog).toHaveCount(0);
+    });
+
+    await test.step('a work item that starts with a Delivery shows the hint in its details only', async () => {
+      await expect(hint).toHaveText(
+        'This work item starts with a Delivery. Add the event that started it, such as a Message, an Idea or a Task.',
+      );
+      await expect(page.locator('svg.pg')).not.toContainText('starts with');
+      await page.keyboard.press('Escape');
+      await expect(drawer).toHaveCount(0);
+      await expect(page.getByText(/This work item starts with/)).toHaveCount(0);
+    });
+
+    await test.step('Cancel work item needs a reason, then the row is grey and not late', async () => {
+      await details('PG-203', 'PG-203 Country list field type');
+      await expect(drawer.locator('.wi-top .badge')).toHaveText('Late');
+      await drawer.getByRole('button', { name: 'Cancel work item' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Cancel this work item' });
+      await expect(dialog.getByRole('button', { name: 'Cancelled', exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      const reason = dialog.getByLabel('Why is it cancelled? (required)');
+      await expect(reason).toHaveValue('');
+      await reason.fill('   ');
+      await dialog.getByRole('button', { name: 'Cancel work item' }).click();
+      await expect(dialog).toBeVisible();
+      await reason.fill('The client keeps the free text field.');
+      await dialog.getByRole('button', { name: 'Cancel work item' }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(drawer.locator('.wi-top .badge')).toHaveText('Cancelled');
+      await expect(drawer.locator('.late-by')).toHaveCount(0);
+      await expect(drawer.getByRole('button', { name: 'Mark done' })).toHaveCount(0);
+      await expect(line('pg203')).toHaveCount(1);
+      await expect(line('pg203')).toHaveCSS('stroke', 'rgb(139, 141, 152)');
+      await page.keyboard.press('Escape');
+    });
+
+    await test.step('a new Handoff finishes the work item by default', async () => {
+      await details('CRS tax residency', 'CRS tax residency section with DealCloud sync');
+      await drawer.getByRole('button', { name: 'Add an event' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Add an event' });
+      const finishes = dialog.getByLabel('This finishes the work item');
+      await expect(finishes).toHaveCount(0);
+      await dialog.getByRole('button', { name: 'Handoff', exact: true }).click();
+      await expect(finishes).toBeChecked();
+      await dialog.getByLabel('What happened?').fill('Minh hands the CRS section to QA.');
+      await dialog.getByRole('button', { name: 'Add event' }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(drawer.locator('.wi-top .badge')).toHaveText('Finished early');
+      await expect(line('crs')).toHaveCSS('stroke', 'rgb(70, 167, 88)');
+    });
+  });
 });
