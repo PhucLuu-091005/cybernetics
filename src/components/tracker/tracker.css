@@ -2358,11 +2358,6 @@ svg.tg .deadline-name {
 .tk .wi-top .sp {
   flex: 1;
 }
-.tk .late-by {
-  font-size: var(--fs-xs);
-  font-weight: 500;
-  color: var(--danger-ink);
-}
 .tk .btn-quiet {
   border-color: transparent;
   box-shadow: none;
