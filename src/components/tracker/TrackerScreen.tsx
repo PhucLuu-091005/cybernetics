@@ -101,19 +101,21 @@ import { QueuePanel, type QueueTab } from './QueuePanel';
 import { Toast, type ToastState } from './Toast';
 import { TopBar } from './TopBar';
 import type { Account } from '../shell/AccountMenu';
-import { Legend, TrackerGraph, type DatePreview, type Reveal } from './TrackerGraph';
+import { TrackerGraph, type DatePreview, type Reveal } from './TrackerGraph';
 import {
   browserStore,
   EMPTY_VIEW,
   hiddenList,
   keepFocus,
   readDensity,
+  readLegendOpen,
   readNoticeOff,
   readTeamOpen,
   readViewState,
   revealRows,
   toggleId,
   writeDensity,
+  writeLegendOpen,
   writeNoticeOff,
   writeTeamOpen,
   writeViewState,
@@ -203,7 +205,7 @@ const OUTSIDE_EXEMPT =
   '.p-head, .bbar, .pop, .drawer, .p-side, .empty, .ro-note, svg.tg, .tk-modal, .tk-toast, .zoombar, .gtools';
 // These layers close themselves on Esc, so the screen leaves the rest open.
 const OWN_ESCAPE =
-  '.tk details[open], .tk .tsearch-pop:not([hidden]), .tk .hand-menu, .tk .field-pop, .tk .view-pop';
+  '.tk details[open], .tk .tsearch-pop:not([hidden]), .tk .hand-menu, .tk .field-pop, .tk .view-pop, .tk .legend-pop:focus-within';
 const MINUTE = 60_000;
 
 const samePayload = (a: TrackerPayload, b: TrackerPayload) =>
@@ -412,6 +414,15 @@ export function TrackerScreen({
   const changeDensity = (next: Density) => {
     setDensity(next);
     writeDensity(browserStore(), userId, next);
+  };
+  const [legend, setLegend] = useState(true);
+  useLayoutEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLegend(readLegendOpen(browserStore(), userId));
+  }, [userId]);
+  const changeLegend = (open: boolean) => {
+    setLegend(open);
+    writeLegendOpen(browserStore(), userId, open);
   };
   const changeTeamOpen = (next: TeamToggles) => {
     setTeamOpen(next);
@@ -1499,6 +1510,8 @@ export function TrackerScreen({
               onDensity={changeDensity}
               onExpandAll={() => setAllTeams(true)}
               onCollapseAll={() => setAllTeams(false)}
+              legend={legend}
+              onLegend={changeLegend}
             />
             {edit && (
               <div className="bin" aria-hidden="true">
@@ -1619,7 +1632,6 @@ export function TrackerScreen({
           )}
         </div>
       </div>
-      <Legend />
       {modal && (
         <Modal
           key={modal.key}

@@ -930,7 +930,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(board).toHaveCount(1);
     await expect(full).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.p-head')).toBeHidden();
-    await expect(page.locator('.legend2')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Legend', exact: true })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Legend' })).toBeVisible();
     const box = (await page.locator('.tk.board').boundingBox())!;
     expect(box.x).toBe(0);
     expect(box.width).toBe(1440);
@@ -970,7 +971,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(board).toHaveCount(1);
     await page.keyboard.press('Escape');
     await expect(board).toHaveCount(0);
-    await expect(page.locator('.legend2')).toBeVisible();
+    await expect(page.locator('.p-head')).toBeVisible();
   });
 
   test('lists a stack, zooms it apart, and hides rows without a trace but a chip', async ({
@@ -1615,7 +1616,7 @@ test.describe('row height and collapsible teams', () => {
       'rgb(96, 100, 108)',
     );
     await expect(
-      page.locator('.legend2').getByRole('group', { name: 'Event kinds' }),
+      page.getByRole('dialog', { name: 'Legend' }).getByRole('group', { name: 'Event kinds' }),
     ).toContainText('Meeting');
   });
 
@@ -1830,5 +1831,116 @@ test.describe('row height and collapsible teams', () => {
     });
     await expect(task).toHaveCSS('fill', expected);
     await context.close();
+  });
+});
+
+test.describe('the legend popover', () => {
+  test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
+
+  test('opens on the first visit and remembers a close and an open across reloads', async ({
+    page,
+  }) => {
+    await signIn(page, 'legend-store', { classic: false });
+    const button = page.getByRole('button', { name: 'Legend', exact: true });
+    const legend = page.getByRole('dialog', { name: 'Legend' });
+    await expect(page.locator('.legend2')).toHaveCount(0);
+    await expect(button).toHaveAttribute('aria-expanded', 'true');
+    await expect(button).toHaveAttribute('title', 'Legend');
+    await expect(legend).toBeVisible();
+    for (const group of ['Line', 'Change', 'Milestone', 'Event'])
+      await expect(legend.getByText(group, { exact: true })).toBeVisible();
+    await expect(legend.getByRole('group', { name: 'Event kinds' }).locator('.lg-kd')).toHaveCount(
+      10,
+    );
+    await expect(legend.getByText('Late part')).toHaveAttribute(
+      'title',
+      'Not finished after its planned finish',
+    );
+    await expect(legend.getByText('Done late')).toHaveAttribute(
+      'title',
+      'Done after its planned finish',
+    );
+    const pop = (await legend.boundingBox())!;
+    const bar = (await page.getByRole('group', { name: 'View controls' }).boundingBox())!;
+    expect(pop.y + pop.height).toBeLessThanOrEqual(bar.y);
+    expect(Math.abs(pop.x + pop.width - (bar.x + bar.width))).toBeLessThanOrEqual(1);
+
+    await button.click();
+    await expect(legend).toBeHidden();
+    await expect(button).toHaveAttribute('aria-expanded', 'false');
+    await page.reload();
+    await hydrated(page);
+    await expect(button).toHaveAttribute('aria-expanded', 'false');
+    await expect(legend).toBeHidden();
+
+    await button.click();
+    await expect(legend).toBeVisible();
+    await page.reload();
+    await hydrated(page);
+    await expect(legend).toBeVisible();
+
+    await legend.getByRole('button', { name: 'Close legend' }).click();
+    await expect(legend).toBeHidden();
+    await page.reload();
+    await hydrated(page);
+    await expect(legend).toBeHidden();
+  });
+
+  test('Esc closes it only from inside, and the graph around it still takes clicks', async ({
+    page,
+  }) => {
+    await signIn(page, 'legend-esc', { classic: false });
+    const button = page.getByRole('button', { name: 'Legend', exact: true });
+    const legend = page.getByRole('dialog', { name: 'Legend' });
+    const drawer = page.locator('.drawer');
+    await expect(legend).toBeVisible();
+
+    await page.locator('svg.pg [data-loop="pg203"]').click({ position: { x: 40, y: 15 } });
+    await expect(drawer.locator('h4')).toHaveText('PG-203 Country list field type');
+    await expect(legend).toBeVisible();
+    const pop = (await legend.boundingBox())!;
+    const left = { x: pop.x - 20, y: pop.y + pop.height / 2 };
+    expect(
+      await page.evaluate(
+        ({ x, y }) => !!document.elementFromPoint(x, y)?.closest('.tgraph'),
+        left,
+      ),
+    ).toBe(true);
+
+    await page.keyboard.press('Escape');
+    await expect(drawer).toHaveCount(0);
+    await expect(legend).toBeVisible();
+
+    await page.locator('svg.pg [data-loop="pg203"]').click({ position: { x: 40, y: 15 } });
+    await expect(drawer).toHaveCount(1);
+    await legend.getByRole('button', { name: 'Close legend' }).focus();
+    await page.keyboard.press('Escape');
+    await expect(legend).toBeHidden();
+    await expect(drawer).toHaveCount(1);
+    await expect(button).toBeFocused();
+    await expect(button).toHaveAttribute('aria-expanded', 'false');
+  });
+});
+
+test.describe('the legend popover on a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, colorScheme: 'light', hasTouch: true });
+
+  test('takes two columns, no wider than the screen minus the 16 px gutters', async ({ page }) => {
+    await page.goto('/signin?label=legend-phone');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    const legend = page.getByRole('dialog', { name: 'Legend' });
+    await expect(legend).toBeVisible();
+    const box = (await legend.boundingBox())!;
+    const bar = (await page.getByRole('group', { name: 'View controls' }).boundingBox())!;
+    expect(box.width).toBeLessThanOrEqual(390 - 32);
+    expect(box.x).toBeGreaterThanOrEqual(16);
+    expect(Math.abs(box.x + box.width - (bar.x + bar.width))).toBeLessThanOrEqual(1);
+    expect(box.y + box.height).toBeLessThanOrEqual(bar.y);
+    const columns = await legend.evaluate(
+      (el) => getComputedStyle(el.querySelector('.lg-grid')!).gridTemplateColumns.split(' ').length,
+    );
+    expect(columns).toBe(2);
+    await noHorizontalScroll(page);
   });
 });

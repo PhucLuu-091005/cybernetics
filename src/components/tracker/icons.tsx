@@ -353,6 +353,17 @@ const SHAPES = {
       <path d="M3 10h18" />
     </g>
   ),
+  legend: (
+    <g {...S}>
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M7 8h2" />
+      <path d="M12 8h5" />
+      <path d="M7 12h2" />
+      <path d="M12 12h5" />
+      <path d="M7 16h2" />
+      <path d="M12 16h5" />
+    </g>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof SHAPES;
