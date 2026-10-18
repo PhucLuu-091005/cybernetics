@@ -81,11 +81,11 @@ Main opens with a notice that it is read-only. Press **×** to close it for now,
 
 ## Connect an agent
 
-Your own agent (for example Claude Code) connects to `/mcp` with a project token. It reads the project and adds events and work items to the Queue. No tool changes Main: a person places each card through a change request, and a person with the Merge right merges it.
+Your own agent (for example Claude Code) connects to `/mcp` with a project token. It can do what you can do in the web app, inside the permissions that you tick on the token: read the project, add to the Queue, work on change requests, merge, and manage members and teams. Main changes only through a merged change request.
 
 ![Settings: the two agent permissions, the MCP snippet and a created token](docs/screenshots/agent-tokens.png)
 
-1. Open **Settings** in the rail of a project and create a token. Keep both permissions: **Read the project** (`project:read`) and **Add to the Queue** (`queue:add`). Copy the secret; the app shows it once.
+1. Open **Settings** in the rail of a project and create a token. Tick one permission per right, or **Select all**. A right that you do not hold shows greyed out with the reason. No permission manages tokens or deletes the project. Copy the secret; the app shows it once.
 2. Add the server to your MCP client:
 
    ```json
@@ -94,8 +94,9 @@ Your own agent (for example Claude Code) connects to `/mcp` with a project token
 
 3. Ask the agent to list its tools. Then press **Check again** in Settings. The **Last call** column of the token shows the time of that call.
 4. Follow the recipe in [docs/mcp-agent-recipe.md](docs/mcp-agent-recipe.md):
-   - `project:read`: `get_project`, `get_tracker`, `list_queue`, `list_change_requests`, `get_change_request`.
-   - `queue:add`: `add_queue_event` and `add_queue_item`. A card that an agent adds shows an **Agent** chip in the Queue.
+   - Each tool needs one permission, for example `project:read` for `get_tracker`, `queue:add` for `add_queue_event`, `crs:edit` for `create_change_request` and `crs:merge` for `merge_change_request`. The recipe lists them all.
+   - The server also checks your own right at each call. If you lose a right or leave the project, the token loses it too.
+   - A card that an agent adds shows an **Agent** chip in the Queue.
 
 ## Local setup
 

@@ -1,4 +1,4 @@
-import type { AgentToken, Scope } from '../../contracts';
+import { ScopeSchema, type AgentToken, type Scope } from '../../contracts';
 export type Membership = { userId: string; workspaceId: string };
 export type StoredToken = AgentToken & {
   workspaceId: string;
@@ -45,4 +45,5 @@ export interface HttpIdentityStore {
     idempotencyKey: string;
   }): Promise<string | null>;
 }
-export const browserScopes: Scope[] = ['project:read', 'queue:add'];
+/** A person in the browser holds every scope; their member rights decide what they can do. */
+export const browserScopes: Scope[] = [...ScopeSchema.options];

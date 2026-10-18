@@ -342,6 +342,7 @@ export const trackerCrComments = pgTable(
     kind: text('kind').$type<CrCommentKind>().notNull(),
     body: text('body'),
     opIndex: integer('op_index'),
+    byAgent: boolean('by_agent').notNull().default(false),
     createdAt: createdAt(),
   },
   (table) => [

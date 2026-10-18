@@ -127,19 +127,42 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP adapter', () => {
     });
   });
 
-  it('lists get_project and the tracker tools only, and none accepts a projectId argument', async () => {
+  it('lists every tool to every token, and none accepts a projectId argument', async () => {
     const { tools } = await (await connect(defaultToken.secret)).listTools();
     for (const tool of tools)
       expect(Object.keys(tool.inputSchema.properties ?? {})).not.toContain('projectId');
     expect(JSON.stringify({ tools }).length).toBeLessThanOrEqual(50_000);
     expect(tools.map((tool) => tool.name).sort()).toEqual([
+      'add_change',
       'add_queue_event',
       'add_queue_item',
+      'add_team',
+      'ask_to_edit',
+      'cancel_ask_to_edit',
+      'cancel_change_request',
+      'comment_change_request',
+      'create_change_request',
+      'decline_ask_to_edit',
+      'delete_team',
       'get_change_request',
       'get_project',
       'get_tracker',
+      'hand_over_change_request',
+      'invite_member',
       'list_change_requests',
+      'list_members',
       'list_queue',
+      'make_project_lead',
+      'mark_draft',
+      'mark_ready',
+      'merge_change_request',
+      'remove_change',
+      'remove_member',
+      'remove_queue_card',
+      'request_changes',
+      'set_member_grants',
+      'share_change_request',
+      'update_team',
     ]);
   });
   it('get_project reads the title, client name and time zone, and a projectId argument is VALIDATION', async () => {

@@ -85,8 +85,15 @@ function crSummary(cr: Cr, who: (id: string) => Who) {
     author: who(cr.author),
     editor: who(cr.editor),
     changeCount: cr.ops.length,
+    revision: cr.revision,
     updatedAt: cr.updatedAt,
   };
+}
+
+/** What a change request write answers: the change request as it is now, small enough for any page. */
+export function crBrief(payload: TrackerPayload, num: number) {
+  const cr = payload.crs.find((item) => item.num === num);
+  return { changeRequest: cr ? crSummary(cr, whoIn(payload)) : null };
 }
 
 const main = (payload: TrackerPayload) => mainState(payload.base, payload.queue, payload.commits);
@@ -267,7 +274,6 @@ export async function getChangeRequest(
   return {
     changeRequest: {
       ...crSummary(cr, who),
-      revision: cr.revision,
       createdAt: cr.createdAt,
       mergedRev: cr.mergedRev,
       mergedBy: maybe(cr.mergedBy),
@@ -278,6 +284,7 @@ export async function getChangeRequest(
         index,
         op: op.op,
         by: who(op.by),
+        agent: op.agent === true,
         description: op.d ?? null,
       })),
       resolutions: cr.resolutions,
@@ -291,6 +298,7 @@ export async function getChangeRequest(
         kind: comment.kind,
         body: comment.body,
         opIndex: comment.opIndex,
+        agent: comment.agent,
         createdAt: comment.createdAt,
       })),
     },

@@ -228,6 +228,8 @@ const opOf = <N extends string, A extends z.ZodType>(op: N, a: A) =>
     a,
     rev: z.number().int().nonnegative(),
     by: Id,
+    /** An agent added it for `by`. */
+    agent: z.literal(true).optional(),
     d: OpDescriptionSchema.optional(),
   });
 

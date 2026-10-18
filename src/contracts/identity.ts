@@ -7,7 +7,20 @@ import {
   TextSchema,
 } from './primitives';
 
-export const ScopeSchema = z.enum(['project:read', 'queue:add']);
+/** One scope per right a person can hold in a project. No scope manages tokens or deletes the project. */
+export const ScopeSchema = z.enum([
+  'project:read',
+  'queue:add',
+  'queue:dismiss',
+  'crs:edit',
+  'crs:ready',
+  'crs:comment',
+  'crs:merge',
+  'crs:close',
+  'members:manage',
+  'teams:manage',
+  'project:lead',
+]);
 export type Scope = z.infer<typeof ScopeSchema>;
 export const DEFAULT_AGENT_SCOPES: readonly Scope[] = ['project:read', 'queue:add'];
 const verified = {

@@ -494,6 +494,7 @@ describe('openedReview', () => {
       kind: 'comment' as const,
       body: 'Looks fine.',
       opIndex: null,
+      agent: false,
       createdAt: at('2026-10-09T17:10'),
     };
     const edited: Cr = {

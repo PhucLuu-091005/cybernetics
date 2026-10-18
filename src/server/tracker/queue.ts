@@ -27,7 +27,7 @@ const AddQueueEntryInputSchema = z.discriminatedUnion('kind', [
   }),
   z.strictObject({ ...ProjectScopeSchema, kind: z.literal('item'), fields: QueueItemInputSchema }),
 ]);
-const DismissQueueEntryInputSchema = z.strictObject({
+export const DismissQueueEntryInputSchema = z.strictObject({
   ...ProjectScopeSchema,
   queueId: z.string().max(100),
 });

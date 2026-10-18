@@ -121,13 +121,17 @@ const parse = <S extends z.ZodType>(schema: S, raw: unknown, what: string): z.in
 };
 
 /** The server owns rev, by and d, and records who moved a date and when. */
-function candidate(raw: unknown, rev: number, by: string): Op {
+function candidate(raw: unknown, rev: number, by: string, agent: boolean): Op {
   const value = (raw ?? {}) as { op?: unknown; a?: unknown };
   const a =
     (value.op === 'due' || value.op === 'msDate') && value.a && typeof value.a === 'object'
       ? { ...value.a, by, at: new Date().toISOString() }
       : value.a;
-  return parse(OpSchema, { op: value.op, a, rev, by }, 'Invalid change');
+  return parse(
+    OpSchema,
+    { op: value.op, a, rev, by, ...(agent ? { agent } : {}) },
+    'Invalid change',
+  );
 }
 
 function stillApplying(state: TrackerState, ops: readonly Op[], tz: string): Op[] {
@@ -154,12 +158,19 @@ type Main = {
   queue: QueueRow[];
   commits: Commit[];
   members: Scope['members'];
+  agent: boolean;
 };
 
 async function loadMain(tx: Tx, scope: Scope): Promise<Main> {
   const queue = await loadQueue(tx, scope.project.id);
   const commits = await loadCommits(tx, scope.project.id);
-  return { base: scope.tracker.base, queue, commits, members: scope.members };
+  return {
+    base: scope.tracker.base,
+    queue,
+    commits,
+    members: scope.members,
+    agent: !!scope.tenant.byAgent,
+  };
 }
 
 /** Each new op must apply on the latest Main plus the live ops before it. */
@@ -177,7 +188,7 @@ function admit(
     tz,
   ).state;
   return raws.map((raw) => {
-    const op = candidate(raw, rev, by);
+    const op = candidate(raw, rev, by, main.agent);
     if (op.op === 'addTeam' && state.teams.some((team) => team.id === op.a.id))
       throw new AppError('VALIDATION', `The change does not fit: team ${op.a.id} already exists`);
     const gone = goneNamed(state, main.members, op).map(
