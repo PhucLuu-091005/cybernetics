@@ -782,6 +782,7 @@
   min-width: 900px;
 }
 .tk .gtime {
+  position: relative;
   flex: 1 1 0;
   min-width: 0;
   overflow-x: auto;
@@ -791,6 +792,38 @@
   display: block;
   flex: none;
   height: auto;
+}
+/* The counts of a team sit in the empty lane of its summary row and stay at the left edge of the
+   visible time line while it scrolls sideways. */
+.tk .lane-counts {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 0;
+  pointer-events: none;
+}
+.tk .lane-count {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+}
+.tk .lane-count > span {
+  position: sticky;
+  left: calc(8px + var(--lane-shift, 0px));
+  margin-left: 8px;
+  font-size: var(--fs-xs);
+  line-height: 1;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.tk .lane-count .late {
+  color: var(--danger-ink);
+  font-weight: 600;
+}
+.tk .lane-count .done {
+  color: var(--proceed-ink);
 }
 /* Sticky in a band of its own below the graph, so at the end of the scroll it covers no row. */
 .tk .zoombar {
@@ -838,6 +871,11 @@
 .tk .zoombar .view-btn:hover {
   background: var(--hover);
   color: var(--ink);
+}
+/* A mouse click leaves no ring on the view and zoom buttons; the keyboard keeps it. */
+:root .tk .zoombar button:focus:not(:focus-visible),
+:root .tk .zoombar .view-btn[data-quiet]:focus-visible {
+  outline: none;
 }
 .tk .zoombar > button:disabled {
   opacity: 0.35;
@@ -1470,23 +1508,6 @@ svg.tg .sum-count {
   font-weight: 500;
   letter-spacing: 0;
 }
-svg.tg .sum-counts {
-  font-size: 10.5px;
-  fill: var(--ink-3);
-  pointer-events: none;
-}
-svg.tg .sum-name .sum-counts {
-  font-weight: 400;
-  letter-spacing: 0;
-  stroke: none;
-}
-svg.tg .sum-counts .late {
-  fill: var(--danger-ink);
-  font-weight: 600;
-}
-svg.tg .sum-counts .done {
-  fill: var(--proceed-ink);
-}
 svg.tg .sum-chev {
   color: var(--ink-3);
   pointer-events: none;
@@ -1717,10 +1738,11 @@ svg.tg .hand-count {
   stroke-linejoin: round;
   pointer-events: none;
 }
+/* A thicker ring, not a darker tint, so the icon keeps 4.5:1 on its tint. */
 svg.tg .hand-act:hover .bg,
 svg.tg .hand-act:focus .bg,
 svg.tg .hand-act.open .bg {
-  fill: color-mix(in srgb, var(--kc) var(--k-tint-back), var(--panel));
+  stroke-width: 3;
 }
 .tk .hand-menu {
   position: absolute;

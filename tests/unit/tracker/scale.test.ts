@@ -4,6 +4,7 @@ import {
   OPEN_MIN_DAY_WIDTH,
   openScale,
   WHEEL_STEP,
+  gestureFactor,
   wheelZoomFactor,
   zoomTarget,
 } from '../../../src/components/tracker/scale';
@@ -59,19 +60,45 @@ describe('openScale: the first view of a graph', () => {
 });
 
 describe('wheelZoomFactor: a pinch or a Ctrl wheel', () => {
-  it('zooms a trackpad pinch 2.5 times as fast as before', () => {
-    const before = Math.log(Math.exp(-4 * 0.002));
-    expect(Math.log(wheelZoomFactor(4, 0)) / before).toBeCloseTo(2.5, 6);
-    expect(wheelZoomFactor(4, 0)).toBeLessThan(1);
-    expect(wheelZoomFactor(-4, 0)).toBeGreaterThan(1);
-    expect(wheelZoomFactor(0, 0)).toBe(1);
+  const chain = (deltas: number[]) => deltas.reduce((f, d) => f * wheelZoomFactor(d, 0), 1);
+
+  it('zooms a trackpad pinch of many small deltas further than one wheel notch of the same sum', () => {
+    const pinch = chain(Array(25).fill(-4));
+    const notch = wheelZoomFactor(-100, 0);
+    expect(notch).toBeCloseTo(WHEEL_STEP, 9);
+    expect(pinch).toBeGreaterThan(1.6);
+    expect(pinch).toBeGreaterThan(notch);
   });
 
-  it('keeps one mouse wheel notch to one comfortable step in each direction', () => {
-    expect(WHEEL_STEP).toBe(1.25);
+  it('turns a short pinch of 40 pixels into a visible zoom of at least ×1.2', () => {
+    expect(chain(Array(10).fill(-4))).toBeGreaterThanOrEqual(1.2);
+    expect(chain(Array(10).fill(4))).toBeLessThanOrEqual(1 / 1.2);
+  });
+
+  it('keeps one mouse wheel notch to one ×1.25 step, in pixels, lines or pages', () => {
     expect(wheelZoomFactor(100, 0)).toBeCloseTo(1 / WHEEL_STEP, 9);
-    expect(wheelZoomFactor(-100, 0)).toBeCloseTo(WHEEL_STEP, 9);
     expect(wheelZoomFactor(3, 1)).toBeCloseTo(1 / WHEEL_STEP, 9);
     expect(wheelZoomFactor(-1, 2)).toBeCloseTo(WHEEL_STEP, 9);
+    expect(wheelZoomFactor(0, 0)).toBe(1);
+  });
+});
+
+describe('gestureFactor: a Safari pinch', () => {
+  it('zooms by the change of scale since the last gesture event', () => {
+    const steps = [1.1, 1.3, 1.2, 2];
+    let last = 1;
+    let total = 1;
+    for (const scale of steps) {
+      total *= gestureFactor(last, scale);
+      last = scale;
+    }
+    expect(total).toBeCloseTo(2, 9);
+    expect(gestureFactor(1.3, 1.2)).toBeLessThan(1);
+  });
+
+  it('ignores a scale that is not a positive number', () => {
+    expect(gestureFactor(1, 0)).toBe(1);
+    expect(gestureFactor(0, 1.5)).toBe(1);
+    expect(gestureFactor(1, Number.NaN)).toBe(1);
   });
 });

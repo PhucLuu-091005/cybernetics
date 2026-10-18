@@ -316,6 +316,12 @@ describe('ContextBar in a change request', () => {
     expect(bar(members[1], [merged], merged, TWO_HIDDEN)).toContain('2 hidden');
   });
 
+  it('adds no spacer to a merged change request when nothing is hidden', () => {
+    const merged = { ...draft(6, 'merged'), mergedBy: 'minh' };
+    expect(bar(members[1], [merged], merged)).not.toContain('class="sp"');
+    expect(bar(members[1], [merged], merged, TWO_HIDDEN)).toContain('class="sp"');
+  });
+
   it('gives a member without edit right a button to ask for edit access', () => {
     const cr = draft(5, 'draft');
     const html = bar(members[3], [cr], cr);

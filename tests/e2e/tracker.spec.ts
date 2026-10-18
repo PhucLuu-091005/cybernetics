@@ -1204,6 +1204,37 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
   });
 });
 
+test.describe('the hidden badge in a change request', () => {
+  test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
+
+  test('the last Unhide in a draft with no changes keeps the focus on an enabled control of the bar', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-hidden-cr', { classic: false });
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
+    await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/changes\/\d+$/);
+    const bar = page.locator('.bbar');
+    await expect(bar).toContainText('0 changes');
+    await expect(bar.getByRole('button', { name: 'Mark as ready' })).toBeDisabled();
+    await page.locator('svg.pg-side [data-eyeteam="engineering"]').click();
+    const badge = page.locator('.hid-menu > summary');
+    await expect(badge).toContainText('1 hidden');
+    await expect(page.locator('.bbar > :last-child')).toHaveClass('hid-menu');
+    await badge.click();
+    await page.getByRole('button', { name: 'Unhide all' }).click();
+    await expect(page.locator('.hid-menu')).toHaveCount(0);
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const a = document.activeElement as HTMLButtonElement | null;
+          return !!a && a !== document.body && !!a.closest('.bbar') && !a.disabled;
+        }),
+      )
+      .toBe(true);
+  });
+});
+
 test.describe('events at their own time', () => {
   test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
 
@@ -1357,9 +1388,23 @@ test.describe('row height and collapsible teams', () => {
     await expect(page.locator('svg.pg [data-loop="golive"]')).toHaveCount(0);
     await expect(page.locator('svg.pg [data-loop="pg203"]')).toHaveCount(1);
 
-    // The lane right of a summary row stays empty, and the row is 28 units high.
+    // The summary row is one 28-unit line; its counts sit in its lane, at the left of the time line.
     await expect(page.locator('svg.pg .sum-bar, svg.pg .sum-tick')).toHaveCount(0);
-    expect((await implementation.boundingBox())!.height).toBeCloseTo(27, 0);
+    await expect(side.locator('.sum-counts')).toHaveCount(0);
+    const rowBox = (await engineering.boundingBox())!;
+    expect(rowBox.height).toBeCloseTo(27, 0);
+    const counts = page.locator('.lane-count > span', { hasText: '2 late · 2 done' });
+    await expect(counts).toHaveCount(1);
+    const scroller = page.locator('.gscroll .gtime');
+    const timeLeft = (await scroller.boundingBox())!.x;
+    const at = async () => (await counts.boundingBox())!;
+    expect((await at()).x - timeLeft).toBeCloseTo(8, 0);
+    const middle = (await at()).y + (await at()).height / 2;
+    expect(Math.abs(middle - (rowBox.y + rowBox.height / 2))).toBeLessThan(2);
+    // It stays at the left edge while the time line scrolls sideways.
+    await scroller.evaluate((el) => (el.scrollLeft = 400));
+    await expect.poll(async () => (await at()).x - timeLeft).toBeCloseTo(8, 0);
+    await scroller.evaluate((el) => (el.scrollLeft = 0));
 
     const ring = (el: typeof implementation) =>
       el.evaluate((node) => {
@@ -1396,6 +1441,56 @@ test.describe('row height and collapsible teams', () => {
     await expect(page.locator('svg.pg [data-loop]')).toHaveCount(0);
     await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Expand all' }).click());
     await expect(page.locator('svg.pg [data-loop]')).toHaveCount(14);
+  });
+
+  test('the view and zoom buttons show a ring for the keyboard only', async ({ page }) => {
+    await signIn(page, 'tracker-zoom-ring', { classic: false });
+    const btn = page.getByRole('button', { name: 'Row height and teams' });
+    const outline = (el: Locator) => el.evaluate((node) => getComputedStyle(node).outlineStyle);
+    await btn.click();
+    const pop = page.getByRole('dialog', { name: 'Row height and teams' });
+    await pop.getByRole('button', { name: 'Dense', exact: true }).click();
+    await page.keyboard.press('Escape');
+    await expect(pop).toBeHidden();
+    await expect(btn).toBeFocused();
+    expect(await outline(btn)).toBe('none');
+    await btn.click();
+    await btn.click();
+    expect(await outline(btn)).toBe('none');
+    const zoomIn = page.getByRole('button', { name: 'Zoom in' });
+    await zoomIn.click();
+    await expect(zoomIn).toBeFocused();
+    expect(await outline(zoomIn)).toBe('none');
+
+    await btn.focus();
+    await page.keyboard.press('Enter');
+    await expect(pop).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(btn).toBeFocused();
+    expect(await outline(btn)).toBe('solid');
+  });
+
+  test('at Dense a summary row is one 24-unit line with its counts in the lane', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-dense-summary', { classic: false });
+    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Dense', exact: true }).click());
+    const engineering = page
+      .locator('svg.pg-side')
+      .getByRole('button', { name: /^Engineering, 4 work items: 2 late/ });
+    const row = (await engineering.boundingBox())!;
+    expect(row.height).toBeCloseTo(23, 0);
+    const counts = (await page
+      .locator('.lane-count > span', { hasText: '2 late · 2 done' })
+      .boundingBox())!;
+    expect(counts.height).toBeLessThan(row.height);
+    expect(Math.abs(counts.y + counts.height / 2 - (row.y + row.height / 2))).toBeLessThan(2);
+    const name = (await page
+      .locator('svg.pg-side text.sum-name', { hasText: /^ENGINEERING/ })
+      .boundingBox())!;
+    const focus = (await page.locator('svg.pg-side [data-focusteam="engineering"]').boundingBox())!;
+    expect(name.x + name.width).toBeLessThan(focus.x);
+    expect(Math.abs(name.y + name.height / 2 - (row.y + row.height / 2))).toBeLessThan(3);
   });
 
   test('search, the filter panel, a search pick and a handoff pick open a collapsed team', async ({
@@ -1548,5 +1643,28 @@ test.describe('row height and collapsible teams', () => {
     const stack = page.locator('svg.pg [data-stack] circle.layer').first();
     const kind = await stack.evaluate((el) => getComputedStyle(el).stroke);
     await expect(stack).toHaveCSS('fill', await mixed(kind, 26));
+  });
+
+  test('in dark, the tint inside an event circle is 16 % of its kind over the dark panel', async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({
+      viewport: { width: 1440, height: 1000 },
+      colorScheme: 'dark',
+    });
+    const page = await context.newPage();
+    await signIn(page, 'tracker-kind-tint-dark', { classic: false });
+    const task = page.locator('svg.pg [data-act="p31"] circle.bg');
+    await expect(task).toHaveCSS('stroke', 'rgb(176, 180, 186)');
+    const expected = await page.evaluate(() => {
+      const probe = document.createElement('div');
+      probe.style.color = 'color-mix(in srgb, rgb(176, 180, 186) 16%, #18191b)';
+      document.body.append(probe);
+      const value = getComputedStyle(probe).color;
+      probe.remove();
+      return value;
+    });
+    await expect(task).toHaveCSS('fill', expected);
+    await context.close();
   });
 });

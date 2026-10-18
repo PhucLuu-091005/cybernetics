@@ -231,8 +231,6 @@ export type LayoutLane = {
   bottom: number;
   /** The height of the summary row at the top of the lane. */
   head: number;
-  /** The name, the count and the counts share one line; otherwise the counts go under the name. */
-  oneLine: boolean;
   collapsed: boolean;
   summary: LayoutTeamSummary;
   alt: boolean;
@@ -483,8 +481,8 @@ export function windowStartFor(
   return addDays(dayOf(new Date(earliest).toISOString(), timeZone), -START_MARGIN_DAYS);
 }
 
-// Advance widths of Geist 10.5px, as the browser measured them: the lane name (weight 600, capitals,
-// 0.07em letter spacing) and the counts. They decide in the pure layout whether a summary fits one line.
+// Advance widths of Geist 10.5px weight 600 capitals with 0.07em letter spacing, as the browser
+// measured them, so the pure layout can cut a team name before the buttons of its summary row.
 const CAPS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 const CAP_W = [
   8.2, 8, 8.4, 8.3, 7.2, 6.9, 8.4, 8.2, 3.7, 7.1, 7.7, 6.7, 10.1, 8.5, 8.8, 7.6, 8.7, 8, 7.8, 7,
@@ -495,53 +493,43 @@ const WIDE = 8.8;
 // The " · N" count after the name is weight 500 with no letter spacing.
 const COUNT_SEP = 7.5;
 const digitWidth = (d: string) => (d === '1' ? 4.1 : 6.8);
-const COUNT_WORD: Record<'late' | 'notYet' | 'done', number> = {
-  late: 19.5,
-  notYet: 33.5,
-  done: 23.8,
-};
-const COUNTS_SEP = 7.6;
-const COUNT_SPACE = 2.7;
-const COUNTS_GAP = 8;
-// The label column text starts at 24: one line ends 6 units before the focus button (16 wide, centred
-// 43 left of X0); a name alone on its line runs to 8 units before the edge of the column.
-const ONE_LINE_ROOM = X0 - 43 - 8 - 6 - 24;
+// The name ends 6 units before the focus button (16 wide, centred 43 left of X0), or before the eye.
+const NAME_ROOM = X0 - 43 - 8 - 6 - 24;
 const FOCUS_BUTTON_ROOM = 19;
-const NAME_LINE_ROOM = SIDE - 8 - 24;
 const MAX_DEPTH = 3;
+
+const segmenter =
+  typeof Intl !== 'undefined' && 'Segmenter' in Intl
+    ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+    : null;
+
+/** User-perceived characters in NFC, so a cut never splits a surrogate pair or drops a mark. */
+function graphemes(text: string): string[] {
+  const nfc = text.normalize('NFC');
+  return segmenter ? Array.from(segmenter.segment(nfc), (g) => g.segment) : Array.from(nfc);
+}
+
+function glyphWidth(g: string): number {
+  const base = g.normalize('NFD')[0];
+  const i = CAPS.indexOf(base);
+  return i >= 0 ? CAP_W[i] : (PUNCT_W[base] ?? (/[-/()]/.test(base) ? 5.1 : WIDE));
+}
 
 /** The width of a lane name in capitals, or with `count` of its " · N" part. */
 export function laneNameWidth(text: string, count = false): number {
-  let w = 0;
-  for (const ch of text) {
-    if (count) w += /\d/.test(ch) ? digitWidth(ch) : 0;
-    else {
-      const i = CAPS.indexOf(ch);
-      w += i >= 0 ? CAP_W[i] : (PUNCT_W[ch] ?? (/[-/()]/.test(ch) ? 5.1 : WIDE));
-    }
-  }
-  return count ? w + COUNT_SEP : w;
+  if (count)
+    return [...text].reduce((w, ch) => w + (/\d/.test(ch) ? digitWidth(ch) : 0), COUNT_SEP);
+  return graphemes(text).reduce((w, g) => w + glyphWidth(g), 0);
 }
 
-/** The width of "N late · N not yet · N done", with only the parts above zero. */
-export function laneCountsWidth(c: Pick<LayoutTeamSummary, 'late' | 'notYet' | 'done'>): number {
-  const parts = (['late', 'notYet', 'done'] as const).filter((k) => c[k] > 0);
-  return parts.reduce(
-    (w, k, i) =>
-      w +
-      (i ? COUNTS_SEP : 0) +
-      [...String(c[k])].reduce((d, ch) => d + digitWidth(ch), 0) +
-      COUNT_SPACE +
-      COUNT_WORD[k],
-    0,
-  );
-}
-
-function fitWidth(text: string, room: number): string {
-  if (laneNameWidth(text) <= room) return text;
-  let cut = text;
-  while (cut.length > 1 && laneNameWidth(`${cut}…`) > room) cut = cut.slice(0, -1);
-  return `${cut.trimEnd()}…`;
+/** Cuts a lane name by grapheme to `room` units, ending with an ellipsis when it is cut. */
+export function cutToWidth(text: string, room: number): string {
+  const parts = graphemes(text);
+  if (laneNameWidth(text) <= room) return parts.join('');
+  let w = PUNCT_W['…'];
+  let n = 0;
+  while (n < parts.length && w + glyphWidth(parts[n]) <= room) w += glyphWidth(parts[n++]);
+  return `${parts.slice(0, n).join('').trimEnd()}…`;
 }
 
 /** Children follow their parent inside a team, so the indent of the labels reads as a tree. */
@@ -639,20 +627,16 @@ function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
     const lastY = collapsed ? 0 : Math.max(0, ...shown.map((w) => c.rows.get(w.id)!.y));
     const index = lanes.length;
     const summary = summaryOf(c, team.name, shown);
-    const upper = team.name.toUpperCase();
     const countRoom = laneNameWidth(` · ${shown.length}`, true);
-    const counts = laneCountsWidth(summary);
-    const lineRoom = view.focusButtons ? ONE_LINE_ROOM : ONE_LINE_ROOM + FOCUS_BUTTON_ROOM;
-    const oneLine = !counts || laneNameWidth(upper) + countRoom + COUNTS_GAP + counts <= lineRoom;
+    const room = (view.focusButtons ? NAME_ROOM : NAME_ROOM + FOCUS_BUTTON_ROOM) - countRoom;
     lanes.push({
       teamId: team.id,
       name: team.name,
-      label: fitWidth(upper, (oneLine ? lineRoom : NAME_LINE_ROOM) - countRoom),
+      label: cutToWidth(team.name.toUpperCase(), room),
       index,
       top,
       bottom: y,
       head: level.head,
-      oneLine,
       collapsed,
       summary,
       alt: index % 2 === 1,
