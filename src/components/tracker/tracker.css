@@ -1288,8 +1288,10 @@
   font-size: var(--fs-xs);
   color: var(--ink-2);
 }
-/* A drop target under the legend must still take the drop. */
-.tk.dragging .legend-pop {
+/* A drop target or a move target under the legend must still take the click. */
+.tk.dragging .legend-pop,
+.tk.moving .legend-pop,
+.tk .legend-pop[data-no-room] {
   visibility: hidden;
 }
 .tk .legend-pop .lg-x {
