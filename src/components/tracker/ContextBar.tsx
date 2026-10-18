@@ -74,7 +74,13 @@ type Props = {
   busy?: boolean;
   onView: (view: TrackerView) => void;
   onDrawer: (mode: 'crs') => void;
-  review?: { canMerge: boolean; changed: boolean; onReviewAgain: () => void };
+  review?: {
+    canMerge: boolean;
+    changed: boolean;
+    onReviewAgain: () => void;
+    applying: number;
+    inMain: boolean;
+  };
   /** Without it, the bar has no hidden badge. */
   hidden?: HiddenMenuProps;
 };
@@ -241,7 +247,7 @@ export function ContextBar(props: Props) {
   const hiddenBadge = !!props.hidden?.hidden.count && <HiddenMenu {...props.hidden} />;
   if (!c) return <MainBar {...props} />;
   const { payload, me, dir, tz } = session;
-  const n = c.ops.length;
+  const n = review?.applying ?? c.ops.length;
   const open = isOpen(c);
   const label = `Change request #${c.num}`;
   const head = (
@@ -300,6 +306,7 @@ export function ContextBar(props: Props) {
     tone = 'mine';
     buttons = (
       <>
+        {review?.inMain && <span className="muted">Every change is already in Main.</span>}
         {share}
         {cancel}
         <button

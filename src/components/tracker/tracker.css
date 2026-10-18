@@ -595,6 +595,18 @@
   border-top: 1px solid var(--rule);
   gap: 0;
 }
+.tk .chg-stale {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 -12px;
+  padding: 6px 12px;
+  min-height: 36px;
+  font-size: var(--fs-s);
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--rule-2);
+}
 .tk .chg-list {
   list-style: none;
   margin: 0;
@@ -693,8 +705,8 @@
   scroll-padding-top: var(--tk-axis-h, 0px);
 }
 
-/* Two columns share one scale: the label column stays put while the time line scrolls. The frame
-   keeps 900 px so a phone scrolls the whole graph instead of squeezing it. */
+/* Two columns share one scale: the label column stays put while the time line scrolls. Above phone
+   width the frame keeps 900 px, so a narrow window scrolls the whole graph instead of squeezing it. */
 .tk .tgraph {
   position: relative;
   display: flex;
@@ -731,6 +743,16 @@
   min-width: 0;
   overflow-x: auto;
   overscroll-behavior-x: contain;
+}
+/* A phone pins a narrow name column beside the time line; GEOMETRY.NARROW_SIDE is the same 128. */
+@media (max-width: 760px) {
+  .tk .gframe {
+    min-width: 0;
+  }
+  .tk .gframe > svg.pg-side,
+  .tk .gframe > svg.pg-top-side {
+    width: 128px;
+  }
 }
 .tk .gframe svg {
   display: block;
@@ -1698,6 +1720,10 @@ svg.tg .ms-label {
   font-size: 11px;
   font-weight: 600;
 }
+svg.tg .label-back {
+  fill: var(--panel);
+  pointer-events: none;
+}
 svg.tg .ms.glow .ms-c {
   filter: drop-shadow(0 0 4px var(--ink));
 }
@@ -2298,11 +2324,6 @@ svg.tg .deadline-name {
 /* O1 work item panel: a label and value list in three groups, the same in read and edit views. */
 .tk .wi-top .sp {
   flex: 1;
-}
-.tk .late-by {
-  font-size: var(--fs-xs);
-  font-weight: 500;
-  color: var(--danger-ink);
 }
 .tk .btn-quiet {
   border-color: transparent;

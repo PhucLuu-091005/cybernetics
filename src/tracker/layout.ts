@@ -24,6 +24,8 @@ export const GEOMETRY = {
   X0: 236,
   X1: 1046,
   SIDE: 228,
+  /** A phone keeps the names pinned beside the time line in a column this wide, with no row buttons. */
+  NARROW_SIDE: 128,
   AXIS_Y: 15,
   MS_Y: 33,
   TRUNK_Y: 48,
@@ -34,7 +36,7 @@ export const GEOMETRY = {
   MAX_DAY_WIDTH: 480,
 } as const;
 
-const { VW, X0, X1, SIDE, AXIS_Y, MS_Y, TRUNK_Y, TOP, MAX_ZOOM } = GEOMETRY;
+const { VW, X0, X1, SIDE, AXIS_Y, MS_Y, TRUNK_Y, TOP, MAX_ZOOM, INDENT } = GEOMETRY;
 const { MIN_DAY_WIDTH, MAX_DAY_WIDTH } = GEOMETRY;
 /** A window so long that its fit is under the floor can still fit. */
 export const clampDayWidth = (dayWidth: number, fitDayWidth: number) =>
@@ -201,6 +203,8 @@ export type View = {
   plusButtons?: boolean;
   /** These teams show their summary row only. */
   collapsedTeams?: ReadonlySet<string>;
+  /** The width of the label column; narrower than SIDE, it has no row buttons. */
+  side?: number;
 };
 
 export type Point = { x: number; y: number };
@@ -370,6 +374,7 @@ export type LayoutLaneDrop = {
 
 export type TrackerLayout = {
   level: RowLevel;
+  side: number;
   /** The day width over the fit to the current `span`: 1 at fit, less when the view widened since. */
   zoom: number;
   dayWidth: number;
@@ -502,6 +507,11 @@ const digitWidth = (d: string) => (d === '1' ? 4.1 : 6.8);
 // The name ends 6 units before the focus button (16 wide, centred 43 left of X0), or before the eye.
 const NAME_ROOM = X0 - 43 - 8 - 6 - 24;
 const FOCUS_BUTTON_ROOM = 19;
+// A Comfortable row name letter takes about 6.6 units; the names start at 28 and the lanes at 24.
+const ROW_CHAR = 6.6;
+const ROW_LABEL_X = 28;
+const LANE_LABEL_X = 24;
+const NARROW_END = 4;
 const MAX_DEPTH = 3;
 
 const segmenter =
@@ -600,6 +610,8 @@ function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
   const labelChars = Math.round(
     ((view.focusButtons ? 24 : 26) * ROW_LEVELS.comfortable.font) / level.font,
   );
+  const narrow = view.side !== undefined && view.side < SIDE ? view.side : null;
+  const narrowChar = (ROW_CHAR * level.font) / ROW_LEVELS.comfortable.font;
   let y = TOP;
   for (const team of state.teams) {
     const members = state.workItems.filter((w) => w.teamId === team.id && c.inWindow.has(w.id));
@@ -618,7 +630,12 @@ function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
           id: w.id,
           teamId: team.id,
           title: w.title,
-          label: trunc(w.title, labelChars - 2 * depth),
+          label: trunc(
+            w.title,
+            narrow
+              ? Math.floor((narrow - NARROW_END - ROW_LABEL_X - depth * INDENT) / narrowChar)
+              : labelChars - 2 * depth,
+          ),
           y: y + level.row / 2,
           done: info.done,
           status: itemStatus(w, c.eventsOf(w.id), view.asOf, c.tz),
@@ -638,7 +655,12 @@ function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
     const index = lanes.length;
     const summary = summaryOf(c, team.name, shown);
     const countRoom = laneNameWidth(` · ${shown.length}`, true);
-    const room = (view.focusButtons ? NAME_ROOM : NAME_ROOM + FOCUS_BUTTON_ROOM) - countRoom;
+    const room =
+      (narrow
+        ? narrow - NARROW_END - LANE_LABEL_X
+        : view.focusButtons
+          ? NAME_ROOM
+          : NAME_ROOM + FOCUS_BUTTON_ROOM) - countRoom;
     lanes.push({
       teamId: team.id,
       name: team.name,
@@ -691,6 +713,12 @@ function linesOf(c: Ctx, shown: LayoutRow[]): LayoutSegment[] {
         ...(gone.length ? [`${short(gone)} ${gone.length > 1 ? 'were' : 'was'} cancelled`] : []),
       ];
       const text = parts.length ? parts.join(' · ') : 'No events yet';
+      const plus = c.xt + PLUS_GAP;
+      const afterPlus = plus + c.level.plus + 4;
+      const onPlus =
+        !!c.view.plusButtons &&
+        sx + 8 < afterPlus &&
+        sx + 8 + text.length * WAIT_CHAR > plus - c.level.plus - 2;
       segments.push({
         kind: 'wait',
         workItemId: w.id,
@@ -699,7 +727,8 @@ function linesOf(c: Ctx, shown: LayoutRow[]): LayoutSegment[] {
         y: r.y,
         tone: 'ink-3',
         text,
-        textX: sx + 8,
+        // The + buttons of this row and the row above sit at the same x, so the text starts after them.
+        textX: onPlus ? afterPlus : sx + 8,
         textY: r.y - c.level.waitRise,
       });
       continue;
@@ -857,6 +886,50 @@ function busyOf(
   return busy;
 }
 
+const MIN_CUT = 8;
+const T_ROOM = 3;
+
+/**
+ * The full name on the right of the mark, else on its left, else the longer of the two cut with an
+ * ellipsis. The T line counts as busy, so a name never sits across it.
+ */
+function placeName(
+  c: Ctx,
+  name: string,
+  x: number,
+  rowBusy: readonly Span[],
+): { label: string; side: 'start' | 'end' } | null {
+  const spans: Span[] = [...rowBusy, [c.xt - T_ROOM, c.xt + T_ROOM]];
+  const char = LABEL_CHAR * c.level.nameFont;
+  const inside = (at: number) => spans.some(([p, q]) => p <= at && at <= q);
+  const a = x + LABEL_GAP;
+  const b = x - LABEL_GAP;
+  const right = inside(a)
+    ? 0
+    : Math.min(c.width - 2, ...spans.filter(([p]) => p > a).map(([p]) => p - 1)) - a;
+  const left = inside(b)
+    ? 0
+    : b - Math.max(X0, ...spans.filter(([, q]) => q < b).map(([, q]) => q + 1));
+  const fit = (room: number) => {
+    if (name.length * char <= room) return name;
+    const n = Math.floor(room / char) - 1;
+    return n >= MIN_CUT ? `${name.slice(0, n).trimEnd()}…` : null;
+  };
+  const full = name.length * char;
+  const side: 'start' | 'end' | null =
+    full <= right
+      ? 'start'
+      : full <= left
+        ? 'end'
+        : fit(Math.max(right, left))
+          ? right >= left
+            ? 'start'
+            : 'end'
+          : null;
+  if (!side) return null;
+  return { label: fit(side === 'start' ? right : left)!, side };
+}
+
 function deadlinesOf(
   c: Ctx,
   shown: LayoutRow[],
@@ -879,12 +952,8 @@ function deadlinesOf(
     const reason = makesLate(c, w, m) ? (r.done ? 'finished after it' : 'makes it late') : null;
     const x = c.deadlineX(m);
     const text = `${m.name} · deadline ${formatDeadline(m.planned, m.plannedTime)} · ${STATUS_LABEL[status]}`;
-    const width = m.name.length * LABEL_CHAR * c.level.nameFont;
-    const free = ([a, b]: Span) =>
-      a >= X0 && b <= c.width - 2 && (busy.get(r.id) ?? []).every(([p, q]) => b < p || a > q);
-    const right: Span = [x + LABEL_GAP, x + LABEL_GAP + width];
-    const left: Span = [x - LABEL_GAP - width, x - LABEL_GAP];
-    const side = !first ? null : free(right) ? 'start' : free(left) ? 'end' : null;
+    const placed = first ? placeName(c, m.name, x, busy.get(r.id) ?? []) : null;
+    const side = placed?.side ?? null;
     return [
       {
         workItemId: r.id,
@@ -897,7 +966,7 @@ function deadlinesOf(
         stroke: changed ? 'change' : tone,
         filled: status !== 'planned',
         changed,
-        label: side ? m.name : null,
+        label: placed?.label ?? null,
         labelX: side === 'end' ? x - LABEL_GAP : x + LABEL_GAP,
         labelY: r.y - c.level.nameRise,
         labelAnchor: side ?? 'start',
@@ -1227,6 +1296,7 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
   }
   return {
     level,
+    side: view.side ?? SIDE,
     zoom: plot / visible,
     dayWidth: plot / days,
     fitDayWidth: visible / days,

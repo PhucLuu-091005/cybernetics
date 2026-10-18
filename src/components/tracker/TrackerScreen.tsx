@@ -22,6 +22,7 @@ import {
   formatDay,
   formatDeadline,
   KIND_LABEL,
+  GEOMETRY,
   layoutTracker,
   matchRows,
   NO_FILTER,
@@ -143,6 +144,7 @@ export type TrackerActions = {
   merge: () => void;
   undo: () => void;
   removeChange: (index: number) => void;
+  clearStale: () => void;
   addToQueue: (what: 'event' | 'item') => void;
   openQueueEvent: (id: string) => void;
   openQueueItem: (id: string) => void;
@@ -179,6 +181,7 @@ export const NO_ACTIONS: TrackerActions = {
   merge: noop,
   undo: noop,
   removeChange: noop,
+  clearStale: noop,
   addToQueue: noop,
   openQueueEvent: noop,
   openQueueItem: noop,
@@ -274,6 +277,15 @@ const minuteNow = () => Math.floor(Date.now() / MINUTE) * MINUTE;
 // Hydration renders with the server's minute, so the T line matches the server HTML; the client clock takes over after.
 export const useNow = (serverNow: number) =>
   useSyncExternalStore(everyHalfMinute, minuteNow, () => serverNow);
+
+const watchPhone = (onChange: () => void) => {
+  const query = window.matchMedia(PHONE_QUERY);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+};
+const isPhone = () => window.matchMedia(PHONE_QUERY).matches;
+// CSS sets the phone column width before this flag arrives, so the first measured span is already right.
+const usePhone = () => useSyncExternalStore(watchPhone, isPhone, () => false);
 
 const crByNum = (p: TrackerPayload, num: number) => p.crs.find((c) => c.num === num);
 const withoutNum = (data: TrackerPayload & { num?: number }): TrackerPayload => {
@@ -571,6 +583,7 @@ export function TrackerScreen({
     () => windowStartFor(state, project.windowStart, asOf, tz),
     [state, project.windowStart, asOf, tz],
   );
+  const phone = usePhone();
   const layout = useMemo(
     () =>
       layoutTracker(
@@ -588,6 +601,7 @@ export function TrackerScreen({
           density,
           collapsedTeams: collapsed,
           plusButtons: edit,
+          ...(phone ? { side: GEOMETRY.NARROW_SIDE } : {}),
           ...(windowStart ? { windowStart } : {}),
         },
         current.marks,
@@ -606,6 +620,7 @@ export function TrackerScreen({
       density,
       collapsed,
       edit,
+      phone,
     ],
   );
   // Pointer handlers outlive the render that started a drag, and a poll can land in between.
@@ -806,6 +821,10 @@ export function TrackerScreen({
     void write((p) => removeOp(projectId, num, index, revisionOf(p, num)));
   };
   const undoLast = (num: number) => removeAt(num, 'last');
+  const removeAll = async (num: number, indexes: readonly number[]) => {
+    for (const index of indexes)
+      if (!(await write((p) => removeOp(projectId, num, index, revisionOf(p, num))))) return;
+  };
 
   const appendAll = async (num: number, ops: readonly OpInput[]) => {
     let last: TrackerPayload | null = null;
@@ -984,6 +1003,9 @@ export function TrackerScreen({
     },
     removeChange: (index) => {
       if (cr && edit) removeAt(cr.num, index);
+    },
+    clearStale: () => {
+      if (cr && edit && model) void removeAll(cr.num, model.stale);
     },
     addToQueue: (what) => openModal({ mode: 'add', what }),
     openQueueEvent: (id) =>
@@ -1380,6 +1402,8 @@ export function TrackerScreen({
                 canMerge: model.canMerge,
                 changed: frozen.changed,
                 onReviewAgain: reviewAgain,
+                applying: model.applying,
+                inMain: model.inMain,
               },
             }
           : {})}
@@ -1436,7 +1460,7 @@ export function TrackerScreen({
                   onClick={() => setSideOpen(true)}
                 >
                   <Icon name="sidebar" size={14} /> {mayEdit ? 'Changes and Queue' : 'Changes'}{' '}
-                  <span className="cnt">{model.changes.length}</span>
+                  <span className="cnt">{model.applying}</span>
                 </button>
               )}
               <span className="seg" role="group" aria-label="Graph state">
