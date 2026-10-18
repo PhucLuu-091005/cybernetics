@@ -5,16 +5,26 @@ import { errorText, send, type ApiError } from '../shell/api';
 import { useHydrated } from '../shell/hydrated';
 import { PhotoImg } from '../shell/PhotoImg';
 import { ModalFrame } from '../tracker/Modals';
-import { initialsOf, photoProblem, PHOTO_TYPES } from './photo';
+import { initialsOf, photoProblem, PHOTO_RULE, PHOTO_TYPES } from './photo';
 
-type Props = { name: string; photo: string | null };
+type Props = { name: string; color: string; photo: string | null };
 
 /** The 28 px avatar drawn at 96 px, so the initials keep the avatar type scale. */
-function Face({ name, src }: { name: string; src: string | null }) {
+function Face({
+  name,
+  color,
+  src,
+  onError,
+}: {
+  name: string;
+  color: string;
+  src: string | null;
+  onError?: () => void;
+}) {
   return (
-    <span className="pf-face" aria-hidden="true">
+    <span className="pf-face" style={{ background: color }} aria-hidden="true">
       {src ? (
-        <PhotoImg src={src} size={96} />
+        <PhotoImg src={src} size={96} onError={onError} />
       ) : (
         <svg viewBox="0 0 28 28" width="96" height="96">
           <text x="14" y="14" dominantBaseline="central" textAnchor="middle">
@@ -50,7 +60,7 @@ async function upload(file: File): Promise<ApiError | null> {
   }
 }
 
-function UploadDialog({ name, photo, onClose }: Props & { onClose: () => void }) {
+function UploadDialog({ name, color, photo, onClose }: Props & { onClose: () => void }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -105,7 +115,18 @@ function UploadDialog({ name, photo, onClose }: Props & { onClose: () => void })
       />
       <ModalFrame title="Upload a photo" onClose={onClose}>
         <div className="pf-pick">
-          <Face name={name} src={preview ?? photo} />
+          <Face
+            name={name}
+            color={color}
+            src={preview ?? photo}
+            onError={() => {
+              // A file the browser cannot draw would only show a broken image; the server would refuse it too.
+              if (!preview) return;
+              setError(PHOTO_RULE);
+              setFile(null);
+              setPreview(null);
+            }}
+          />
           <div className="pf-pick-text">
             <button className="btn" type="button" onClick={() => input.current?.click()}>
               {file ? 'Choose another file' : 'Choose a file'}
@@ -163,7 +184,7 @@ export function PhotoSection(props: Props) {
     <section className="pg-sec" aria-labelledby="photo-head">
       <h2 id="photo-head">Photo</h2>
       <div className="pf-photo">
-        <Face name={props.name} src={props.photo} />
+        <Face name={props.name} color={props.color} src={props.photo} />
         <div className="pf-photo-text">
           <p className="pg-lede">
             The people of your projects see your photo instead of your initials.

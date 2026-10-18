@@ -4,6 +4,7 @@ export const KEY_COPY: Record<
   KeyKind,
   {
     list: string;
+    column: string;
     lede: string;
     empty: string;
     table: string;
@@ -15,6 +16,7 @@ export const KEY_COPY: Record<
 > = {
   project: {
     list: 'Agent tokens',
+    column: 'Token',
     lede: 'A token lets your own AI agent work in this project through MCP, with the permissions you pick. Only you see your tokens.',
     empty: 'No tokens yet. Create one below to connect your agent.',
     table: 'Your agent tokens',
@@ -25,6 +27,7 @@ export const KEY_COPY: Record<
   },
   personal: {
     list: 'Personal keys',
+    column: 'Key',
     lede: 'A personal key lets your own AI agent work in every project you belong to, now and later, as you. In each project it has only the rights you hold there. Only you see your keys.',
     empty: 'No personal keys yet. Create one below to connect your agent.',
     table: 'Your personal keys',

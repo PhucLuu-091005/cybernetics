@@ -75,21 +75,21 @@ test('Profile uploads a photo after a preview, shows it in every avatar, and rem
   const file = page.getByLabel('Photo file');
 
   await file.setInputFiles({
+    name: 'renamed.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from('a text file with a png name'),
+  });
+  await expect(dialog.getByRole('alert')).toHaveText('Use a PNG, JPEG or WebP under 5 MB.');
+  await expect(dialog.locator('.pf-face img')).toHaveCount(0);
+  await expect(save).toBeDisabled();
+
+  await file.setInputFiles({
     name: 'scan.pdf',
     mimeType: 'application/pdf',
     buffer: Buffer.from('%PDF'),
   });
   await expect(dialog.getByRole('alert')).toHaveText('Use a PNG, JPEG or WebP under 5 MB.');
   await expect(save).toBeDisabled();
-
-  await file.setInputFiles({
-    name: 'renamed.png',
-    mimeType: 'image/png',
-    buffer: Buffer.from('a text file with a png name'),
-  });
-  await expect(dialog.locator('.pf-face img')).toHaveAttribute('src', /^blob:/);
-  await save.click();
-  await expect(dialog.getByRole('alert')).toHaveText('Use a PNG, JPEG or WebP under 5 MB.');
 
   const png = await sharp({
     create: { width: 320, height: 200, channels: 3, background: { r: 30, g: 140, b: 110 } },

@@ -17,6 +17,7 @@ import {
   signedInAccount,
 } from '../../../../../server/domain/account';
 import { getProject } from '../../../../../server/domain/projects';
+import { loadMembers } from '../../../../../server/tracker/store';
 import { readAuthEnvironment } from '../../../../../server/env';
 import {
   notFoundOn,
@@ -41,6 +42,9 @@ async function loadProfile(projectId: string, cursor: string | null) {
     signedInAccount(db, actor.userId),
     personalCreator(db, actor),
   ]);
+  // The person's own member colour, as their avatar has it; the grey of avatar.tsx without one.
+  const members = await loadMembers(db, projectId);
+  const ownColor = members.find((m) => m.userId === actor.userId)?.color ?? '#737373';
   const now = Date.now();
   const expiryOptions = [30, 7].map((days) => ({
     days,
@@ -52,6 +56,7 @@ async function loadProfile(projectId: string, cursor: string | null) {
     page,
     account,
     own,
+    ownColor,
     creator,
     expiryOptions,
     now: new Date(now).toISOString(),
@@ -68,17 +73,17 @@ export default async function ProfilePage({
   const [{ id }, search] = await Promise.all([params, searchParams]);
   const cursor = searchCursor(search.cursor);
   if (!IdSchema.safeParse(id).success) notFound();
-  const { project, timeZone, page, account, own, creator, expiryOptions, now } = await loadProfile(
-    id,
-    cursor,
-  );
+  const { project, timeZone, page, account, own, ownColor, creator, expiryOptions, now } =
+    await loadProfile(id, cursor);
   const endpoint = `${readAuthEnvironment().appOrigin}/mcp`;
   return (
     <div className="tk pg">
       <PageHead title="Profile" project={project} account={account} />
       <div className="pg-body pg-split">
         <div className="pg-main">
-          {photosOn() && <PhotoSection name={own.name} photo={own.photo ?? null} />}
+          {photosOn() && (
+            <PhotoSection name={own.name} color={ownColor} photo={own.photo ?? null} />
+          )}
           <TokenList
             kind="personal"
             api={KEYS}

@@ -143,7 +143,7 @@ export function TokenList({
       <p className="pg-lede">{copy.lede}</p>
       <div className="pg-tokens" role="table" aria-label={copy.table}>
         <div className="pg-trow pg-cols" role="row">
-          <span role="columnheader">Token</span>
+          <span role="columnheader">{copy.column}</span>
           <span role="columnheader">Permissions</span>
           <span role="columnheader">Last call</span>
           <span role="columnheader">Expires</span>
