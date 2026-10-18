@@ -803,6 +803,16 @@
   overflow-x: auto;
   overscroll-behavior-x: contain;
 }
+/* A phone pins a narrow name column beside the time line; GEOMETRY.NARROW_SIDE is the same 128. */
+@media (max-width: 760px) {
+  .tk .gframe {
+    min-width: 0;
+  }
+  .tk .gframe > svg.pg-side,
+  .tk .gframe > svg.pg-top-side {
+    width: 128px;
+  }
+}
 .tk .gframe svg {
   display: block;
   flex: none;

@@ -1321,6 +1321,35 @@ test.describe('events at their own time', () => {
 test.describe('the tracker at phone width', () => {
   test.use({ viewport: { width: 390, height: 844 }, colorScheme: 'light', hasTouch: true });
 
+  test('pins a narrow column of row names beside the time line, which scrolls on its own', async ({
+    page,
+  }) => {
+    await page.goto('/signin?label=tracker-pin');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    const side = page.locator('.gscroll svg.pg-side');
+    const time = page.locator('.gscroll .gtime');
+    await expect(side).toHaveAttribute('viewBox', /^0 64 128 /);
+    await expect.poll(() => time.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+    const box = (await side.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.width).toBeLessThanOrEqual(140);
+    await expect(side.locator('.row-label').first()).toBeInViewport();
+    await expect(page.locator('svg.pg-top-time .tpill')).toBeInViewport();
+    await expect(side.locator('[data-eyerow], [data-eyeteam], [data-focusitem]')).toHaveCount(0);
+    const names = await side
+      .locator('.row-label')
+      .evaluateAll((els) => els.map((el) => el.firstChild?.textContent ?? ''));
+    expect(names).toContain('Dynamics CRM s…');
+
+    await time.evaluate((el) => (el.scrollLeft = 0));
+    expect((await side.boundingBox())!.x).toBe(box.x);
+    expect(
+      await page.locator('.gscroll').evaluate((el) => el.scrollWidth - el.clientWidth),
+    ).toBeLessThanOrEqual(0);
+    await noHorizontalScroll(page);
+  });
+
   test('the graph, a change request page, its modals and the other pages never scroll sideways', async ({
     page,
   }) => {

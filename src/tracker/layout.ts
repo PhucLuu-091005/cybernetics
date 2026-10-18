@@ -24,6 +24,8 @@ export const GEOMETRY = {
   X0: 236,
   X1: 1046,
   SIDE: 228,
+  /** A phone keeps the names pinned beside the time line in a column this wide, with no row buttons. */
+  NARROW_SIDE: 128,
   AXIS_Y: 15,
   MS_Y: 33,
   TRUNK_Y: 48,
@@ -34,7 +36,7 @@ export const GEOMETRY = {
   MAX_DAY_WIDTH: 480,
 } as const;
 
-const { VW, X0, X1, SIDE, AXIS_Y, MS_Y, TRUNK_Y, TOP, MAX_ZOOM } = GEOMETRY;
+const { VW, X0, X1, SIDE, AXIS_Y, MS_Y, TRUNK_Y, TOP, MAX_ZOOM, INDENT } = GEOMETRY;
 const { MIN_DAY_WIDTH, MAX_DAY_WIDTH } = GEOMETRY;
 /** A window so long that its fit is under the floor can still fit. */
 export const clampDayWidth = (dayWidth: number, fitDayWidth: number) =>
@@ -201,6 +203,8 @@ export type View = {
   plusButtons?: boolean;
   /** These teams show their summary row only. */
   collapsedTeams?: ReadonlySet<string>;
+  /** The width of the label column; narrower than SIDE, it has no row buttons. */
+  side?: number;
 };
 
 export type Point = { x: number; y: number };
@@ -371,6 +375,8 @@ export type LayoutLaneDrop = {
 
 export type TrackerLayout = {
   level: RowLevel;
+  /** The width of the label column. */
+  side: number;
   /** The day width over the fit to the current `span`: 1 at fit, less when the view widened since. */
   zoom: number;
   dayWidth: number;
@@ -503,6 +509,11 @@ const digitWidth = (d: string) => (d === '1' ? 4.1 : 6.8);
 // The name ends 6 units before the focus button (16 wide, centred 43 left of X0), or before the eye.
 const NAME_ROOM = X0 - 43 - 8 - 6 - 24;
 const FOCUS_BUTTON_ROOM = 19;
+// A Comfortable row name letter takes about 6.6 units; the names start at 28 and the lanes at 24.
+const ROW_CHAR = 6.6;
+const ROW_LABEL_X = 28;
+const LANE_LABEL_X = 24;
+const NARROW_END = 4;
 const MAX_DEPTH = 3;
 
 const segmenter =
@@ -601,6 +612,8 @@ function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
   const labelChars = Math.round(
     ((view.focusButtons ? 24 : 26) * ROW_LEVELS.comfortable.font) / level.font,
   );
+  const narrow = view.side !== undefined && view.side < SIDE ? view.side : null;
+  const narrowChar = (ROW_CHAR * level.font) / ROW_LEVELS.comfortable.font;
   let y = TOP;
   for (const team of state.teams) {
     const members = state.workItems.filter((w) => w.teamId === team.id && c.inWindow.has(w.id));
@@ -619,7 +632,12 @@ function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
           id: w.id,
           teamId: team.id,
           title: w.title,
-          label: trunc(w.title, labelChars - 2 * depth),
+          label: trunc(
+            w.title,
+            narrow
+              ? Math.floor((narrow - NARROW_END - ROW_LABEL_X - depth * INDENT) / narrowChar)
+              : labelChars - 2 * depth,
+          ),
           y: y + level.row / 2,
           done: info.done,
           status: itemStatus(w, c.eventsOf(w.id), view.asOf, c.tz),
@@ -639,7 +657,12 @@ function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
     const index = lanes.length;
     const summary = summaryOf(c, team.name, shown);
     const countRoom = laneNameWidth(` · ${shown.length}`, true);
-    const room = (view.focusButtons ? NAME_ROOM : NAME_ROOM + FOCUS_BUTTON_ROOM) - countRoom;
+    const room =
+      (narrow
+        ? narrow - NARROW_END - LANE_LABEL_X
+        : view.focusButtons
+          ? NAME_ROOM
+          : NAME_ROOM + FOCUS_BUTTON_ROOM) - countRoom;
     lanes.push({
       teamId: team.id,
       name: team.name,
@@ -1275,6 +1298,7 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
   }
   return {
     level,
+    side: view.side ?? SIDE,
     zoom: plot / visible,
     dayWidth: plot / days,
     fitDayWidth: visible / days,
