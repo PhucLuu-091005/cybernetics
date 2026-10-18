@@ -499,6 +499,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await crm.first().focus();
     await page.keyboard.press(' ');
     await expect(drawer).toContainText('CRM integration live');
+    await expect(drawer.locator('.badge')).toHaveText(/^Late by \d+ days$/);
+    await expect(drawer).not.toContainText(/late \d/);
     await page.keyboard.press('Escape');
     await expect(drawer).toHaveCount(0);
 
@@ -1745,7 +1747,8 @@ test.describe('row height and collapsible teams', () => {
 
     await test.step('Cancel work item needs a reason, then the row is grey and not late', async () => {
       await details('PG-203', 'PG-203 Country list field type');
-      await expect(drawer.locator('.wi-top .badge')).toHaveText('Late');
+      await expect(drawer.locator('.wi-top .badge')).toHaveText(/^Late by \d+ days?$/);
+      await expect(drawer).not.toContainText(/late \d/);
       await drawer.getByRole('button', { name: 'Cancel work item' }).click();
       const dialog = page.getByRole('dialog', { name: 'Cancel this work item' });
       await expect(dialog.getByRole('button', { name: 'Cancelled', exact: true })).toHaveAttribute(

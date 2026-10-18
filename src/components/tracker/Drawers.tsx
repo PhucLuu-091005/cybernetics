@@ -20,7 +20,7 @@ import {
   itemStatus,
   KIND_LABEL,
   kindWithArticle,
-  lateBy,
+  lateBadge,
   mainState,
   milestoneStatus,
   replayOps,
@@ -35,6 +35,7 @@ import {
   type DateMove,
   type FocusNode,
   type TrackerState,
+  type WorkItem,
 } from '../../tracker';
 import type { OpInput } from './api';
 import { Avatar, Avatars, type Directory } from './avatar';
@@ -152,13 +153,9 @@ export function MilestoneDrawer({
       head={
         <>
           <h4>{m.name}</h4>
-          <span className={`badge st-${status}`}>{STATUS_LABEL[status]}</span>
-          {status === 'late' && (
-            <small style={{ display: 'inline', color: 'var(--danger-ink)' }}>
-              {' '}
-              {lateBy(m, asOf, tz)}
-            </small>
-          )}
+          <span className={`badge st-${status}`}>
+            {status === 'late' ? lateBadge(m, asOf, tz) : STATUS_LABEL[status]}
+          </span>
         </>
       }
       onClose={onClose}
@@ -329,6 +326,11 @@ function MoveHistory({
   );
 }
 
+const itemDeadlineOf = (item: WorkItem) => ({
+  planned: item.plannedFinish,
+  plannedTime: item.plannedFinishTime,
+});
+
 function Who({ id, dir }: { id: string; dir: Directory }) {
   return (
     <span className="who">
@@ -376,9 +378,6 @@ export function WorkItemDrawer({
   const status = itemStatus(item, state.events, asOf, tz);
   const hint = startHint(item, state.events);
   const late = status === 'late';
-  const lateText = late
-    ? lateBy({ planned: item.plannedFinish, plannedTime: item.plannedFinishTime }, asOf, tz)
-    : null;
   const team = state.teams.find((t) => t.id === item.teamId)?.name ?? '';
   const ms = state.milestones.find((m) => m.id === item.milestoneId);
   const msStat = ms ? milestoneStatus(ms, state.workItems, state.events, asOf, tz).status : null;
@@ -492,8 +491,9 @@ export function WorkItemDrawer({
         </div>
       )}
       <div className="wi-top">
-        <span className={`badge st-${status}`}>{STATUS_LABEL[status]}</span>
-        {lateText && <span className="late-by">{lateText}</span>}
+        <span className={`badge st-${status}`}>
+          {late ? lateBadge(itemDeadlineOf(item), asOf, tz) : STATUS_LABEL[status]}
+        </span>
         <span className="sp" />
         <button
           className="btn sm btn-quiet"
@@ -623,7 +623,6 @@ export function WorkItemDrawer({
                 />
                 <TimeInput value={plan.time} onChange={(time) => setDates({ ...plan, time })} />
               </span>
-              {late && !moved && <span className="late-by">{lateText}</span>}
               {moved && (
                 <div className="wi-why">
                   <label className="field">
@@ -652,10 +651,7 @@ export function WorkItemDrawer({
               )}
             </div>
           ) : (
-            <>
-              {finish}
-              {lateText && ` · ${lateText}`}
-            </>
+            finish
           )}
         </dd>
         <dt>Finished</dt>
