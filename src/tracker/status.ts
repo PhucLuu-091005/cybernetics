@@ -1,4 +1,11 @@
-import type { EventKind, Milestone, Status, TrackerEvent, WorkItem } from './model';
+import {
+  isFinishingHandoff,
+  type EventKind,
+  type Milestone,
+  type Status,
+  type TrackerEvent,
+  type WorkItem,
+} from './model';
 import { itemDeadline, milestoneDeadline } from './deadline';
 import { compareDay, dayOf } from './time';
 
@@ -15,7 +22,7 @@ export type ItemInfo = {
 const time = (instant: string) => Date.parse(instant);
 
 export function finishesItem(e: Pick<TrackerEvent, 'kind' | 'finishes'>): boolean {
-  return e.kind === 'done' || e.kind === 'cancelled' || (e.kind === 'handoff' && !!e.finishes);
+  return e.kind === 'done' || e.kind === 'cancelled' || isFinishingHandoff(e);
 }
 
 const sortedVisible = (item: WorkItem, events: readonly TrackerEvent[]) =>
@@ -93,5 +100,6 @@ const HOUR = 3_600_000;
 export function timeSpent(start: string | null, end: string | null): string | null {
   if (!start || !end) return null;
   const ms = Math.max(0, time(end) - time(start));
-  return `${Math.round(ms / HOUR)} h (${(ms / (24 * HOUR)).toFixed(1)} days)`;
+  const hours = Math.round(ms / HOUR);
+  return hours < 24 ? `${hours} h` : `${hours} h (${(ms / (24 * HOUR)).toFixed(1)} days)`;
 }

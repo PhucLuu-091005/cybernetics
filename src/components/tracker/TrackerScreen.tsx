@@ -461,7 +461,7 @@ export function TrackerScreen({
   const [drag, setDrag] = useState<DragView | null>(null);
   const [preview, setPreview] = useState<DatePreview | null>(null);
   const [moving, setMoving] = useState<{ eventId: string; from: string } | null>(null);
-  const [popFor, setPopFor] = useState<{ kind: 'act' | 'added'; id: string } | null>(null);
+  const [popFor, setPopFor] = useState<{ kind: 'act' | 'added' | 'kind'; id: string } | null>(null);
   const [queueTab, setQueueTab] = useState<QueueTab>('events');
   const root = useRef<HTMLDivElement>(null);
   const gwrap = useRef<HTMLDivElement>(null);
@@ -807,9 +807,9 @@ export function TrackerScreen({
   };
 
   /** Only the editor of a draft changes the graph; every other view has no way to start a change. */
-  const commitOps = (ops: OpInput[], after?: { added?: string }) => {
+  const commitOps = (ops: OpInput[], after?: { added?: string; kindPop?: string }) => {
     if (!ops.length || !cr || !edit) return;
-    setPop(null);
+    if (!after?.kindPop) setPop(null);
     setMoving(null);
     if (!fits(state, ops, tz)) {
       showToast('That change does not fit this graph.');
@@ -819,6 +819,7 @@ export function TrackerScreen({
     openTeams(teamsOfOps(state, ops));
     void appendAll(cr.num, ops).then((p) => {
       if (p && after?.added) setPopFor({ kind: 'added', id: after.added });
+      if (p && after?.kindPop) setPopFor({ kind: 'kind', id: after.kindPop });
     });
   };
 
@@ -1001,7 +1002,9 @@ export function TrackerScreen({
       if (ev?.kind === kind && (finishes === undefined || finishes === !!ev.finishes))
         return setPop(null);
       // A kind change to Handoff leaves it open until the person ticks the box, so no item finishes by surprise.
-      commitOps([{ op: 'kind', a: { eventId, kind, ...(finishes ? { finishes: true } : {}) } }]);
+      commitOps([{ op: 'kind', a: { eventId, kind, ...(finishes ? { finishes: true } : {}) } }], {
+        ...(kind === 'handoff' ? { kindPop: eventId } : {}),
+      });
     },
     moveEvent: (eventId) => {
       const ev = state.events.find((e) => e.id === eventId);

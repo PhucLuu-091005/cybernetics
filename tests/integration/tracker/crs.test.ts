@@ -158,6 +158,37 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       expect(crOf(second, num).revision).toBe(2);
     });
 
+    it('lets a kind change of the same event replace the last one, and drops a change back', async () => {
+      await fresh();
+      const { num } = await createCr(t.db, demo.owner, { ...as('lan'), title: 'Kinds' });
+      const kind = async (a: Record<string, unknown>) => {
+        const revision = crOf(await getTrackerPayload(t.db, demo.owner, as('lan')), num).revision;
+        const p = await appendOp(t.db, demo.owner, {
+          ...as('lan'),
+          num,
+          expectedRevision: revision,
+          op: { op: 'kind', a: { eventId: 'p31', ...a } },
+        } as never);
+        return crOf(p, num).ops;
+      };
+      expect(await kind({ kind: 'handoff' })).toHaveLength(1);
+      const ops = await kind({ kind: 'handoff', finishes: true });
+      expect(ops).toHaveLength(1);
+      expect(ops[0]).toMatchObject({
+        a: { eventId: 'p31', kind: 'handoff', finishes: true },
+        d: { before: 'Task', after: 'Handoff, finishes the work item' },
+      });
+      expect(await kind({ kind: 'task' })).toEqual([]);
+      await appendOp(t.db, demo.owner, {
+        ...as('lan'),
+        num,
+        expectedRevision: crOf(await getTrackerPayload(t.db, demo.owner, as('lan')), num).revision,
+        op: { op: 'rename', a: { workItemId: 'pg203', title: 'PG-203 Country list' } },
+      });
+      expect((await kind({ kind: 'issue' })).map((op) => op.op)).toEqual(['rename', 'kind']);
+      expect((await kind({ kind: 'idea' })).map((op) => op.op)).toEqual(['rename', 'kind']);
+    });
+
     it('rejects an op that does not fit the latest Main plus the change request', async () => {
       await fresh();
       const { num } = await createCr(t.db, demo.owner, { ...as('lan'), title: 'Bad ops' });

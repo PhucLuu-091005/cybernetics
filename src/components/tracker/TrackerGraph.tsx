@@ -1169,7 +1169,13 @@ export function TrackerGraph(props: Props) {
             if (!menuRef.current?.contains(event.relatedTarget as Node | null)) setMenu(null);
           }}
         >
-          <p>{menuMark.wait ? 'Hands over when done to' : 'Handed over to'}</p>
+          <p>
+            {menuMark.cancelled
+              ? 'Cancelled, no longer hands over to'
+              : menuMark.wait
+                ? 'Hands over when done to'
+                : 'Handed over to'}
+          </p>
           {menuMark.targets.map((t) => (
             <button
               key={t.id}

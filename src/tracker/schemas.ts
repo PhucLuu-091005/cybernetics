@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   EVENT_KINDS,
   type DateMove,
+  type EventKind,
   type Milestone,
   type Person,
   type QueueEvent,
@@ -39,6 +40,14 @@ const Why = filled(1000);
 const Note = noNul(z.string().max(2000));
 
 export const EventKindSchema = z.enum(EVENT_KINDS);
+
+/** `finishes: false` and no flag must be one change, or a CR op and its Main twin would clash. */
+export function normaliseFinish<T extends { kind: EventKind; finishes?: boolean }>(
+  value: T,
+): Omit<T, 'finishes'> & { finishes?: boolean } {
+  const { finishes, ...rest } = value;
+  return value.kind === 'handoff' && finishes === true ? { ...rest, finishes: true } : rest;
+}
 
 export const PersonSchema = z.strictObject({ id: Id, name: Title }) satisfies z.ZodType<Person>;
 
@@ -85,25 +94,27 @@ export const WorkItemSchema = z.strictObject({
   since: Instant.nullable(),
 }) satisfies z.ZodType<WorkItem>;
 
-export const TrackerEventSchema = z.strictObject({
-  id: Id,
-  workItemId: Id,
+const eventFields = {
   kind: EventKindSchema,
   at: Instant,
   by: Id,
   text: Body,
   finishes: z.boolean().optional(),
-  addedBy: Id.nullable(),
-  hidden: z.boolean(),
-}) satisfies z.ZodType<TrackerEvent>;
+};
 
-export const QueueEventInputSchema = z.strictObject({
-  kind: EventKindSchema,
-  at: Instant,
-  by: Id,
-  text: Body,
-  finishes: z.boolean().optional(),
-});
+export const TrackerEventSchema = z
+  .strictObject({
+    id: Id,
+    workItemId: Id,
+    ...eventFields,
+    addedBy: Id.nullable(),
+    hidden: z.boolean(),
+  })
+  .transform(normaliseFinish) satisfies z.ZodType<TrackerEvent>;
+
+/** Without the normalising step, for schemas that need its shape; parse with QueueEventInputSchema. */
+export const QueueEventFieldsSchema = z.strictObject(eventFields);
+export const QueueEventInputSchema = QueueEventFieldsSchema.transform(normaliseFinish);
 export type QueueEventInput = z.infer<typeof QueueEventInputSchema>;
 
 export const QueueItemInputSchema = z.strictObject({
@@ -120,11 +131,9 @@ export type QueueItemInput = z.infer<typeof QueueItemInputSchema>;
 
 const queued = { addedBy: Id.nullable(), agent: z.boolean(), createdAt: Instant };
 
-export const QueueEventSchema = z.strictObject({
-  id: Id,
-  ...QueueEventInputSchema.shape,
-  ...queued,
-}) satisfies z.ZodType<QueueEvent>;
+export const QueueEventSchema = z
+  .strictObject({ id: Id, ...eventFields, ...queued })
+  .transform(normaliseFinish) satisfies z.ZodType<QueueEvent>;
 
 export const QueueItemSchema = z.strictObject({
   id: Id,
@@ -168,14 +177,12 @@ export const FromEventArgsSchema = z.strictObject({
   plannedFinish: DateString,
   plannedFinishTime: TimeOfDay.optional(),
 });
-export const NewEventSchema = z.strictObject({ id: Id, ...QueueEventInputSchema.shape });
+export const NewEventSchema = z.strictObject({ id: Id, ...eventFields }).transform(normaliseFinish);
 export const AddEventArgsSchema = z.strictObject({ workItemId: Id, ev: NewEventSchema });
 export const MoveArgsSchema = z.strictObject({ eventId: Id, to: Id });
-export const KindArgsSchema = z.strictObject({
-  eventId: Id,
-  kind: EventKindSchema,
-  finishes: z.boolean().optional(),
-});
+export const KindArgsSchema = z
+  .strictObject({ eventId: Id, kind: EventKindSchema, finishes: z.boolean().optional() })
+  .transform(normaliseFinish);
 export const HideArgsSchema = z.strictObject({ eventId: Id });
 const dateMoveArgs = { date: DateString, why: Why, by: Id, at: Instant };
 export const MsDateArgsSchema = z.strictObject({

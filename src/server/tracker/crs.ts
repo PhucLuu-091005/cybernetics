@@ -186,6 +186,19 @@ function admit(
   });
 }
 
+/**
+ * Picking Handoff and then ticking "This finishes the work item" are one decision, so a kind change
+ * right after a kind change of the same event replaces it, and a change back to the start drops it.
+ */
+function withKindChange(ops: readonly Op[], op: Op, again: (base: readonly Op[]) => Op): Op[] {
+  const last = ops.at(-1);
+  if (op.op !== 'kind' || last?.op !== 'kind' || last.a.eventId !== op.a.eventId)
+    return [...ops, op];
+  const base = ops.slice(0, -1);
+  const merged = again(base);
+  return merged.d && merged.d.before === merged.d.after ? base : [...base, merged];
+}
+
 function requireRevision(cr: CrRow, expected: number) {
   if (cr.revision !== expected)
     throw new AppError('CONFLICT', `#${cr.num} changed since you saw it. Check it and try again.`, {
@@ -271,8 +284,11 @@ export async function appendOp(
     if (cr.ops.length >= MAX_OPS)
       throw new AppError('LIMIT_EXCEEDED', `#${cr.num} already has ${MAX_OPS} changes`);
     const main = await loadMain(tx, scope);
-    const [op] = admit(main, cr.ops, [input.op], me.id, scope.tracker.timeZone);
-    await updateCr(tx, cr, { ops: [...cr.ops, op] });
+    const tz = scope.tracker.timeZone;
+    const [op] = admit(main, cr.ops, [input.op], me.id, tz);
+    await updateCr(tx, cr, {
+      ops: withKindChange(cr.ops, op, (base) => admit(main, base, [input.op], me.id, tz)[0]),
+    });
     return buildPayload(tx, scope);
   });
 }

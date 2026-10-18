@@ -3,8 +3,11 @@ import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } fro
 import {
   formatDeadline,
   formatStamp,
+  FINISHES_NOTE,
+  isFinishingHandoff,
   KIND_LABEL,
   type DateMove,
+  type EventKind,
   type TrackerState,
 } from '../../tracker';
 import type { Directory } from './avatar';
@@ -185,6 +188,7 @@ function ActPop({
           <b>{KIND_LABEL[ev.kind]}</b> by {c.dir.name(ev.by)}
           <small>
             {stamp} · {item?.title}
+            {isFinishingHandoff(ev) && ` · ${FINISHES_NOTE}`}
           </small>
         </>
       }
@@ -307,7 +311,15 @@ function KindPop({
   ...c
 }: Common & { target: PopTarget; container: RefObject<HTMLDivElement | null> }) {
   const ev = c.state.events.find((e) => e.id === target.id);
+  // The pop stays open for a Handoff while the change saves, so it shows the pick at once.
+  const [picked, setPicked] = useState<{ kind: EventKind; finishes: boolean } | null>(null);
   if (!ev) return null;
+  const kind = picked?.kind ?? ev.kind;
+  const finishes = picked?.finishes ?? !!ev.finishes;
+  const pick = (next: EventKind, flag = false) => {
+    setPicked({ kind: next, finishes: flag });
+    c.actions.setKind(ev.id, next, flag);
+  };
   return (
     <PopFrame
       target={target}
@@ -317,12 +329,9 @@ function KindPop({
       head={<b>What kind of event is it?</b>}
       onClose={c.onClose}
     >
-      <KindGrid value={ev.kind} onPick={(kind) => c.actions.setKind(ev.id, kind)} />
-      {ev.kind === 'handoff' && (
-        <FinishesCheck
-          checked={!!ev.finishes}
-          onChange={(finishes) => c.actions.setKind(ev.id, 'handoff', finishes)}
-        />
+      <KindGrid value={kind} onPick={(next) => pick(next)} />
+      {kind === 'handoff' && (
+        <FinishesCheck checked={finishes} onChange={(flag) => pick('handoff', flag)} />
       )}
     </PopFrame>
   );

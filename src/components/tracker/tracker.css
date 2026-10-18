@@ -2687,6 +2687,12 @@ svg.tg .deadline-name {
 }
 
 @media (max-width: 760px) {
+  /* A long handoff line would run off a phone, so the tip wraps there. */
+  .tk .hand-tip {
+    white-space: pre-line;
+    width: max-content;
+    max-width: 260px;
+  }
   .tk.board {
     height: auto;
     min-height: 100vh;
@@ -2987,7 +2993,7 @@ svg.tg .lane-drop.glow {
 }
 .tk .kind-groups {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 .tk .kind-group {
   display: grid;
