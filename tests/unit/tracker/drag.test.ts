@@ -84,6 +84,29 @@ describe('targetAt: the drop target under a point of the graph', () => {
     expect(L.x1).toBe(X1);
   });
 
+  it('finds a Compact or Dense row within its own band only', () => {
+    for (const density of ['compact', 'dense'] as const) {
+      const L = layout({ density });
+      const y = rowY(L, 'b');
+      const half = L.level.row / 2;
+      expect(targetAt(L, { x: X0 + 300, y: y + half - 0.5 })).toEqual({ type: 'loop', id: 'b' });
+      expect(targetAt(L, { x: X0 + 300, y: rowY(L, 'a') + half + 0.5 })).toEqual({
+        type: 'loop',
+        id: 'b',
+      });
+      expect(rowY(L, 'b') - rowY(L, 'a')).toBe(L.level.row);
+    }
+  });
+
+  it('takes the summary row of a collapsed team as that team', () => {
+    const L = layout({ collapsedTeams: new Set(['eng']) });
+    const eng = lane(L, 'eng');
+    expect(targetAt(L, { x: X0 + 300, y: eng.top + eng.head / 2 })).toEqual({
+      type: 'lane',
+      teamId: 'eng',
+    });
+  });
+
   it('falls back to the team band outside a row', () => {
     const L = layout();
     const eng = lane(L, 'eng');

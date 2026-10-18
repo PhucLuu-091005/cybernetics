@@ -36,7 +36,6 @@ const LABEL_UP = 11;
 const LABEL_DOWN = 3;
 const ROW_X0 = 22;
 const ROW_PAST_END = 8;
-const ROW_HALF = 15;
 const HOUR = 3_600_000;
 
 const inBox = (p: Point, b: { x: number; y: number; width: number; height: number }) =>
@@ -58,7 +57,10 @@ export function targetAt(layout: TrackerLayout, p: Point): DropTarget | null {
   const drop = layout.laneDrops.find((d) => inBox(p, d));
   if (drop) return { type: 'lane', teamId: drop.teamId };
   const row = layout.rows.find(
-    (r) => p.x >= ROW_X0 && p.x <= layout.x1 + ROW_PAST_END && Math.abs(p.y - r.y) <= ROW_HALF,
+    (r) =>
+      p.x >= ROW_X0 &&
+      p.x <= layout.x1 + ROW_PAST_END &&
+      Math.abs(p.y - r.y) <= layout.level.row / 2,
   );
   if (row) return { type: 'loop', id: row.id };
   const lane = layout.lanes.find((l) => p.y >= l.top && p.y < l.bottom);

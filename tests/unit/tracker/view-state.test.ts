@@ -4,8 +4,14 @@ import {
   EMPTY_VIEW,
   hiddenList,
   keepFocus,
+  densityKey,
+  readDensity,
   readNoticeOff,
+  readTeamOpen,
   readViewState,
+  teamOpenKey,
+  writeDensity,
+  writeTeamOpen,
   revealRows,
   toggleId,
   viewKey,
@@ -154,5 +160,62 @@ describe('tracker view state', () => {
     expect(keepFocus('a', { hiddenRows: [], hiddenTeams: ['t1'] }, teamOf)).toBeNull();
     expect(keepFocus('a', { hiddenRows: ['b'], hiddenTeams: ['t2'] }, teamOf)).toBe('a');
     expect(keepFocus(null, { hiddenRows: ['a'], hiddenTeams: [] }, teamOf)).toBeNull();
+  });
+});
+
+describe('row height and team toggles', () => {
+  it('reads Compact when nothing is stored, and round-trips each level per person', () => {
+    const store = memoryStore();
+    expect(readDensity(store, 'u1')).toBe('compact');
+    writeDensity(store, 'u1', 'dense');
+    writeDensity(store, 'u2', 'comfortable');
+    expect(readDensity(store, 'u1')).toBe('dense');
+    expect(readDensity(store, 'u2')).toBe('comfortable');
+    expect(densityKey('u1')).not.toBe(densityKey('u2'));
+  });
+
+  it('reads Compact from an unknown value or a missing or throwing store', () => {
+    const store = memoryStore();
+    store.setItem(densityKey('u1'), 'tiny');
+    expect(readDensity(store, 'u1')).toBe('compact');
+    expect(readDensity(null, 'u1')).toBe('compact');
+    expect(readDensity(throwing, 'u1')).toBe('compact');
+    expect(() => writeDensity(throwing, 'u1', 'dense')).not.toThrow();
+  });
+
+  it('round-trips the open and collapsed teams of one project', () => {
+    const store = memoryStore();
+    writeTeamOpen(
+      store,
+      'p1',
+      new Map([
+        ['it', false],
+        ['implementation', true],
+      ]),
+    );
+    expect(readTeamOpen(store, 'p1')).toEqual(
+      new Map([
+        ['implementation', true],
+        ['it', false],
+      ]),
+    );
+    expect(readTeamOpen(store, 'p2').size).toBe(0);
+    expect(teamOpenKey('p1')).not.toBe(teamOpenKey('p2'));
+  });
+
+  it.each([
+    ['text that is not JSON', 'nope'],
+    ['a wrong version', JSON.stringify({ v: 2, open: [], closed: [] })],
+    ['a wrong shape', JSON.stringify({ v: 1, open: 'it', closed: [] })],
+  ])('reads no toggles from %s', (_label, raw) => {
+    const store = memoryStore();
+    store.setItem(teamOpenKey('p1'), raw);
+    expect(readTeamOpen(store, 'p1').size).toBe(0);
+  });
+
+  it('survives a missing or throwing store for the team toggles', () => {
+    expect(readTeamOpen(null, 'p1').size).toBe(0);
+    expect(readTeamOpen(throwing, 'p1').size).toBe(0);
+    expect(() => writeTeamOpen(throwing, 'p1', new Map([['it', true]]))).not.toThrow();
   });
 });
