@@ -2,12 +2,11 @@
 import { can, type RowFilter, type TrackerState } from '../../tracker';
 import { AccountMenu, type Account } from '../shell/AccountMenu';
 import type { Session } from './ContextBar';
-import { HiddenMenu, type HiddenMenuProps } from './HiddenMenu';
 import { Icon } from './icons';
 import { WorkSearch } from './Search';
 import type { DrawerMode, TrackerActions } from './TrackerScreen';
 
-type Props = HiddenMenuProps & {
+type Props = {
   session: Session;
   /** The signed-in person, for the menu when they act as no member. */
   account: Account;
@@ -42,12 +41,6 @@ export function TopBar(props: Props) {
         filter={props.filter}
         onFilter={props.onFilter}
         onPick={onPick}
-      />
-      <HiddenMenu
-        hidden={props.hidden}
-        onUnhideTeam={props.onUnhideTeam}
-        onUnhideItem={props.onUnhideItem}
-        onUnhideAll={props.onUnhideAll}
       />
       <button
         className="btn hist-btn"

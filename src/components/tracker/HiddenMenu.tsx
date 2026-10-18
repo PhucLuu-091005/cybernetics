@@ -10,7 +10,8 @@ export type HiddenMenuProps = {
   onUnhideAll: () => void;
 };
 
-const FOCUSABLE = 'input, button, select, a[href], summary, [tabindex="0"]';
+const FOCUSABLE =
+  'input:not(:disabled), button:not(:disabled), select:not(:disabled), a[href], summary, [tabindex="0"]';
 
 /** The menu goes away with the last hidden entry, so the focus moves to a control next to it. */
 function neighbour(details: HTMLElement): HTMLElement | null {
@@ -21,7 +22,7 @@ function neighbour(details: HTMLElement): HTMLElement | null {
       if (target) return target;
     }
   }
-  return null;
+  return details.closest('.bbar')?.querySelector<HTMLElement>('.gpick > summary') ?? null;
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;

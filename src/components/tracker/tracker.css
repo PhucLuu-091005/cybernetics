@@ -51,6 +51,22 @@
     --k-cancelled: #b0b4ba;
   }
 }
+/* The tint under an event circle and its icon, and the stronger tint of the circles behind a stack.
+   Light keeps 12 % so the darkest kind icon still reads at 4.5:1 on it; dark stays calm. */
+:root {
+  --k-tint: 12%;
+  --k-tint-back: 26%;
+}
+:root[data-theme='dark'] {
+  --k-tint: 16%;
+  --k-tint-back: 30%;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --k-tint: 16%;
+    --k-tint-back: 30%;
+  }
+}
 
 .tk {
   position: relative;
@@ -503,6 +519,10 @@
 .tk .bbar .sp {
   flex: 1;
 }
+/* On a wrapped phone bar the badge keeps the right end of its line. */
+.tk .bbar > .hid-menu {
+  margin-left: auto;
+}
 .tk .bbar .muted {
   font-size: var(--fs-s);
 }
@@ -768,6 +788,7 @@
   min-width: 900px;
 }
 .tk .gtime {
+  position: relative;
   flex: 1 1 0;
   min-width: 0;
   overflow-x: auto;
@@ -777,6 +798,38 @@
   display: block;
   flex: none;
   height: auto;
+}
+/* The counts of a team sit in the empty lane of its summary row and stay at the left edge of the
+   visible time line while it scrolls sideways. */
+.tk .lane-counts {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 0;
+  pointer-events: none;
+}
+.tk .lane-count {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+}
+.tk .lane-count > span {
+  position: sticky;
+  left: calc(8px + var(--lane-shift, 0px));
+  margin-left: 8px;
+  font-size: var(--fs-xs);
+  line-height: 1;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.tk .lane-count .late {
+  color: var(--danger-ink);
+  font-weight: 600;
+}
+.tk .lane-count .done {
+  color: var(--proceed-ink);
 }
 /* Sticky in a band of its own below the graph, so at the end of the scroll it covers no row. */
 .tk .zoombar {
@@ -824,6 +877,11 @@
 .tk .zoombar .view-btn:hover {
   background: var(--hover);
   color: var(--ink);
+}
+/* A mouse click leaves no ring on the view and zoom buttons; the keyboard keeps it. */
+:root .tk .zoombar button:focus:not(:focus-visible),
+:root .tk .zoombar .view-btn[data-quiet]:focus-visible {
+  outline: none;
 }
 .tk .zoombar > button:disabled {
   opacity: 0.35;
@@ -1442,9 +1500,12 @@ svg.tg .sum-hit {
 svg.tg .sum-hit:hover {
   fill: var(--hover);
 }
-:root .tk svg.tg .sum-hit:focus-visible {
+/* Chrome rings a focused SVG button with a thick rounded outline even after a mouse click. */
+:root .tk svg.tg .sum-hit:focus {
   outline: none;
-  stroke: var(--focus);
+}
+:root .tk svg.tg .sum-hit:focus-visible {
+  stroke: var(--ink-3);
   stroke-width: 1px;
   vector-effect: non-scaling-stroke;
 }
@@ -1456,27 +1517,8 @@ svg.tg .sum-count {
   font-weight: 500;
   letter-spacing: 0;
 }
-svg.tg .sum-counts {
-  font-size: 10.5px;
-  fill: var(--ink-3);
-  pointer-events: none;
-}
-svg.tg .sum-counts .late {
-  fill: var(--danger-ink);
-  font-weight: 600;
-}
-svg.tg .sum-counts .done {
-  fill: var(--proceed-ink);
-}
 svg.tg .sum-chev {
   color: var(--ink-3);
-  pointer-events: none;
-}
-svg.tg .sum-bar {
-  fill: color-mix(in srgb, var(--ink-3) 22%, var(--panel));
-  pointer-events: none;
-}
-svg.tg .sum-tick {
   pointer-events: none;
 }
 svg.tg .row-label {
@@ -1597,10 +1639,11 @@ svg.tg .act {
   cursor: pointer;
 }
 svg.tg .act .bg {
-  fill: var(--panel);
+  fill: color-mix(in srgb, var(--kc) var(--k-tint), var(--panel));
   stroke-width: 2;
 }
 svg.tg .act .layer {
+  fill: color-mix(in srgb, var(--kc) var(--k-tint-back), var(--panel));
   stroke-width: 1.5;
 }
 svg.tg .act .act-hit,
@@ -1704,10 +1747,11 @@ svg.tg .hand-count {
   stroke-linejoin: round;
   pointer-events: none;
 }
+/* A thicker ring, not a darker tint, so the icon keeps 4.5:1 on its tint. */
 svg.tg .hand-act:hover .bg,
 svg.tg .hand-act:focus .bg,
 svg.tg .hand-act.open .bg {
-  fill: var(--gray-bg);
+  stroke-width: 3;
 }
 .tk .hand-menu {
   position: absolute;
@@ -2760,6 +2804,7 @@ svg.tg .deadline-name {
   }
   /* The badge can sit anywhere on a wrapped bar, so its popup spans the bar instead. */
   .tk .p-head,
+  .tk .bbar,
   .tk .pr-gtools {
     position: relative;
   }
