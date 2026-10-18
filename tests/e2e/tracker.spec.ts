@@ -1716,6 +1716,12 @@ test.describe('row height and collapsible teams', () => {
       await expect(hint).toHaveCount(0);
       await drawer.getByRole('button', { name: 'Add an event' }).click();
       const dialog = page.getByRole('dialog', { name: 'Add an event' });
+      await expect(dialog.getByLabel('Who').locator('option:checked')).toHaveText('Minh Trần');
+      await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+      await expect(dialog.getByLabel('Who').locator('option:checked')).toHaveText('Hà Đỗ');
+      await dialog.getByLabel('Who').selectOption({ label: 'Lan Phạm' });
+      await dialog.getByRole('button', { name: 'Message', exact: true }).click();
+      await expect(dialog.getByLabel('Who').locator('option:checked')).toHaveText('Lan Phạm');
       const group = (name: string) => dialog.getByRole('group', { name, exact: true });
       await expect(group('Start').getByRole('button')).toHaveText(['Idea', 'Message', 'Issue']);
       await expect(group('Progress').getByRole('button')).toHaveText([
@@ -1749,8 +1755,14 @@ test.describe('row height and collapsible teams', () => {
       await details('PG-203', 'PG-203 Country list field type');
       await expect(drawer.locator('.wi-top .badge')).toHaveText(/^Late by \d+ days?$/);
       await expect(drawer).not.toContainText(/late \d/);
+      await drawer.getByRole('button', { name: 'Mark done' }).click();
+      const done = page.getByRole('dialog', { name: 'Add an event' });
+      await expect(done.getByLabel('Who').locator('option:checked')).toHaveText('Quang Nguyễn');
+      await done.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await expect(done).toHaveCount(0);
       await drawer.getByRole('button', { name: 'Cancel work item' }).click();
       const dialog = page.getByRole('dialog', { name: 'Cancel this work item' });
+      await expect(dialog.getByLabel('Who').locator('option:checked')).toHaveText('Quang Nguyễn');
       await expect(dialog.getByRole('button', { name: 'Cancelled', exact: true })).toHaveAttribute(
         'aria-pressed',
         'true',

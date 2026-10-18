@@ -5,6 +5,7 @@ import {
   KIND_LABEL,
   kindText,
   kindWithArticle,
+  whoDid,
   STATUS_LABEL,
   type Milestone,
   type TrackerEvent,
@@ -74,6 +75,14 @@ describe('event kinds', () => {
     expect(kindWithArticle('meeting')).toBe('a Meeting');
     expect(kindWithArticle('handoff')).toBe('a Handoff');
     expect(kindWithArticle('done')).toBe('a Done');
+  });
+
+  it('picks the Done by person for a Done or a Cancelled, and the Requested by person else', () => {
+    const item = { doneBy: 'ha', requestedBy: 'sarah' };
+    expect(whoDid(item, 'done')).toBe('ha');
+    expect(whoDid(item, 'cancelled')).toBe('ha');
+    expect(whoDid(item, 'message')).toBe('sarah');
+    expect(whoDid(item, 'idea')).toBe('sarah');
   });
 
   it('has a Cancelled status with a neutral tone', () => {
