@@ -1820,6 +1820,28 @@ describe('layoutTracker: row height', () => {
     }
   });
 
+  it.each(LEVELS)('keeps a %s waiting text off the + button of an editable view', (density) => {
+    const state = buildState({
+      teams: [{ id: 'team', name: 'Team', leadId: null }],
+      workItems: [
+        workItem({ id: 'above', plannedFinish: '2026-10-20' }),
+        workItem({ id: 'placed', since: AS_OF, plannedFinish: '2026-10-20' }),
+      ],
+    });
+    const waitOf = (L: TrackerLayout) =>
+      L.segments.find(
+        (x): x is Extract<LayoutSegment, { kind: 'wait' }> =>
+          x.kind === 'wait' && x.workItemId === 'placed',
+      )!;
+    const plain = waitOf(layoutTracker(state, view({ density })));
+    expect(plain.textX).toBe(plain.x1 + 8);
+    const L = layoutTracker(state, view({ density, plusButtons: true }));
+    const wait = waitOf(L);
+    const plus = L.tLine.x + 20;
+    expect(wait.textX).toBeGreaterThan(plus + L.level.plus);
+    expect(wait.textX + wait.text.length * 5.6).toBeLessThanOrEqual(L.width);
+  });
+
   it('puts a Dense milestone name only where the row has no line', () => {
     const L = layoutTracker(larkspurState(), view({ density: 'dense', zoom: 4 }));
     const named = L.deadlines.filter((d) => d.label);
