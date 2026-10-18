@@ -2718,6 +2718,7 @@ svg.tg .deadline-name {
   }
   /* The badge can sit anywhere on a wrapped bar, so its popup spans the bar instead. */
   .tk .p-head,
+  .tk .bbar,
   .tk .pr-gtools {
     position: relative;
   }

@@ -1329,15 +1329,9 @@ export function TrackerScreen({
         userId={userId}
         state={state}
         asOf={asOf}
-        hidden={hiddenNow}
         drawer={drawer?.mode ?? null}
         actions={actions}
         onDrawer={(mode) => mode !== 'ms' && mode !== 'item' && toggleDrawer(mode)}
-        onUnhideTeam={(id) =>
-          changeHidden({ ...hidden, hiddenTeams: hidden.hiddenTeams.filter((t) => t !== id) })
-        }
-        onUnhideItem={(id) => reveal([id])}
-        onUnhideAll={() => changeHidden(EMPTY_VIEW)}
         onActAs={(id) => void onActAs(id)}
         onPick={pickItem}
         filter={rowFilter}
@@ -1350,6 +1344,13 @@ export function TrackerScreen({
         busy={busy}
         onView={openView}
         onDrawer={toggleDrawer}
+        hidden={{
+          hidden: hiddenNow,
+          onUnhideTeam: (id) =>
+            changeHidden({ ...hidden, hiddenTeams: hidden.hiddenTeams.filter((t) => t !== id) }),
+          onUnhideItem: (id) => reveal([id]),
+          onUnhideAll: () => changeHidden(EMPTY_VIEW),
+        }}
         {...(model
           ? {
               review: {
