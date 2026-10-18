@@ -802,7 +802,9 @@
   border-radius: var(--r-ctl);
   background: var(--sunk);
   font: 12px/1.55 var(--f-id);
-  overflow: auto;
+  /* A hidden scroll bar made the service address look cut; Copy config copies the unwrapped JSON. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 @media (max-width: 1100px) {
   .tk .pg-trow {
