@@ -421,12 +421,16 @@ test('a missing change request, No projects yet and the error page each have one
   await expect(page.getByRole('heading', { name: 'No projects yet' })).toBeVisible();
   await expect(main).toHaveCount(1);
 
-  // 300 reads a minute is the limit of one person, so the next page shows the error page.
-  await page.evaluate(async () => {
-    for (let i = 0; i < 300; i++) await fetch('/api/v1/projects');
-  });
-  await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
+  // 300 reads a minute is the limit of one person; the limit counts in clock minutes, so a burst
+  // that crosses a minute starts again.
+  const again = page.getByRole('button', { name: 'Try again' });
+  for (let attempt = 0; attempt < 3 && !(await again.isVisible()); attempt++) {
+    await page.evaluate(async () => {
+      for (let i = 0; i < 700; i++) if ((await fetch('/api/v1/projects')).status === 429) return;
+    });
+    await page.goto('/');
+  }
+  await expect(again).toBeVisible();
   await expect(main).toHaveCount(1);
 });
 
