@@ -67,6 +67,7 @@ const setup = (
     cwd: process.cwd(),
     env: {
       PATH: `${dir}:${dirname(process.execPath)}:/usr/bin:/bin`,
+      NODE_ENV: 'production',
       FAKE_DIR: dir,
       ...flags,
       ...values,
