@@ -284,13 +284,6 @@
   font-weight: 500;
   white-space: nowrap;
 }
-.tk .gdot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex: none;
-  background: var(--ink);
-}
 .tk .gmenu {
   position: absolute;
   top: calc(100% + 6px);
@@ -317,6 +310,10 @@
   text-align: left;
   font-size: var(--fs);
   line-height: 1.4;
+}
+.tk .gmenu button > svg {
+  flex: none;
+  color: var(--ink-3);
 }
 .tk .gmenu button:hover {
   background: var(--hover);
