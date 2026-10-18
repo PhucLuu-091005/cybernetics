@@ -26,11 +26,11 @@ export interface HttpIdentityStore {
   getTokenByHash(hash: string): Promise<StoredToken | null>;
   /** Atomically enforce unique(userId, projectId, idempotencyKey); duplicates throw CONFLICT. */
   insertToken(token: StoredToken): Promise<void>;
-  /** Newest first; never exposes hashes or creation keys. */
+  /** Newest first; never exposes hashes or creation keys. A null projectId lists the personal keys. */
   listTokens(input: {
     userId: string;
     workspaceId: string;
-    projectId: string;
+    projectId: string | null;
     offset: number;
     limit: number;
   }): Promise<AgentToken[]>;
@@ -39,7 +39,7 @@ export interface HttpIdentityStore {
   revokeToken(input: {
     userId: string;
     workspaceId: string;
-    projectId: string;
+    projectId: string | null;
     tokenId: string;
     revokedAt: string;
     idempotencyKey: string;

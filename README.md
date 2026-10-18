@@ -4,7 +4,9 @@ Promise Graph is an event tracker for a whole project. Each team has rows of wor
 
 Main is read-only. People and their agents add events and work items to a Queue. A person places them in a change request, and a person with the Merge right merges it into Main. The app never calls an AI model and holds no provider key.
 
-To put the app online, follow [docs/deploy-cloud-run-neon.md](docs/deploy-cloud-run-neon.md) (Google Cloud Run and Neon).
+To put the app online, follow [docs/deploy-cloud-run-neon.md](docs/deploy-cloud-run-neon.md) (Google Cloud Run and Neon). The hosted app opens with no login: each visitor gets their own copy of the demo project (`AUTH_MODE=demo`).
+
+After the first deploy, each pushed `v*` tag deploys itself through GitHub Actions: see [Deploy from a tag](docs/deploy-cloud-run-neon.md#deploy-from-a-tag).
 
 ![The Larkspur demo project on Main: teams, work items, events, milestones and the legend](docs/screenshots/tracker-main.png)
 
@@ -15,8 +17,9 @@ To put the app online, follow [docs/deploy-cloud-run-neon.md](docs/deploy-cloud-
 - **History.** Every merge into Main, and the cancelled change requests with their reasons.
 - **Members.** The people of the project, their teams and their grants. The project lead edits them.
 - **Settings.** The project facts and the agent tokens.
+- **Profile.** Your photo and your personal keys for every project (account menu, **Profile**).
 
-Your first sign-in creates a private sandbox: the fictional Larkspur Capital project with 7 teams, a Queue and 4 change requests ([fixtures/README.md](fixtures/README.md)). The **Demo** select at the top right changes who you work as. The full behaviour is in the [spec](docs/superpowers/specs/2026-10-16-event-tracker-design.md).
+Your first visit (or your first sign-in in `local` and `google` modes) creates a private sandbox: the fictional Larkspur Capital project with 7 teams, a Queue and 4 change requests ([fixtures/README.md](fixtures/README.md)). The **Demo** select at the top right changes who you work as. The full behaviour is in the [spec](docs/superpowers/specs/2026-10-16-event-tracker-design.md).
 
 ## Run it locally
 
@@ -64,7 +67,7 @@ The admin URL for the local database is `postgresql://promise_graph:local-develo
 
 ## Connect an agent
 
-Your agent (for example Claude Code) connects to `/mcp` with a project token. It can do what you can do, inside the permissions of the token.
+Your agent (for example Claude Code) connects to `/mcp` with a key. A project token (Settings) works in one project; a personal key (Profile) works in every project you belong to. The agent acts as you, inside the permissions of the key.
 
 1. In a project, open **Settings** and create a token. Tick the permissions it needs. Copy the secret: the app shows it once.
 2. Add the server to your MCP client:

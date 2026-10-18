@@ -1,3 +1,4 @@
+import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   GetProjectInputSchema,
@@ -7,9 +8,10 @@ import {
   type Scope,
 } from '../../contracts';
 import { OpSchema } from '../../tracker';
-import type { Db } from '../db/tx';
-import { getProject } from '../domain/projects';
-import { invalidInput } from '../errors';
+import { projects } from '../db/schema';
+import { projectOpenTo, type Db } from '../db/tx';
+import { getProject, listProjects } from '../domain/projects';
+import { AppError, invalidInput } from '../errors';
 import {
   AddQueueEventInputSchema,
   AddQueueItemInputSchema,
@@ -50,38 +52,82 @@ import { requireScope } from '../http/scopes';
 type Shape = Record<string, z.ZodType>;
 export type McpTool = {
   name: string;
-  scope: Scope;
+  /** Null for list_projects, which only names the projects a personal key can reach. */
+  scope: Scope | null;
   description: string;
   readOnly: boolean;
   input: z.ZodObject<Shape>;
+  personalInput: z.ZodObject<Shape>;
+  personalOnly: boolean;
   run(db: Db, ctx: ActorContext, args: Record<string, unknown>): Promise<object>;
 };
+
+export const isPersonal = (ctx: ActorContext) => ctx.kind === 'agent' && ctx.key === 'personal';
+
+/** The same project rule as a project key, checked at each call, so a removal stops the key at once. */
+async function bindProject(db: Db, ctx: ActorContext, projectId: string): Promise<ActorContext> {
+  const [row] = await db
+    .select({ workspaceId: projects.workspaceId })
+    .from(projects)
+    .where(and(eq(projects.id, projectId), projectOpenTo(ctx.userId)))
+    .limit(1);
+  if (!row) throw new AppError('NOT_FOUND', 'Project not found');
+  return { ...ctx, projectId, workspaceId: row.workspaceId };
+}
 
 type Input = Record<string, unknown> & { projectId: string | null };
 type Run = (db: Db, ctx: ActorContext, input: Input) => Promise<object>;
 
 /**
- * The token fixes the project and its person, so the tool schema drops projectId and actAs, and a
- * smuggled one fails strict parsing instead of being overridden.
+ * A project key fixes the project and its person, so its tool schema drops projectId and actAs, and
+ * a smuggled one fails strict parsing instead of being overridden. A personal key fixes the person
+ * only, so its schema requires projectId and still refuses actAs.
  */
 function tool(name: string, scope: Scope, shape: Shape, description: string, run: Run): McpTool {
-  const kept = Object.entries(shape).filter(([key]) => key !== 'projectId' && key !== 'actAs');
-  const input = z.strictObject(Object.fromEntries(kept));
+  const kept = Object.fromEntries(
+    Object.entries(shape).filter(([key]) => key !== 'projectId' && key !== 'actAs'),
+  );
+  const input = z.strictObject(kept);
+  const personalInput = z.strictObject({ projectId: IdSchema, ...kept });
   return {
     name,
     scope,
     description: `${description} Scope: ${scope}.`,
     readOnly: /^(get|list)_/.test(name),
     input,
+    personalInput,
+    personalOnly: false,
     async run(db, ctx, args) {
       requireScope(ctx, scope);
-      const parsed = input.safeParse(args);
+      const personal = isPersonal(ctx);
+      const parsed = (personal ? personalInput : input).safeParse(args);
       if (!parsed.success) throw invalidInput(`Invalid ${name} arguments`, parsed.error);
       // The raw arguments go on, because every use case validates its full input again with Zod.
-      return run(db, ctx, { ...args, projectId: ctx.projectId });
+      if (!personal) return run(db, ctx, { ...args, projectId: ctx.projectId });
+      const bound = await bindProject(db, ctx, parsed.data.projectId as string);
+      const result = await run(db, bound, { ...args, projectId: bound.projectId });
+      return { projectId: bound.projectId, ...result };
     },
   };
 }
+
+const listProjectsTool: McpTool = {
+  name: 'list_projects',
+  scope: null,
+  description:
+    'List the projects your person belongs to, with id and name. Every other tool takes one of these ids as projectId. A project your person joins later shows here too. Scope: none, personal keys only.',
+  readOnly: true,
+  input: z.strictObject({}),
+  personalInput: z.strictObject({}),
+  personalOnly: true,
+  async run(db, ctx, args) {
+    if (!isPersonal(ctx)) throw new AppError('NOT_FOUND', 'Unknown tool list_projects');
+    const parsed = z.strictObject({}).safeParse(args);
+    if (!parsed.success) throw invalidInput('Invalid list_projects arguments', parsed.error);
+    const rows = await listProjects(db, ctx);
+    return { projects: rows.map((project) => ({ id: project.id, name: project.title })) };
+  },
+};
 
 // The use cases type their input exactly; each one validates it again, so the cast loses nothing.
 const typed = <I>(input: Input) => input as unknown as I;
@@ -130,6 +176,7 @@ const OPS = [
 ].join(' ');
 
 export const MCP_TOOLS: readonly McpTool[] = [
+  listProjectsTool,
   tool(
     'get_project',
     'project:read',
@@ -176,7 +223,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     'add_queue_event',
     'queue:add',
     AddQueueEventInputSchema.shape,
-    `Add an event to the Queue: kind (idea, message, issue, task, meeting, decision, delivery, handoff, done or cancelled), at as ISO 8601 with offset, by, text, optional finishes. Done, Cancelled and a Handoff with finishes true finish the work item; Cancelled needs the reason as its text. Main does not change until a person places it through a change request. ${PEOPLE} Example: {"kind":"issue","at":"2026-10-09T16:30+07:00","by":"sarah","text":"Sync gap"}.`,
+    `Add an event to the Queue: kind (idea, message, issue, task, meeting, decision, delivery, handoff, done or cancelled), at as ISO 8601 with offset, by (optional; your person when you leave it out), text, optional finishes. Done, Cancelled and a Handoff with finishes true finish the work item; Cancelled needs the reason as its text. Main does not change until a person places it through a change request. ${PEOPLE} Example: {"kind":"issue","at":"2026-10-09T16:30+07:00","by":"sarah","text":"Sync gap"}.`,
     (db, ctx, input) => addQueueEvent(db, ctx, typed(input)),
   ),
   tool(

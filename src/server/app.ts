@@ -4,15 +4,18 @@ import { createDatabase } from './db/client';
 import { DbIdentityStore, type UserCreatedHook } from './db/identity-store';
 import type { Db } from './db/tx';
 import type { HttpIdentityStore } from './http/identity-store';
-import type { BrowserSession } from './http/actors';
+import type { BrowserSession, LimitBucket } from './http/actors';
 import {
   configureHttpIdentityStore,
+  createPersonalKey,
   createToken,
   getBrowserActor,
   getBrowserProjectActor,
   getBrowserSession,
   getTokenActor,
+  listPersonalKeys,
   listTokens,
+  revokePersonalKey,
   revokeToken,
 } from './http/runtime';
 export type App = { db: Db; identity: HttpIdentityStore; pool: Pool };
@@ -47,9 +50,9 @@ export function resetApp(): void {
   delete state.promiseApp;
 }
 // Routes and adapters resolve actors here so the database identity store is installed before runtime.ts reads it.
-export function browserActor(request: Request): Promise<ActorContext> {
+export function browserActor(request: Request, bucket?: LimitBucket): Promise<ActorContext> {
   getApp();
-  return getBrowserActor(request);
+  return getBrowserActor(request, bucket);
 }
 export function browserSession(request: Request): Promise<BrowserSession> {
   getApp();
@@ -83,4 +86,22 @@ export function listAgentTokens(
 ): ReturnType<typeof listTokens> {
   getApp();
   return listTokens(...args);
+}
+export function createUserKey(
+  ...args: Parameters<typeof createPersonalKey>
+): ReturnType<typeof createPersonalKey> {
+  getApp();
+  return createPersonalKey(...args);
+}
+export function revokeUserKey(
+  ...args: Parameters<typeof revokePersonalKey>
+): ReturnType<typeof revokePersonalKey> {
+  getApp();
+  return revokePersonalKey(...args);
+}
+export function listUserKeys(
+  ...args: Parameters<typeof listPersonalKeys>
+): ReturnType<typeof listPersonalKeys> {
+  getApp();
+  return listPersonalKeys(...args);
 }

@@ -25,6 +25,7 @@ export const TrackerInputSchema = z.strictObject({ projectId: IdSchema });
 export const AddQueueEventInputSchema = z.strictObject({
   projectId: IdSchema,
   ...QueueEventFieldsSchema.shape,
+  by: QueueEventFieldsSchema.shape.by.optional(),
 });
 export const AddQueueItemInputSchema = z.strictObject({
   projectId: IdSchema,
@@ -285,6 +286,7 @@ export async function getChangeRequest(
         op: op.op,
         by: who(op.by),
         agent: op.agent === true,
+        viaKey: op.via ?? null,
         description: op.d ?? null,
       })),
       resolutions: cr.resolutions,
@@ -299,6 +301,7 @@ export async function getChangeRequest(
         body: comment.body,
         opIndex: comment.opIndex,
         agent: comment.agent,
+        viaKey: comment.viaKey,
         createdAt: comment.createdAt,
       })),
     },

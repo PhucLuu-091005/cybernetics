@@ -6,6 +6,7 @@ import { browserProjectActor, browserSession } from '../app';
 import { readAuthEnvironment } from '../env';
 import { AppError } from '../errors';
 import { projectInPath } from './actors';
+import { demoEntryPath } from './demo';
 import { RETURN_PATH_HEADER, returnPath, signinPath } from './return-path';
 
 export const RATE_LIMITED_DIGEST = 'RATE_LIMITED';
@@ -50,8 +51,8 @@ export async function optionalActor(path: string): Promise<ActorContext | null> 
 export async function requireActor(path: string): Promise<ActorContext> {
   const actor = await optionalActor(path);
   if (!actor) {
-    const asked = (await headers()).get(RETURN_PATH_HEADER);
-    redirect(signinPath(returnPath(asked ?? path)));
+    const next = returnPath((await headers()).get(RETURN_PATH_HEADER) ?? path);
+    redirect(readAuthEnvironment().mode === 'demo' ? demoEntryPath(next) : signinPath(next));
   }
   return actor;
 }

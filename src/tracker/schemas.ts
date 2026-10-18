@@ -228,8 +228,10 @@ const opOf = <N extends string, A extends z.ZodType>(op: N, a: A) =>
     a,
     rev: z.number().int().nonnegative(),
     by: Id,
-    /** An agent added it for `by`. */
+    /** An agent added it for `by`; audit only, the app shows `by` as the author. */
     agent: z.literal(true).optional(),
+    /** The label of the key, shown as a small detail in History. */
+    via: z.string().min(1).max(200).optional(),
     d: OpDescriptionSchema.optional(),
   });
 

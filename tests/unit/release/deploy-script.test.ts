@@ -10,12 +10,16 @@ const VALUES = {
   GCP_PROJECT_ID: 'promise-graph-demo',
   NEXT_PUBLIC_APP_URL: URL_,
   SESSION_SECRET: 'session-secret-value-0123456789abcdef',
-  GOOGLE_CLIENT_ID: '1234-abc.apps.googleusercontent.com',
-  GOOGLE_CLIENT_SECRET: 'google-client-secret-value',
   DATABASE_URL:
     'postgresql://neondb_owner:pooled-password@ep-quiet-lake-a1-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=verify-full',
   MIGRATE_DATABASE_URL:
     'postgresql://neondb_owner:direct-password@ep-quiet-lake-a1.ap-southeast-1.aws.neon.tech/neondb?sslmode=verify-full',
+};
+const GOOGLE = {
+  ...VALUES,
+  AUTH_MODE: 'google',
+  GOOGLE_CLIENT_ID: '1234-abc.apps.googleusercontent.com',
+  GOOGLE_CLIENT_SECRET: 'google-client-secret-value',
 };
 const SECRETS = [
   'session-secret-value',
@@ -34,6 +38,9 @@ esac
 case "$*" in
   "secrets describe "*) [ "$FAKE_SECRETS_EXIST" = 1 ] || exit 1 ;;
   "iam service-accounts describe "*) [ "$FAKE_ACCOUNT_EXISTS" = 1 ] || exit 1 ;;
+  "storage buckets describe "*) [ "$FAKE_BUCKET_EXISTS" = 1 ] || exit 1
+    good='{"uniform_bucket_level_access": true, "public_access_prevention": "enforced"}'
+    printf '%s' "\${FAKE_BUCKET_JSON:-$good}" ;;
   "secrets versions list "*) [ "$FAKE_LIST_FAIL" = 1 ] && exit 1; printf '3\\n2\\n1\\n' ;;
   "run deploy "*) [ "$FAKE_DEPLOY_FAIL" = 1 ] && exit 1 ;;
   "run services describe "*) cat "$FAKE_DIR/service.json" ;;
@@ -95,7 +102,18 @@ describe('scripts/deploy-cloud-run.sh', () => {
     expect(run.status).toBe(2);
     for (const name of Object.keys(VALUES).filter((n) => n !== 'GCP_PROJECT_ID'))
       expect(run.stderr).toContain(name);
+    expect(run.stderr).not.toContain('GOOGLE_CLIENT');
     expect(run.calls.trim()).toBe('');
+  });
+
+  it('asks for the Google client only for AUTH_MODE=google, and refuses local mode', () => {
+    const google = deploy({ ...VALUES, AUTH_MODE: 'google' });
+    expect(google.status).toBe(2);
+    expect(google.stderr).toContain('GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET');
+    const local = deploy({ ...VALUES, AUTH_MODE: 'local' });
+    expect(local.status).toBe(2);
+    expect(local.stderr).toContain('AUTH_MODE must be demo or google');
+    expect(google.calls.trim() + local.calls.trim()).toBe('');
   });
 
   it('refuses a plain http origin, a short session secret, a direct app URL and a pooled migration URL', () => {
@@ -118,7 +136,7 @@ describe('scripts/deploy-cloud-run.sh', () => {
     expect(run.calls.trim()).toBe('');
   });
 
-  it('creates a runtime account that reads only the four secrets, stores them through stdin and deploys asia-southeast1 with one instance at most', () => {
+  it('creates a runtime account that reads only the three secrets and the photo bucket, stores the secrets through stdin and deploys demo mode in asia-southeast1 with one instance at most', () => {
     const run = deploy(VALUES);
     expect(run.stderr).toBe('');
     expect(run.status).toBe(0);
@@ -130,11 +148,9 @@ describe('scripts/deploy-cloud-run.sh', () => {
     expect(run.stdin('secrets create promise-graph-migrate-database-url ')).toBe(
       VALUES.MIGRATE_DATABASE_URL,
     );
-    expect(run.stdin('secrets create promise-graph-google-client-secret ')).toBe(
-      VALUES.GOOGLE_CLIENT_SECRET,
-    );
-    const grants = run.lines.filter((c) => c.includes('add-iam-policy-binding'));
-    expect(grants).toHaveLength(4);
+    expect(run.calls).not.toContain('google-client');
+    const grants = run.lines.filter((c) => c.startsWith('secrets add-iam-policy-binding'));
+    expect(grants).toHaveLength(3);
     for (const grant of grants)
       expect(grant).toContain(
         `--member serviceAccount:${ACCOUNT} --role roles/secretmanager.secretAccessor`,
@@ -147,18 +163,110 @@ describe('scripts/deploy-cloud-run.sh', () => {
       '--min-instances 0 --max-instances 1',
       '--memory 512Mi',
       'httpGet.path=/api/health',
-      `AUTH_MODE=google,NEXT_PUBLIC_APP_URL=${URL_},GOOGLE_CLIENT_ID=${VALUES.GOOGLE_CLIENT_ID}`,
-      'SESSION_SECRET=promise-graph-session-secret:latest',
-      'GOOGLE_CLIENT_SECRET=promise-graph-google-client-secret:latest',
-      'DATABASE_URL=promise-graph-database-url:latest',
+      `--set-env-vars AUTH_MODE=demo,NEXT_PUBLIC_APP_URL=${URL_},AVATAR_STORE=gcs,AVATAR_BUCKET=promise-graph-avatars `,
+      'SESSION_SECRET=promise-graph-session-secret:latest,DATABASE_URL=promise-graph-database-url:latest',
       'MIGRATE_DATABASE_URL=promise-graph-migrate-database-url:latest',
+      'AVATAR_STORE=gcs,AVATAR_BUCKET=promise-graph-avatars',
     ])
       expect(deployCall).toContain(part);
     for (const secret of SECRETS) {
       expect(run.calls).not.toContain(secret);
       expect(run.stdout + run.stderr).not.toContain(secret);
     }
+    expect(run.stdout).toContain(`Open the app: ${URL_}`);
+    expect(run.stdout).not.toContain('OAuth');
+  });
+
+  it('with AUTH_MODE=google stores the Google client secret too and prints the OAuth redirect URI', () => {
+    const run = deploy(GOOGLE);
+    expect(run.stderr).toBe('');
+    expect(run.status).toBe(0);
+    expect(run.stdin('secrets create promise-graph-google-client-secret ')).toBe(
+      GOOGLE.GOOGLE_CLIENT_SECRET,
+    );
+    expect(run.lines.filter((c) => c.startsWith('secrets add-iam-policy-binding'))).toHaveLength(4);
+    expect(
+      run.at('storage buckets add-iam-policy-binding gs://promise-graph-avatars'),
+    ).toBeGreaterThan(-1);
+    const deployCall = run.lines[run.at('run deploy')];
+    expect(deployCall).toContain(
+      `AUTH_MODE=google,NEXT_PUBLIC_APP_URL=${URL_},AVATAR_STORE=gcs,AVATAR_BUCKET=promise-graph-avatars,GOOGLE_CLIENT_ID=${GOOGLE.GOOGLE_CLIENT_ID}`,
+    );
+    expect(deployCall).toContain('GOOGLE_CLIENT_SECRET=promise-graph-google-client-secret:latest');
+    expect(run.calls).not.toContain('google-client-secret-value');
     expect(run.stdout).toContain(`${URL_}/api/auth/google/callback`);
+  });
+
+  it('enables Cloud Storage, creates a missing photo bucket in us-central1 locked to the runtime account, and grants it objects of that bucket only', () => {
+    const run = deploy(VALUES);
+    expect(run.status).toBe(0);
+    expect(
+      run.at('services enable storage.googleapis.com --project promise-graph-demo'),
+    ).toBeGreaterThan(-1);
+    const create = run.lines[run.at('storage buckets create')];
+    for (const part of [
+      'storage buckets create gs://promise-graph-avatars --project promise-graph-demo',
+      '--location us-central1',
+      '--default-storage-class STANDARD',
+      '--uniform-bucket-level-access',
+      '--public-access-prevention',
+      '--soft-delete-duration 0',
+    ])
+      expect(create).toContain(part);
+    expect(
+      run.lines.filter((c) => c.includes('add-iam-policy-binding') && c.includes('storage')),
+    ).toEqual([
+      `storage buckets add-iam-policy-binding gs://promise-graph-avatars --project promise-graph-demo --member serviceAccount:${ACCOUNT} --role roles/storage.objectUser --quiet`,
+    ]);
+    expect(run.calls).not.toContain('projects add-iam-policy-binding');
+    expect(run.calls).not.toMatch(/allUsers|allAuthenticatedUsers/);
+    expect(run.at('storage buckets add-iam-policy-binding')).toBeLessThan(run.at('run deploy'));
+    expect(run.stdout).toContain('Created bucket gs://promise-graph-avatars in us-central1');
+  });
+
+  it('keeps an existing photo bucket as it is, and takes another bucket name from AVATAR_BUCKET', () => {
+    const kept = deploy(VALUES, { flags: { FAKE_BUCKET_EXISTS: '1' } });
+    expect(kept.status).toBe(0);
+    expect(kept.calls).not.toContain('storage buckets create');
+    expect(kept.stdout).toContain('Kept bucket gs://promise-graph-avatars');
+    expect(
+      kept.at('storage buckets add-iam-policy-binding gs://promise-graph-avatars'),
+    ).toBeGreaterThan(-1);
+    const other = deploy({ ...VALUES, AVATAR_BUCKET: 'acme-photos' });
+    expect(other.status).toBe(0);
+    expect(other.lines[other.at('run deploy')]).toContain('AVATAR_BUCKET=acme-photos');
+    expect(other.at('storage buckets create gs://acme-photos ')).toBeGreaterThan(-1);
+  });
+
+  it('stops before the deploy when an existing bucket lacks uniform access or public access prevention', () => {
+    for (const json of [
+      '{"uniform_bucket_level_access": false, "public_access_prevention": "enforced"}',
+      '{"uniform_bucket_level_access": true, "public_access_prevention": "inherited"}',
+      '{}',
+    ]) {
+      const run = deploy(VALUES, { flags: { FAKE_BUCKET_EXISTS: '1', FAKE_BUCKET_JSON: json } });
+      expect(run.status).toBe(5);
+      expect(run.stderr).toContain('gs://promise-graph-avatars');
+      expect(run.calls).not.toContain('run deploy');
+      expect(run.calls).not.toContain('storage buckets add-iam-policy-binding');
+    }
+    const lax = deploy(VALUES, {
+      flags: {
+        FAKE_BUCKET_EXISTS: '1',
+        FAKE_BUCKET_JSON:
+          '{"uniform_bucket_level_access": false, "public_access_prevention": "inherited"}',
+      },
+    });
+    expect(lax.stderr).toContain('uniform bucket-level access is off');
+    expect(lax.stderr).toContain('public access prevention is not enforced');
+    expect(lax.stderr).toContain('--uniform-bucket-level-access --public-access-prevention');
+  });
+
+  it('refuses a bucket name that Cloud Storage would refuse, before any gcloud call', () => {
+    const run = deploy({ ...VALUES, AVATAR_BUCKET: 'Photos_Of_Us' });
+    expect(run.status).toBe(2);
+    expect(run.stderr).toContain('AVATAR_BUCKET');
+    expect(run.calls.trim()).toBe('');
   });
 
   it('keeps stored secrets and an existing account on a second run', () => {
@@ -179,13 +287,8 @@ describe('scripts/deploy-cloud-run.sh', () => {
       VALUES.SESSION_SECRET,
     );
     const destroyed = run.lines.filter((c) => c.startsWith('secrets versions destroy'));
-    expect(destroyed).toHaveLength(8);
-    for (const name of [
-      'session-secret',
-      'google-client-secret',
-      'database-url',
-      'migrate-database-url',
-    ])
+    expect(destroyed).toHaveLength(6);
+    for (const name of ['session-secret', 'database-url', 'migrate-database-url'])
       for (const version of ['2', '1'])
         expect(destroyed).toContain(
           `secrets versions destroy ${version} --secret promise-graph-${name} --project promise-graph-demo --quiet`,
@@ -214,7 +317,7 @@ describe('scripts/deploy-cloud-run.sh', () => {
 
   it('accepts NEXT_PUBLIC_APP_URL when it is one of the service URLs, though not the status URL', () => {
     const legacy = 'https://promise-graph-abc123-as.a.run.app';
-    const run = deploy(VALUES, { service: { statusUrl: legacy, urls: [URL_, legacy] } });
+    const run = deploy(GOOGLE, { service: { statusUrl: legacy, urls: [URL_, legacy] } });
     expect(run.status).toBe(0);
     expect(run.stdout).toContain(`${URL_}/api/auth/google/callback`);
   });

@@ -45,6 +45,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('DbIdentityStore', () => {
     overrides: Partial<StoredToken> & Pick<StoredToken, 'userId' | 'projectId' | 'workspaceId'>,
   ): StoredToken => ({
     id: randomUUID(),
+    kind: 'project',
     prefix: 'inv_abcd',
     scopes: ['project:read', 'queue:add'],
     createdAt: '2026-10-13T10:00:00.000Z',
@@ -189,6 +190,41 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('DbIdentityStore', () => {
         revokedAt: '2026-10-16T00:00:00.000Z',
       }),
     ).toBeNull();
+  });
+  it('keeps personal keys apart from project keys and refuses a key of mixed kind', async () => {
+    const owner = await testActor(t.db);
+    const project = await createProject(t.db, owner, { title: 'K', clientName: 'C' });
+    const mine = { userId: owner.userId, workspaceId: owner.workspaceId };
+    const key = token({ ...mine, kind: 'personal', projectId: null, idempotencyKey: 'same' });
+    await store.insertToken(key);
+    await store.insertToken(token({ ...mine, projectId: project.id, idempotencyKey: 'same' }));
+    await expect(
+      store.insertToken(
+        token({ ...mine, kind: 'personal', projectId: null, idempotencyKey: 'same' }),
+      ),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+    await expect(
+      store.insertToken(token({ ...mine, kind: 'personal', projectId: project.id })),
+    ).rejects.toThrow();
+    await expect(store.insertToken(token({ ...mine, projectId: null }))).rejects.toThrow();
+    const list = (projectId: string | null) =>
+      store.listTokens({ ...mine, projectId, offset: 0, limit: 10 });
+    expect((await list(null)).map((row) => row.id)).toEqual([key.id]);
+    expect((await list(project.id)).map((row) => row.kind)).toEqual(['project']);
+    expect(await store.getTokenByHash(key.hash)).toMatchObject({
+      kind: 'personal',
+      projectId: null,
+    });
+    const revoke = (projectId: string | null) =>
+      store.revokeToken({
+        ...mine,
+        projectId,
+        tokenId: key.id,
+        revokedAt: '2026-10-14T00:00:00.000Z',
+        idempotencyKey: 'r',
+      });
+    expect(await revoke(project.id)).toBeNull();
+    expect(await revoke(null)).toBe('2026-10-14T00:00:00.000Z');
   });
   it('touchToken sets lastUsedAt and listTokens returns it', async () => {
     const owner = await testActor(t.db);

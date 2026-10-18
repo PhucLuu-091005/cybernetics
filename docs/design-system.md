@@ -213,7 +213,6 @@ One definition: `.btn`, `.btn-ink`, `.btn.sm`, `.btn.big` and `.btn-block` live 
 - `.fchip`: filter chips in the filter panel. Idle: 1px `--rule` border, `--ink-2`. Checked: `--gray-bg`, `--ink` border and text, weight 600. Status chips start with an 8px status dot.
 - `.hid-pill`: the "N hidden" badge at the right end of the context bar, 28px, `--gray-bg`. Hover or open: `--rule` fill.
 - `.nbadge`: the app icon badge on the Change requests button: an 18px pill in `--danger` with white 10.5px weight 600 text and a 2px `--panel` ring, at the top right corner of the button. It counts the Ready change requests and is absent at 0. It is the only solid red count in the app.
-- `.bot`: the Agent chip on a Queue card, on `--route-bg`.
 
 ### 8.3 Inputs
 
@@ -278,6 +277,7 @@ The rail is flat: `--sunk` fill and a 1px `--rule` right border. Items (`.rail-i
 - `src/components/members/members.css`. The page is full width: no narrow column. Each table is rows on one CSS grid template, a `--rule` line under the column heads (`--fs-xs`, `--ink-3`) and `--rule-2` hairlines between rows; no card.
 - People: avatar 28px, name weight 600, email and role label in `--fs-xs` `--ink-3`, `.chipx` for Project lead / You / Invited, teams with a small upper-case "LEAD" in `--ink-3`, four centred `Checkbox` boxes, row actions as `.btn.sm` (Remove is `.btn-danger`). A box that a rule holds is disabled and its tooltip says why.
 - Below 1180px the row actions go under the person; at a phone width each row stacks (person, teams, the four boxes in two columns with their names, actions), and the team rows show Lead and People captions.
+- Avatars (`.av`, `.acct-av`): a photo (`.ph-img`, `object-fit: cover`) fills the same round box as the initials it replaces, at the same size (28, 22 or 20 px), so a photo never moves the layout; without a photo, or when it fails to load, the initials show on the member colour. The Profile face (`.pf-face`) is 96 px: the photo, or the 28 px avatar drawn at 96 px in an SVG, so the initials keep the avatar type scale.
 - The New project dialog lists its teams the same way: rows with hairlines and an `×` icon button (26px, `--ink-3`, hover `--hover`), then an input with Add.
 
 ## 9. Graph marks

@@ -30,14 +30,6 @@ const activate = (run: () => void) => (event: KeyboardEvent) => {
   run();
 };
 
-function AgentChip() {
-  return (
-    <span className="bot">
-      <Icon name="bot" size={11} /> Agent
-    </span>
-  );
-}
-
 function Empty({ text }: { text: string }) {
   return (
     <div className="qempty">
@@ -109,7 +101,7 @@ export function QueuePanel({ state, dir, tz, tab, onTab: setTab, onAdd, onEvent,
                 <div className="qt">{e.text}</div>
                 <div className="qf">
                   <Avatar id={e.by} dir={dir} sm /> <span className="who">{dir.name(e.by)}</span> ·{' '}
-                  {formatStamp(e.at, tz)} {e.agent && <AgentChip />}
+                  {formatStamp(e.at, tz)}
                 </div>
               </div>
             ))
@@ -151,8 +143,7 @@ export function QueuePanel({ state, dir, tz, tab, onTab: setTab, onAdd, onEvent,
                       · <Icon name="diamond" size={10} /> {milestone(it.milestoneId)}
                     </>
                   )}
-                  {it.after && <> · after {trunc(workItem(it.after), 18)}</>}{' '}
-                  {it.agent && <AgentChip />}
+                  {it.after && <> · after {trunc(workItem(it.after), 18)}</>}
                 </div>
               </div>
             ))
