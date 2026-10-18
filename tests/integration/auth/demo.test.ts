@@ -4,6 +4,7 @@ import { GET, HEAD, POST } from '../../../src/app/api/auth/demo/route';
 import { configureApp, resetApp } from '../../../src/server/app';
 import { projects, users, workspaceMembers } from '../../../src/server/db/schema';
 import { LARKSPUR_PROJECT } from '../../../src/server/tracker/seed/larkspur';
+import { SESSION_COOKIE, signSession } from '../../../src/server/http/session';
 import { createTestDatabase, type TestDb } from '../../support/db';
 
 const origin = 'https://pg.example';
@@ -11,17 +12,32 @@ const BROWSER =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36';
 const limiterState = globalThis as typeof globalThis & { promiseRateLimiter?: unknown };
 
-type Visit = { next?: string; cookie?: string; ua?: string; accept?: string; ip?: string };
-const headersOf = ({ cookie, ua = BROWSER, accept = 'text/html,*/*;q=0.8', ip }: Visit) => ({
+type Visit = {
+  next?: string;
+  cookie?: string;
+  ua?: string;
+  accept?: string;
+  forwarded?: string;
+  check?: boolean;
+};
+const SECRET = 'demo-mode-test-secret-of-32-bytes!!!';
+// Cloud Run appends the real client address last; anything before it came from the client.
+const headersOf = ({ cookie, ua = BROWSER, accept = 'text/html,*/*;q=0.8', forwarded }: Visit) => ({
   host: 'pg.example',
   'user-agent': ua,
   accept,
   ...(cookie ? { cookie } : {}),
-  ...(ip ? { 'x-forwarded-for': `${ip}, 10.0.0.1` } : {}),
+  ...(forwarded ? { 'x-forwarded-for': forwarded } : {}),
 });
-const url = (next?: string) =>
-  `${origin}/api/auth/demo${next ? `?next=${encodeURIComponent(next)}` : ''}`;
-const visit = (v: Visit = {}) => GET(new Request(url(v.next), { headers: headersOf(v) }));
+const url = (next?: string, check = false) => {
+  const query = new URLSearchParams({
+    ...(check ? { check: '1' } : {}),
+    ...(next ? { next } : {}),
+  });
+  return `${origin}/api/auth/demo${query.size ? `?${query}` : ''}`;
+};
+const visit = (v: Visit = {}) => GET(new Request(url(v.next, v.check), { headers: headersOf(v) }));
+const CHECK = '/api/auth/demo?check=1';
 const cookieOf = (response: Response) => response.headers.get('set-cookie')?.split(';')[0] ?? '';
 
 describe.skipIf(!process.env.TEST_DATABASE_URL)('demo mode: every visitor gets a sandbox', () => {
@@ -50,7 +66,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('demo mode: every visitor gets a
     t = await createTestDatabase();
     vi.stubEnv('AUTH_MODE', 'demo');
     vi.stubEnv('NEXT_PUBLIC_APP_URL', origin);
-    vi.stubEnv('SESSION_SECRET', 'demo-mode-test-secret-of-32-bytes!!!');
+    vi.stubEnv('SESSION_SECRET', SECRET);
     configureApp({ db: t.db });
   });
   beforeEach(() => {
@@ -62,10 +78,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('demo mode: every visitor gets a
     await t?.close();
   });
 
-  it('a first visit makes a person, a Larkspur sandbox and a 30-day cookie, and lands on the page', async () => {
-    const response = await visit({ next: '/projects/x/graph?view=1' });
+  it('a first visit makes a person, a Larkspur sandbox and a 30-day cookie, then checks the cookie', async () => {
+    const response = await visit({ next: '/changes-help?x=1' });
     expect(response.status).toBe(303);
-    expect(response.headers.get('location')).toBe('/projects/x/graph?view=1');
+    expect(response.headers.get('location')).toBe(`${CHECK}&next=%2Fchanges-help%3Fx%3D1`);
     expect(response.headers.get('cache-control')).toBe('private, no-store');
     const set = response.headers.get('set-cookie')!;
     expect(set).toMatch(
@@ -75,11 +91,44 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('demo mode: every visitor gets a
     expect(sandbox.subject).toMatch(/^demo:[0-9a-f-]{36}$/);
     expect(sandbox.name).toBe('Demo visitor');
     expect(sandbox.projectId).toBeTruthy();
+    const checked = await visit({
+      check: true,
+      next: '/changes-help?x=1',
+      cookie: cookieOf(response),
+    });
+    expect(checked.headers.get('location')).toBe('/changes-help?x=1');
+    expect(checked.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('a check with no cookie shows the cookies page and makes nothing, so a dropped cookie cannot loop', async () => {
+    const before = await demoUsers();
+    const checked = await visit({ check: true, next: '/projects/x/graph' });
+    expect(checked.status).toBe(303);
+    expect(checked.headers.get('location')).toBe('/welcome?reason=cookies');
+    expect(checked.headers.get('set-cookie')).toBeNull();
+    expect(await demoUsers()).toBe(before);
+  });
+
+  it("a new visitor with a link to someone's project gets their own graph, not a 404", async () => {
+    const response = await visit({ next: '/projects/0b6f8f5e-6a43-4d2c-9a57-1d2c3e4f5a6b/graph' });
+    expect(response.headers.get('location')).toBe(CHECK);
+    expect(response.headers.get('set-cookie')).toBeTruthy();
+  });
+
+  it('a cookie of a deleted person gets a fresh sandbox', async () => {
+    const ghost = signSession(
+      { userId: '5c0e5a52-8e43-4b8a-9d3f-6f6b7d1c2a10', expiresAt: Date.now() + 60_000 },
+      SECRET,
+    );
+    const response = await visit({ cookie: `${SESSION_COOKIE}=${ghost}` });
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe(CHECK);
+    expect((await sandboxOf(cookieOf(response))).projectId).toBeTruthy();
   });
 
   it('opens the home page when the asked page is missing or foreign', async () => {
     for (const next of [undefined, '//evil.example/x', 'https://evil.example'])
-      expect((await visit({ next })).headers.get('location')).toBe('/');
+      expect((await visit({ next })).headers.get('location')).toBe(CHECK);
   });
 
   it('a second visit with the cookie reuses the sandbox and makes nothing', async () => {
@@ -112,7 +161,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('demo mode: every visitor gets a
       );
     const fresh = await post(origin);
     expect(fresh.status).toBe(303);
-    expect(fresh.headers.get('location')).toBe('/');
+    expect(fresh.headers.get('location')).toBe(CHECK);
     const [old, now] = [await sandboxOf(first), await sandboxOf(cookieOf(fresh))];
     expect(now.userId).not.toBe(old.userId);
     expect(now.projectId).not.toBe(old.projectId);
@@ -120,6 +169,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('demo mode: every visitor gets a
     for (const from of ['https://evil.example', null]) {
       const refused = await post(from);
       expect(refused.status).toBe(403);
+      expect(refused.headers.get('content-type')).toMatch(/^text\/html/);
+      expect(await refused.text()).toContain('Start over did not work');
       expect(refused.headers.get('set-cookie')).toBeNull();
     }
     expect(await demoUsers()).toBe(before);
@@ -156,19 +207,39 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('demo mode: every visitor gets a
       }),
     );
     expect(prefetch.headers.get('location')).toBe('/welcome');
+    const speculation = await GET(
+      new Request(url(), { headers: { ...headersOf({}), 'sec-purpose': 'prefetch;prerender' } }),
+    );
+    expect(speculation.headers.get('location')).toBe('/welcome');
     expect(await demoUsers()).toBe(before);
   });
 
-  it('limits new sandboxes to 20 an hour for one address, with a plain page past it', async () => {
+  it('limits new sandboxes to 20 an hour for the address that Cloud Run appends, whatever the client sends first', async () => {
     for (let i = 0; i < 20; i++)
-      expect((await visit({ ip: '203.0.113.9' })).headers.get('set-cookie')).toBeTruthy();
+      expect(
+        (await visit({ forwarded: `198.51.100.${i}, 203.0.113.9` })).headers.get('set-cookie'),
+      ).toBeTruthy();
     const before = await demoUsers();
-    const refused = await visit({ ip: '203.0.113.9' });
+    const refused = await visit({ forwarded: '192.0.2.77, 203.0.113.9' });
     expect(refused.status).toBe(303);
     expect(refused.headers.get('location')).toBe('/welcome?reason=busy');
     expect(refused.headers.get('set-cookie')).toBeNull();
     expect(await demoUsers()).toBe(before);
-    expect((await visit({ ip: '198.51.100.4' })).headers.get('set-cookie')).toBeTruthy();
+    expect(
+      (await visit({ forwarded: '203.0.113.9, 198.51.100.4' })).headers.get('set-cookie'),
+    ).toBeTruthy();
+  }, 60_000);
+
+  it('with TRUSTED_PROXY_HOPS=1 takes the address one hop before the end', async () => {
+    vi.stubEnv('TRUSTED_PROXY_HOPS', '1');
+    try {
+      for (let i = 0; i < 20; i++) await visit({ forwarded: `203.0.113.10, 10.0.0.${i}` });
+      expect((await visit({ forwarded: '203.0.113.10, 10.0.0.99' })).headers.get('location')).toBe(
+        '/welcome?reason=busy',
+      );
+    } finally {
+      vi.stubEnv('TRUSTED_PROXY_HOPS', '');
+    }
   }, 60_000);
 
   it('answers 404 outside demo mode', async () => {

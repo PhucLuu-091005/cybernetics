@@ -11,13 +11,32 @@ export const metadata: Metadata = {
   openGraph: { title: 'Promise Graph: a live demo', description: DESCRIPTION, type: 'website' },
 };
 
-/** Link previews, crawlers and a busy network land here; the page reads and writes nothing. */
+const REFUSED: Record<string, { title: string; text: string; retry: boolean }> = {
+  busy: {
+    title: 'Too many new demo copies',
+    text: 'Your network opened many new demo copies in the last hour. Try again later.',
+    retry: false,
+  },
+  full: {
+    title: 'Too many new demo copies',
+    text: 'The demo made many new copies in the last hour. Try again later.',
+    retry: false,
+  },
+  cookies: {
+    title: 'This browser did not keep the cookie',
+    text: 'The demo keeps your copy with one cookie. Allow cookies for this site, or open the link in a tab of its own, not inside another page. Then open the demo again.',
+    retry: true,
+  },
+};
+
+/** Link previews, crawlers and refused visits land here; the page reads and writes nothing. */
 export default async function WelcomePage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const busy = (await searchParams).reason === 'busy';
+  const reason = (await searchParams).reason;
+  const refused = typeof reason === 'string' ? REFUSED[reason] : undefined;
   return (
     <main className="signin" id="content" tabIndex={-1}>
       <div>
@@ -34,26 +53,30 @@ export default async function WelcomePage({
         <Hero />
       </div>
       <div className="card pad stack" style={{ maxWidth: 380 }}>
-        {busy ? (
+        {refused ? (
           <>
-            <h2>Too many new demo copies</h2>
+            <h2>{refused.title}</h2>
             <p className="muted small" role="alert">
-              Your network opened many new demo copies in the last hour. Try again later.
+              {refused.text}
             </p>
           </>
         ) : (
+          <h2>Live demo</h2>
+        )}
+        {(!refused || refused.retry) && (
           <>
-            <h2>Live demo</h2>
             {/* A Link would prefetch the app, and that prefetch alone would make a sandbox. */}
             {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a className="btn big btn-block" href="/" rel="nofollow">
               Open the demo
             </a>
-            <p className="muted small">
-              No sign-in. Opening the demo makes your own copy of the Larkspur Capital project with
-              its teams, work items and change requests. Nobody else sees your changes.
-            </p>
           </>
+        )}
+        {!refused && (
+          <p className="muted small">
+            No sign-in. Opening the demo makes your own copy of the Larkspur Capital project with
+            its teams, work items and change requests. Nobody else sees your changes.
+          </p>
         )}
         <hr style={{ border: 0, borderTop: '1px solid var(--rule-2)', width: '100%' }} />
         <p className="faint xsmall">
