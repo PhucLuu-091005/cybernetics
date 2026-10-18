@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  addMonths,
   dayOf,
   formatDayYear,
+  formatMonth,
+  monthGrid,
   parseDayText,
+  parseTimeText,
   startOfDayInstant,
+  timeSteps,
   wallTimeInstant,
 } from '../../../src/tracker/time';
 
@@ -93,5 +98,67 @@ describe('formatDayYear and parseDayText: the app date format in a text box', ()
     ])
       expect(parseDayText(text, 2026)).toBeNull();
     expect(parseDayText('29 Feb 2028', 2026)).toBe('2028-02-29');
+  });
+});
+
+describe('parseTimeText: the app time format (24 hours, "14:30") in a text box', () => {
+  it('reads hours and minutes with or without a colon', () => {
+    expect(parseTimeText('14:30')).toBe('14:30');
+    expect(parseTimeText('1430')).toBe('14:30');
+    expect(parseTimeText(' 930 ')).toBe('09:30');
+    expect(parseTimeText('09:05')).toBe('09:05');
+    expect(parseTimeText('0:00')).toBe('00:00');
+    expect(parseTimeText('23:59')).toBe('23:59');
+    expect(parseTimeText('14.30')).toBe('14:30');
+  });
+
+  it('reads a lone hour as the full hour and one minute digit as that minute', () => {
+    expect(parseTimeText('9')).toBe('09:00');
+    expect(parseTimeText('17')).toBe('17:00');
+    expect(parseTimeText('9:5')).toBe('09:05');
+    expect(parseTimeText('9:')).toBe('09:00');
+  });
+
+  it('refuses text that is not a time of the day', () => {
+    for (const text of ['', ' ', '24:00', '25', '9:60', '12345', 'noon', '2pm', '-1', '1:2:3'])
+      expect(parseTimeText(text)).toBeNull();
+  });
+});
+
+describe('timeSteps: the times in the list of a time box', () => {
+  it('lists a whole day in 30-minute steps', () => {
+    const steps = timeSteps();
+    expect(steps).toHaveLength(48);
+    expect(steps.slice(0, 3)).toEqual(['00:00', '00:30', '01:00']);
+    expect(steps.at(-1)).toBe('23:30');
+  });
+});
+
+describe('the calendar of a date box', () => {
+  it('names the month of a day in full', () => {
+    expect(formatMonth('2026-10-06')).toBe('October 2026');
+    expect(formatMonth('2027-09-30')).toBe('September 2027');
+  });
+
+  it('moves by months and keeps the day inside the shorter month', () => {
+    expect(addMonths('2026-10-06', 1)).toBe('2026-11-06');
+    expect(addMonths('2026-01-31', 1)).toBe('2026-02-28');
+    expect(addMonths('2028-03-31', -1)).toBe('2028-02-29');
+    expect(addMonths('2026-12-15', 1)).toBe('2027-01-15');
+    expect(addMonths('2026-01-15', -1)).toBe('2025-12-15');
+  });
+
+  it('lays out 6 weeks from Monday that hold the whole month', () => {
+    const weeks = monthGrid('2026-10-06');
+    expect(weeks).toHaveLength(6);
+    for (const week of weeks) expect(week).toHaveLength(7);
+    expect(weeks[0][0]).toBe('2026-09-28');
+    expect(weeks[0][3]).toBe('2026-10-01');
+    expect(weeks.flat()).toContain('2026-10-31');
+    expect(weeks[5][6]).toBe('2026-11-08');
+  });
+
+  it('starts on the 1st when the month starts on a Monday', () => {
+    expect(monthGrid('2026-06-20')[0][0]).toBe('2026-06-01');
   });
 });

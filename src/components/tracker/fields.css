@@ -1,0 +1,200 @@
+/* The app's own date and time boxes (DateInput, TimeInput, DateTimeInput) and their popovers. */
+.date-in,
+.time-in,
+.dt-in {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.date-in input[type='text'],
+.time-in input[type='text'] {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+.date-in input[type='text'] {
+  padding-right: 32px;
+}
+/* Beats the hover and focus borders of the drawer and modal fields, so a bad value stays marked. */
+.date-in input[type='text'][aria-invalid='true'],
+.time-in input[type='text'][aria-invalid='true'],
+.date-in input[type='text'][aria-invalid='true']:is(:hover, :focus-visible),
+.time-in input[type='text'][aria-invalid='true']:is(:hover, :focus-visible) {
+  border-color: var(--danger);
+}
+.date-in input[type='text'][aria-invalid='true']:focus-visible,
+.time-in input[type='text'][aria-invalid='true']:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
+}
+.date-in input::placeholder,
+.time-in input::placeholder {
+  color: var(--ink-3);
+}
+.date-in > .fp-ib {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.dt-in {
+  gap: 6px;
+}
+.dt-in .date-in {
+  flex: 1 1 auto;
+}
+.dt-in .time-in {
+  flex: 0 0 5.5em;
+}
+
+.fp-ib {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.fp-ib:hover,
+.fp-ib[aria-expanded='true'] {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.field-pop {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-pop);
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  font: 400 var(--fs-s) / 1.4 var(--f-ui);
+  letter-spacing: normal;
+  text-transform: none;
+  overflow: visible;
+}
+
+.cal-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: -2px 0 6px 6px;
+}
+.cal-head b {
+  flex: 1;
+  font-weight: 600;
+}
+.cal-prev svg {
+  display: block;
+  transform: rotate(90deg);
+}
+.cal-next svg {
+  display: block;
+  transform: rotate(-90deg);
+}
+.cal-grid {
+  border-collapse: collapse;
+}
+.cal-grid th {
+  width: 32px;
+  height: 24px;
+  padding: 0;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.cal-grid td {
+  padding: 1px 0;
+}
+.cal-grid button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.cal-grid button:hover {
+  background: var(--hover);
+}
+.cal-grid button.out {
+  color: var(--ink-3);
+}
+.cal-grid button.today {
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+.cal-grid button.on {
+  background: var(--ink);
+  color: var(--panel);
+  font-weight: 600;
+  box-shadow: none;
+}
+.cal-grid button:focus-visible,
+.fp-ib:focus-visible,
+.fp-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+}
+.fp-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule-2);
+}
+.fp-btn {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-ctl);
+  background: var(--panel);
+  color: var(--ink);
+  font: 500 var(--fs-xs) / 1 var(--f-ui);
+  cursor: pointer;
+}
+.fp-btn:hover {
+  background: var(--sunk);
+}
+
+.time-pop {
+  padding: 4px;
+}
+.time-pop ul {
+  min-width: 96px;
+  max-height: 232px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  overscroll-behavior: contain;
+}
+.time-pop li {
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.time-pop li:hover,
+.time-pop li.act {
+  background: var(--hover);
+}
+.time-pop li[aria-selected='true'] {
+  background: var(--gray-bg);
+  font-weight: 600;
+}

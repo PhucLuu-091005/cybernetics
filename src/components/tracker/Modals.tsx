@@ -30,6 +30,8 @@ import { Avatar } from './avatar';
 import { mergerNames, trunc, type Session } from './ContextBar';
 import { Icon, KindIcon } from './icons';
 import { newTeamOp } from './team';
+import { DateInput } from './DateInput';
+import { DateTimeInput } from './DateTimeInput';
 import { TimeInput } from './TimeInput';
 
 export type ModalState =
@@ -251,18 +253,6 @@ function ItemSelect({
   );
 }
 
-// An empty value means the person cleared the field; the last date stays, so every op gets a date.
-function DateInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <input
-      type="date"
-      required
-      value={value}
-      onChange={(event) => event.target.value && onChange(event.target.value)}
-    />
-  );
-}
-
 const personOr = (state: TrackerState, id: string | null | undefined) =>
   id && state.people.some((p) => p.id === id) ? id : (state.people[0]?.id ?? '');
 
@@ -362,14 +352,10 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
               Who
               <PeopleSelect state={state} value={by} onChange={setBy} />
             </label>
-            <label className="field">
+            <div className="field">
               When
-              <input
-                type="datetime-local"
-                value={when}
-                onChange={(event) => event.target.value && setWhen(event.target.value)}
-              />
-            </label>
+              <DateTimeInput label="When" value={when} today={dayOf(asOf, tz)} onChange={setWhen} />
+            </div>
           </div>
           <Foot label="Add event" busy={busy} onCancel={onClose} onCreate={create} />
         </>
@@ -408,7 +394,12 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
             </label>
             <label className="field">
               Planned finish
-              <DateInput value={planned} onChange={setPlanned} />
+              <DateInput
+                label="Planned finish"
+                today={dayOf(asOf, tz)}
+                value={planned}
+                onChange={setPlanned}
+              />
             </label>
           </div>
           <div className="grid2">
@@ -489,7 +480,7 @@ function AttachModal({ modal, session, state, busy, on, onClose }: PropsOf<'atta
   );
 }
 
-function PlaceModal({ modal, state, busy, on, onClose }: PropsOf<'placeItem'>) {
+function PlaceModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'placeItem'>) {
   const item = state.queue.items.find((x) => x.id === modal.itemId);
   const [teamId, setTeamId] = useState(state.teams[0]?.id ?? '');
   const [ms, setMs] = useState(item?.milestoneId ?? '');
@@ -543,7 +534,12 @@ function PlaceModal({ modal, state, busy, on, onClose }: PropsOf<'placeItem'>) {
         </label>
         <label className="field">
           Planned finish
-          <DateInput value={planned} onChange={setPlanned} />
+          <DateInput
+            label="Planned finish"
+            today={dayOf(asOf, session.tz)}
+            value={planned}
+            onChange={setPlanned}
+          />
         </label>
         <label className="field">
           Time (optional)
@@ -598,14 +594,10 @@ function EventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<
           Who
           <PeopleSelect state={state} value={by} onChange={setBy} />
         </label>
-        <label className="field">
+        <div className="field">
           When
-          <input
-            type="datetime-local"
-            value={when}
-            onChange={(event) => event.target.value && setWhen(event.target.value)}
-          />
-        </label>
+          <DateTimeInput label="When" value={when} today={dayOf(asOf, tz)} onChange={setWhen} />
+        </div>
       </div>
       <Foot label="Add event" busy={busy} onCancel={onClose} onCreate={create} />
     </ModalFrame>
@@ -680,7 +672,12 @@ function FromEventModal({ modal, session, state, asOf, busy, on, onClose }: Prop
         </label>
         <label className="field">
           Planned finish
-          <DateInput value={planned} onChange={setPlanned} />
+          <DateInput
+            label="Planned finish"
+            today={dayOf(asOf, tz)}
+            value={planned}
+            onChange={setPlanned}
+          />
         </label>
       </div>
       <div className="grid2">
@@ -724,7 +721,12 @@ function MilestoneModal({ session, state, asOf, busy, on, onClose }: PropsOf<'ms
         </label>
         <label className="field">
           Planned date
-          <DateInput value={planned} onChange={setPlanned} />
+          <DateInput
+            label="Planned date"
+            today={dayOf(asOf, session.tz)}
+            value={planned}
+            onChange={setPlanned}
+          />
         </label>
       </div>
       <div className="grid2">
@@ -784,7 +786,7 @@ function TeamModal({ state, busy, on, onClose }: PropsOf<'team'>) {
   );
 }
 
-function DueModal({ modal, session, state, busy, on, onClose }: PropsOf<'due'>) {
+function DueModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'due'>) {
   const isMs = modal.kind === 'ms';
   const ms = isMs ? state.milestones.find((m) => m.id === modal.id) : undefined;
   const item = isMs ? undefined : state.workItems.find((w) => w.id === modal.id);
@@ -841,7 +843,12 @@ function DueModal({ modal, session, state, busy, on, onClose }: PropsOf<'due'>) 
       <div className="grid2">
         <label className="field">
           New date
-          <DateInput value={date} onChange={setDate} />
+          <DateInput
+            label="New date"
+            today={dayOf(asOf, session.tz)}
+            value={date}
+            onChange={setDate}
+          />
         </label>
         <label className="field">
           Time (optional)

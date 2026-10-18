@@ -211,15 +211,6 @@
 .new-project h2 {
   font-size: 15px;
 }
-.new-project .time-in {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-.new-project .time-in input {
-  flex: 1;
-  min-width: 0;
-}
 .np-teams {
   display: grid;
   gap: 6px;

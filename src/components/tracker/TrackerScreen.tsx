@@ -190,7 +190,8 @@ export const POLL_MS = 5000;
 const OUTSIDE_EXEMPT =
   '.p-head, .bbar, .pop, .drawer, .p-side, .empty, .ro-note, svg.tg, .tk-modal, .tk-toast, .zoombar, .gtools';
 // These layers close themselves on Esc, so the screen leaves the rest open.
-const OWN_ESCAPE = '.tk details[open], .tk .tsearch-pop:not([hidden]), .tk .hand-menu';
+const OWN_ESCAPE =
+  '.tk details[open], .tk .tsearch-pop:not([hidden]), .tk .hand-menu, .tk .field-pop';
 const MINUTE = 60_000;
 
 const samePayload = (a: TrackerPayload, b: TrackerPayload) =>

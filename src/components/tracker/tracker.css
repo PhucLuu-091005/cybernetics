@@ -2070,14 +2070,6 @@ svg.tg .deadline-name {
   font-weight: 500;
   color: var(--ink-2);
 }
-.tk .time-in {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-.tk .time-in .btn {
-  flex: none;
-}
 .tk .field input:disabled {
   color: var(--ink-3);
   background: var(--sunk);
@@ -2220,6 +2212,12 @@ svg.tg .deadline-name {
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 10px;
+}
+.tk .wi-date .date-in {
+  width: 11.5em;
+}
+.tk .wi-date .time-in {
+  width: 5em;
 }
 .tk .wi-date .time-in input {
   margin: -4px 0;
@@ -3049,43 +3047,4 @@ svg.tg .lane-drop.glow {
     max-width: calc(100vw - 32px);
     text-align: center;
   }
-}
-.tk .date-in {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-.tk .date-in input[type='text'] {
-  width: 9.5em;
-}
-.tk .date-in input[aria-invalid='true'] {
-  border-color: var(--danger);
-}
-.tk .date-in .ib {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: var(--r-ctl);
-  background: none;
-  color: var(--ink-3);
-  cursor: pointer;
-}
-.tk .date-in .ib:hover {
-  background: var(--hover);
-  color: var(--ink);
-}
-/* The browser's calendar opens from this box, so it stays in the layout without showing. */
-.tk .date-in .date-pick {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  border: 0;
-  opacity: 0;
-  pointer-events: none;
 }
