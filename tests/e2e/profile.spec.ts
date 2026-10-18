@@ -114,6 +114,14 @@ test('Profile uploads a photo after a preview, shows it in every avatar, and rem
   await page.goto(`/projects/${projectId}/graph`);
   await expect(page.locator('.p-head .acct-av img')).toHaveAttribute('src', photo);
 
+  // A photo that does not load (here a 429) falls back to the initials, never to an empty circle.
+  await page.route('**/api/v1/avatars/**', (route) => route.fulfill({ status: 429, body: '' }));
+  await page.goto(`/projects/${projectId}/members`);
+  const face = page.getByRole('row').filter({ hasText: 'Minh Trần' }).first().locator('.acct-av');
+  await expect(face).toHaveText('MT');
+  await expect(face.locator('img')).toHaveCount(0);
+  await page.unroute('**/api/v1/avatars/**');
+
   await page.goto(`/projects/${projectId}/profile`);
   await hydrated(page);
   await section.getByRole('button', { name: 'Remove photo' }).click();

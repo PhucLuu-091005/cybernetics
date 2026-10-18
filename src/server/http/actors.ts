@@ -13,6 +13,9 @@ export type IdentityOptions = {
   limiter?: RateLimiter;
 };
 export type BrowserSession = { userId: string; defaultWorkspaceId: string };
+/** A page of avatars loads many photos at once, so photo reads have their own, larger limit. */
+export type LimitBucket = 'calls' | 'photo';
+const LIMITS = { read: 300, write: 120, photo: 1200 } as const;
 export function projectInPath(pathname: string): string | null {
   const match = pathname.match(/\/projects\/([^/]+)/);
   if (!match) return null;
@@ -28,12 +31,16 @@ export function createIdentityServices(options: IdentityOptions) {
     now = options.now ?? Date.now,
     limiter = options.limiter ?? new MemoryRateLimiter();
   /** Verifies the signed session and charges the per-user rate limit; a page render calls it once for the layout and the page together. */
-  async function resolveBrowserSession(request: Request): Promise<BrowserSession> {
+  async function resolveBrowserSession(
+    request: Request,
+    bucket: LimitBucket = 'calls',
+  ): Promise<BrowserSession> {
     const session = readSession(request, env, now());
     const user = await store.resolveSessionUser(session.userId);
     if (!user) throw new AppError('UNAUTHENTICATED', 'Unknown session');
     const write = !['GET', 'HEAD', 'OPTIONS'].includes(request.method);
-    limiter.consume(`user:${user.userId}:${write ? 'write' : 'read'}`, write ? 120 : 300, now());
+    const kind = write ? 'write' : bucket === 'photo' ? 'photo' : 'read';
+    limiter.consume(`user:${user.userId}:${kind}`, LIMITS[kind], now());
     return user;
   }
   /** Current membership decides access on every call, so a cached session never carries project access. */
@@ -61,8 +68,8 @@ export function createIdentityServices(options: IdentityOptions) {
   return {
     resolveBrowserSession,
     resolveBrowserProject,
-    async getBrowserActor(request: Request): Promise<ActorContext> {
-      const session = await resolveBrowserSession(request);
+    async getBrowserActor(request: Request, bucket?: LimitBucket): Promise<ActorContext> {
+      const session = await resolveBrowserSession(request, bucket);
       return resolveBrowserProject(session, requestedProject(request));
     },
     /** A null scope verifies the token only; the caller must then check scope per operation (the MCP route does so per tool). */

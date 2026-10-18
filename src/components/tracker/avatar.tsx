@@ -1,5 +1,5 @@
 import type { Member, Person } from '../../tracker';
-import { PhotoImg } from '../shell/PhotoImg';
+import { PhotoOr } from '../shell/PhotoImg';
 
 const GREY = '#737373';
 
@@ -44,7 +44,9 @@ export function Avatar({ id, dir, sm }: { id: string; dir: Directory; sm?: boole
       title={dir.name(id)}
       aria-hidden="true"
     >
-      {photo ? <PhotoImg src={photo} size={sm ? 20 : 28} /> : initials(dir.name(id))}
+      <PhotoOr src={photo} size={sm ? 20 : 28}>
+        {initials(dir.name(id))}
+      </PhotoOr>
     </span>
   );
 }

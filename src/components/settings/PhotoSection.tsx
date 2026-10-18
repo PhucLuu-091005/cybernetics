@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { errorText, send, type ApiError } from '../shell/api';
 import { useHydrated } from '../shell/hydrated';
-import { PhotoImg } from '../shell/PhotoImg';
+import { PhotoOr } from '../shell/PhotoImg';
 import { ModalFrame } from '../tracker/Modals';
 import { initialsOf, photoProblem, PHOTO_RULE, PHOTO_TYPES } from './photo';
 
@@ -23,15 +23,13 @@ function Face({
 }) {
   return (
     <span className="pf-face" style={{ background: color }} aria-hidden="true">
-      {src ? (
-        <PhotoImg src={src} size={96} onError={onError} />
-      ) : (
+      <PhotoOr src={src} size={96} onError={onError}>
         <svg viewBox="0 0 28 28" width="96" height="96">
           <text x="14" y="14" dominantBaseline="central" textAnchor="middle">
             {initialsOf(name)}
           </text>
         </svg>
-      )}
+      </PhotoOr>
     </span>
   );
 }

@@ -162,6 +162,51 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('profile photos', () => {
     expect((await read(demo.owner.userId, photo)).status).toBe(200);
   });
 
+  it('answers 429 while another photo is being decoded, so memory stays bounded', async () => {
+    const png = await solid('png');
+    const busy = globalThis as typeof globalThis & { promisePhotoBusy?: boolean };
+    busy.promisePhotoBusy = true;
+    try {
+      const reply = await upload(demo.owner.userId, png);
+      expect(reply.status).toBe(429);
+      expect(await reply.json()).toMatchObject({ code: 'RATE_LIMITED' });
+    } finally {
+      busy.promisePhotoBusy = false;
+    }
+    expect((await upload(demo.owner.userId, png)).status).toBe(200);
+  });
+
+  it('never deletes the object that the row names, when a slow upload of the same photo overlaps a newer one', async () => {
+    const x = await solid('png');
+    const y = await solid('png', 400, 300, { r: 10, g: 200, b: 90 });
+    await setPhoto(t.db, store, demo.owner, x);
+    let release!: () => void;
+    let stored!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const written = new Promise<void>((resolve) => (stored = resolve));
+    let slow = true;
+    const slowStore = {
+      put: async (key: string, body: Buffer) => {
+        await store.put(key, body);
+        if (!slow) return;
+        slow = false;
+        stored();
+        await gate;
+      },
+      get: (key: string) => store.get(key),
+      remove: (key: string) => store.remove(key),
+    };
+    const again = setPhoto(t.db, slowStore, demo.owner, x);
+    await written;
+    const newer = setPhoto(t.db, slowStore, demo.owner, y);
+    await Promise.race([newer, new Promise((resolve) => setTimeout(resolve, 300))]);
+    release();
+    await Promise.all([again, newer]);
+    const [row] = await t.db.select().from(users).where(eq(users.id, demo.owner.userId));
+    expect(await store.get(row.avatarKey!)).not.toBeNull();
+    expect(await files()).toEqual([row.avatarKey!.split('/').pop()]);
+  });
+
   it('lets only the person in the browser change their own photo, never a key', async () => {
     const agent = agentActor(demo.owner, demo.projectId, ['project:read']);
     await expect(setPhoto(t.db, store, agent, await solid('png'))).rejects.toMatchObject({

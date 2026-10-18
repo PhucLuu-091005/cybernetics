@@ -4,7 +4,7 @@ import { createDatabase } from './db/client';
 import { DbIdentityStore, type UserCreatedHook } from './db/identity-store';
 import type { Db } from './db/tx';
 import type { HttpIdentityStore } from './http/identity-store';
-import type { BrowserSession } from './http/actors';
+import type { BrowserSession, LimitBucket } from './http/actors';
 import {
   configureHttpIdentityStore,
   createPersonalKey,
@@ -50,9 +50,9 @@ export function resetApp(): void {
   delete state.promiseApp;
 }
 // Routes and adapters resolve actors here so the database identity store is installed before runtime.ts reads it.
-export function browserActor(request: Request): Promise<ActorContext> {
+export function browserActor(request: Request, bucket?: LimitBucket): Promise<ActorContext> {
   getApp();
-  return getBrowserActor(request);
+  return getBrowserActor(request, bucket);
 }
 export function browserSession(request: Request): Promise<BrowserSession> {
   getApp();

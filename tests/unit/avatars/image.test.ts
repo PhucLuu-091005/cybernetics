@@ -56,8 +56,32 @@ describe('photo checks and re-encoding', () => {
 
   it('refuses an image whose header claims too many pixels, before it decodes them', async () => {
     await expect(normalizePhoto(hugePng())).rejects.toMatchObject(
-      refused('The photo has too many pixels. Use one under 40 megapixels.'),
+      refused('The photo has too many pixels. Use one under 16 megapixels.'),
     );
+  });
+
+  it('caps a PNG and a WebP at 16 megapixels, and lets a JPEG keep 40 with shrink-on-load', async () => {
+    const tooMany = refused('The photo has too many pixels. Use one under 16 megapixels.');
+    await expect(normalizePhoto(hugePng(5000, 3300))).rejects.toMatchObject(tooMany);
+    const webp = await sharp({
+      create: { width: 4200, height: 4000, channels: 3, background: { r: 1, g: 2, b: 3 } },
+    })
+      .webp({ lossless: true })
+      .toBuffer();
+    await expect(normalizePhoto(webp)).rejects.toMatchObject(tooMany);
+    const jpeg = await solid('jpeg', 6000, 4000);
+    expect((await sharp((await normalizePhoto(jpeg)).body).metadata()).width).toBe(256);
+  });
+
+  it('decodes one photo at a time in the process, and answers RATE_LIMITED to the others', async () => {
+    const png = await solid('png');
+    const results = await Promise.allSettled(Array.from({ length: 4 }, () => normalizePhoto(png)));
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    for (const r of results.filter((r) => r.status === 'rejected'))
+      expect((r as PromiseRejectedResult).reason).toMatchObject({ code: 'RATE_LIMITED' });
+    await expect(normalizePhoto(Buffer.from('nope'))).rejects.toMatchObject(refused());
+    await expect(normalizePhoto(hugePng())).rejects.toMatchObject({ code: 'VALIDATION' });
+    await expect(normalizePhoto(png)).resolves.toMatchObject({ hash: expect.any(String) });
   });
 
   it('keeps a polyglot to its pixels: bytes after the image do not reach the output', async () => {

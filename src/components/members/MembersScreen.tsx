@@ -15,7 +15,7 @@ import type { Account } from '../shell/AccountMenu';
 import { errorText, send, type ApiError } from '../shell/api';
 import { useHydrated } from '../shell/hydrated';
 import { PageHead } from '../shell/PageHead';
-import { PhotoImg } from '../shell/PhotoImg';
+import { PhotoOr } from '../shell/PhotoImg';
 import { Checkbox } from '../tracker/Checkbox';
 import { Icon } from '../tracker/icons';
 import { ModalFrame } from '../tracker/Modals';
@@ -50,7 +50,9 @@ function Face({ member, sm }: { member: ProjectMember; sm?: boolean }) {
       title={sm ? member.name : undefined}
       aria-hidden="true"
     >
-      {member.photo ? <PhotoImg src={member.photo} size={sm ? 22 : 28} /> : initials(member.name)}
+      <PhotoOr src={member.photo} size={sm ? 22 : 28}>
+        {initials(member.name)}
+      </PhotoOr>
     </span>
   );
 }

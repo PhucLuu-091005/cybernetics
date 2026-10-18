@@ -629,3 +629,18 @@ describe('personal keys', () => {
     ]);
   });
 });
+describe('photo reads', () => {
+  it('count against their own larger limit, so a page of avatars leaves the read limit alone', async () => {
+    const s = await setup();
+    const photo = () =>
+      s.services.getBrowserActor(
+        new Request(`${env.appOrigin}/api/v1/avatars/x/y`, { headers: s.request().headers }),
+        'photo',
+      );
+    for (let i = 0; i < 1200; i++) await photo();
+    await expect(photo()).rejects.toMatchObject({ code: 'RATE_LIMITED' });
+    await expect(s.services.getBrowserActor(s.request())).resolves.toMatchObject({
+      kind: 'user',
+    });
+  });
+});

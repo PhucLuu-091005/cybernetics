@@ -33,18 +33,19 @@ export async function setPhoto(
   requirePerson(ctx);
   const { body, hash } = await normalizePhoto(bytes);
   const key = `avatars/${ctx.userId}/${hash}.webp`;
-  await store.put(key, body);
-  const old = await withTransaction(db, async (tx) => {
+  // The row lock covers the object writes too, so a slower upload of the same photo can never
+  // land after a newer upload deleted that object.
+  await withTransaction(db, async (tx) => {
     const [row] = await tx
       .select({ key: users.avatarKey })
       .from(users)
       .where(eq(users.id, ctx.userId))
       .for('update');
     if (!row) throw new AppError('UNAUTHENTICATED', 'Unknown session');
+    await store.put(key, body);
     await tx.update(users).set({ avatarKey: key }).where(eq(users.id, ctx.userId));
-    return row.key;
+    if (row.key && row.key !== key) await forget(store, row.key);
   });
-  if (old && old !== key) await forget(store, old);
   return { photo: photoUrl(ctx.userId, key)! };
 }
 
@@ -54,16 +55,15 @@ export async function removePhoto(
   ctx: ActorContext,
 ): Promise<{ photo: null }> {
   requirePerson(ctx);
-  const old = await withTransaction(db, async (tx) => {
+  await withTransaction(db, async (tx) => {
     const [row] = await tx
       .select({ key: users.avatarKey })
       .from(users)
       .where(eq(users.id, ctx.userId))
       .for('update');
     await tx.update(users).set({ avatarKey: null }).where(eq(users.id, ctx.userId));
-    return row?.key ?? null;
+    if (row?.key) await forget(store, row.key);
   });
-  if (old) await forget(store, old);
   return { photo: null };
 }
 

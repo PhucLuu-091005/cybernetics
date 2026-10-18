@@ -32,7 +32,7 @@ const html = (id: string, sm = false) =>
 describe('Avatar', () => {
   it('shows the photo in the same round box when the person has one', () => {
     expect(html('minh')).toMatch(/^<span class="av" style="background:#123456" title="Minh Trần"/);
-    expect(html('minh')).toContain(`<img alt="" `);
+    expect(html('minh')).toContain(`alt=""`);
     expect(html('minh')).toContain(`class="ph-img"`);
     expect(html('minh')).toContain(`src="${PHOTO}"`);
     expect(html('minh')).not.toContain('MT');
