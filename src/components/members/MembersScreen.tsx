@@ -12,7 +12,7 @@ import {
   type Grant,
 } from '../../tracker/permissions';
 import type { Account } from '../shell/AccountMenu';
-import { send, type ApiError } from '../shell/api';
+import { errorText, send, type ApiError } from '../shell/api';
 import { useHydrated } from '../shell/hydrated';
 import { PageHead } from '../shell/PageHead';
 import { Icon } from '../tracker/icons';
@@ -201,7 +201,7 @@ export function MembersScreen({
           </p>
           {failure && (
             <p className="pg-error" role="alert">
-              {failure.message.replace(/\.?$/, '.')}
+              {errorText(failure)}
             </p>
           )}
           <div className="mb-table" role="table" aria-label="People">
@@ -544,7 +544,7 @@ function TeamEditor({
         <p className="tip">The lead is always in the team and can always create change requests.</p>
         {failure && (
           <p className="pg-error" role="alert">
-            {failure.message.replace(/\.?$/, '.')}
+            {errorText(failure)}
           </p>
         )}
         {team.keep && <p className="tip">{team.keep}</p>}
