@@ -45,7 +45,7 @@ esac
 exit 0
 `;
 const ACCOUNT = 'promise-graph-runtime@promise-graph-demo.iam.gserviceaccount.com';
-type Service = { statusUrl: string; urls: string[] };
+type Service = { statusUrl: string; urls: string[]; authMode?: string };
 // The env array holds NEXT_PUBLIC_APP_URL itself, so a check that reads the whole JSON always passes.
 const serviceJson = (values: Record<string, string>, service: Service) =>
   JSON.stringify({
@@ -54,7 +54,12 @@ const serviceJson = (values: Record<string, string>, service: Service) =>
       template: {
         spec: {
           containers: [
-            { env: [{ name: 'NEXT_PUBLIC_APP_URL', value: values.NEXT_PUBLIC_APP_URL ?? '' }] },
+            {
+              env: [
+                { name: 'NEXT_PUBLIC_APP_URL', value: values.NEXT_PUBLIC_APP_URL ?? '' },
+                ...(service.authMode ? [{ name: 'AUTH_MODE', value: service.authMode }] : []),
+              ],
+            },
           ],
         },
       },
@@ -188,6 +193,18 @@ describe('scripts/deploy-cloud-run.sh', () => {
     expect(deployCall).toContain('GOOGLE_CLIENT_SECRET=promise-graph-google-client-secret:latest');
     expect(run.calls).not.toContain('google-client-secret-value');
     expect(run.stdout).toContain(`${URL_}/api/auth/google/callback`);
+  });
+
+  it('stops before any change when the running service has another AUTH_MODE and none was asked for', () => {
+    const service = { statusUrl: URL_, urls: [URL_], authMode: 'google' };
+    const run = deploy(VALUES, { service });
+    expect(run.status).toBe(2);
+    expect(run.stderr).toContain('runs AUTH_MODE=google');
+    expect(run.calls).not.toMatch(/run deploy|secrets create|service-accounts create/);
+    const asked = deploy({ ...VALUES, AUTH_MODE: 'demo' }, { service });
+    expect(asked.status).toBe(0);
+    expect(asked.lines[asked.at('run deploy')]).toContain('AUTH_MODE=demo,');
+    expect(deploy(VALUES, { service: { ...service, authMode: 'demo' } }).status).toBe(0);
   });
 
   it('keeps stored secrets and an existing account on a second run', () => {
