@@ -429,3 +429,26 @@ test('a missing change request, No projects yet and the error page each have one
   await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
   await expect(main).toHaveCount(1);
 });
+
+test('the token Label takes typing only after hydration, so a typed label is never reset', async ({
+  page,
+}) => {
+  await page.goto('/signin?label=settings-label-race');
+  await page.getByRole('button', { name: /continue/i }).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  const projectId = new URL(page.url()).pathname.split('/')[2];
+  let release = () => {};
+  const scripts = new Promise<void>((resolve) => (release = resolve));
+  await page.route(/\/_next\/static\/chunks\/.*\.js/, async (route) => {
+    await scripts;
+    await route.continue();
+  });
+  await page.goto(`/projects/${projectId}/settings/tokens`, { waitUntil: 'domcontentloaded' });
+  const label = page.getByRole('textbox', { name: 'Label' });
+  await expect(label).toBeDisabled();
+  release();
+  await hydrated(page);
+  await label.fill('After hydration');
+  await expect(page.getByRole('button', { name: 'Create token' })).toBeEnabled();
+  await expect(label).toHaveValue('After hydration');
+});
