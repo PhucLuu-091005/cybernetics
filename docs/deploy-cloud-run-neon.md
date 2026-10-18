@@ -174,6 +174,46 @@ Why these settings:
 - Do not add an uptime monitor: Neon then sleeps after 5 minutes, and its 100 CU-hours last the month.
 - Check **Billing → Reports** once a week.
 
+## Deploy from a tag
+
+After the first deploy by hand (steps 1 to 7), GitHub Actions can deploy each tag that starts with `v`. The workflow `.github/workflows/deploy.yml` runs the same checks as CI. When they pass, it builds the `Dockerfile`, pushes the image to Artifact Registry and deploys it. It changes only the image: the service keeps its env vars, secrets, service account and limits. GitHub signs in to Google through Workload Identity Federation, so no service account key exists anywhere.
+
+Set it up once:
+
+1. Sign in to gcloud as the project owner (step 3), then run the setup script from the repository root:
+
+   ```sh
+   GCP_PROJECT_ID=promise-graph GITHUB_REPOSITORY=PhucLuu-091005/cybernetics scripts/setup-github-cd.sh
+   ```
+
+   The script does these things. A second run creates nothing new.
+   - It creates the Docker repository `promise-graph` in `asia-southeast1`, with a cleanup policy that keeps the 3 newest images.
+   - It creates the account `promise-graph-deployer`. The account gets `roles/run.developer` on the service, `roles/artifactregistry.writer` on the repository and `roles/iam.serviceAccountUser` on the runtime account. It gets no other role.
+   - It creates a Workload Identity pool and an OIDC provider for GitHub. The provider accepts only runs of `PhucLuu-091005/cybernetics` on a tag that starts with `v`.
+
+2. The script prints two `gh variable set` commands. Run them. They set the repository variables `GCP_WIF_PROVIDER` and `GCP_DEPLOYER_SA`. Neither value is secret, so they are variables, not secrets.
+
+Deploy:
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+Watch the run in the **Actions** tab or with `gh run watch`. The job summary shows the service URL after `/api/health` returns `ok`. A failed check stops the run before the deploy.
+
+To deploy an earlier tag again, start the workflow from that tag:
+
+```sh
+gh workflow run deploy.yml --ref v0.1.0 -f tag=v0.1.0
+```
+
+The deploy job runs in the GitHub environment `production`. To make each deploy wait for an approval, add a required reviewer to that environment in **Settings → Environments**. To change a secret or an env var, use `scripts/deploy-cloud-run.sh` or `gcloud run services update` as in step 8.
+
+The free limits that matter here:
+
+- GitHub Actions: a public repository gets free minutes with no limit. A private repository on the Free plan gets 2,000 minutes a month. One tag uses about 20 to 30 minutes, because the checks, the end-to-end tests and the image build each take a runner.
+- Artifact Registry: 0.5 GB of storage for the whole project. The cleanup policy keeps the 3 newest images in `promise-graph` and deletes the others. Artifact Registry runs the policy about once a day. The images of the deploys by hand stay in `cloud-run-source-deploy`, so delete them there (step 9).
+
 ## Troubleshooting
 
 - **The build fails with a permission error on the service account.** Cloud Build builds the image as the default compute service account. Some new projects do not give that account the build role. Run:
