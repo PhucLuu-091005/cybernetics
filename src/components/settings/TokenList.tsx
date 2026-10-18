@@ -7,7 +7,7 @@ import { send, type ApiError } from '../shell/api';
 import { ConflictBanner } from '../shell/ConflictBanner';
 import { useHydrated } from '../shell/hydrated';
 import { Pager } from '../shell/Pager';
-import { permissionTitles } from './scopes';
+import { permissionShort } from './scopes';
 
 function TokenRow({
   projectId,
@@ -55,7 +55,7 @@ function TokenRow({
         <b className="pg-token">{token.label}</b>
         <span className="id faint">{token.prefix}…</span>
       </td>
-      <td>{permissionTitles(token.scopes)}</td>
+      <td>{permissionShort(token.scopes)}</td>
       <td data-testid="last-call">
         {token.lastUsedAt ? shortStamp(token.lastUsedAt, timeZone) : 'Never'}
       </td>

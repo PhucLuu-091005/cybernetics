@@ -392,6 +392,7 @@ describe('ContextBar in a change request', () => {
           kind: 'closed',
           body: 'Main has it already.',
           opIndex: null,
+          agent: false,
           createdAt: '2026-10-09T11:00:00.000Z',
         },
       ],

@@ -5,7 +5,7 @@ import { DEFAULT_AGENT_SCOPES, type Scope, type TokenCreated } from '../../contr
 import { send, type ApiError } from '../shell/api';
 import { ConflictBanner } from '../shell/ConflictBanner';
 import { useHydrated } from '../shell/hydrated';
-import { SCOPES } from './scopes';
+import { SCOPE_INFO as SCOPES } from '../../contracts';
 import { SecretReveal } from './SecretReveal';
 
 export type ExpiryOption = { days: number; label: string };

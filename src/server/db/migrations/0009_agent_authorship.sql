@@ -1,0 +1,1 @@
+ALTER TABLE "tracker_cr_comments" ADD COLUMN "by_agent" boolean DEFAULT false NOT NULL;

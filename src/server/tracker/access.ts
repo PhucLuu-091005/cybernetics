@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { IdSchema, type ActorContext } from '../../contracts';
+import { IdSchema, type ActorContext, type Scope as TokenScope } from '../../contracts';
 import {
   rightsOf,
   type CrPermission,
@@ -116,7 +116,11 @@ async function scopeOf(
     me,
     canActAs: canSwitch && me !== null,
     userId: ctx.userId,
-    tenant: { workspaceId: project.workspaceId, projectId: project.id },
+    tenant: {
+      workspaceId: project.workspaceId,
+      projectId: project.id,
+      ...(ctx.kind === 'agent' ? { byAgent: true } : {}),
+    },
   };
 }
 
@@ -160,13 +164,25 @@ const MISSING: Record<keyof Rights, string> = {
   manage: 'Only the project lead can do this',
 };
 
+/**
+ * Each MCP tool checks its own scope first. This second check keeps a token away from a right that
+ * none of its scopes uses, so a new caller of a use case cannot skip the scopes.
+ */
+const AGENT_SCOPES: Record<keyof Rights, readonly TokenScope[]> = {
+  viewMain: ['crs:edit', 'crs:comment', 'crs:close'],
+  viewCrs: [],
+  create: ['queue:dismiss', 'crs:edit', 'crs:ready'],
+  merge: ['crs:merge'],
+  manage: ['members:manage', 'teams:manage', 'project:lead'],
+};
+
 export function requireRight(
   ctx: ActorContext,
   scope: Pick<Scope, 'me' | 'tracker'>,
   right: keyof Rights,
 ): Member {
-  if (ctx.kind === 'agent')
-    throw new AppError('FORBIDDEN', 'An agent can only read and add to the Queue');
+  if (ctx.kind === 'agent' && !AGENT_SCOPES[right].some((need) => ctx.scopes.includes(need)))
+    throw new AppError('FORBIDDEN', 'This token has no scope for that');
   if (!scope.me) throw notMember();
   if (!rightsOf(subjectOf(scope))[right]) throw new AppError('FORBIDDEN', MISSING[right]);
   return scope.me;

@@ -19,7 +19,11 @@ export type Reader = Db | Tx;
 export type TrackerRow = typeof trackerProjects.$inferSelect;
 export type CrRow = typeof trackerCrs.$inferSelect;
 export type QueueDbRow = typeof trackerQueue.$inferSelect;
-export type Tenant = { workspaceId: string; projectId: string };
+/**
+ * byAgent rides along with every tenant spread; only tables with a byAgent column keep it, so each
+ * change request comment records that an agent wrote it for its person.
+ */
+export type Tenant = { workspaceId: string; projectId: string; byAgent?: boolean };
 
 const isoOrNull = (value: string | null) => (value === null ? null : toIso(value));
 
@@ -250,6 +254,7 @@ export async function loadCrs(
       kind: comment.kind,
       body: comment.body,
       opIndex: comment.opIndex,
+      agent: comment.byAgent,
       createdAt: toIso(comment.createdAt),
     })),
   }));
