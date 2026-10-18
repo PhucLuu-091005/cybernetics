@@ -77,10 +77,11 @@ export async function actingMember(
   actAsCookie?: string | null,
 ): Promise<Member | null> {
   const project = await findProjectForActor(tx, ctx, projectId, false);
-  const tracker = await findTracker(tx, project.id);
+  const members = await loadMembers(tx, project.id);
+  const tracker = await findTracker(tx, project.id, members);
   return resolveActing(
     tracker,
-    await loadMembers(tx, project.id),
+    members,
     ctx,
     actAsCookie,
     await canSwitchMember(tx, ctx, project, tracker),
@@ -104,8 +105,8 @@ async function scopeOf(
   project: ProjectRow,
   actAs?: string | null,
 ): Promise<Scope> {
-  const tracker = await findTracker(db, project.id);
   const members = await loadMembers(db, project.id);
+  const tracker = await findTracker(db, project.id, members);
   const canSwitch = await canSwitchMember(db, ctx, project, tracker);
   const me = resolveActing(tracker, members, ctx, actAs, canSwitch);
   return {

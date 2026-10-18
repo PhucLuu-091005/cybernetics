@@ -25,9 +25,14 @@ const isoOrNull = (value: string | null) => (value === null ? null : toIso(value
 
 /**
  * Main's teams and people come from the project, so a rename, a new lead or an invite shows at once
- * in every view. Removed members stay as people, so the work they did keeps their name.
+ * in every view. Removed members stay as people, so the work they did keeps their name. The caller
+ * passes the rows of `loadMembers`, so one request reads the members once.
  */
-export async function findTracker(db: Reader, projectId: string): Promise<TrackerRow> {
+export async function findTracker(
+  db: Reader,
+  projectId: string,
+  members: readonly Pick<Member, 'id' | 'name'>[],
+): Promise<TrackerRow> {
   const [row] = await db
     .select()
     .from(trackerProjects)
@@ -35,11 +40,6 @@ export async function findTracker(db: Reader, projectId: string): Promise<Tracke
     .limit(1);
   if (!row) throw new AppError('NOT_FOUND', 'This project has no tracker yet');
   const teams = await loadTeams(db, projectId);
-  const members = await db
-    .select({ id: trackerMembers.id, name: trackerMembers.name })
-    .from(trackerMembers)
-    .where(eq(trackerMembers.projectId, projectId))
-    .orderBy(asc(trackerMembers.seq));
   const memberName = new Map(members.map((member) => [member.id, member.name]));
   const story = new Set(row.base.people.map((person) => person.id));
   return {
@@ -51,7 +51,7 @@ export async function findTracker(db: Reader, projectId: string): Promise<Tracke
           id: person.id,
           name: memberName.get(person.id) ?? person.name,
         })),
-        ...members.filter((member) => !story.has(member.id)),
+        ...members.filter((member) => !story.has(member.id)).map(({ id, name }) => ({ id, name })),
       ],
       teams: teams.map(({ id, name, leadId }) => ({ id, name, leadId })),
     },
