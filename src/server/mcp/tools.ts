@@ -162,14 +162,14 @@ export const MCP_TOOLS: readonly McpTool[] = [
     'get_change_request',
     'project:read',
     GetChangeRequestInputSchema.shape,
-    'Read one change request by number: revision, editor, its changes in plain words (index, kind, who, agent), shares, asks to edit, comments and merge resolutions.',
+    'Read one change request by number: revision, editor, its changes in plain words (index, kind, who, agent), shares, asks to edit, comments and merge resolutions. Read it before a write on it, for its revision and change indexes.',
     (db, ctx, input) => getChangeRequest(db, ctx, typed(input)),
   ),
   tool(
     'list_members',
     'project:read',
     {},
-    'List the members (id, name, email, project lead, grants, rights, teams) and the teams (id, name, lead, people). Member ids are what share, hand over and the member tools take.',
+    'List the members (id, name, email, project lead, grants, rights, teams) and the teams (id, name, lead, people). Use it for the member ids that share, hand over, decline and the member and team tools take.',
     (db, ctx, input) => listProjectMembers(db, ctx, typed(input)),
   ),
   tool(
@@ -190,7 +190,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     'remove_queue_card',
     'queue:dismiss',
     DismissQueueEntryInputSchema.shape,
-    'Remove a card from the Queue by its id (queueId from list_queue). A card that Main or an open change request uses stays (CONFLICT).',
+    'Remove a wrong or duplicate card from the Queue by its id (queueId from list_queue). A card that Main or an open change request uses stays (CONFLICT).',
     async (db, ctx, input) => {
       await dismissQueueEntry(db, ctx, typed(input));
       return { removed: input.queueId };
@@ -330,7 +330,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     'add_team',
     'teams:manage',
     AddTeamInputSchema.shape,
-    'Add a team with a name.',
+    'Add a team with a name. Its work items come later through change requests.',
     (db, ctx, input) => addTeam(db, ctx, typed(input)),
   ),
   tool(
