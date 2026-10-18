@@ -1,7 +1,8 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
-import type { AgentToken, RevokeAgentTokenResult } from '../../contracts';
+import type { AgentToken, KeyKind, RevokeAgentTokenResult } from '../../contracts';
+import { KEY_COPY } from './copy';
 import { shortDay, shortStamp } from './dates';
 import { send, type ApiError } from '../shell/api';
 import { ConflictBanner } from '../shell/ConflictBanner';
@@ -10,12 +11,12 @@ import { Pager } from '../shell/Pager';
 import { permissionShort } from './scopes';
 
 function TokenRow({
-  projectId,
+  api,
   token,
   now,
   timeZone,
 }: {
-  projectId: string;
+  api: string;
   token: AgentToken;
   now: string;
   timeZone: string;
@@ -33,11 +34,9 @@ function TokenRow({
   const revoke = async () => {
     setBusy(true);
     setFailure(null);
-    const result = await send<RevokeAgentTokenResult>(
-      `/api/v1/projects/${projectId}/agent-tokens/${token.id}`,
-      'DELETE',
-      { idempotencyKey: revokeKey },
-    );
+    const result = await send<RevokeAgentTokenResult>(`${api}/${token.id}`, 'DELETE', {
+      idempotencyKey: revokeKey,
+    });
     if (result.ok)
       startRefresh(() => {
         setBusy(false);
@@ -105,7 +104,8 @@ function TokenRow({
 }
 
 export function TokenList({
-  projectId,
+  kind = 'project',
+  api,
   tokens,
   now,
   timeZone,
@@ -113,7 +113,8 @@ export function TokenList({
   nextCursor,
   paged,
 }: {
-  projectId: string;
+  kind?: KeyKind;
+  api: string;
   tokens: AgentToken[];
   now: string;
   timeZone: string;
@@ -123,11 +124,12 @@ export function TokenList({
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
+  const copy = KEY_COPY[kind];
   return (
     <section className="pg-sec" aria-labelledby="token-list">
       <div className="pg-sec-head">
         <h2 id="token-list">
-          Agent tokens <span className="pg-count">{tokens.length}</span>
+          {copy.list} <span className="pg-count">{tokens.length}</span>
         </h2>
         <button
           type="button"
@@ -138,11 +140,8 @@ export function TokenList({
           Check again
         </button>
       </div>
-      <p className="pg-lede">
-        A token lets your own AI agent work in this project through MCP, with the permissions you
-        pick. Only you see your tokens.
-      </p>
-      <div className="pg-tokens" role="table" aria-label="Your agent tokens">
+      <p className="pg-lede">{copy.lede}</p>
+      <div className="pg-tokens" role="table" aria-label={copy.table}>
         <div className="pg-trow pg-cols" role="row">
           <span role="columnheader">Token</span>
           <span role="columnheader">Permissions</span>
@@ -153,17 +152,11 @@ export function TokenList({
           </span>
         </div>
         {tokens.map((token) => (
-          <TokenRow
-            key={token.id}
-            projectId={projectId}
-            token={token}
-            now={now}
-            timeZone={timeZone}
-          />
+          <TokenRow key={token.id} api={api} token={token} now={now} timeZone={timeZone} />
         ))}
         {tokens.length === 0 && (
           <div className="pg-empty" role="row">
-            <span role="cell">No tokens yet. Create one below to connect your agent.</span>
+            <span role="cell">{copy.empty}</span>
           </div>
         )}
       </div>

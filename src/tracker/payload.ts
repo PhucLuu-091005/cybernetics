@@ -74,8 +74,9 @@ export type Cr = {
     kind: CrCommentKind;
     body: string | null;
     opIndex: number | null;
-    /** An agent wrote it for memberId. */
+    /** An agent wrote it for memberId; audit only. */
     agent: boolean;
+    viaKey: string | null;
     createdAt: string;
   }>;
 };

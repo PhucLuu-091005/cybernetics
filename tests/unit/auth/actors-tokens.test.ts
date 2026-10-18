@@ -553,3 +553,79 @@ describe('token creation and the rights of the creator today', () => {
     });
   });
 });
+describe('personal keys', () => {
+  const personalRequest = (secret: string, path = '/mcp') =>
+    new Request(`${env.appOrigin}${path}`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${secret}` },
+    });
+  it('opens no project until a call names one, and then only a project its person can open', async () => {
+    const s = await setup();
+    const created = await s.tokens.createPersonalKey(s.ctx, {
+      label: 'Laptop',
+      idempotencyKey: 'p1',
+    });
+    expect(created.token).toMatchObject({
+      kind: 'personal',
+      projectId: null,
+      scopes: ['project:read', 'queue:add'],
+    });
+    await expect(
+      s.services.getTokenActor(personalRequest(created.secret), null),
+    ).resolves.toMatchObject({
+      kind: 'agent',
+      key: 'personal',
+      keyLabel: 'Laptop',
+      projectId: null,
+    });
+    await expect(
+      s.services.getTokenActor(
+        personalRequest(created.secret, `/api/projects/${s.projectId}`),
+        null,
+      ),
+    ).resolves.toMatchObject({ projectId: s.projectId, workspaceId: s.workspaceId });
+    const foreign = randomUUID();
+    s.store.projects.set(foreign, { workspaceId: randomUUID() });
+    await expect(
+      s.services.getTokenActor(personalRequest(created.secret, `/api/projects/${foreign}`), null),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+  it('asks the creator rights across all projects, and refuses agents', async () => {
+    const s = await setup();
+    const asked: Array<string | null> = [];
+    const tokens = createTokenService(
+      s.store,
+      async (_ctx, projectId) => {
+        asked.push(projectId);
+        return {
+          member: true,
+          rights: { viewMain: true, create: true, merge: false, manage: false },
+        };
+      },
+      () => now,
+    );
+    await expect(
+      tokens.createPersonalKey(s.ctx, { label: 'L', scopes: ['crs:merge'], idempotencyKey: 'm' }),
+    ).rejects.toMatchObject({
+      code: 'VALIDATION',
+      message: 'You do not have the Merge right in any of your projects',
+    });
+    expect(asked).toEqual([null]);
+    const created = await tokens.createPersonalKey(s.ctx, {
+      label: 'L',
+      scopes: ['crs:edit'],
+      idempotencyKey: 'e',
+    });
+    const actor = await s.services.getTokenActor(personalRequest(created.secret), null);
+    await expect(
+      tokens.createPersonalKey(actor, { label: 'Up', idempotencyKey: 'up' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(tokens.listPersonalKeys(actor, {})).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      tokens.revokePersonalKey(actor, { tokenId: created.token.id, idempotencyKey: 'r' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect((await tokens.listPersonalKeys(s.ctx, {})).items.map((key) => key.id)).toEqual([
+      created.token.id,
+    ]);
+  });
+});

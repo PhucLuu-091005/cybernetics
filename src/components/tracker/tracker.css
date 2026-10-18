@@ -1493,17 +1493,6 @@
   color: var(--ink-2);
   font-weight: 500;
 }
-.tk .qc .bot {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 10.5px;
-  font-weight: 500;
-  padding: 0 6px;
-  border-radius: 99px;
-  background: var(--route-bg);
-  color: var(--route-ink);
-}
 .tk .qempty {
   text-align: center;
   color: var(--ink-3);
@@ -2704,6 +2693,10 @@ svg.tg .deadline-name {
   padding-left: 18px;
   font-size: var(--fs-s);
   color: var(--ink-2);
+}
+.tk .hist .hcard .via {
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
 }
 .tk .resolved {
   display: flex;

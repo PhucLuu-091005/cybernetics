@@ -15,6 +15,7 @@ To put the app online, follow [docs/deploy-cloud-run-neon.md](docs/deploy-cloud-
 - **History.** Every merge into Main, and the cancelled change requests with their reasons.
 - **Members.** The people of the project, their teams and their grants. The project lead edits them.
 - **Settings.** The project facts and the agent tokens.
+- **Profile.** Your personal keys for every project (account menu, **Profile**).
 
 Your first sign-in creates a private sandbox: the fictional Larkspur Capital project with 7 teams, a Queue and 4 change requests ([fixtures/README.md](fixtures/README.md)). The **Demo** select at the top right changes who you work as. The full behaviour is in the [spec](docs/superpowers/specs/2026-10-16-event-tracker-design.md).
 
@@ -64,7 +65,7 @@ The admin URL for the local database is `postgresql://promise_graph:local-develo
 
 ## Connect an agent
 
-Your agent (for example Claude Code) connects to `/mcp` with a project token. It can do what you can do, inside the permissions of the token.
+Your agent (for example Claude Code) connects to `/mcp` with a key. A project token (Settings) works in one project; a personal key (Profile) works in every project you belong to. The agent acts as you, inside the permissions of the key.
 
 1. In a project, open **Settings** and create a token. Tick the permissions it needs. Copy the secret: the app shows it once.
 2. Add the server to your MCP client:

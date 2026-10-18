@@ -1,4 +1,6 @@
 'use client';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useId } from 'react';
 import { RailIcon } from './icons';
 import { useDismissibleDetails } from './Popover';
@@ -17,6 +19,7 @@ const initials = (name: string) =>
 
 export function AccountMenu({ name, detail, color }: Account) {
   const ref = useDismissibleDetails();
+  const project = (usePathname() ?? '').match(/^\/projects\/([^/]+)/)?.[1];
   const [theme, setTheme] = useTheme();
   const themeLabel = useId();
   const signOut = async () => {
@@ -27,7 +30,7 @@ export function AccountMenu({ name, detail, color }: Account) {
   };
   return (
     <details ref={ref} className="acct me">
-      <summary aria-label={`${name}: theme and sign out`} title={name}>
+      <summary aria-label={`${name}: profile, theme and sign out`} title={name}>
         <span className="acct-av" style={color ? { background: color } : undefined}>
           {initials(name)}
         </span>
@@ -43,6 +46,14 @@ export function AccountMenu({ name, detail, color }: Account) {
           {detail && <small>{detail}</small>}
         </p>
         <hr />
+        {project && (
+          <>
+            <Link className="acct-item" href={`/projects/${project}/profile`}>
+              <RailIcon name="user" /> Profile
+            </Link>
+            <hr />
+          </>
+        )}
         <p className="acct-label" id={themeLabel}>
           Theme
         </p>

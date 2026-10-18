@@ -225,10 +225,10 @@ describe('TopBar', () => {
     expect(names).not.toContain('Mai Vũ');
   });
 
-  it('opens a menu with the theme and Sign out from the acting member, or from the signed-in person', () => {
+  it('opens a menu with Profile, the theme and Sign out from the acting member, or from the signed-in person', () => {
     const html = render(members[1]);
     expect(html).toMatch(
-      /<details class="acct me"><summary aria-label="Lan Phạm: theme and sign out"/,
+      /<details class="acct me"><summary aria-label="Lan Phạm: profile, theme and sign out"/,
     );
     expect(html).toContain('role="radiogroup"');
     for (const theme of ['System', 'Light', 'Dark']) expect(html).toContain(`>${theme}</button>`);
@@ -396,6 +396,7 @@ describe('ContextBar in a change request', () => {
           body: 'Main has it already.',
           opIndex: null,
           agent: false,
+          viaKey: null,
           createdAt: '2026-10-09T11:00:00.000Z',
         },
       ],

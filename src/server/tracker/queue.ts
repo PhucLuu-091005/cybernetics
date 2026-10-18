@@ -3,11 +3,14 @@ import { z } from 'zod';
 import type { ActorContext } from '../../contracts';
 import {
   mainState,
+  QueueEventFieldsSchema,
   QueueEventInputSchema,
   QueueItemInputSchema,
   type Commit,
   type Member,
   type Op,
+  type QueueEventInput,
+  type QueueItemInput,
   type TrackerPayload,
   type TrackerState,
 } from '../../tracker';
@@ -19,11 +22,15 @@ import { OPEN, ProjectScopeSchema, requireRight, requireQueueWriter, writeScope 
 import { buildPayload } from './read';
 import { loadCommits, loadQueue } from './store';
 
+// Who defaults to the acting member, as the Add dialog does, so a key's event names its person.
+const EventFieldsSchema = QueueEventFieldsSchema.extend({
+  by: QueueEventFieldsSchema.shape.by.optional(),
+});
 const AddQueueEntryInputSchema = z.discriminatedUnion('kind', [
   z.strictObject({
     ...ProjectScopeSchema,
     kind: z.literal('event'),
-    fields: QueueEventInputSchema,
+    fields: EventFieldsSchema,
   }),
   z.strictObject({ ...ProjectScopeSchema, kind: z.literal('item'), fields: QueueItemInputSchema }),
 ]);
@@ -32,13 +39,13 @@ export const DismissQueueEntryInputSchema = z.strictObject({
   queueId: z.string().max(100),
 });
 
-type Entry = z.infer<typeof AddQueueEntryInputSchema>;
+type Card = { kind: 'event'; fields: QueueEventInput } | { kind: 'item'; fields: QueueItemInput };
 
 /**
  * A card that names an unknown person, milestone or work item could never be placed. A removed
  * member keeps the name on past work, but a new card cannot give them work.
  */
-function unknownReferences(entry: Entry, main: TrackerState, members: readonly Member[]): string[] {
+function unknownReferences(entry: Card, main: TrackerState, members: readonly Member[]): string[] {
   const person = (field: string, id: string) => {
     const gone = members.find((m) => m.id === id && m.removed);
     if (gone) return [`${field}: ${gone.name} is no longer in this project`];
@@ -73,10 +80,17 @@ export async function addQueueCard(
   return withTransaction(db, async (tx) => {
     const scope = await writeScope(tx, ctx, entry.projectId, entry.actAs);
     const me = requireQueueWriter(scope);
+    const card: Card =
+      entry.kind === 'event'
+        ? {
+            kind: 'event',
+            fields: QueueEventInputSchema.parse({ ...entry.fields, by: entry.fields.by ?? me.id }),
+          }
+        : entry;
     const queue = await loadQueue(tx, scope.project.id);
     const commits = await loadCommits(tx, scope.project.id);
     const problems = unknownReferences(
-      entry,
+      card,
       mainState(scope.tracker.base, queue, commits),
       scope.members,
     );
@@ -84,17 +98,17 @@ export async function addQueueCard(
       throw new AppError('VALIDATION', 'The queue card names something Main does not have', {
         errors: problems.map((message) => ({ path: 'fields', message })),
       });
-    const [card] = await tx
+    const [row] = await tx
       .insert(trackerQueue)
       .values({
         ...scope.tenant,
-        kind: entry.kind,
-        payload: entry.fields,
+        kind: card.kind,
+        payload: card.fields,
         addedByMember: me.id,
         addedByAgent: ctx.kind === 'agent',
       })
       .returning({ id: trackerQueue.id });
-    return { id: card.id, payload: await buildPayload(tx, scope) };
+    return { id: row.id, payload: await buildPayload(tx, scope) };
   });
 }
 

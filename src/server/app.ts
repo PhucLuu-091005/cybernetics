@@ -7,12 +7,15 @@ import type { HttpIdentityStore } from './http/identity-store';
 import type { BrowserSession } from './http/actors';
 import {
   configureHttpIdentityStore,
+  createPersonalKey,
   createToken,
   getBrowserActor,
   getBrowserProjectActor,
   getBrowserSession,
   getTokenActor,
+  listPersonalKeys,
   listTokens,
+  revokePersonalKey,
   revokeToken,
 } from './http/runtime';
 export type App = { db: Db; identity: HttpIdentityStore; pool: Pool };
@@ -83,4 +86,22 @@ export function listAgentTokens(
 ): ReturnType<typeof listTokens> {
   getApp();
   return listTokens(...args);
+}
+export function createUserKey(
+  ...args: Parameters<typeof createPersonalKey>
+): ReturnType<typeof createPersonalKey> {
+  getApp();
+  return createPersonalKey(...args);
+}
+export function revokeUserKey(
+  ...args: Parameters<typeof revokePersonalKey>
+): ReturnType<typeof revokePersonalKey> {
+  getApp();
+  return revokePersonalKey(...args);
+}
+export function listUserKeys(
+  ...args: Parameters<typeof listPersonalKeys>
+): ReturnType<typeof listPersonalKeys> {
+  getApp();
+  return listPersonalKeys(...args);
 }

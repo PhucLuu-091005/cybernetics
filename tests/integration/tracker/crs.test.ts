@@ -68,6 +68,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
           body: null,
           opIndex: null,
           agent: false,
+          viaKey: null,
           createdAt: expect.any(String),
         },
       ]);

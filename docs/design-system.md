@@ -213,7 +213,6 @@ One definition: `.btn`, `.btn-ink`, `.btn.sm`, `.btn.big` and `.btn-block` live 
 - `.fchip`: filter chips in the filter panel. Idle: 1px `--rule` border, `--ink-2`. Checked: `--gray-bg`, `--ink` border and text, weight 600. Status chips start with an 8px status dot.
 - `.hid-pill`: the "N hidden" badge at the right end of the context bar, 28px, `--gray-bg`. Hover or open: `--rule` fill.
 - `.nbadge`: the app icon badge on the Change requests button: an 18px pill in `--danger` with white 10.5px weight 600 text and a 2px `--panel` ring, at the top right corner of the button. It counts the Ready change requests and is absent at 0. It is the only solid red count in the app.
-- `.bot`: the Agent chip on a Queue card, on `--route-bg`.
 
 ### 8.3 Inputs
 
