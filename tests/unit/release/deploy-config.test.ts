@@ -54,6 +54,9 @@ describe('deployment config', () => {
     expect(curled.length).toBeGreaterThan(0);
     expect(new Set(curled)).toEqual(new Set([host]));
   });
+  it('keeps the Google credentials file of the deploy job out of the image build context', () => {
+    expect(lines('.dockerignore')).toContain('gha-creds-*.json');
+  });
   it('keeps secrets, dependencies, build output and agent notes out of the build context and the Cloud Build upload', () => {
     for (const file of ['.dockerignore', '.gcloudignore']) {
       const ignored = lines(file);

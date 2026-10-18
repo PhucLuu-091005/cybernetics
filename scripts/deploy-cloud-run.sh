@@ -8,10 +8,20 @@ set -euo pipefail
 SERVICE="${SERVICE:-promise-graph}"
 REGION="${REGION:-asia-southeast1}"
 UPDATE_SECRETS="${UPDATE_SECRETS:-0}"
+# demo: every visitor gets their own sandbox with no sign-in. google: Google sign-in.
+AUTH_MODE="${AUTH_MODE:-demo}"
+case "$AUTH_MODE" in
+  demo | google) ;;
+  *)
+    echo "AUTH_MODE must be demo or google" >&2
+    exit 2
+    ;;
+esac
 
+required="GCP_PROJECT_ID NEXT_PUBLIC_APP_URL SESSION_SECRET DATABASE_URL MIGRATE_DATABASE_URL"
+[ "$AUTH_MODE" = google ] && required="$required GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET"
 missing=""
-for name in GCP_PROJECT_ID NEXT_PUBLIC_APP_URL SESSION_SECRET GOOGLE_CLIENT_ID \
-  GOOGLE_CLIENT_SECRET DATABASE_URL MIGRATE_DATABASE_URL; do
+for name in $required; do
   if [ -z "${!name:-}" ]; then missing="$missing $name"; fi
 done
 if [ -n "$missing" ]; then
@@ -50,7 +60,7 @@ for tool in gcloud node; do
   fi
 done
 
-# The service runs as its own account, which can read these four secrets and nothing else.
+# The service runs as its own account, which can read its own secrets and nothing else.
 runtime_name="$SERVICE-runtime"
 runtime_account="$runtime_name@$GCP_PROJECT_ID.iam.gserviceaccount.com"
 if ! gcloud iam service-accounts describe "$runtime_account" --project "$GCP_PROJECT_ID" > /dev/null 2>&1; then
@@ -95,9 +105,15 @@ put_secret() {
 }
 
 put_secret "$SERVICE-session-secret" "$SESSION_SECRET"
-put_secret "$SERVICE-google-client-secret" "$GOOGLE_CLIENT_SECRET"
 put_secret "$SERVICE-database-url" "$DATABASE_URL"
 put_secret "$SERVICE-migrate-database-url" "$MIGRATE_DATABASE_URL"
+env_vars="AUTH_MODE=$AUTH_MODE,NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL"
+secret_vars="SESSION_SECRET=$SERVICE-session-secret:latest,DATABASE_URL=$SERVICE-database-url:latest,MIGRATE_DATABASE_URL=$SERVICE-migrate-database-url:latest"
+if [ "$AUTH_MODE" = google ]; then
+  put_secret "$SERVICE-google-client-secret" "$GOOGLE_CLIENT_SECRET"
+  env_vars="$env_vars,GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID"
+  secret_vars="$secret_vars,GOOGLE_CLIENT_SECRET=$SERVICE-google-client-secret:latest"
+fi
 
 # One instance: the rate limits live in process memory. Request-based billing (the default CPU
 # throttling) and no minimum instance keep an idle service at zero cost.
@@ -114,8 +130,8 @@ gcloud run deploy "$SERVICE" \
   --concurrency 80 \
   --timeout 300 \
   --startup-probe "httpGet.path=/api/health,periodSeconds=5,timeoutSeconds=3,failureThreshold=24" \
-  --set-env-vars "AUTH_MODE=google,NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL,GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID" \
-  --set-secrets "SESSION_SECRET=$SERVICE-session-secret:latest,GOOGLE_CLIENT_SECRET=$SERVICE-google-client-secret:latest,DATABASE_URL=$SERVICE-database-url:latest,MIGRATE_DATABASE_URL=$SERVICE-migrate-database-url:latest" \
+  --set-env-vars "$env_vars" \
+  --set-secrets "$secret_vars" \
   --quiet
 
 for secret in $updated; do
@@ -145,10 +161,18 @@ service_urls="$(gcloud run services describe "$SERVICE" --project "$GCP_PROJECT_
 service_url="$(printf '%s\n' "$service_urls" | head -n 1)"
 echo "Service URL: $service_url"
 if printf '%s\n' "$service_urls" | grep -qxF "$NEXT_PUBLIC_APP_URL"; then
-  echo "Google OAuth redirect URI: $NEXT_PUBLIC_APP_URL/api/auth/google/callback"
+  if [ "$AUTH_MODE" = google ]; then
+    echo "Google OAuth redirect URI: $NEXT_PUBLIC_APP_URL/api/auth/google/callback"
+  else
+    echo "Open the app: $NEXT_PUBLIC_APP_URL (no sign-in)"
+  fi
 else
   echo "NEXT_PUBLIC_APP_URL ($NEXT_PUBLIC_APP_URL) is not a URL of this service." >&2
-  echo "Run this, then add $service_url/api/auth/google/callback to the Google OAuth client:" >&2
+  if [ "$AUTH_MODE" = google ]; then
+    echo "Run this, then add $service_url/api/auth/google/callback to the Google OAuth client:" >&2
+  else
+    echo "Run this:" >&2
+  fi
   echo "  gcloud run services update $SERVICE --project $GCP_PROJECT_ID --region $REGION --update-env-vars NEXT_PUBLIC_APP_URL=$service_url" >&2
   exit 3
 fi

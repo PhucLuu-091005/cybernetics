@@ -2,6 +2,8 @@
 
 This guide puts the app on the internet for free, or close to free. Google Cloud Run runs the container. Neon runs PostgreSQL. You need no GCP experience. Do the steps in this order.
 
+The deploy runs the app with `AUTH_MODE=demo`: whoever opens the URL gets their own copy of the Larkspur demo project at once, with no sign-in. Google sign-in is optional; see [Optional: Google sign-in](#optional-google-sign-in-only-for-auth_modegoogle).
+
 You need:
 
 - a Google account;
@@ -73,14 +75,7 @@ https://promise-graph-<PROJECT_NUMBER>.asia-southeast1.run.app
 
 This URL is `NEXT_PUBLIC_APP_URL`. Write it without a `/` at the end. The deploy script checks it after the deploy and tells you the command to fix it if the service got another URL.
 
-## 5. Create the Google OAuth client
-
-1. In the Cloud console, go to **APIs & Services → OAuth consent screen**. Select **External**. Fill in the app name and your email. Add the scopes `openid`, `email` and `profile`. Set the publishing status to **In production**. In **Testing**, only the listed test users can sign in.
-2. Go to **APIs & Services → Credentials → Create credentials → OAuth client ID**. Select **Web application**.
-3. Under **Authorized redirect URIs**, add `<NEXT_PUBLIC_APP_URL>/api/auth/google/callback`, for example `https://promise-graph-123456789012.asia-southeast1.run.app/api/auth/google/callback`.
-4. Select **Create**. Copy the client ID (`GOOGLE_CLIENT_ID`) and the client secret (`GOOGLE_CLIENT_SECRET`).
-
-## 6. Deploy
+## 5. Deploy
 
 1. Make a session secret. Do not reuse one from another app.
 
@@ -103,8 +98,6 @@ This URL is `NEXT_PUBLIC_APP_URL`. Write it without a `/` at the end. The deploy
    export GCP_PROJECT_ID=promise-graph-demo
    export NEXT_PUBLIC_APP_URL=https://promise-graph-<PROJECT_NUMBER>.asia-southeast1.run.app
    export SESSION_SECRET=<the output of openssl rand -hex 32>
-   export GOOGLE_CLIENT_ID=<client id>
-   export GOOGLE_CLIENT_SECRET=<client secret>
    export DATABASE_URL='<the -pooler URL from Neon>'
    export MIGRATE_DATABASE_URL='<the direct URL from Neon>'
    ```
@@ -120,8 +113,8 @@ This URL is `NEXT_PUBLIC_APP_URL`. Write it without a `/` at the end. The deploy
 The script does these things:
 
 1. It stops before it calls gcloud when a value is missing or wrong: an origin without `https://`, a session secret under 32 bytes, a `DATABASE_URL` without `-pooler`, or a `MIGRATE_DATABASE_URL` with `-pooler`.
-2. It creates the service account `promise-graph-runtime@<GCP_PROJECT_ID>.iam.gserviceaccount.com` once. The service runs as this account. The account gets no project role: it can only read the four secrets below. Cloud Run writes the logs of the service without a role on the account.
-3. It stores `SESSION_SECRET`, `GOOGLE_CLIENT_SECRET`, `DATABASE_URL` and `MIGRATE_DATABASE_URL` in Secret Manager as `promise-graph-session-secret`, `promise-graph-google-client-secret`, `promise-graph-database-url` and `promise-graph-migrate-database-url`. It sends each value on stdin and never prints it. It lets the runtime account read each one.
+2. It creates the service account `promise-graph-runtime@<GCP_PROJECT_ID>.iam.gserviceaccount.com` once. The service runs as this account. The account gets no project role: it can only read the secrets below. Cloud Run writes the logs of the service without a role on the account.
+3. It stores `SESSION_SECRET`, `DATABASE_URL` and `MIGRATE_DATABASE_URL` in Secret Manager as `promise-graph-session-secret`, `promise-graph-database-url` and `promise-graph-migrate-database-url`. With `AUTH_MODE=google`, it also stores `GOOGLE_CLIENT_SECRET` as `promise-graph-google-client-secret`. It sends each value on stdin and never prints it. It lets the runtime account read each one.
 4. It runs one `gcloud run deploy`. Cloud Build builds the `Dockerfile`, and Cloud Run starts it in `asia-southeast1`:
 
    ```sh
@@ -130,12 +123,12 @@ The script does these things:
      --allow-unauthenticated --min-instances 0 --max-instances 1 --cpu 1 --memory 512Mi \
      --concurrency 80 --timeout 300 \
      --startup-probe "httpGet.path=/api/health,periodSeconds=5,timeoutSeconds=3,failureThreshold=24" \
-     --set-env-vars "AUTH_MODE=google,NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL,GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID" \
-     --set-secrets "SESSION_SECRET=promise-graph-session-secret:latest,GOOGLE_CLIENT_SECRET=promise-graph-google-client-secret:latest,DATABASE_URL=promise-graph-database-url:latest,MIGRATE_DATABASE_URL=promise-graph-migrate-database-url:latest"
+     --set-env-vars "AUTH_MODE=demo,NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL" \
+     --set-secrets "SESSION_SECRET=promise-graph-session-secret:latest,DATABASE_URL=promise-graph-database-url:latest,MIGRATE_DATABASE_URL=promise-graph-migrate-database-url:latest"
    ```
 
-5. With `UPDATE_SECRETS=1`, it destroys the old secret versions, only after the deploy works (see step 8).
-6. It prints the service URL and the OAuth redirect URI. If `NEXT_PUBLIC_APP_URL` is not a URL of the service, it prints a `gcloud run services update … --update-env-vars NEXT_PUBLIC_APP_URL=…` command and exits with status 3. Run that command, and add the printed redirect URI to the OAuth client (step 5). The update makes a new revision without a new build.
+5. With `UPDATE_SECRETS=1`, it destroys the old secret versions, only after the deploy works (see step 7).
+6. It prints the service URL and `Open the app: <NEXT_PUBLIC_APP_URL>`. If `NEXT_PUBLIC_APP_URL` is not a URL of the service, it prints a `gcloud run services update … --update-env-vars NEXT_PUBLIC_APP_URL=…` command and exits with status 3. Run that command. The update makes a new revision without a new build.
 
 The first build takes about 5 minutes. The first time, gcloud asks to create an Artifact Registry repository named `cloud-run-source-deploy`; the script answers yes.
 
@@ -146,7 +139,7 @@ Why these settings:
 - The startup probe calls `/api/health` on the port that Cloud Run gives in `PORT` (8080). The container first applies the migrations, then starts the server, so Cloud Run sends traffic only after both. The probe allows 2 minutes, which covers a Neon wake-up (about one second) and the migration step. The database connection timeout is 10 seconds in the app and 15 seconds in the migration step.
 - `/api/health` does not touch the database, so a probe never keeps Neon awake.
 
-## 7. Check the deploy
+## 6. Check the deploy
 
 1. Open `<NEXT_PUBLIC_APP_URL>/api/health`. It returns `{"status":"ok"}`.
 2. Read the logs of the start, in the console (**Cloud Run → promise-graph → Logs**) or with:
@@ -157,22 +150,113 @@ Why these settings:
    ```
 
    Cloud Run reads each JSON line of the container into `jsonPayload`, so look for `"event": "migrations_applied"`. `"event": "migrations_waiting"` means that another container held the migration lock; the start goes on when that container is done. `"event": "migrations_failed"` means that the container stopped, and Cloud Run keeps the previous revision. Its `message` says why.
-3. Open `NEXT_PUBLIC_APP_URL`, select **Continue with Google** and sign in. The first sign-in of each account builds its Larkspur sandbox, so it takes longer than later sign-ins.
+3. Open `NEXT_PUBLIC_APP_URL`. The graph of your own Larkspur copy opens with no sign-in. Open the URL in a private window: you get a second, separate copy. Give this URL to the judges.
 
-## 8. Deploy again
+## 7. Deploy again
 
 - After a code change, run `scripts/deploy-cloud-run.sh` again with the same values. It keeps the stored secrets.
-- To change a secret, run it with `UPDATE_SECRETS=1`. It adds a new version of each secret. After the deploy works, it destroys the older versions, so the project keeps 4 active versions, under the free 6. When the deploy fails, it destroys nothing. When it cannot list the versions, it stops with status 4; then destroy the old versions in the console (**Security → Secret Manager**).
-- To change only `NEXT_PUBLIC_APP_URL` or `GOOGLE_CLIENT_ID`, use `gcloud run services update promise-graph --region asia-southeast1 --update-env-vars KEY=value`. No build is needed.
+- To change a secret, run it with `UPDATE_SECRETS=1`. It adds a new version of each secret. After the deploy works, it destroys the older versions, so the project keeps 3 active versions (4 with Google sign-in), under the free 6. When the deploy fails, it destroys nothing. When it cannot list the versions, it stops with status 4; then destroy the old versions in the console (**Security → Secret Manager**).
+- To change only `NEXT_PUBLIC_APP_URL` (or `GOOGLE_CLIENT_ID` with Google sign-in), use `gcloud run services update promise-graph --region asia-southeast1 --update-env-vars KEY=value`. No build is needed.
 
-## 9. Stay inside the free tier
+## 8. Stay inside the free tier
 
 - Keep `--min-instances 0` and the default CPU throttling. Cloud Run then bills only while a request runs.
 - Each deploy stores a new image in Artifact Registry, and the free storage is 0.5 GB. Delete old images after a few deploys: in the console, open **Artifact Registry → cloud-run-source-deploy → promise-graph** and delete all but the newest. Or set a cleanup policy there that keeps the 2 newest versions.
 - Cloud Build gets 2,500 free build-minutes a month; one build takes about 5 minutes.
-- Keep 4 secrets with one active version each.
+- Keep 3 secrets (4 with Google sign-in) with one active version each.
 - Do not add an uptime monitor: Neon then sleeps after 5 minutes, and its 100 CU-hours last the month.
 - Check **Billing → Reports** once a week.
+
+## Optional: Google sign-in (only for AUTH_MODE=google)
+
+Do this only when people must sign in with Google instead of the demo copy.
+
+1. In the Cloud console, go to **APIs & Services → OAuth consent screen**. Select **External**. Fill in the app name and your email. Add the scopes `openid`, `email` and `profile`. Set the publishing status to **In production**. In **Testing**, only the listed test users can sign in.
+2. Go to **APIs & Services → Credentials → Create credentials → OAuth client ID**. Select **Web application**.
+3. Under **Authorized redirect URIs**, add `<NEXT_PUBLIC_APP_URL>/api/auth/google/callback`, for example `https://promise-graph-123456789012.asia-southeast1.run.app/api/auth/google/callback`.
+4. Select **Create**. Copy the client ID (`GOOGLE_CLIENT_ID`) and the client secret (`GOOGLE_CLIENT_SECRET`).
+5. Add three lines to the env file of step 5, then run the script again:
+
+   ```sh
+   export AUTH_MODE=google
+   export GOOGLE_CLIENT_ID=<client id>
+   export GOOGLE_CLIENT_SECRET=<client secret>
+   ```
+
+   The script then stores the client secret, sets `GOOGLE_CLIENT_ID`, and prints the OAuth redirect URI. The first sign-in of each Google account builds its Larkspur sandbox.
+
+## Demo sandboxes: size, limit and cleanup
+
+Each visitor's copy is a full Larkspur project in its own workspace, owned by an anonymous person named Demo visitor.
+
+- **Size.** One new copy writes 43 rows (person, workspace, project, 5 members, 7 teams, 5 team places, 6 Queue items, 4 change requests, 9 comments, 1 commit, 1 share) and takes about 28 KB on PostgreSQL, indexes included (measured: 100 copies grew the database by 2.9 MB). The empty schema takes about 9 MB. So 1 GB (the Neon Free storage) holds about 35,000 copies before visitors add their own changes.
+- **When a copy is made.** Only when a browser opens a page with no session: a `GET` that asks for HTML. `HEAD`, `/api/health`, `/mcp`, files and prefetches make nothing. When the cookie does not come back on the next request (cookies off, a frame inside another site), the visitor sees a short page about cookies and no more copies are made. A user agent that names a bot, crawler, spider, preview, Slackbot, facebookexternalhit, WhatsApp, TelegramBot, Discordbot or curl gets a read-only welcome page that links to the app, so link previews make nothing.
+- **Limit.** One address (the last `X-Forwarded-For` value, which Cloud Run appends) gets at most 30 new copies an hour; past it, the welcome page says to try again later.
+- **Cookie.** The session cookie lasts 30 days (`HttpOnly`, `Secure`, `SameSite=Lax`) and is not renewed. After 30 days nobody can open that copy again. **Start over** in the account menu makes a new person and a fresh copy; the old copy stays until the cleanup.
+- **Cleanup.** `scripts/delete-demo-sandboxes.mjs` deletes the copies made more than N days ago (default 30, the cookie lifetime, so it never deletes a copy that a visitor can still open). It is a script that you run, not a cron job. Without `--apply` it only counts:
+
+  ```sh
+  (source ~/.config/promise-graph/deploy.env && DATABASE_URL="$MIGRATE_DATABASE_URL" node scripts/delete-demo-sandboxes.mjs --days 30)
+  (source ~/.config/promise-graph/deploy.env && DATABASE_URL="$MIGRATE_DATABASE_URL" node scripts/delete-demo-sandboxes.mjs --days 30 --apply)
+  ```
+
+  A smaller `--days` also deletes copies whose cookie still works: their visitor then gets a new copy on the next visit.
+
+## Deploy from a tag
+
+After the first deploy by hand (steps 1 to 7), GitHub Actions can deploy each tag that starts with `v`. The workflow `.github/workflows/deploy.yml` runs the same checks as CI. When they pass, it builds the `Dockerfile`, pushes the image to Artifact Registry and deploys it. It changes only the image: the service keeps its env vars, secrets, service account and limits. GitHub signs in to Google through Workload Identity Federation, so no service account key exists anywhere.
+
+Set it up once:
+
+1. Sign in to gcloud as the project owner (step 3) and to the GitHub CLI (`gh auth login`). Then run the setup script from the repository root:
+
+   ```sh
+   GCP_PROJECT_ID=promise-graph GITHUB_REPOSITORY=PhucLuu-091005/cybernetics scripts/setup-github-cd.sh
+   ```
+
+   The script does these things. A second run creates nothing new.
+   - It creates the Docker repository `promise-graph` in `asia-southeast1`, with a cleanup policy that keeps the 3 newest images.
+   - It creates the account `promise-graph-deployer`. The account gets `roles/run.developer` on the service, `roles/artifactregistry.writer` on the repository and `roles/iam.serviceAccountUser` on the runtime account. It gets no other role.
+   - It reads the ids of the repository and of its owner with `gh api repos/PhucLuu-091005/cybernetics --jq '.id,.owner.id'` (today `1415634185` and `187116949`). Without `gh`, set them yourself in `GITHUB_REPOSITORY_ID` and `GITHUB_OWNER_ID`.
+   - It creates a Workload Identity pool and an OIDC provider for GitHub. The provider accepts only a job of that repository id and owner id, on a tag that starts with `v`, in the environment `production`. Google checks the ids and not the name, so after a rename, a new repository with the old name gets no access.
+
+2. The script prints two `gh variable set` commands. Run them. They set the repository variables `GCP_WIF_PROVIDER` and `GCP_DEPLOYER_SA`. Neither value is secret, so they are variables, not secrets.
+
+Deploy:
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+Watch the run in the **Actions** tab or with `gh run watch`. The job summary shows the service URL after `/api/health` returns `ok`. A failed check stops the run before the deploy.
+
+One run waits for the run before it, so an older tag never deploys after a newer one.
+
+To roll back, deploy an earlier tag again. Start the workflow from that tag:
+
+```sh
+gh workflow run deploy.yml --ref v0.1.0 -f tag=v0.1.0
+```
+
+Do not roll back to an old revision in the Cloud Run console. The cleanup policy keeps only the 3 newest images, so the image of an old revision can be gone. The workflow builds the image of the tag again.
+
+Protect the tags. Anyone who can push a `v*` tag can deploy. In **Settings → Rules → Rulesets**, add a tag ruleset:
+
+1. Target the tags that match `v*`.
+2. Select **Restrict creations**, **Restrict updates** and **Restrict deletions**.
+3. Add only the repository admin (the owner) to the bypass list.
+
+The deploy job runs in the GitHub environment `production`, and Google gives a token only to a job in that environment. In **Settings → Environments → production**, you can also:
+
+- set **Deployment branches and tags** to **Selected branches and tags** with the tag rule `v*`;
+- add a required reviewer, so that each deploy waits for an approval.
+
+GitHub makes the environment at the first run. To change a secret or an env var, use `scripts/deploy-cloud-run.sh` or `gcloud run services update` as in step 8.
+
+The free limits that matter here:
+
+- GitHub Actions: a public repository gets free minutes with no limit. A private repository on the Free plan gets 2,000 minutes a month. This repository is public. One tag uses about 20 to 30 minutes, because the checks, the end-to-end tests and the image build each take a runner.
+- Artifact Registry: 0.5 GB of storage for the whole project. The cleanup policy keeps the 3 newest images in `promise-graph` and deletes the others. Artifact Registry runs the policy about once a day. The images of the deploys by hand stay in `cloud-run-source-deploy`, so delete them there (step 9).
 
 ## Troubleshooting
 
@@ -185,6 +269,6 @@ Why these settings:
   ```
 
 - **`migrations_failed` with code `28P01` (password authentication failed).** The password in a Neon URL is old, for example after a password reset in Neon. Copy both URLs again (step 1), put them in the env file, then run the script with `UPDATE_SECRETS=1`.
-- **Google says `redirect_uri_mismatch`.** The redirect URI in the OAuth client must equal `NEXT_PUBLIC_APP_URL` followed by `/api/auth/google/callback`.
+- **Google says `redirect_uri_mismatch` (Google sign-in only).** The redirect URI in the OAuth client must equal `NEXT_PUBLIC_APP_URL` followed by `/api/auth/google/callback`.
 - **The page says "Production requires HTTPS".** `NEXT_PUBLIC_APP_URL` starts with `http://`. Set it to the `https://` service URL.
 - **A request fails once after a long idle time.** Neon closes idle connections when it stops. The app drops a closed connection and opens a new one, so a reload works.

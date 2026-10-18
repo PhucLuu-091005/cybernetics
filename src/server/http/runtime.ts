@@ -24,13 +24,15 @@ export function getHttpIdentityStore(): HttpIdentityStore {
   if (!state.promiseIdentityStore) throw new Error('Identity persistence is unavailable');
   return state.promiseIdentityStore;
 }
-function identities() {
-  const store = getHttpIdentityStore();
+export function getRateLimiter(): MemoryRateLimiter {
   state.promiseRateLimiter ??= new MemoryRateLimiter();
+  return state.promiseRateLimiter;
+}
+function identities() {
   return createIdentityServices({
-    store,
+    store: getHttpIdentityStore(),
     env: readAuthEnvironment(),
-    limiter: state.promiseRateLimiter,
+    limiter: getRateLimiter(),
   });
 }
 export async function getBrowserActor(request: Request): Promise<ActorContext> {
