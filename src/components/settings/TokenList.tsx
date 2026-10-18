@@ -70,7 +70,7 @@ function TokenRow({
         {!token.revokedAt &&
           !expired &&
           (busy || refreshing ? (
-            <span className="faint" role="status">
+            <span className="pg-status" role="status">
               Revoking…
             </span>
           ) : confirming ? (
