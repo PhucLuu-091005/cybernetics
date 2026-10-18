@@ -1,44 +1,48 @@
 /* Ported from docs/design/2026-10-16-event-tracker-v8.html. HTML rules sit under .tk because a global
-   stylesheet stays loaded after client navigation; svg.pg is unique to the tracker graph. */
+   stylesheet stays loaded after client navigation; svg.tg is unique to the tracker graph. */
+/* C2 highlighter: --change-bg marks what a change request changed, --edit-bg tints the bar of a request you edit. */
 :root {
-  --teal: #0d9488;
-  --teal-bg: #ccfbf1;
-  --gray-bg: #f1f1f1;
-  --k-message: #2563eb;
-  --k-task: #7c3aed;
-  --k-handoff: #0d9488;
-  --k-decision: #d97706;
-  --k-meeting: #db2777;
-  --k-delivery: #16a34a;
-  --k-issue: #dc2626;
-  --k-done: #15803d;
+  --change: #d5ae39;
+  --change-text: var(--ink);
+  --change-bg: #ffe770;
+  --edit-bg: #fefce9;
+  --k-message: #0c67b6;
+  --k-task: #6550b9;
+  --k-handoff: #0e738c;
+  --k-decision: #975800;
+  --k-meeting: #ba2784;
+  --k-delivery: #54722b;
+  --k-issue: #be282d;
+  --k-done: #1e744e;
 }
 :root[data-theme='dark'] {
-  --teal: #2dd4bf;
-  --teal-bg: #042f2e;
-  --gray-bg: #1f1f1f;
-  --k-message: #60a5fa;
-  --k-task: #a78bfa;
-  --k-handoff: #2dd4bf;
-  --k-decision: #fbbf24;
-  --k-meeting: #f472b6;
-  --k-delivery: #4ade80;
-  --k-issue: #f87171;
-  --k-done: #86efac;
+  --change: #ffe629;
+  --change-text: var(--ink);
+  --change-bg: #524202;
+  --edit-bg: #1b180f;
+  --k-message: #70b8ff;
+  --k-task: #baa7ff;
+  --k-handoff: #4ccce6;
+  --k-decision: #ffca16;
+  --k-meeting: #ff8dcc;
+  --k-delivery: #d4ff70;
+  --k-issue: #ff9592;
+  --k-done: #3dd68c;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --teal: #2dd4bf;
-    --teal-bg: #042f2e;
-    --gray-bg: #1f1f1f;
-    --k-message: #60a5fa;
-    --k-task: #a78bfa;
-    --k-handoff: #2dd4bf;
-    --k-decision: #fbbf24;
-    --k-meeting: #f472b6;
-    --k-delivery: #4ade80;
-    --k-issue: #f87171;
-    --k-done: #86efac;
+    --change: #ffe629;
+    --change-text: var(--ink);
+    --change-bg: #524202;
+    --edit-bg: #1b180f;
+    --k-message: #70b8ff;
+    --k-task: #baa7ff;
+    --k-handoff: #4ccce6;
+    --k-decision: #ffca16;
+    --k-meeting: #ff8dcc;
+    --k-delivery: #d4ff70;
+    --k-issue: #ff9592;
+    --k-done: #3dd68c;
   }
 }
 
@@ -50,7 +54,8 @@
   min-height: 100vh;
   background: var(--panel);
   color: var(--ink);
-  font: 15px/1.6 var(--f-ui);
+  font: var(--fs)/1.5 var(--f-ui);
+  letter-spacing: -0.005em;
 }
 .tk,
 .tk *,
@@ -67,44 +72,43 @@
   color: var(--ink-2);
 }
 .tk .small {
-  font-size: 13px;
+  font-size: var(--fs-s);
 }
 
 .tk .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 6px;
   border: 1px solid var(--rule);
   background: var(--panel);
   color: var(--ink);
-  border-radius: 9px;
-  padding: 7px 12px;
-  font-weight: 600;
-  font-size: 14px;
+  border-radius: var(--r-ctl);
+  padding: 6px 11px;
+  font-weight: 500;
+  font-size: var(--fs-s);
   cursor: pointer;
-  min-height: 36px;
+  min-height: 32px;
   white-space: nowrap;
   line-height: 1.2;
-  box-shadow: none;
+  box-shadow: var(--shadow-sm);
   text-decoration: none;
 }
 .tk .btn:hover:not(:disabled) {
-  border-color: var(--ink-3);
-  background: var(--panel);
+  background: var(--sunk);
 }
 .tk .btn svg {
   flex: none;
 }
 .tk .btn.big {
-  min-height: 44px;
-  font-size: 15px;
-  padding: 9px 16px;
-  border-radius: 11px;
+  min-height: 40px;
+  font-size: var(--fs);
+  padding: 8px 16px;
+  border-radius: var(--r-ctl);
 }
 .tk .btn.sm {
-  min-height: 30px;
-  font-size: 12px;
+  min-height: 28px;
+  font-size: var(--fs-xs);
   padding: 4px 9px;
   border-radius: 8px;
 }
@@ -119,12 +123,15 @@
 }
 .tk .btn-draft,
 .tk .btn-draft:hover:not(:disabled) {
-  background: var(--draft);
-  color: #fff;
-  border-color: var(--draft);
+  background: var(--panel);
+  color: var(--ink);
+}
+.tk .btn-draft .cnt {
+  background: var(--change-bg);
+  color: var(--change-text);
 }
 .tk .btn-danger {
-  color: var(--danger);
+  color: var(--danger-ink);
 }
 .tk .btn:disabled {
   opacity: 0.4;
@@ -133,29 +140,31 @@
 .tk .cnt {
   display: inline-grid;
   place-items: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
   border-radius: 99px;
   background: var(--gray-bg);
-  color: var(--ink-2);
-  font-size: 12px;
+  color: var(--ink);
+  font-size: 11px;
 }
-.tk .btn-draft .cnt,
 .tk .btn-ink .cnt {
-  background: rgba(255, 255, 255, 0.25);
+  background: color-mix(in srgb, var(--panel) 22%, transparent);
   color: inherit;
 }
 .tk .lnk {
   border: 0;
   background: none;
   padding: 0;
-  color: var(--route);
+  color: var(--route-ink);
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 400;
-  text-decoration: underline;
+  font-size: var(--fs-s);
+  font-weight: 500;
+  text-decoration: none;
   text-underline-offset: 2px;
+}
+.tk .lnk:hover {
+  text-decoration: underline;
 }
 .tk .x {
   border: 0;
@@ -171,9 +180,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--rule);
   flex-wrap: wrap;
+  min-height: 52px;
 }
 .tk .p-head .sp {
   flex: 1;
@@ -193,15 +203,17 @@
   align-items: center;
   border: 1px solid var(--rule);
   background: var(--panel);
-  border-radius: 10px;
-  padding: 6px 10px;
+  border-radius: var(--r-ctl);
+  padding: 0 10px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--fs-s);
   font-weight: 600;
   max-width: 100%;
+  min-height: 32px;
+  box-shadow: var(--shadow-sm);
 }
 .tk .graph-btn:hover {
-  border-color: var(--ink-3);
+  background: var(--sunk);
 }
 .tk .gdot {
   width: 10px;
@@ -218,7 +230,7 @@
   max-width: calc(100vw - 32px);
   background: var(--panel);
   border: 1px solid var(--rule);
-  border-radius: 12px;
+  border-radius: var(--r-pop);
   box-shadow: var(--shadow);
   padding: 6px;
 }
@@ -229,96 +241,176 @@
   align-items: center;
   border: 0;
   background: none;
-  padding: 8px 10px;
+  padding: 7px 10px;
   border-radius: 8px;
   cursor: pointer;
   text-align: left;
-  font-size: 14px;
+  font-size: var(--fs);
   line-height: 1.4;
 }
 .tk .gmenu button:hover {
-  background: var(--sunk);
+  background: var(--hover);
 }
 .tk .gmenu button.on {
-  font-weight: 700;
-  background: var(--sunk);
+  font-weight: 600;
+  background: var(--gray-bg);
 }
 .tk .gmenu small {
   display: block;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 400;
 }
 .tk .gmenu hr {
   border: 0;
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--rule-2);
   margin: 4px 0;
+}
+.tk .hid-menu {
+  position: relative;
+}
+.tk .hid-menu > summary {
+  list-style: none;
+}
+.tk .hid-menu > summary::-webkit-details-marker {
+  display: none;
 }
 .tk .hid-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  font-weight: 500;
   background: var(--gray-bg);
   color: var(--ink-2);
   border-radius: 99px;
-  padding: 3px 4px 3px 10px;
+  padding: 0 8px 0 10px;
+  white-space: nowrap;
+  cursor: pointer;
+  min-height: 28px;
+}
+.tk .hid-pill:hover,
+.tk .hid-menu[open] > .hid-pill {
+  background: var(--rule);
+  color: var(--ink);
+}
+.tk .hid-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 11;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-pop);
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  font-size: var(--fs);
+}
+.tk .hid-pop:focus {
+  outline: none;
+}
+.tk .hid-pop .q-label {
+  margin-top: 10px;
+}
+.tk .hid-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tk .hid-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid var(--rule-2);
+}
+.tk .hid-list li:first-child {
+  border-top: 0;
+}
+.tk .hid-list .tt,
+.tk .ft-node .tt {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tk .hid-list .tt b,
+.tk .ft-node .tt b {
+  font-size: var(--fs-s);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tk .hid-list .tt small,
+.tk .ft-node .tt small {
+  font-size: var(--fs-xs);
+  color: var(--ink-3);
+}
+.tk .hid-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule-2);
 }
 .tk .demo {
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: var(--gray-bg);
-  border-radius: 10px;
-  padding: 3px 4px 3px 9px;
-  font-size: 11px;
-  font-weight: 700;
+  gap: 8px;
+  font-size: 10.5px;
+  font-weight: 600;
   color: var(--ink-3);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
 }
 .tk .demo select {
-  border: 0;
+  min-height: 32px;
+  border: 1px solid var(--rule);
   background: var(--panel);
-  border-radius: 7px;
-  padding: 5px 6px;
-  font-size: 12px;
-  font-weight: 600;
+  border-radius: var(--r-ctl);
+  padding: 0 6px;
+  font-size: var(--fs-s);
+  font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
   color: var(--ink);
   max-width: 160px;
+  box-shadow: var(--shadow-sm);
 }
 .tk .me {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   padding-left: 10px;
   border-left: 1px solid var(--rule);
 }
 .tk .me b {
-  font-size: 13px;
+  font-size: var(--fs-s);
   display: block;
   line-height: 1.2;
 }
 .tk .me small {
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   color: var(--ink-3);
   display: block;
   line-height: 1.2;
 }
 .tk .av {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: grid;
   place-items: center;
   color: #fff;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   flex: none;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   line-height: 1;
 }
 .tk .av.sm {
@@ -343,14 +435,15 @@
   flex-direction: row;
   align-items: center;
   gap: 10px;
-  padding: 8px 14px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--rule);
   flex-wrap: wrap;
-  font-size: 13px;
+  font-size: var(--fs-s);
   min-width: 0;
+  min-height: 48px;
 }
 .tk .bbar.mine {
-  background: var(--draft-bg);
+  background: var(--edit-bg);
 }
 .tk .bbar.main {
   background: var(--sunk);
@@ -359,7 +452,7 @@
   background: var(--route-bg);
 }
 .tk .bbar .bt {
-  font-weight: 700;
+  font-weight: 600;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -369,36 +462,36 @@
   flex: 1;
 }
 .tk .bbar .muted {
-  font-size: 12.5px;
+  font-size: var(--fs-s);
 }
 .tk .chipx {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11.5px;
-  font-weight: 700;
-  padding: 2px 8px;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  padding: 1px 9px;
   border-radius: 99px;
-  background: var(--panel);
+  background: var(--gray-bg);
   color: var(--ink-2);
   white-space: nowrap;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 .tk .chipx.warn {
   background: var(--caution-bg);
-  color: var(--caution);
+  color: var(--caution-ink);
 }
 .tk .chipx.ok {
   background: var(--proceed-bg);
-  color: var(--proceed);
+  color: var(--proceed-ink);
 }
 .tk .chipx.pen {
-  background: var(--draft-bg);
-  color: var(--draft);
+  background: var(--change-bg);
+  color: var(--change-text);
 }
 .tk .chipx.route {
   background: var(--route-bg);
-  color: var(--route);
+  color: var(--route-ink);
 }
 .tk .ask-row {
   flex-basis: 100%;
@@ -407,42 +500,471 @@
   align-items: center;
   flex-wrap: wrap;
   background: var(--caution-bg);
-  border-radius: 10px;
+  border-radius: var(--r-ctl);
   padding: 6px 10px;
-  font-size: 13px;
+  font-size: var(--fs-s);
 }
 
+/* The board fills the viewport: the bars and the legend stay put, and the graph canvas scrolls
+   inside the space between them. A phone keeps the page scroll, as the Queue stacks above. */
+.tk.board {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+}
 .tk .p-body {
   display: flex;
   flex: 1;
-  min-height: 420px;
+  min-height: 0;
   min-width: 0;
 }
 .tk .p-side {
   width: 252px;
   flex: none;
   border-right: 1px solid var(--rule);
-  padding: 12px;
+  padding: 12px 12px 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background: var(--sunk);
+  background: var(--panel);
   min-width: 0;
+  min-height: 0;
+}
+.tk .p-side .qlist {
+  flex: 1;
+  min-height: 0;
 }
 .tk .gwrap {
   position: relative;
   inset: auto;
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tk .gcanvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-padding-top: var(--tk-axis-h, 0px);
+}
+
+/* Two columns share one scale: the label column stays put while the time line scrolls. The frame
+   keeps 900 px so a phone scrolls the whole graph instead of squeezing it. */
+.tk .tgraph {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+/* The graph fills the canvas, so the zoom controls float at its bottom right even under a short graph. */
+.tk .gcanvas > .tgraph {
+  min-height: 100%;
 }
 .tk .gscroll {
   overflow-x: auto;
 }
-.tk .gscroll svg {
-  display: block;
-  width: 100%;
+/* The axis and the milestone line stay pinned while the rows scroll; the graph copies the sideways
+   scroll into them, as an element with a scroll of its own cannot hold a sticky child. */
+.tk .ghead {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  overflow: hidden;
+  background: var(--panel);
+  box-shadow: 0 1px 0 var(--rule);
+}
+.tk .ghead .gtime {
+  overflow: hidden;
+}
+.tk .gframe {
+  display: flex;
+  align-items: flex-start;
   min-width: 900px;
+}
+.tk .gtime {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.tk .gframe svg {
+  display: block;
+  flex: none;
   height: auto;
+}
+/* Sticky in a band of its own below the graph, so at the end of the scroll it covers no row. */
+.tk .zoombar {
+  position: sticky;
+  bottom: 12px;
+  z-index: 3;
+  align-self: flex-end;
+  margin: auto 12px 12px;
+  box-shadow: var(--shadow);
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-ctl);
+  background: var(--panel);
+}
+/* An open drawer covers the right of the graph, so the zoom controls move to its left. */
+@media (min-width: 761px) {
+  .tk .gwrap:has(> .drawer-slot) .zoombar {
+    margin-right: calc(min(380px, 100%) + 20px);
+  }
+}
+.tk .zoombar button {
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink-2);
+  font: 600 12px/1 var(--f-ui);
+  cursor: pointer;
+}
+.tk .zoombar button svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+.tk .zoombar button:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--ink);
+}
+.tk .zoombar button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.tk .zoombar .full {
+  margin-left: 2px;
+  box-shadow: -1px 0 0 var(--rule);
+  border-radius: 0 var(--r-ctl) var(--r-ctl) 0;
+}
+.tk .zoombar .full[aria-pressed='true'] {
+  color: var(--ink);
+}
+/* Full view: the board covers the window (the Fullscreen API adds the screen when the browser allows
+   it), and only the graph with its drawers and pops stays. */
+.tk.board.fullview {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  height: 100dvh;
+  min-height: 0;
+}
+.tk.board.fullview > .p-head,
+.tk.board.fullview > .bbar,
+.tk.board.fullview > .ro-note,
+.tk.board.fullview > .legend2 {
+  display: none;
+}
+.tk .ro-note {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 12px 4px;
+  padding: 7px 10px 7px 12px;
+  border-radius: var(--r-ctl);
+  background: var(--route-bg);
+  color: var(--route-ink);
+  font-size: var(--fs-s);
+}
+.tk .ro-note > svg {
+  flex: none;
+  color: currentColor;
+}
+.tk .ro-note p {
+  margin: 0;
+  flex: 1 1 220px;
+  color: inherit;
+}
+.tk .ro-note .lnk,
+.tk .ro-note .x {
+  color: inherit;
+}
+.tk .ro-note .lnk {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.tk .pop .moved {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+}
+.tk .pop .moved svg {
+  flex: none;
+  color: var(--ink-3);
+}
+.tk .ro-acts {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.tk .qshow {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  z-index: 3;
+}
+.tk .qtop .ib {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.tk .qtop .ib:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.tk .tsearch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  /* A wrapping bar breaks lines by the base size, so the search starts small and grows to 260 px. */
+  flex: 1 1 150px;
+  min-width: 120px;
+  max-width: 260px;
+}
+.tk .tsearch > svg {
+  position: absolute;
+  left: 10px;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+.tk .tsearch input {
+  width: 100%;
+  min-height: 32px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-ctl);
+  background: var(--sunk);
+  color: var(--ink);
+  padding: 5px 38px 5px 30px;
+  font: var(--fs-s) var(--f-ui);
+}
+/* No transform here: it would trap the popup below the pinned graph axis. */
+.tk .tfilter {
+  position: absolute;
+  right: 4px;
+  top: 2px;
+}
+.tk .tfilter > summary {
+  list-style: none;
+}
+.tk .tfilter > summary::-webkit-details-marker {
+  display: none;
+}
+.tk .tfilter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 28px;
+  min-width: 28px;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: var(--r-ctl);
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.tk .tfilter-btn:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.tk .tfilter[open] > .tfilter-btn {
+  background: var(--gray-bg);
+  color: var(--ink);
+}
+.tk .tfilter-btn.on {
+  color: var(--ink);
+}
+.tk .tfilter-btn .cnt {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  background: var(--ink);
+  color: var(--panel);
+}
+.tk .tfilter-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: -4px;
+  z-index: 12;
+  width: 380px;
+  max-width: calc(100vw - 24px);
+  max-height: min(72vh, 560px);
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-pop);
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  font-size: var(--fs-s);
+}
+.tk .fgroup {
+  border: 0;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tk .fgroup legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.tk .fchip {
+  position: relative;
+  display: inline-flex;
+}
+.tk .fchip input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.tk .fchip span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 99px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.tk .fchip:hover span {
+  border-color: var(--ink-3);
+  background: var(--hover);
+}
+.tk .fchip input:checked + span {
+  background: var(--gray-bg);
+  border-color: var(--ink);
+  color: var(--ink);
+  font-weight: 600;
+}
+.tk .fchip input:focus-visible + span {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.tk .fdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.tk .fdot.st-planned {
+  background: var(--ink-3);
+}
+.tk .fdot.st-early {
+  background: var(--teal);
+}
+.tk .fdot.st-ontime {
+  background: var(--proceed);
+}
+.tk .fdot.st-late {
+  background: var(--danger);
+}
+.tk .fdot.st-flate {
+  background: var(--caution);
+}
+.tk .tfilter-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-3);
+}
+.tk .tsearch input:hover {
+  border-color: var(--ink-3);
+}
+.tk .tsearch input:focus {
+  background: var(--panel);
+}
+.tk .tsearch-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 12;
+  width: 380px;
+  max-width: calc(100vw - 24px);
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-pop);
+  box-shadow: var(--shadow);
+  padding: 6px;
+}
+.tk .tsearch-pop[hidden] {
+  display: none;
+}
+.tk .tsearch-pop ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tk .tsearch-pop li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.tk .tsearch-pop li.on {
+  background: var(--gray-bg);
+}
+.tk .tsearch-pop .tt {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  line-height: 1.3;
+}
+.tk .tsearch-pop .tt b {
+  font-size: var(--fs-s);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tk .tsearch-pop .tt small {
+  font-size: var(--fs-xs);
+  color: var(--ink-3);
+}
+.tk .tsearch-pop .badge {
+  flex: none;
+  font-size: 11px;
+}
+.tk .tsearch-pop .none {
+  margin: 0;
+  padding: 7px 8px;
+  font-size: var(--fs-s);
+  color: var(--ink-3);
 }
 .tk .empty {
   position: absolute;
@@ -452,15 +974,15 @@
   width: min(460px, calc(100% - 32px));
   background: var(--panel);
   border: 1px solid var(--rule);
-  border-radius: 14px;
+  border-radius: var(--r-sheet);
   box-shadow: var(--shadow);
   padding: 16px;
   z-index: 4;
-  font-size: 14px;
+  font-size: var(--fs);
 }
 .tk .empty h4 {
   margin: 0 0 6px;
-  font-size: 17px;
+  font-size: 15px;
 }
 .tk .empty ol {
   margin: 6px 0 12px;
@@ -474,13 +996,13 @@
 }
 .tk .legend2 {
   display: flex;
-  gap: 14px;
+  gap: 6px 16px;
   flex-wrap: wrap;
-  padding: 8px 14px;
+  padding: 9px 14px;
   border-top: 1px solid var(--rule);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-2);
-  background: var(--sunk);
+  background: var(--panel);
   align-items: center;
 }
 .tk .legend2 span {
@@ -490,25 +1012,32 @@
 }
 .tk .legend2 i.ln {
   display: inline-block;
-  width: 22px;
-  height: 3px;
+  width: 16px;
+  height: 2.5px;
   border-radius: 2px;
 }
 .tk .legend2 svg {
   vertical-align: -2px;
   margin-right: 4px;
 }
-.tk .dia {
+.tk .ms-sw {
   display: inline-block;
-  width: 11px;
-  height: 11px;
-  transform: rotate(45deg);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
   border: 2px solid currentColor;
-  vertical-align: 0;
   margin: 0 4px 0 2px;
 }
-.tk .dia.fill {
+.tk .ms-sw.fill {
   background: currentColor;
+}
+.tk .legend2 .chg {
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--change-bg);
+  color: var(--change-text);
+  font-style: normal;
+  font-weight: 600;
 }
 
 .tk .qtop {
@@ -519,24 +1048,25 @@
 }
 .tk .qtop h4 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--fs);
   display: flex;
   align-items: center;
   gap: 7px;
+  font-weight: 600;
 }
 .tk .qtop p {
   margin: 2px 0 0;
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   color: var(--ink-3);
   line-height: 1.35;
 }
 .tk .qseg {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4px;
+  gap: 2px;
   background: var(--gray-bg);
-  border-radius: 11px;
-  padding: 4px;
+  border-radius: var(--r-ctl);
+  padding: 2px;
 }
 .tk .qseg button {
   display: flex;
@@ -545,10 +1075,10 @@
   gap: 6px;
   border: 0;
   background: none;
-  border-radius: 8px;
-  padding: 7px 4px;
-  font-size: 12.5px;
-  font-weight: 600;
+  border-radius: 6px;
+  padding: 4px;
+  font-size: var(--fs-s);
+  font-weight: 500;
   cursor: pointer;
   color: var(--ink-2);
   white-space: nowrap;
@@ -556,18 +1086,13 @@
 .tk .qseg button[aria-pressed='true'] {
   background: var(--panel);
   color: var(--ink);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow:
+    var(--shadow-sm),
+    0 0 0 1px var(--rule);
 }
 .tk .qseg .n {
-  display: inline-grid;
-  place-items: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 99px;
-  background: var(--ink);
-  color: var(--panel);
-  font-size: 10.5px;
+  font: 500 10.5px var(--f-id);
+  color: var(--ink-3);
 }
 .tk .qsearch {
   position: relative;
@@ -576,10 +1101,11 @@
 .tk .qsearch input {
   width: 100%;
   border: 1px solid var(--rule);
-  background: var(--panel);
-  border-radius: 9px;
-  padding: 7px 9px 7px 28px;
-  font-size: 12.5px;
+  background: var(--sunk);
+  border-radius: var(--r-ctl);
+  padding: 5px 9px 5px 28px;
+  font-size: var(--fs-s);
+  min-height: 30px;
 }
 .tk .qsearch svg {
   position: absolute;
@@ -591,53 +1117,45 @@
 .tk .qlist {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
   overflow: auto;
   min-width: 0;
+  margin: 0 -12px;
+  border-top: 1px solid var(--rule);
 }
 .tk .qc {
   position: relative;
-  background: var(--panel);
-  border: 1px solid var(--rule);
-  border-radius: 12px;
-  padding: 9px 10px;
-  font-size: 12px;
+  background: none;
+  border-bottom: 1px solid var(--rule-2);
+  padding: 10px 12px;
+  font-size: var(--fs-xs);
   line-height: 1.4;
   cursor: pointer;
   user-select: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition:
-    box-shadow 0.15s,
-    transform 0.15s;
   overflow: hidden;
 }
 .tk .qc:hover {
-  box-shadow: 0 6px 18px -8px rgba(0, 0, 0, 0.25);
-  transform: translateY(-1px);
-  border-color: var(--ink-3);
+  background: var(--hover);
 }
 .tk .qc .qk {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--fs-xs);
+  font-weight: 600;
   color: var(--kc);
-  background: color-mix(in srgb, var(--kc) 12%, transparent);
-  padding: 1px 7px 1px 5px;
-  border-radius: 99px;
 }
 .tk .qc .grip {
   position: absolute;
-  right: 8px;
-  top: 9px;
+  right: 10px;
+  top: 10px;
   color: var(--ink-3);
   opacity: 0.6;
 }
 .tk .qc .qt {
-  margin: 6px 0 7px;
+  margin: 4px 0 6px;
   color: var(--ink);
-  font-size: 12.5px;
+  font-size: var(--fs-s);
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -645,36 +1163,37 @@
 }
 .tk .qc .qt b {
   display: block;
-  font-size: 13.5px;
+  font-size: var(--fs-s);
   margin-bottom: 2px;
+  font-weight: 600;
 }
 .tk .qc .qf {
   display: flex;
   align-items: center;
   gap: 6px;
   color: var(--ink-3);
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   flex-wrap: wrap;
 }
 .tk .qc .qf .who {
   color: var(--ink-2);
-  font-weight: 600;
+  font-weight: 500;
 }
 .tk .qc .bot {
   display: inline-flex;
   align-items: center;
   gap: 3px;
   font-size: 10.5px;
-  font-weight: 700;
+  font-weight: 500;
   padding: 0 6px;
   border-radius: 99px;
   background: var(--route-bg);
-  color: var(--route);
+  color: var(--route-ink);
 }
 .tk .qempty {
   text-align: center;
   color: var(--ink-3);
-  font-size: 12.5px;
+  font-size: var(--fs-s);
   padding: 18px 8px;
 }
 .tk .qempty svg {
@@ -683,287 +1202,409 @@
   opacity: 0.6;
 }
 
-svg.pg {
+svg.tg {
   font-family: var(--f-ui);
   user-select: none;
 }
-svg.pg .lane-band {
+svg.tg .lane-band {
   fill: transparent;
 }
-svg.pg .lane-band.alt {
+svg.tg .lane-band.alt {
   fill: var(--sunk);
 }
-svg.pg .lane-name {
+svg.tg .lane-name {
   font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-weight: 600;
+  letter-spacing: 0.07em;
   fill: var(--ink-2);
   pointer-events: none;
 }
-svg.pg .row-label {
+svg.tg .row-label {
   font-size: 12px;
   fill: var(--ink);
   pointer-events: none;
 }
-svg.pg .row-label.draft {
-  fill: var(--draft);
+/* A highlighter stroke painted under the text, like a marker on paper. */
+svg.tg .row-label.changed,
+svg.tg .ms-label.changed {
+  fill: var(--change-text);
+  paint-order: stroke;
+  stroke: var(--change-bg);
+  stroke-width: 9px;
+  stroke-linejoin: round;
+}
+svg.tg .row-label.sel {
   font-weight: 600;
 }
-svg.pg .row-label.sel {
-  font-weight: 700;
-}
-svg.pg .label-hit {
+svg.tg .label-hit {
   fill: transparent;
   cursor: pointer;
 }
-svg.pg .tick {
+svg.tg .tick {
   font-size: 11px;
   fill: var(--ink-3);
   text-anchor: middle;
 }
-svg.pg .grid {
+svg.tg .grid {
   stroke: var(--rule-2);
 }
-svg.pg .divider {
+svg.tg .divider {
   stroke: var(--rule);
 }
-svg.pg .guide {
+svg.tg .guide {
   stroke: var(--rule);
   stroke-width: 1.5;
 }
-svg.pg .tline {
+svg.tg .tline {
   stroke: var(--ink-3);
-  stroke-dasharray: 3 3;
+  stroke-width: 1;
 }
-svg.pg .tpill rect {
+svg.tg .tpill rect {
   fill: var(--ink);
 }
-svg.pg .tpill text {
+svg.tg .tpill text {
   fill: var(--panel);
   font-size: 10.5px;
   font-weight: 600;
   text-anchor: middle;
 }
-svg.pg .trunk {
+svg.tg .trunk {
   stroke: var(--trunk);
   stroke-width: 4;
   stroke-linecap: round;
 }
-svg.pg .trunk-seg {
+svg.tg .trunk-seg {
   stroke-width: 4;
   stroke-linecap: round;
 }
-svg.pg .seg {
+svg.tg .seg {
   stroke-width: 3;
   stroke-linecap: round;
   fill: none;
 }
-svg.pg .stem {
-  stroke-width: 1.6;
-  fill: none;
-  opacity: 1;
-}
-svg.pg .link {
-  fill: none;
-  stroke-width: 1.6;
-}
-svg.pg .link.wait {
-  stroke-width: 1.4;
-  opacity: 0.7;
-}
-svg.pg .stem.ghost,
-svg.pg .link.ghost {
-  stroke: var(--ink-3) !important;
-  opacity: 0.75;
-}
-svg.pg .mslink {
-  fill: none;
-  stroke-width: 1;
-  opacity: 0.28;
-  stroke-linecap: round;
-}
-svg.pg .mslink.sel {
-  opacity: 0.95;
-  stroke-width: 2;
-}
-svg.pg .wait-line {
+svg.tg .wait-line {
   stroke: var(--ink-3);
   stroke-width: 2.5;
   opacity: 0.45;
   stroke-linecap: round;
 }
-svg.pg .wait-text {
+svg.tg .wait-text {
   font-size: 10.5px;
   fill: var(--ink-3);
   font-style: italic;
 }
-svg.pg .hit {
+svg.tg .hit {
   fill: transparent;
   cursor: pointer;
 }
-svg.pg .hit:hover {
-  fill: color-mix(in srgb, var(--draft) 5%, transparent);
+svg.tg .hit:hover {
+  fill: var(--hover);
 }
-svg.pg .hit.flash {
-  fill: color-mix(in srgb, var(--mark) 70%, transparent);
+/* The row with its details open gets a quiet band and no lines; keyboard focus keeps a ring. */
+svg.tg .hit.sel {
+  fill: color-mix(in srgb, var(--ink) 6%, transparent);
 }
-svg.pg .hit.focus {
-  fill: color-mix(in srgb, var(--mark) 65%, transparent) !important;
+:root .tk svg.tg .hit:focus-visible {
+  outline: none;
+  stroke: var(--focus);
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
 }
-svg.pg .lane-drop {
+svg.tg .dim {
+  opacity: 0.35;
+}
+svg.tg .row-label.dim {
+  opacity: 0.5;
+}
+/* Yellow marks changes and blue is the Open line, so a revealed row flashes a neutral band. */
+svg.tg .hit.flash,
+svg.tg .hit.focus {
+  fill: color-mix(in srgb, var(--ink) 8%, transparent) !important;
+}
+svg.tg .lane-drop {
   fill: transparent;
   pointer-events: none;
 }
-svg.pg .lane-drop-text {
+svg.tg .lane-drop-text {
   display: none;
   font-size: 11px;
-  fill: var(--draft);
+  fill: var(--ink);
   font-weight: 600;
   pointer-events: none;
 }
-svg.pg .dim {
-  opacity: 0.16;
-}
-svg.pg .act {
+svg.tg .act {
   cursor: pointer;
 }
-svg.pg .act .bg {
+svg.tg .act .bg {
   fill: var(--panel);
   stroke-width: 2;
 }
-svg.pg .act .layer {
+svg.tg .act .layer {
   stroke-width: 1.5;
 }
-svg.pg .act .halo {
-  fill: color-mix(in srgb, var(--draft) 16%, transparent);
-  stroke: var(--draft);
+svg.tg .act .halo {
+  fill: color-mix(in srgb, var(--change) 16%, transparent);
+  stroke: var(--change);
   stroke-width: 2;
-  stroke-opacity: 1;
-  stroke-linecap: butt;
-  stroke-dasharray: 3 2.5;
 }
-svg.pg .ms {
+svg.tg .ms {
   cursor: pointer;
 }
-svg.pg .ms:focus-visible {
+svg.tg .ms:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
-svg.pg .ms-hit {
+svg.tg .ms-hit {
   fill: transparent;
 }
-svg.pg .ms-d {
-  stroke-width: 2.5;
+svg.tg .ms-c {
+  stroke-width: 2;
 }
-svg.pg .ms.sel .ms-d {
+svg.tg .ms.sel .ms-c {
   stroke-width: 3.5;
 }
-svg.pg .ms-label {
+/* The panel colour reads white on the light theme's fills and dark on the dark theme's brighter ones. */
+svg.tg .ms-i {
+  fill: none;
+  stroke: var(--panel);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+svg.tg .ms-dot {
+  fill: var(--panel);
+  pointer-events: none;
+}
+svg.tg .ms-label {
   font-size: 11px;
   font-weight: 600;
 }
-svg.pg .ms.glow .ms-d {
-  filter: drop-shadow(0 0 4px var(--draft));
+svg.tg .ms.glow .ms-c {
+  filter: drop-shadow(0 0 4px var(--ink));
 }
-svg.pg .eye {
+svg.tg .eye {
   cursor: pointer;
   color: var(--ink-3);
 }
-svg.pg .eye:hover {
+svg.tg .eye:hover {
   color: var(--ink);
 }
-svg.pg .eye rect {
+svg.tg .eye rect {
   fill: transparent;
 }
-svg.pg .eye.off {
-  color: var(--draft);
+svg.tg .focus-btn.on {
+  color: var(--panel);
 }
-svg.pg .fold {
+svg.tg .focus-btn.on rect {
+  fill: var(--ink);
+}
+svg.tg .handoff {
   cursor: pointer;
 }
-svg.pg .fold rect.strip {
-  fill: var(--gray-bg);
+svg.tg .handoff rect {
+  fill: var(--panel);
+  stroke: var(--ink-3);
 }
-svg.pg .fold text {
-  font-size: 10px;
-  fill: var(--ink-3);
-  font-style: italic;
+svg.tg .handoff:hover rect,
+svg.tg .handoff:focus rect,
+svg.tg .handoff.open rect {
+  fill: var(--gray-bg);
+  stroke: var(--ink);
+}
+svg.tg .handoff > g,
+svg.tg .handoff .hand-n {
   pointer-events: none;
 }
-svg.pg .chip {
-  display: inline;
+svg.tg .hand-n {
+  font-size: 9.5px;
+  font-weight: 700;
+  fill: var(--ink-2);
+}
+.tk .hand-menu {
+  position: absolute;
+  z-index: 8;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-pop);
+  box-shadow: var(--shadow);
+  transform: translate(-50%, 6px);
+  font-size: var(--fs-s);
+}
+.tk .hand-menu.start {
+  transform: translate(-12px, 6px);
+}
+.tk .hand-menu.end {
+  transform: translate(calc(-100% + 12px), 6px);
+}
+.tk .hand-menu p {
+  margin: 2px 8px 4px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.tk .hand-menu button {
+  display: grid;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.3;
+  cursor: pointer;
+}
+.tk .hand-menu button:hover {
+  background: var(--hover);
+}
+.tk .hand-menu b {
+  font-weight: 600;
+}
+.tk .hand-menu small {
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+}
+.tk .hand-tip {
+  position: absolute;
+  z-index: 7;
+  pointer-events: none;
+  background: var(--ink);
+  color: var(--panel);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1.35;
+  padding: 5px 9px;
+  border-radius: 7px;
+  white-space: pre;
+  box-shadow: var(--shadow);
+  transform: translate(-50%, calc(-100% - 6px));
+}
+.tk .hand-tip.start {
+  transform: translate(-12px, calc(-100% - 6px));
+}
+.tk .hand-tip.end {
+  transform: translate(calc(-100% + 12px), calc(-100% - 6px));
+}
+.tk .ft,
+.tk .ft ul {
+  list-style: none;
+  margin: 0;
   padding: 0;
+}
+.tk .ft ul {
+  margin-left: 12px;
+  padding-left: 8px;
+  border-left: 1.5px solid var(--rule);
+}
+.tk .ft-node {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
   border: 0;
   background: none;
+  padding: 6px 8px;
+  border-radius: 8px;
+  text-align: left;
+  color: var(--ink);
   cursor: pointer;
 }
-svg.pg .chip rect {
-  fill: var(--gray-bg);
-  stroke: var(--ink-3);
+.tk .ft-node:hover {
+  background: var(--sunk);
 }
-svg.pg .chip text {
-  font-size: 10px;
-  fill: var(--ink-2);
+.tk .ft-node.on {
+  background: var(--sunk);
+}
+.tk .ft-node.on .tt b {
   font-weight: 600;
 }
-svg.pg .plus {
+.tk .ft-node.up {
+  justify-content: flex-start;
+  border: 1px solid var(--rule);
+}
+.tk .ft-node .badge {
+  flex: none;
+}
+svg.tg .chip {
   cursor: pointer;
 }
-svg.pg .plus circle {
+svg.tg .chip rect {
   fill: var(--panel);
-  stroke: var(--draft);
-  stroke-width: 1.5;
-  stroke-dasharray: 3 2;
+  stroke: var(--ink-3);
 }
-svg.pg .plus path {
-  stroke: var(--draft);
-  stroke-width: 2;
+svg.tg .chip > g {
+  color: var(--ink-2);
+  pointer-events: none;
+}
+svg.tg .chip:hover rect {
+  fill: var(--gray-bg);
+}
+svg.tg .plus {
+  cursor: pointer;
+}
+svg.tg .plus circle {
+  fill: var(--panel);
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+svg.tg .plus path {
+  stroke: var(--ink-2);
+  stroke-width: 1.5;
   stroke-linecap: round;
 }
-svg.pg .plus:hover circle {
-  fill: var(--draft-bg);
-  stroke-dasharray: none;
+svg.tg .plus:hover circle {
+  fill: var(--gray-bg);
 }
-svg.pg .pill {
+svg.tg .pill {
   display: inline;
   padding: 0;
   background: none;
   cursor: pointer;
 }
-svg.pg .pill rect {
-  fill: var(--draft-bg);
-}
-svg.pg .pill text {
-  font-size: 10.5px;
-  font-weight: 600;
-  fill: var(--draft);
-}
-svg.pg .due {
-  cursor: pointer;
-}
-svg.pg .due-hit {
-  fill: transparent;
-}
-svg.pg .due-pole {
-  stroke: var(--ink-2);
-  stroke-width: 1.5;
-}
-svg.pg .due.draft .due-pole {
-  stroke: var(--draft);
-  stroke-width: 2.5;
-}
-svg.pg .due:hover .due-flag,
-svg.pg .due:focus .due-flag {
-  stroke: var(--ink);
+svg.tg .pill rect {
+  fill: var(--panel);
+  stroke: var(--rule);
   stroke-width: 1;
 }
-svg.pg .slip {
-  stroke: var(--ink-3);
-  stroke-width: 1.6;
+svg.tg .pill:hover rect {
+  fill: var(--gray-bg);
 }
-svg.pg .slip-o {
-  stroke: var(--ink-3);
+svg.tg .pill text {
+  font-size: 10.5px;
+  font-weight: 500;
+  fill: var(--ink-2);
+}
+svg.tg .deadline {
+  cursor: pointer;
+}
+svg.tg .deadline-hit {
+  fill: transparent;
+}
+svg.tg .deadline-mark {
   stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+svg.tg .deadline:hover .deadline-mark,
+svg.tg .deadline:focus .deadline-mark,
+svg.tg .deadline.sel .deadline-mark {
+  stroke-width: 2.5;
+}
+/* The name takes no pointer, so it never blocks a click on the row; its halo keeps it readable
+   over the row line. */
+svg.tg .deadline-name {
+  font-size: 9.5px;
+  font-weight: 600;
+  pointer-events: none;
+  stroke: var(--panel);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  paint-order: stroke;
 }
 
 .tk .pop {
@@ -973,14 +1614,15 @@ svg.pg .slip-o {
   z-index: 6;
   background: var(--panel);
   border: 1px solid var(--rule);
-  border-radius: 12px;
+  border-radius: var(--r-pop);
   box-shadow: var(--shadow);
-  padding: 12px;
+  padding: 12px 14px;
   width: 312px;
   max-width: calc(100% - 16px);
-  font-size: 14px;
+  font-size: var(--fs);
 }
-.tk .pop:focus {
+.tk .pop:focus,
+:root .tk .pop:focus-visible {
   outline: none;
 }
 .tk .pop-h {
@@ -992,31 +1634,31 @@ svg.pg .slip-o {
 .tk .pop-h > div {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
+  font-size: var(--fs);
   line-height: 1.35;
 }
 .tk .pop-h small {
   display: block;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--fs-xs);
 }
 .tk .pi {
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  border: 2px solid currentColor;
   display: grid;
   place-items: center;
   flex: none;
+  background: color-mix(in srgb, currentColor 12%, var(--panel));
 }
 .tk blockquote {
   margin: 0 0 10px;
-  padding: 6px 10px;
-  border-left: 3px solid var(--mark);
+  padding: 8px 12px;
+  border-radius: var(--r-ctl);
   background: var(--sunk);
-  font-size: 13px;
+  border: 1px solid var(--rule-2);
+  font-size: var(--fs-s);
   color: var(--ink-2);
-  border-radius: 0 6px 6px 0;
 }
 .tk .pop-btns {
   display: grid;
@@ -1026,17 +1668,17 @@ svg.pg .slip-o {
   justify-content: flex-start;
 }
 .tk .tip {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-3);
   margin: 8px 0 0;
 }
 .tk .badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 2px 9px;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  padding: 1px 9px;
   border: 0;
   border-radius: 99px;
 }
@@ -1046,19 +1688,19 @@ svg.pg .slip-o {
 }
 .tk .st-early {
   background: var(--teal-bg);
-  color: var(--teal);
+  color: var(--teal-ink);
 }
 .tk .st-ontime {
   background: var(--proceed-bg);
-  color: var(--proceed);
+  color: var(--proceed-ink);
 }
 .tk .st-late {
   background: var(--danger-bg);
-  color: var(--danger);
+  color: var(--danger-ink);
 }
 .tk .st-flate {
   background: var(--caution-bg);
-  color: var(--caution);
+  color: var(--caution-ink);
 }
 .tk .moves {
   list-style: none;
@@ -1070,69 +1712,156 @@ svg.pg .slip-o {
 .tk .moves li {
   border-left: 2px solid var(--rule);
   padding: 2px 0 2px 10px;
-  font-size: 12.5px;
+  font-size: var(--fs-s);
   display: grid;
   gap: 1px;
 }
 .tk .moves li small {
   color: var(--ink-3);
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
+}
+.tk .stack-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.tk .stack-list li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tk .stack-list li + li,
+.tk .ev-list li + li {
+  border-top: 1px solid var(--rule-2);
+}
+.tk .stack-ev {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 6px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--ink);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.tk .stack-ev:hover {
+  background: var(--hover);
+}
+.tk .stack-ev .sk {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: color-mix(in srgb, currentColor 12%, var(--panel));
+}
+.tk .stack-ev .st {
+  min-width: 0;
+  display: grid;
+  font-size: var(--fs-s);
+  line-height: 1.35;
+}
+.tk .stack-ev .st small {
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+}
+.tk .stack-ev .st > span {
+  color: var(--ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tk .stack-acts {
+  display: grid;
+  gap: 2px;
+}
+.tk .stack-acts .ib {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.tk .stack-acts .ib:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.tk .stack-acts .ib.danger {
+  color: var(--danger-ink);
+}
+.tk .drawer-slot {
+  position: absolute;
+  inset: 8px 8px 8px auto;
+  width: 380px;
+  max-width: calc(100% - 16px);
+  z-index: 7;
+  pointer-events: none;
 }
 .tk .drawer {
-  position: absolute;
-  inset: 0 0 0 auto;
-  width: 380px;
-  max-width: 100%;
-  height: auto;
+  position: sticky;
+  top: 0;
+  width: 100%;
+  height: min(100vh, 100%);
+  pointer-events: auto;
   display: block;
   background: var(--panel);
-  border: 0;
-  border-left: 1px solid var(--rule);
-  border-radius: 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sheet);
   box-shadow: var(--shadow);
   z-index: 7;
-  padding: 14px;
+  padding: 14px 16px;
   overflow: auto;
-  font-size: 14px;
+  font-size: var(--fs);
 }
-.tk .drawer:focus {
+/* The panel takes the focus only to move it near its content; its controls keep their own ring. */
+.tk .drawer:focus,
+:root .tk .drawer:focus-visible {
   outline: none;
 }
 .tk .drawer h4 {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
 }
 .tk .q-label {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 10.5px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.07em;
   color: var(--ink-3);
-  margin: 14px 0 6px;
+  margin: 16px 0 6px;
 }
-.tk .filters {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 6px;
-  margin: 0;
-}
-.tk .filters select,
 .tk .field input {
   border: 1px solid var(--rule);
   background: var(--panel);
-  border-radius: 8px;
-  padding: 7px 9px;
-  font-size: 13px;
+  border-radius: var(--r-ctl);
+  padding: 6px 10px;
+  font-size: var(--fs-s);
   width: 100%;
   font-weight: 400;
   min-width: 0;
+  min-height: 32px;
 }
 .tk .field {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   margin-top: 10px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  font-weight: 500;
   color: var(--ink-2);
 }
 .tk .field input:disabled {
@@ -1147,99 +1876,91 @@ svg.pg .slip-o {
 .tk .m-foot .btn-ink {
   flex: 1;
 }
-.tk .wl-lane {
+.tk .facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 7px 16px;
+  margin: 12px 0 0;
+  font-size: var(--fs-s);
+}
+.tk .facts dt {
+  color: var(--ink-3);
+  font-size: inherit;
+  line-height: inherit;
+}
+.tk .facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tk .facts dd.links {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+}
+.tk .facts .lnk {
+  text-align: left;
+}
+.tk .facts .badge {
+  font-size: 11px;
+  padding: 1px 7px;
+}
+.tk .wi-top {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-  margin: 12px 0 4px;
-}
-.tk .wl-item {
-  display: flex;
+  justify-content: space-between;
   gap: 8px;
-  align-items: flex-start;
-  padding: 7px 6px 7px 14px;
-  border-radius: 8px;
+  flex-wrap: wrap;
 }
-.tk .wl-item:hover {
-  background: var(--sunk);
+.tk .wi-acts {
+  margin-top: 10px;
 }
-.tk .wl-item > button.wl-open {
-  display: flex;
-  flex: 1;
-  gap: 8px;
-  align-items: flex-start;
-  min-width: 0;
-  border: 0;
-  background: none;
+.tk .ev-list {
+  list-style: none;
   padding: 0;
-  text-align: left;
-  cursor: pointer;
-}
-.tk .wl-item b {
-  font-size: 13px;
-  display: block;
-  line-height: 1.3;
-}
-.tk .wl-item small {
-  font-size: 12px;
-  color: var(--ink-3);
-  display: block;
-}
-.tk .dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  flex: none;
-  margin-top: 5px;
-}
-.tk .eyebtn {
-  border: 0;
-  background: none;
-  cursor: pointer;
-  color: var(--ink-3);
-  padding: 2px;
+  margin: 0;
   display: grid;
-  place-items: center;
+  gap: 0;
 }
-.tk .eyebtn:hover {
-  color: var(--ink);
+.tk .ev-list .stack-ev {
+  width: 100%;
 }
-.tk .eyebtn.off {
-  color: var(--draft);
+.tk .stack-ev.off {
+  cursor: default;
+  color: var(--ink-3);
+}
+.tk .stack-ev.off:hover {
+  background: none;
+}
+.tk .stack-ev.off .st > span {
+  color: var(--ink-3);
 }
 .tk .mem {
   display: flex;
   gap: 8px;
   align-items: center;
   justify-content: space-between;
-  border: 1px solid var(--rule);
-  border-radius: 10px;
-  padding: 8px 10px;
-  margin-bottom: 6px;
+  padding: 10px 0;
+  margin-bottom: 0;
+  border-top: 1px solid var(--rule-2);
 }
 .tk .mem b {
-  font-size: 13px;
+  font-size: var(--fs-s);
   display: block;
   line-height: 1.3;
 }
 .tk .mem small {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-3);
 }
 .tk .chg-row {
   display: flex;
   gap: 8px;
   align-items: flex-start;
-  border: 1px solid var(--rule);
-  border-radius: 10px;
-  padding: 8px 10px;
-  margin-bottom: 6px;
-  font-size: 13px;
+  padding: 10px 0;
+  margin-bottom: 0;
+  font-size: var(--fs-s);
+  border-top: 1px solid var(--rule-2);
 }
 .tk .chg-row > div {
   flex: 1;
@@ -1248,55 +1969,53 @@ svg.pg .slip-o {
 .tk .chg-row small {
   display: block;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--fs-xs);
 }
 .tk .chg-row.dropped {
   opacity: 0.55;
 }
 .tk .chg-row.skipped {
-  background: var(--gray-bg);
-  color: var(--ink-2);
+  color: var(--ink-3);
 }
 .tk .chg-by {
   display: inline-flex;
   gap: 5px;
   align-items: center;
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   color: var(--ink-3);
   margin-top: 3px;
 }
 .tk .before {
-  color: var(--danger);
+  color: var(--danger-ink);
   text-decoration: line-through;
 }
 .tk .after {
-  color: var(--proceed);
+  color: var(--proceed-ink);
 }
 .tk .drawer-foot {
   position: sticky;
   bottom: -14px;
   background: var(--panel);
-  padding: 10px 0 0;
+  padding: 12px 0;
   display: flex;
   gap: 8px;
   border-top: 1px solid var(--rule);
-  margin-top: 12px;
+  margin-top: 14px;
 }
 .tk .drawer-foot .btn-ink {
   flex: 1;
 }
 .tk .req {
-  border: 1px solid var(--rule);
-  border-radius: 12px;
-  padding: 10px 12px;
-  margin-bottom: 8px;
+  padding: 12px 0;
+  margin-bottom: 0;
+  border-top: 1px solid var(--rule-2);
 }
 .tk .req header {
   display: flex;
   justify-content: space-between;
   gap: 8px;
   align-items: baseline;
-  font-size: 13px;
+  font-size: var(--fs-s);
 }
 .tk .req.done {
   opacity: 0.6;
@@ -1310,7 +2029,7 @@ svg.pg .slip-o {
 }
 .tk .cr-meta small {
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--fs-xs);
 }
 .tk .hist {
   display: block;
@@ -1331,12 +2050,12 @@ svg.pg .slip-o {
 }
 .tk .hist > li {
   position: relative;
-  margin-bottom: 10px;
+  margin-bottom: 16px;
 }
 .tk .hist .hdot {
   position: absolute;
   left: -19px;
-  top: 12px;
+  top: 4px;
   width: 12px;
   height: 12px;
   border-radius: 50%;
@@ -1344,11 +2063,8 @@ svg.pg .slip-o {
   border: 2.5px solid var(--trunk);
 }
 .tk .hist .hcard {
-  border: 1px solid var(--rule);
-  border-radius: 12px;
-  padding: 9px 11px;
-  font-size: 13px;
-  background: var(--panel);
+  padding: 0;
+  font-size: var(--fs-s);
 }
 .tk .hist .hcard header {
   display: flex;
@@ -1361,14 +2077,14 @@ svg.pg .slip-o {
   gap: 6px;
   align-items: center;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   margin-top: 3px;
   flex-wrap: wrap;
 }
 .tk .hist .hcard ul {
   margin: 6px 0;
   padding-left: 18px;
-  font-size: 12.5px;
+  font-size: var(--fs-s);
   color: var(--ink-2);
 }
 .tk .resolved {
@@ -1376,11 +2092,11 @@ svg.pg .slip-o {
   gap: 6px;
   align-items: flex-start;
   background: var(--caution-bg);
-  color: var(--caution);
+  color: var(--caution-ink);
   border-radius: 8px;
   padding: 6px 8px;
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: var(--fs-s);
+  font-weight: 500;
   margin: 6px 0;
 }
 .tk .resolved svg {
@@ -1391,21 +2107,20 @@ svg.pg .slip-o {
   display: flex;
   align-items: center;
   gap: 10px;
-  border: 1px solid var(--rule);
-  border-radius: 10px;
-  padding: 8px 10px;
-  margin-bottom: 6px;
+  padding: 10px 0;
+  margin-bottom: 0;
+  border-top: 1px solid var(--rule-2);
 }
 .tk .grow-item > div {
   flex: 1;
   min-width: 0;
 }
 .tk .grow-item b {
-  font-size: 13px;
+  font-size: var(--fs-s);
   display: block;
 }
 .tk .grow-item small {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-3);
 }
 
@@ -1416,14 +2131,14 @@ svg.pg .slip-o {
   transform: translate(-50%, 0);
   background: var(--ink);
   color: var(--panel);
-  padding: 10px 14px;
-  border-radius: 12px;
-  font-size: 14px;
+  padding: 9px 14px;
+  border-radius: var(--r-pop);
+  font-size: var(--fs);
   display: flex;
   gap: 12px;
   align-items: center;
   z-index: 50;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-lg);
   max-width: calc(100% - 32px);
 }
 .tk-toast:empty {
@@ -1436,6 +2151,16 @@ svg.pg .slip-o {
 }
 
 @media (max-width: 760px) {
+  .tk.board {
+    height: auto;
+    min-height: 100vh;
+  }
+  .tk .gwrap {
+    display: block;
+  }
+  .tk .gcanvas {
+    overflow: visible;
+  }
   .tk .p-body {
     flex-direction: column;
   }
@@ -1451,18 +2176,47 @@ svg.pg .slip-o {
     flex-direction: row;
     overflow-x: auto;
   }
+  .tk .qlist {
+    margin: 0;
+    border-top: 0;
+  }
   .tk .qlist .qc {
     flex: 0 0 210px;
+    border-bottom: 0;
+    border-right: 1px solid var(--rule-2);
   }
   .tk .qempty {
     flex: 1;
   }
-  .tk .filters {
-    grid-template-columns: minmax(0, 1fr);
-  }
   .tk .me small,
   .tk .js-req .lbl {
     display: none;
+  }
+  .tk .tsearch {
+    order: 10;
+    flex: 1 1 100%;
+    width: auto;
+    max-width: none;
+  }
+  /* The badge can sit anywhere on a wrapped bar, so its popup spans the bar instead. */
+  .tk .p-head,
+  .tk .pr-gtools {
+    position: relative;
+  }
+  .tk .hid-menu {
+    position: static;
+  }
+  .tk .hid-pop {
+    top: calc(100% - 4px);
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+  }
+  .tk .tsearch-pop {
+    left: 0;
+    right: auto;
+    width: 100%;
   }
   .tk .gmenu {
     width: min(320px, calc(100vw - 32px));
@@ -1472,42 +2226,46 @@ svg.pg .slip-o {
 .tk .qc {
   cursor: grab;
 }
-svg.pg .act,
-svg.pg .label-hit {
+/* Every view moves an event inside its day, so a sideways touch drags it and an up or down touch scrolls. */
+.tgraph svg.tg .act {
+  cursor: grab;
+  touch-action: pan-y;
+}
+.tgraph.editable svg.tg .act,
+.tgraph.editable svg.tg .label-hit {
   cursor: grab;
   touch-action: none;
 }
-svg.pg .due {
-  touch-action: none;
-}
-svg.pg .ms {
+.tgraph.editable svg.tg .ms {
   cursor: ew-resize;
   touch-action: none;
 }
-svg.pg .act.lift {
+svg.tg .act.lift {
   opacity: 0.3;
 }
 .tk.drag-due,
-.tk.drag-due svg.pg .due {
+.tk.drag-due svg.tg .ms,
+.tk.drag-day,
+.tk.drag-day svg.tg .act {
   cursor: ew-resize;
 }
-.tk.moving svg.pg .hit {
-  fill: color-mix(in srgb, var(--draft) 6%, transparent);
+.tk.moving svg.tg .hit {
+  fill: color-mix(in srgb, var(--ink) 4%, transparent);
 }
-svg.pg .hit.glow,
-svg.pg .lane-drop.glow {
-  fill: color-mix(in srgb, var(--draft) 18%, transparent) !important;
-  stroke: var(--draft);
+svg.tg .hit.glow,
+svg.tg .lane-drop.glow {
+  fill: color-mix(in srgb, var(--ink) 9%, transparent) !important;
+  stroke: var(--ink);
   stroke-width: 2;
 }
-.tk.drag-email svg.pg .lane-drop,
-.tk.drag-qitem svg.pg .lane-drop {
-  fill: color-mix(in srgb, var(--draft) 6%, transparent);
-  stroke: var(--draft);
+.tk.drag-email svg.tg .lane-drop,
+.tk.drag-qitem svg.tg .lane-drop {
+  fill: color-mix(in srgb, var(--ink) 4%, transparent);
+  stroke: var(--ink);
   stroke-opacity: 0.5;
 }
-.tk.drag-email svg.pg .lane-drop-text,
-.tk.drag-qitem svg.pg .lane-drop-text {
+.tk.drag-email svg.tg .lane-drop-text,
+.tk.drag-qitem svg.tg .lane-drop-text {
   display: block;
 }
 /* Sticky, so the bin and the hint stay on screen while a tall graph scrolls with the page. */
@@ -1521,20 +2279,22 @@ svg.pg .lane-drop.glow {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border: 2px dashed var(--ink-3);
-  border-radius: 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-pop);
   background: var(--panel);
   color: var(--ink-2);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   z-index: 3;
-  opacity: 0.75;
+  visibility: hidden;
   pointer-events: none;
+  box-shadow: var(--shadow);
 }
+/* The bin shows only while something is dragged, so it never covers the row names below it. */
 .tk.dragging .bin {
+  visibility: visible;
   border-color: var(--danger);
-  color: var(--danger);
-  opacity: 1;
+  color: var(--danger-ink);
   pointer-events: auto;
 }
 .tk .bin.glow {
@@ -1552,13 +2312,14 @@ svg.pg .lane-drop.glow {
   left: 50%;
   top: 10px;
   transform: translateX(-50%);
-  background: var(--draft);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
+  background: var(--ink);
+  color: var(--panel);
+  font-size: var(--fs-s);
+  font-weight: 500;
   padding: 7px 14px;
   border-radius: 99px;
   white-space: nowrap;
+  box-shadow: var(--shadow);
 }
 .tk .move-hint:empty {
   display: none;
@@ -1572,18 +2333,21 @@ svg.pg .lane-drop.glow {
   transform: translate(10px, 10px) rotate(-2deg);
 }
 .tk .ghost .qc {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-pop);
   box-shadow: var(--shadow);
-  border-color: var(--draft);
+  width: 228px;
 }
 .tk .ghost .gact {
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  border: 2px solid var(--draft);
+  border: 2px solid var(--ink);
   background: var(--panel);
   display: grid;
   place-items: center;
-  color: var(--draft);
+  color: var(--ink);
   box-shadow: var(--shadow);
 }
 .tk .ghost .grow {
@@ -1592,11 +2356,11 @@ svg.pg .lane-drop.glow {
   gap: 6px;
   white-space: nowrap;
   background: var(--panel);
-  border: 2px solid var(--draft);
-  border-radius: 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-ctl);
   padding: 4px 10px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  font-weight: 500;
   box-shadow: var(--shadow);
 }
 
@@ -1604,13 +2368,12 @@ svg.pg .lane-drop.glow {
 .tk-modal {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, var(--page) 65%, transparent);
-  backdrop-filter: blur(2px);
+  background: var(--scrim);
   z-index: 70;
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 18px 12px;
+  padding: 48px 12px 18px;
   overflow: auto;
 }
 .tk .m-card {
@@ -1618,10 +2381,10 @@ svg.pg .lane-drop.glow {
   max-width: 100%;
   background: var(--panel);
   border: 1px solid var(--rule);
-  border-radius: 16px;
-  box-shadow: var(--shadow);
-  padding: 16px;
-  font-size: 14px;
+  border-radius: var(--r-sheet);
+  box-shadow: var(--shadow-lg);
+  padding: 18px;
+  font-size: var(--fs);
 }
 .tk .m-card:focus {
   outline: none;
@@ -1636,30 +2399,36 @@ svg.pg .lane-drop.glow {
   margin-bottom: 8px;
 }
 .tk .m-top b {
-  font-size: 18px;
+  font-size: 15px;
   flex: 1;
+  font-weight: 600;
 }
 .tk .m-foot {
   flex-wrap: wrap;
 }
 .tk .srcs {
   display: inline-flex;
-  border: 1px solid var(--rule);
-  border-radius: 10px;
-  overflow: hidden;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-ctl);
+  background: var(--gray-bg);
 }
 .tk .srcs button {
   border: 0;
-  background: var(--panel);
-  color: var(--ink);
-  padding: 6px 12px;
-  font-size: 13px;
-  font-weight: 600;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink-2);
+  padding: 4px 12px;
+  font-size: var(--fs-s);
+  font-weight: 500;
   cursor: pointer;
 }
 .tk .srcs button.on {
-  background: var(--ink);
-  color: var(--panel);
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow:
+    var(--shadow-sm),
+    0 0 0 1px var(--rule);
 }
 .tk .kinds {
   display: grid;
@@ -1673,20 +2442,20 @@ svg.pg .lane-drop.glow {
   gap: 3px;
   padding: 8px 4px;
   border: 1px solid var(--rule);
-  border-radius: 10px;
+  border-radius: var(--r-ctl);
   background: var(--panel);
   color: var(--ink);
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  font-weight: 500;
 }
 .tk .kind:hover {
   border-color: var(--ink-3);
 }
 .tk .kind.on {
-  border-color: var(--draft);
-  background: var(--draft-bg);
-  color: var(--draft);
+  border-color: var(--ink);
+  background: var(--gray-bg);
+  color: var(--ink);
 }
 .tk .grid2 {
   display: grid;
@@ -1702,11 +2471,12 @@ svg.pg .lane-drop.glow {
   background: var(--panel);
   color: var(--ink);
   border-radius: 8px;
-  padding: 7px 9px;
-  font-size: 13px;
+  padding: 6px 10px;
+  font-size: var(--fs-s);
   font-weight: 400;
   font-family: inherit;
   min-width: 0;
+  min-height: 32px;
 }
 .tk .field select,
 .tk .field textarea,
@@ -1716,7 +2486,16 @@ svg.pg .lane-drop.glow {
 .tk .field textarea {
   min-height: 64px;
   resize: vertical;
-  font-size: 14px;
+  font-size: var(--fs);
+}
+.tk .field input:focus-visible,
+.tk .field select:focus-visible,
+.tk .field textarea:focus-visible,
+.tk .tsearch input:focus-visible,
+.tk .qsearch input:focus-visible {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 18%, transparent);
 }
 .tk .pick {
   display: grid;
@@ -1728,37 +2507,22 @@ svg.pg .lane-drop.glow {
   align-items: center;
   border: 1px solid var(--rule);
   background: var(--panel);
-  border-radius: 10px;
+  border-radius: var(--r-ctl);
   padding: 8px 10px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--fs-s);
   line-height: 1.4;
 }
 .tk .pcard.on {
-  border-color: var(--draft);
-  background: var(--draft-bg);
-}
-.tk .pend {
-  margin: 10px 0 0;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: var(--draft-bg);
-  font-size: 13px;
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-}
-.tk .pend svg {
-  flex: none;
-  margin-top: 2px;
-  color: var(--draft);
+  border-color: var(--ink);
+  background: var(--gray-bg);
 }
 .tk .share-link {
   display: flex;
   gap: 6px;
   align-items: center;
   border: 1px solid var(--rule);
-  border-radius: 10px;
+  border-radius: var(--r-ctl);
   padding: 4px 4px 4px 10px;
   margin-top: 10px;
   color: var(--ink-3);
@@ -1783,12 +2547,12 @@ svg.pg .lane-drop.glow {
 }
 .tk .share-row b {
   display: block;
-  font-size: 13.5px;
+  font-size: var(--fs);
 }
 .tk .share-row small {
   display: block;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--fs-xs);
 }
 .tk .share-add {
   display: flex;
@@ -1817,9 +2581,9 @@ svg.pg .lane-drop.glow {
   border: 1px solid color-mix(in srgb, var(--panel) 40%, transparent);
   background: none;
   color: var(--panel);
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 4px 10px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
 }
 
@@ -1830,9 +2594,31 @@ svg.pg .lane-drop.glow {
   .tk .grid2 {
     grid-template-columns: minmax(0, 1fr);
   }
-  /* The rail becomes a sticky top bar at this width. */
+  /* The rail becomes a sticky top bar at this width; the graph measures its height into --tk-top. */
+  html:has(.tk.board) {
+    scroll-padding-top: calc(var(--tk-top, 66px) + var(--tk-axis-h, 0px));
+  }
+  .tk .ghead {
+    top: var(--tk-top, 66px);
+  }
+  .tk.board.fullview .ghead {
+    top: 0;
+  }
+  .tk.board.fullview {
+    overflow: auto;
+  }
   .tk .move-hint-slot {
-    top: 66px;
+    top: var(--tk-top, 66px);
+  }
+  .tk .drawer-slot {
+    inset: 0 0 0 auto;
+    max-width: 100%;
+  }
+  .tk .drawer {
+    top: var(--tk-top, 66px);
+    height: min(calc(100vh - var(--tk-top, 66px)), 100%);
+    border-width: 0 0 0 1px;
+    border-radius: 0;
   }
   .tk .move-hint {
     white-space: normal;

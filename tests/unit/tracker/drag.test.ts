@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   dayAtX,
   dropAction,
+  eventGesture,
   noonX,
   retarget,
   targetAt,
@@ -79,7 +80,8 @@ describe('targetAt: the drop target under a point of the graph', () => {
     const y = rowY(L, 'b');
     expect(targetAt(L, { x: 60, y })).toEqual({ type: 'loop', id: 'b' });
     expect(targetAt(L, { x: X0 + 300, y: y + 14 })).toEqual({ type: 'loop', id: 'b' });
-    expect(targetAt(L, { x: X1, y: y - 14 })).toEqual({ type: 'loop', id: 'b' });
+    expect(targetAt(L, { x: L.x1, y: y - 14 })).toEqual({ type: 'loop', id: 'b' });
+    expect(L.x1).toBe(X1);
   });
 
   it('falls back to the team band outside a row', () => {
@@ -92,13 +94,21 @@ describe('targetAt: the drop target under a point of the graph', () => {
     expect(targetAt(L, { x: 4, y: eng.top + 30 })).toEqual({ type: 'lane', teamId: 'eng' });
   });
 
-  it('maps a folded row and a hidden team to their team band', () => {
+  it('finds the row of a zoomed time line out to its right end', () => {
+    const L = layout({ zoom: 4 });
+    const y = rowY(L, 'b');
+    expect(targetAt(L, { x: L.x1 + 4, y })).toEqual({ type: 'loop', id: 'b' });
+    expect(targetAt(L, { x: L.x1 + 20, y })).toEqual({ type: 'lane', teamId: 'eng' });
+  });
+
+  it('maps the band of a team with a hidden row to the team, and gives a hidden team no band', () => {
     const L = layout({ hiddenRows: new Set(['b']), hiddenTeams: new Set(['qa']) });
-    expect(targetAt(L, { x: X0 + 300, y: rowY(L, 'b') })).toEqual({ type: 'lane', teamId: 'eng' });
-    expect(targetAt(L, { x: X0 + 300, y: lane(L, 'qa').top + 26 })).toEqual({
+    expect(L.rows.map((r) => r.id)).toEqual(['a']);
+    expect(targetAt(L, { x: X0 + 300, y: lane(L, 'eng').bottom - 2 })).toEqual({
       type: 'lane',
-      teamId: 'qa',
+      teamId: 'eng',
     });
+    expect(L.lanes.map((l) => l.teamId)).not.toContain('qa');
   });
 
   it('finds nothing above the teams or below the graph', () => {
@@ -170,13 +180,9 @@ describe('dropAction: what a drop does', () => {
     expect(dropAction(ev, { type: 'loop', id: 'a' }, s)).toEqual({ kind: 'none' });
   });
 
-  it('explains that an event keeps its time when it moves sideways', () => {
-    expect(dropAction(ev, { type: 'loop', id: 'a' }, s, 60)).toEqual({
-      kind: 'hint',
-      text: 'An event stays at the time it happened. Drag it up or down to another work item.',
-    });
-    expect(dropAction(ev, null, s, -41).kind).toBe('hint');
-    expect(dropAction(ev, null, s, 40)).toEqual({ kind: 'none' });
+  it('leaves an event where it is when it ends on its own row or outside the graph', () => {
+    expect(dropAction(ev, { type: 'loop', id: 'a' }, s)).toEqual({ kind: 'none' });
+    expect(dropAction(ev, null, s)).toEqual({ kind: 'none' });
   });
 
   it('adds a work item to the milestone under its name', () => {
@@ -195,12 +201,30 @@ describe('dropAction: what a drop does', () => {
   });
 });
 
-describe('dayAtX and noonX: the day under a dragged date flag', () => {
-  it('reads the day at the noon of a flag', () => {
+describe('eventGesture: the first move of an event drag picks what it does', () => {
+  it('moves the icon inside its day for a sideways start, in every view', () => {
+    expect(eventGesture(10, 3, false)).toBe('day');
+    expect(eventGesture(-10, 9, true)).toBe('day');
+    expect(eventGesture(10, -3, true)).toBe('day');
+  });
+
+  it('moves the event to another work item for an up or down start in an editable change request', () => {
+    expect(eventGesture(3, 10, true)).toBe('move');
+    expect(eventGesture(6, -6, true)).toBe('move');
+  });
+
+  it('does nothing for an up or down start in a read-only view', () => {
+    expect(eventGesture(3, 10, false)).toBeNull();
+    expect(eventGesture(6, 6, false)).toBeNull();
+  });
+});
+
+describe('dayAtX and noonX: the day under a dragged milestone', () => {
+  it('reads the day at the noon of a date', () => {
     const L = layout();
-    const flag = L.flags.find((f) => f.workItemId === 'c')!;
-    expect(noonX(L, '2026-10-12', TIME_ZONE)).toBeCloseTo(flag.x, 6);
-    expect(dayAtX(L, flag.x, TIME_ZONE)).toBe('2026-10-12');
+    const x = noonX(L, '2026-10-12', TIME_ZONE);
+    expect(x).toBeCloseTo(L.x(Date.parse('2026-10-12T12:00:00+07:00')), 6);
+    expect(dayAtX(L, x, TIME_ZONE)).toBe('2026-10-12');
     expect(dayAtX(L, noonX(L, '2026-09-20', TIME_ZONE) + 8, TIME_ZONE)).toBe('2026-09-20');
   });
 
@@ -210,9 +234,12 @@ describe('dayAtX and noonX: the day under a dragged date flag', () => {
     expect(dayAtX(L, X1 + 500, TIME_ZONE)).toBe('2026-10-16');
   });
 
-  it('matches the milestone diamond position', () => {
-    const L = layout();
-    expect(noonX(L, '2026-10-15', TIME_ZONE)).toBeCloseTo(L.milestones[0].x, 6);
+  it('matches the milestone circle position, also when zoomed', () => {
+    for (const zoom of [1, 5]) {
+      const L = layout({ zoom });
+      expect(noonX(L, '2026-10-15', TIME_ZONE)).toBeCloseTo(L.milestones[0].x, 6);
+      expect(noonX(L, '2026-12-01', TIME_ZONE)).toBe(L.x1 - 4);
+    }
   });
 });
 
@@ -243,6 +270,7 @@ describe('trackPointer: one pointer from pointerdown to release', () => {
     expect(t.onStart).not.toHaveBeenCalled();
     target.dispatchEvent(pointer('pointermove', { clientX: 30, clientY: 40 }));
     expect(t.onStart).toHaveBeenCalledTimes(1);
+    expect(t.onStart).toHaveBeenCalledWith(expect.objectContaining({ clientX: 30, clientY: 40 }));
     expect(t.onMove).toHaveBeenCalledTimes(1);
     target.dispatchEvent(pointer('pointerup', { clientX: 30, clientY: 40, pointerId: 2 }));
     expect(t.onDrop).not.toHaveBeenCalled();

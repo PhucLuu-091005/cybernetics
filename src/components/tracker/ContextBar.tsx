@@ -302,3 +302,26 @@ export function ContextBar(props: Props) {
     </div>
   );
 }
+
+export function MainNotice({
+  onClose,
+  onNeverAgain,
+}: {
+  onClose: () => void;
+  onNeverAgain: () => void;
+}) {
+  return (
+    <div className="ro-note" role="note" aria-label="Main is read-only">
+      <Icon name="lock" size={15} />
+      <p>Main is read-only. To change it, create a change request.</p>
+      <span className="ro-acts">
+        <button className="lnk" type="button" onClick={onNeverAgain}>
+          Don&apos;t show again
+        </button>
+      </span>
+      <button className="x" type="button" aria-label="Close the notice" onClick={onClose}>
+        ×
+      </button>
+    </div>
+  );
+}

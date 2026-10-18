@@ -3,22 +3,19 @@ import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } fro
 import {
   formatDay,
   formatStamp,
-  itemInfo,
-  itemStatus,
   KIND_LABEL,
-  STATUS_LABEL,
-  STATUS_TONE,
   type DateMove,
+  type Offsets,
   type TrackerState,
 } from '../../tracker';
 import type { Directory } from './avatar';
-import { Icon, KindIcon, type IconName } from './icons';
+import { Icon, KIND_COLOR, KindIcon, type IconName } from './icons';
 import { KindGrid } from './Modals';
 import type { PopKind } from './TrackerGraph';
 import type { TrackerActions } from './TrackerScreen';
 
 export type PopTarget = {
-  kind: PopKind | 'kind' | 'rename' | 'added';
+  kind: PopKind | 'kind' | 'added';
   id: string;
   anchor: Element;
 };
@@ -28,9 +25,12 @@ type Common = {
   dir: Directory;
   tz: string;
   asOf: string;
+  /** Only a draft that the acting member edits shows the actions that change the graph. */
+  edit?: boolean;
+  offsets?: Offsets;
   actions: TrackerActions;
   onClose: () => void;
-  onHideRow: (workItemId: string) => void;
+  onDetails: (workItemId: string) => void;
 };
 
 export function Moves({
@@ -93,15 +93,26 @@ function PopFrame({
     if (!pop || !box) return;
     const r = target.anchor.getBoundingClientRect();
     const w = box.getBoundingClientRect();
+    // An open drawer covers the right of the graph, so the pop stays left of it when it fits there.
+    const drawer = box
+      .closest('.gwrap')
+      ?.querySelector(':scope > .drawer-slot > .drawer')
+      ?.getBoundingClientRect();
+    const room = drawer ? drawer.left - w.left : w.width;
+    const right = room >= pop.offsetWidth + 16 ? room : w.width;
+    // A zoomed row reaches past the visible graph, so the pop centres on the part in view.
+    const l = Math.max(r.left, w.left);
+    const rr = Math.min(r.right, w.left + right);
     const left = Math.max(
       8,
-      Math.min(r.left - w.left + r.width / 2 - pop.offsetWidth / 2, w.width - pop.offsetWidth - 8),
+      Math.min(l - w.left + (rr - l) / 2 - pop.offsetWidth / 2, right - pop.offsetWidth - 8),
     );
     let top = r.bottom - w.top + 8;
-    if (top + pop.offsetHeight > w.height - 8)
+    if (top + pop.offsetHeight > box.clientHeight - 8)
       top = Math.max(8, r.top - w.top - pop.offsetHeight - 8);
-    pop.style.left = `${left}px`;
-    pop.style.top = `${top}px`;
+    // The container can scroll, and an absolute child sits in its scrolled content.
+    pop.style.left = `${left + box.scrollLeft}px`;
+    pop.style.top = `${top + box.scrollTop}px`;
     pop.style.visibility = 'visible';
     if (focusSelf) pop.focus({ preventScroll: true });
   }, [target, container, focusSelf]);
@@ -182,123 +193,124 @@ function ActPop({
       onClose={c.onClose}
     >
       <blockquote>{ev.text}</blockquote>
-      <div className="pop-btns">
-        <Btn icon="tag" label="Change kind" onClick={() => c.actions.changeKind(ev.id)} />
-        <Btn
-          icon="move"
-          label="Move to another work item"
-          onClick={() => c.actions.moveEvent(ev.id)}
-        />
-        <Btn
-          icon="eyeoff"
-          label="Hide this event"
-          tone="danger"
-          onClick={() => c.actions.hideEvent(ev.id)}
-        />
-      </div>
-      <p className="tip">
-        Tip: drag an event up or down to another work item. Drag it to the bin to hide it.
-      </p>
-    </PopFrame>
-  );
-}
-
-function LoopPop({
-  target,
-  container,
-  ...c
-}: Common & { target: PopTarget; container: RefObject<HTMLDivElement | null> }) {
-  const item = c.state.workItems.find((w) => w.id === target.id);
-  if (!item) return null;
-  const info = itemInfo(item, c.state.events);
-  const status = itemStatus(item, c.state.events, c.asOf, c.tz);
-  const team = c.state.teams.find((t) => t.id === item.teamId)?.name ?? '';
-  const milestone = c.state.milestones.find((m) => m.id === item.milestoneId);
-  const after = item.after
-    .map((id) => c.state.workItems.find((w) => w.id === id)?.title ?? '')
-    .join(', ');
-  return (
-    <PopFrame
-      target={target}
-      container={container}
-      label={item.title}
-      icon={ring(info.done ? 'var(--proceed)' : 'var(--route)', <Icon name="loop" size={15} />)}
-      head={
+      {item && (
+        <div className="pop-btns">
+          <Btn icon="loop" label="View in work item" onClick={() => c.onDetails(item.id)} />
+        </div>
+      )}
+      {!!c.offsets && Object.hasOwn(c.offsets, ev.id) && c.offsets[ev.id] !== 0 && (
+        <p className="moved">
+          <Icon name="moveX" size={13} /> Moved inside its day in your view.
+          <button className="lnk" type="button" onClick={() => c.actions.resetPosition(ev.id)}>
+            Reset position
+          </button>
+        </p>
+      )}
+      {c.edit && (
         <>
-          <b>{item.title}</b>
-          <small>
-            {team} · done by {c.dir.name(item.doneBy)} · for {c.dir.name(item.requestedBy)}
-          </small>
-          <small>
-            Planned finish {formatDay(item.plannedFinish)} · {STATUS_LABEL[status]}
-            {item.moves.length > 0 && ` · moved ${item.moves.length}×`}
-          </small>
-          <small>
-            {milestone ? `Milestone: ${milestone.name}` : 'No milestone'}
-            {item.after.length > 0 && ` · after ${after}`}
-          </small>
-        </>
-      }
-      onClose={c.onClose}
-    >
-      <div className="pop-btns">
-        {!info.done && (
-          <>
+          <div className="pop-btns">
+            <Btn icon="tag" label="Change kind" onClick={() => c.actions.changeKind(ev.id)} />
             <Btn
-              icon="plus"
-              label="Add an event"
-              tone="ink"
-              onClick={() => c.actions.addEvent(item.id)}
+              icon="move"
+              label="Move to another work item"
+              onClick={() => c.actions.moveEvent(ev.id)}
             />
-            <Btn kind="done" label="Mark done" onClick={() => c.actions.markDone(item.id)} />
-          </>
-        )}
-        <Btn
-          icon="cal"
-          label="Move the date"
-          onClick={() => c.actions.moveDate({ kind: 'item', id: item.id })}
-        />
-        <Btn icon="pencil" label="Rename" onClick={() => c.actions.rename(item.id)} />
-        <Btn icon="eyeoff" label="Hide from the graph" onClick={() => c.onHideRow(item.id)} />
-      </div>
+            <Btn
+              icon="eyeoff"
+              label="Hide this event"
+              tone="danger"
+              onClick={() => c.actions.hideEvent(ev.id)}
+            />
+          </div>
+          <p className="tip">
+            Tip: drag an event left or right inside its day, up or down to another work item, or to
+            the bin to hide it.
+          </p>
+        </>
+      )}
+      {!c.edit && (
+        <p className="tip">Tip: drag an event left or right to move it inside its day.</p>
+      )}
     </PopFrame>
   );
 }
 
-function DuePop({
+function StackPop({
   target,
   container,
   ...c
 }: Common & { target: PopTarget; container: RefObject<HTMLDivElement | null> }) {
-  const item = c.state.workItems.find((w) => w.id === target.id);
-  if (!item) return null;
-  const status = itemStatus(item, c.state.events, c.asOf, c.tz);
-  const day = formatDay(item.plannedFinish);
+  const [picked, setPicked] = useState<string | null>(null);
+  const ids = target.id.split(',');
+  const list = ids.flatMap((id) => c.state.events.filter((e) => e.id === id));
+  if (picked)
+    return <ActPop target={{ ...target, kind: 'act', id: picked }} container={container} {...c} />;
+  if (!list.length) return null;
+  const item = c.state.workItems.find((w) => w.id === list[0].workItemId);
   return (
     <PopFrame
       target={target}
       container={container}
-      label={`Planned finish ${day}`}
-      icon={ring(`var(--${STATUS_TONE[status]})`, <Icon name="flag" size={15} />)}
+      label={`${list.length} events on ${item?.title ?? 'this work item'}`}
+      icon={ring('var(--route)', <KindIcon kind={list[list.length - 1].kind} size={15} />)}
       head={
         <>
-          <b>Planned finish · {day}</b>
-          <small>{item.title}</small>
+          <b>{list.length} events here</b>
+          <small>{item?.title}</small>
         </>
       }
       onClose={c.onClose}
     >
-      <span className={`badge st-${status}`}>{STATUS_LABEL[status]}</span>
-      <Moves moves={item.moves} first={item.firstPlannedFinish} dir={c.dir} tz={c.tz} />
-      <div className="pop-btns" style={{ marginTop: 10 }}>
-        <Btn
-          icon="cal"
-          label="Move the date"
-          tone="ink"
-          onClick={() => c.actions.moveDate({ kind: 'item', id: item.id })}
-        />
-      </div>
-      <p className="tip">Tip: drag the flag left or right. The app asks why.</p>
+      <ul className="stack-list">
+        {list.map((ev) => {
+          const what = `${KIND_LABEL[ev.kind]} by ${c.dir.name(ev.by)}`;
+          return (
+            <li key={ev.id}>
+              <button className="stack-ev" type="button" onClick={() => setPicked(ev.id)}>
+                <span className="sk" style={{ color: KIND_COLOR[ev.kind] }}>
+                  <KindIcon kind={ev.kind} size={13} />
+                </span>
+                <span className="st">
+                  <b>{what}</b>
+                  <small>{formatStamp(ev.at, c.tz)}</small>
+                  <span>{ev.text}</span>
+                </span>
+              </button>
+              {c.edit && (
+                <span className="stack-acts">
+                  <button
+                    className="ib"
+                    type="button"
+                    aria-label={`Change kind: ${what}`}
+                    title="Change kind"
+                    onClick={() => c.actions.changeKind(ev.id)}
+                  >
+                    <Icon name="tag" size={14} />
+                  </button>
+                  <button
+                    className="ib"
+                    type="button"
+                    aria-label={`Move to another work item: ${what}`}
+                    title="Move to another work item"
+                    onClick={() => c.actions.moveEvent(ev.id)}
+                  >
+                    <Icon name="move" size={14} />
+                  </button>
+                  <button
+                    className="ib danger"
+                    type="button"
+                    aria-label={`Hide this event: ${what}`}
+                    title="Hide this event"
+                    onClick={() => c.actions.hideEvent(ev.id)}
+                  >
+                    <Icon name="eyeoff" size={14} />
+                  </button>
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </PopFrame>
   );
 }
@@ -324,49 +336,6 @@ function KindPop({
   );
 }
 
-function RenamePop({
-  target,
-  container,
-  ...c
-}: Common & { target: PopTarget; container: RefObject<HTMLDivElement | null> }) {
-  const item = c.state.workItems.find((w) => w.id === target.id);
-  const [title, setTitle] = useState(item?.title ?? '');
-  const input = useRef<HTMLInputElement>(null);
-  useLayoutEffect(() => {
-    input.current?.focus();
-    input.current?.select();
-  }, []);
-  if (!item) return null;
-  const save = () => c.actions.saveRename(item.id, title.trim());
-  return (
-    <PopFrame
-      target={target}
-      container={container}
-      label="New name"
-      icon={null}
-      head={<b>New name</b>}
-      focusSelf={false}
-      onClose={c.onClose}
-    >
-      <input
-        ref={input}
-        className="sel"
-        aria-label="Work item name"
-        value={title}
-        onChange={(event) => setTitle(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key !== 'Enter') return;
-          event.preventDefault();
-          save();
-        }}
-      />
-      <div className="m-foot">
-        <Btn icon="check" label="Save name" tone="ink" onClick={save} />
-      </div>
-    </PopFrame>
-  );
-}
-
 function AddedPop({
   target,
   container,
@@ -380,7 +349,7 @@ function AddedPop({
       target={target}
       container={container}
       label={`Added a ${KIND_LABEL[ev.kind]}`}
-      icon={ring('var(--draft)', <KindIcon kind={ev.kind} size={15} />)}
+      icon={ring('var(--ink)', <KindIcon kind={ev.kind} size={15} />)}
       head={
         <>
           <b>Added a {KIND_LABEL[ev.kind]}</b> by {c.dir.name(ev.by)}
@@ -409,15 +378,11 @@ export function Pop(
   switch (props.target.kind) {
     case 'act':
       return <ActPop {...props} />;
-    case 'due':
-      return <DuePop {...props} />;
+    case 'stack':
+      return <StackPop {...props} />;
     case 'kind':
       return <KindPop {...props} />;
-    case 'rename':
-      return <RenamePop {...props} />;
     case 'added':
       return <AddedPop {...props} />;
-    default:
-      return <LoopPop {...props} />;
   }
 }

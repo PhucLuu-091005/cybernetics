@@ -22,6 +22,7 @@ const TABLES = [
   'tracker_cr_comments',
   'tracker_cr_shares',
   'tracker_crs',
+  'tracker_event_offsets',
   'tracker_members',
   'tracker_projects',
   'tracker_queue',

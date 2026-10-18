@@ -34,13 +34,15 @@ import {
 import { crAction, getTracker, type CrAction } from './api';
 import { Avatar, Avatars, makeDirectory, type Directory } from './avatar';
 import { editorsOf, isOpen, plural, StatusChip, trunc } from './ContextBar';
+import { HiddenMenu } from './HiddenMenu';
 import { Icon, KindIcon } from './icons';
-import { TrackerGraph } from './TrackerGraph';
+import { TrackerGraph, type Reveal } from './TrackerGraph';
 import { useNow, useTracker } from './TrackerScreen';
 import {
   browserStore,
   EMPTY_VIEW,
   readViewState,
+  hiddenList,
   revealRows,
   toggleId,
   writeViewState,
@@ -418,6 +420,7 @@ export function ReviewScreen({
   const [tab, setTabState] = useState<ReviewTab>(initialTab);
   const [sel, setSel] = useState(0);
   const [view, setView] = useState<'before' | 'after'>('after');
+  const [zoom, setZoom] = useState(1);
   const [viewed, setViewed] = useState<number[]>([]);
   const [picks, setPicks] = useState<Picks>({});
   const [asking, setAsking] = useState(false);
@@ -428,6 +431,7 @@ export function ReviewScreen({
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ text: string; at: number } | null>(null);
   const [hidden, setHidden] = useState<ViewState>(EMPTY_VIEW);
+  const [inView, setInView] = useState<Reveal | null>(null);
 
   const model = useMemo(() => reviewModel(payload, num, picks), [payload, num, picks]);
   const people = model?.after.people;
@@ -465,12 +469,14 @@ export function ReviewScreen({
               hiddenTeams: new Set(hidden.hiddenTeams),
               asOf,
               timeZone: tz,
+              zoom,
+              offsets: live.offsets,
               ...(project.windowStart ? { windowStart: project.windowStart } : {}),
             },
             view === 'after' ? model.marks : undefined,
           )
         : null,
-    [graphState, model, view, hidden, asOf, tz, project.windowStart],
+    [graphState, model, view, hidden, asOf, tz, zoom, live.offsets, project.windowStart],
   );
 
   const graphHref = `/projects/${projectId}/graph?cr=${num}`;
@@ -500,6 +506,7 @@ export function ReviewScreen({
     setHidden(next);
     writeViewState(browserStore(), projectId, next);
   };
+  const teamOf = (id: string) => graphState?.workItems.find((w) => w.id === id)?.teamId ?? null;
 
   const setTab = (next: ReviewTab) => {
     setTabState(next);
@@ -831,45 +838,52 @@ export function ReviewScreen({
                 </span>
                 <span className="muted small">
                   {view === 'after'
-                    ? 'Violet rings mark the changes. Yellow marks the change you picked.'
+                    ? 'Yellow marks show the changes. The shaded row is the change you picked.'
                     : 'Main before this change request.'}
                 </span>
+                {graphState && (
+                  <HiddenMenu
+                    hidden={hiddenList(graphState, hidden)}
+                    onUnhideTeam={(id) =>
+                      changeHidden({
+                        ...hidden,
+                        hiddenTeams: hidden.hiddenTeams.filter((t) => t !== id),
+                      })
+                    }
+                    onUnhideItem={(id) => changeHidden(revealRows(hidden, [id], teamOf))}
+                    onUnhideAll={() => changeHidden(EMPTY_VIEW)}
+                  />
+                )}
               </div>
               <div className="pr-grid">
                 {list(false)}
                 <div className="box">
-                  <div className="gscroll">
-                    <TrackerGraph
-                      layout={layout}
-                      edit={false}
-                      selectedMs={null}
-                      flash={null}
-                      focusRow={focusRow}
-                      focusMs={focusMs}
-                      dimmed={() => false}
-                      onToggleRow={(id) =>
-                        changeHidden({ ...hidden, hiddenRows: toggleId(hidden.hiddenRows, id) })
-                      }
-                      onToggleTeam={(id) =>
-                        changeHidden({ ...hidden, hiddenTeams: toggleId(hidden.hiddenTeams, id) })
-                      }
-                      onReveal={(ids) =>
-                        changeHidden(
-                          revealRows(
-                            hidden,
-                            ids,
-                            (id) => graphState?.workItems.find((w) => w.id === id)?.teamId ?? null,
-                          ),
-                        )
-                      }
-                      onPop={noop}
-                      onMilestone={noop}
-                      onAddEvent={noop}
-                      onNewMilestone={noop}
-                      onNewTeam={noop}
-                      onBackground={noop}
-                    />
-                  </div>
+                  <TrackerGraph
+                    layout={layout}
+                    edit={false}
+                    selectedMs={null}
+                    flash={null}
+                    focusRow={focusRow}
+                    focusMs={focusMs}
+                    onToggleRow={(id) =>
+                      changeHidden({ ...hidden, hiddenRows: toggleId(hidden.hiddenRows, id) })
+                    }
+                    onToggleTeam={(id) =>
+                      changeHidden({ ...hidden, hiddenTeams: toggleId(hidden.hiddenTeams, id) })
+                    }
+                    onReveal={(ids) => changeHidden(revealRows(hidden, ids, teamOf))}
+                    reveal={inView}
+                    onHandoff={(id) => {
+                      changeHidden(revealRows(hidden, [id], teamOf));
+                      setInView((r) => ({ rowId: id, key: (r?.key ?? 0) + 1 }));
+                    }}
+                    onPop={noop}
+                    onAddEvent={noop}
+                    onNewMilestone={noop}
+                    onNewTeam={noop}
+                    onBackground={noop}
+                    onZoom={setZoom}
+                  />
                 </div>
               </div>
             </>

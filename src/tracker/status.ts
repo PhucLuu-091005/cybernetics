@@ -60,3 +60,11 @@ export function milestoneStatus(
   }
   return { status: lateOrPlanned(asOf, m.planned, timeZone), finishedAt: null, members };
 }
+
+const HOUR = 3_600_000;
+
+export function timeSpent(start: string | null, end: string | null): string | null {
+  if (!start || !end) return null;
+  const ms = Math.max(0, time(end) - time(start));
+  return `${Math.round(ms / HOUR)} h (${(ms / (24 * HOUR)).toFixed(1)} days)`;
+}

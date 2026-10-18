@@ -28,7 +28,14 @@ export default async function GraphPage({ params }: { params: Promise<{ id: stri
         </div>
       </div>
     );
-  return <TrackerScreen payload={payload} projectId={id} serverNow={serverMinute()} />;
+  return (
+    <TrackerScreen
+      payload={payload}
+      projectId={id}
+      userId={actor.userId}
+      serverNow={serverMinute()}
+    />
+  );
 }
 
 // A function imported from the client module would be a client reference here, so the page rounds the minute.

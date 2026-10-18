@@ -1,13 +1,15 @@
 'use client';
 import Link from 'next/link';
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   clashesOf,
   dayOf,
+  focusTree,
   formatDay,
   formatStamp,
   itemInfo,
   itemStatus,
+  KIND_LABEL,
   keysOf,
   mainState,
   milestoneStatus,
@@ -16,8 +18,10 @@ import {
   SKIP_REASON,
   STATUS_LABEL,
   STATUS_TONE,
+  timeSpent,
   type Commit,
   type Cr,
+  type FocusNode,
   type TrackerState,
 } from '../../tracker';
 import { Avatar, Avatars } from './avatar';
@@ -33,36 +37,31 @@ import {
   trunc,
   type Session,
 } from './ContextBar';
-import { Icon, KindIcon } from './icons';
+import { Icon, KIND_COLOR, KindIcon } from './icons';
 import { Moves } from './Pops';
 import type { TrackerActions, TrackerView } from './TrackerScreen';
-
-export type Filter = { person: string; ms: string; team: string };
-export const NO_FILTER: Filter = { person: '', ms: '', team: '' };
-
-export const matchesFilter = (f: Filter, w: TrackerState['workItems'][number]) =>
-  (!f.person || w.requestedBy === f.person || w.doneBy === f.person) &&
-  (!f.ms || w.milestoneId === f.ms) &&
-  (!f.team || w.teamId === f.team);
 
 function Frame({
   label,
   head,
   icon,
+  takeFocus = true,
   onClose,
   children,
 }: {
   label: string;
   head: ReactNode;
   icon?: ReactNode;
+  takeFocus?: boolean;
   onClose: () => void;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLElement>(null);
+  const grab = useRef(takeFocus);
   useLayoutEffect(() => {
     const drawer = ref.current;
     const opener = document.activeElement;
-    drawer?.focus({ preventScroll: true });
+    if (grab.current) drawer?.focus({ preventScroll: true });
     return () => {
       const now = document.activeElement;
       // Hand focus back only when it would otherwise be lost; a click on another control keeps its focus.
@@ -71,17 +70,20 @@ function Frame({
       if (lost && focusable && opener.isConnected) opener.focus();
     };
   }, []);
+  // The slot spans the graph and the drawer sticks inside it, so a long page never scrolls the drawer away.
   return (
-    <aside ref={ref} className="drawer" aria-label={label} tabIndex={-1}>
-      <div className="pop-h">
-        {icon}
-        <div>{head}</div>
-        <button className="x" type="button" aria-label="Close" onClick={onClose}>
-          ×
-        </button>
-      </div>
-      {children}
-    </aside>
+    <div className="drawer-slot">
+      <aside ref={ref} className="drawer" aria-label={label} tabIndex={-1}>
+        <div className="pop-h">
+          {icon}
+          <div>{head}</div>
+          <button className="x" type="button" aria-label="Close" onClick={onClose}>
+            ×
+          </button>
+        </div>
+        {children}
+      </aside>
+    </div>
   );
 }
 
@@ -92,113 +94,6 @@ type Base = {
   onClose: () => void;
   busy?: boolean;
 };
-
-export function WorkListDrawer({
-  session,
-  state,
-  asOf,
-  onClose,
-  filter,
-  onFilter,
-  hiddenRows,
-  onToggleRow,
-  onFlash,
-}: Base & {
-  filter: Filter;
-  onFilter: (filter: Filter) => void;
-  hiddenRows: readonly string[];
-  onToggleRow: (id: string) => void;
-  onFlash: (id: string) => void;
-}) {
-  const { dir, tz } = session;
-  const select = (
-    key: keyof Filter,
-    label: string,
-    any: string,
-    options: Array<[string, string]>,
-  ) => (
-    <select
-      aria-label={label}
-      value={filter[key]}
-      onChange={(event) => onFilter({ ...filter, [key]: event.target.value })}
-    >
-      <option value="">{any}</option>
-      {options.map(([value, text]) => (
-        <option key={value} value={value}>
-          {text}
-        </option>
-      ))}
-    </select>
-  );
-  return (
-    <Frame label="Work list" head={<h4>Work list</h4>} onClose={onClose}>
-      <div className="filters">
-        {select(
-          'person',
-          'Person',
-          'Any person',
-          state.people.map((p) => [p.id, p.name]),
-        )}
-        {select(
-          'ms',
-          'Milestone',
-          'Any milestone',
-          state.milestones.map((m) => [m.id, m.name]),
-        )}
-        {select(
-          'team',
-          'Team',
-          'Any team',
-          state.teams.map((t) => [t.id, t.name]),
-        )}
-      </div>
-      {state.teams.map((team) => {
-        const items = state.workItems.filter(
-          (w) => w.teamId === team.id && matchesFilter(filter, w),
-        );
-        if (!items.length) return null;
-        return (
-          <section key={team.id} aria-label={team.name}>
-            <div className="wl-lane">{team.name}</div>
-            {items.map((w) => {
-              const done = itemInfo(w, state.events).done;
-              const status = itemStatus(w, state.events, asOf, tz);
-              const hidden = hiddenRows.includes(w.id);
-              return (
-                <div className="wl-item" key={w.id}>
-                  <button className="wl-open" type="button" onClick={() => onFlash(w.id)}>
-                    <span
-                      className="dot"
-                      style={{ background: done ? 'var(--proceed)' : 'var(--route)' }}
-                    />
-                    <span>
-                      <b>{w.title}</b>
-                      <small>
-                        {dir.name(w.doneBy)} · planned {formatDay(w.plannedFinish)}
-                        {w.moves.length > 0 && ` · moved ${w.moves.length}×`}
-                      </small>
-                      <span className={`badge st-${status}`} style={{ marginTop: 3 }}>
-                        {STATUS_LABEL[status]}
-                      </span>
-                    </span>
-                  </button>
-                  <button
-                    className={`eyebtn${hidden ? ' off' : ''}`}
-                    type="button"
-                    aria-label={`${hidden ? 'Show' : 'Hide'} ${w.title}`}
-                    onClick={() => onToggleRow(w.id)}
-                  >
-                    <Icon name={hidden ? 'eyeoff' : 'eye'} size={14} />
-                  </button>
-                </div>
-              );
-            })}
-          </section>
-        );
-      })}
-    </Frame>
-  );
-}
 
 const daysBetween = (from: string, to: string) =>
   Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
@@ -239,7 +134,7 @@ export function MilestoneDrawer({
           <h4>{m.name}</h4>
           <span className={`badge st-${status}`}>{STATUS_LABEL[status]}</span>
           {status === 'late' && (
-            <small style={{ display: 'inline', color: 'var(--danger)' }}>
+            <small style={{ display: 'inline', color: 'var(--danger-ink)' }}>
               {' '}
               late {daysBetween(m.planned, dayOf(asOf, tz))} days
             </small>
@@ -248,44 +143,42 @@ export function MilestoneDrawer({
       }
       onClose={onClose}
     >
-      <p className="q-label">Edit</p>
-      <label className="field">
-        Name
-        <input
-          value={name}
-          disabled={!edit}
-          onChange={(event) => setDraft({ name: event.target.value, date })}
-        />
-      </label>
-      <label className="field">
-        Planned date
-        <input
-          type="date"
-          value={date}
-          disabled={!edit}
-          onChange={(event) => event.target.value && setDraft({ name, date: event.target.value })}
-        />
-      </label>
       {edit ? (
-        <div className="m-foot">
-          <button
-            className="btn btn-ink"
-            type="button"
-            disabled={unchanged || !name.trim() || busy}
-            onClick={() => actions.saveMilestone(m.id, name.trim(), date)}
-          >
-            <Icon name="check" /> Save milestone
-          </button>
-        </div>
-      ) : (
         <>
-          <p className="tip">This view is read-only. Make the change in a change request.</p>
+          <p className="q-label">Edit</p>
+          <label className="field">
+            Name
+            <input
+              value={name}
+              onChange={(event) => setDraft({ name: event.target.value, date })}
+            />
+          </label>
+          <label className="field">
+            Planned date
+            <input
+              type="date"
+              value={date}
+              onChange={(event) =>
+                event.target.value && setDraft({ name, date: event.target.value })
+              }
+            />
+          </label>
           <div className="m-foot">
-            <button className="btn" type="button" onClick={actions.newCr}>
-              <Icon name="plus" /> New change request
+            <button
+              className="btn btn-ink"
+              type="button"
+              disabled={unchanged || !name.trim() || busy}
+              onClick={() => actions.saveMilestone(m.id, name.trim(), date)}
+            >
+              <Icon name="check" /> Save milestone
             </button>
           </div>
         </>
+      ) : (
+        <dl className="facts">
+          <dt>Planned date</dt>
+          <dd>{formatDay(m.planned)}</dd>
+        </dl>
       )}
       <Moves moves={m.moves} first={m.firstPlanned} dir={dir} tz={tz} />
       <p className="q-label">Work items in this milestone ({members.length})</p>
@@ -340,6 +233,327 @@ export function MilestoneDrawer({
   );
 }
 
+export function WorkItemDrawer({
+  session,
+  state,
+  asOf,
+  onClose,
+  itemId,
+  edit,
+  hidden,
+  actions,
+  busy = false,
+  onPick,
+  onEvent,
+  onMilestone,
+  onToggleRow,
+}: Base & {
+  itemId: string;
+  edit: boolean;
+  hidden: boolean;
+  actions: TrackerActions;
+  onPick: (workItemId: string) => void;
+  onEvent: (eventId: string) => void;
+  onMilestone: (milestoneId: string) => void;
+  onToggleRow: (workItemId: string) => void;
+}) {
+  const { dir, tz } = session;
+  const item = state.workItems.find((w) => w.id === itemId);
+  const [title, setTitle] = useState<string | null>(null);
+  if (!item) return null;
+  const info = itemInfo(item, state.events, asOf);
+  const status = itemStatus(item, state.events, asOf, tz);
+  const team = state.teams.find((t) => t.id === item.teamId)?.name ?? '';
+  const ms = state.milestones.find((m) => m.id === item.milestoneId);
+  const msStat = ms ? milestoneStatus(ms, state.workItems, state.events, asOf, tz).status : null;
+  const parent = state.workItems.find((w) => w.id === item.parentId);
+  const sources = item.after.flatMap((id) => state.workItems.filter((w) => w.id === id));
+  const receivers = state.workItems.filter((w) => w.id !== item.id && w.after.includes(item.id));
+  const events = state.events
+    .filter((e) => e.workItemId === item.id)
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  const spent = timeSpent(info.start, info.end);
+  const link = (w: { id: string; title: string }) => (
+    <button key={w.id} className="lnk" type="button" onClick={() => onPick(w.id)}>
+      {w.title}
+    </button>
+  );
+  const rename = () => {
+    const next = title?.trim() ?? '';
+    setTitle(null);
+    if (next) actions.saveRename(item.id, next);
+  };
+  return (
+    <Frame
+      label={item.title}
+      icon={
+        <span className="pi" style={{ color: info.done ? 'var(--proceed)' : 'var(--route)' }}>
+          <Icon name="loop" size={15} />
+        </span>
+      }
+      head={
+        <>
+          <h4>{item.title}</h4>
+          <small>{team}</small>
+        </>
+      }
+      onClose={onClose}
+    >
+      <div className="wi-top">
+        <span className={`badge st-${status}`}>{STATUS_LABEL[status]}</span>
+        <button
+          className={`btn sm${hidden ? ' btn-draft' : ''}`}
+          type="button"
+          aria-pressed={hidden}
+          onClick={() => onToggleRow(item.id)}
+        >
+          <Icon name={hidden ? 'eyeoff' : 'eye'} size={13} />{' '}
+          {hidden ? 'Show on the graph' : 'Hide from the graph'}
+        </button>
+      </div>
+      {edit && title !== null ? (
+        <div className="wi-rename">
+          <label className="field">
+            New name
+            <input
+              autoFocus
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                rename();
+              }}
+            />
+          </label>
+          <div className="m-foot">
+            <button className="btn" type="button" onClick={() => setTitle(null)}>
+              Cancel
+            </button>
+            <button
+              className="btn btn-ink"
+              type="button"
+              disabled={!title.trim() || title.trim() === item.title || busy}
+              onClick={rename}
+            >
+              <Icon name="check" /> Save name
+            </button>
+          </div>
+        </div>
+      ) : (
+        edit && (
+          <div className="row-btns wi-acts">
+            {!info.done && (
+              <>
+                <button
+                  className="btn sm btn-ink"
+                  type="button"
+                  onClick={() => actions.addEvent(item.id)}
+                >
+                  <Icon name="plus" size={13} /> Add an event
+                </button>
+                <button className="btn sm" type="button" onClick={() => actions.markDone(item.id)}>
+                  <KindIcon kind="done" size={13} /> Mark done
+                </button>
+              </>
+            )}
+            <button
+              className="btn sm"
+              type="button"
+              onClick={() => actions.moveDate({ kind: 'item', id: item.id })}
+            >
+              <Icon name="cal" size={13} /> Move the date
+            </button>
+            <button className="btn sm" type="button" onClick={() => setTitle(item.title)}>
+              <Icon name="pencil" size={13} /> Rename
+            </button>
+          </div>
+        )
+      )}
+      <dl className="facts">
+        <dt>Team</dt>
+        <dd>{team}</dd>
+        <dt>Done by</dt>
+        <dd>{dir.name(item.doneBy)}</dd>
+        <dt>Requested by</dt>
+        <dd>{dir.name(item.requestedBy)}</dd>
+        <dt>Milestone</dt>
+        <dd>
+          {ms && msStat ? (
+            <>
+              <button className="lnk" type="button" onClick={() => onMilestone(ms.id)}>
+                {ms.name}
+              </button>{' '}
+              · {formatDay(ms.planned)}{' '}
+              <span className={`badge st-${msStat}`}>{STATUS_LABEL[msStat]}</span>
+            </>
+          ) : (
+            'None'
+          )}
+        </dd>
+        <dt>Started</dt>
+        <dd>{info.start ? formatStamp(info.start, tz) : 'Not started'}</dd>
+        <dt>Planned finish</dt>
+        <dd>{formatDay(item.plannedFinish)}</dd>
+        <dt>Finished</dt>
+        <dd>{info.finishedAt ? formatStamp(info.finishedAt, tz) : 'Open'}</dd>
+        <dt>Time spent</dt>
+        <dd>{spent ?? 'Not started'}</dd>
+        {parent && (
+          <>
+            <dt>Parent</dt>
+            <dd>{link(parent)}</dd>
+          </>
+        )}
+        {sources.length > 0 && (
+          <>
+            <dt>Leads from</dt>
+            <dd className="links">{sources.map(link)}</dd>
+          </>
+        )}
+        {receivers.length > 0 && (
+          <>
+            <dt>Leads to</dt>
+            <dd className="links">{receivers.map(link)}</dd>
+          </>
+        )}
+      </dl>
+      <Moves moves={item.moves} first={item.firstPlannedFinish} dir={dir} tz={tz} />
+      <p className="q-label">Events ({events.length})</p>
+      {!events.length && <p className="tip">No events yet.</p>}
+      <ul className="ev-list">
+        {events.map((ev) => {
+          const body = (
+            <>
+              <span className="sk" style={{ color: KIND_COLOR[ev.kind] }}>
+                <KindIcon kind={ev.kind} size={13} />
+              </span>
+              <span className="st">
+                <b>
+                  {KIND_LABEL[ev.kind]} by {dir.name(ev.by)}
+                </b>
+                <small>
+                  {formatStamp(ev.at, tz)}
+                  {ev.hidden && <span className="chipx"> hidden</span>}
+                </small>
+                <span>{ev.text}</span>
+              </span>
+            </>
+          );
+          return (
+            <li key={ev.id}>
+              {ev.hidden ? (
+                <div className="stack-ev off">{body}</div>
+              ) : (
+                <button className="stack-ev" type="button" onClick={() => onEvent(ev.id)}>
+                  {body}
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </Frame>
+  );
+}
+
+export function FocusDrawer({
+  session,
+  state,
+  asOf,
+  onClose,
+  focusId,
+  isHidden,
+  grab,
+  onGrabbed,
+  onFocus,
+  onShow,
+}: Base & {
+  focusId: string;
+  isHidden: (workItemId: string) => boolean;
+  grab: boolean;
+  onGrabbed: () => void;
+  onFocus: (workItemId: string) => void;
+  onShow: (workItemId: string) => void;
+}) {
+  const tree = useMemo(() => focusTree(state, focusId), [state, focusId]);
+  useEffect(() => {
+    if (grab) onGrabbed();
+  }, [grab, onGrabbed]);
+  if (!tree) return null;
+  const { tz } = session;
+  const team = (id: string) => state.teams.find((t) => t.id === id)?.name ?? '';
+  const size = (n: FocusNode): number => n.children.reduce((sum, c) => sum + size(c), 1);
+  const node = (n: FocusNode, root = false): ReactNode => {
+    const w = state.workItems.find((x) => x.id === n.id)!;
+    const status = itemStatus(w, state.events, asOf, tz);
+    return (
+      <li key={n.id}>
+        <button
+          className={`ft-node${root ? ' on' : ''}`}
+          type="button"
+          aria-current={root ? 'true' : undefined}
+          onClick={() => onShow(n.id)}
+        >
+          <span className="tt">
+            <b>{n.title}</b>
+            <small>
+              {team(n.teamId)}
+              {isHidden(n.id) && <span className="chipx"> hidden</span>}
+            </small>
+          </span>
+          <span className={`badge st-${status}`}>{STATUS_LABEL[status]}</span>
+        </button>
+        {n.children.length > 0 && <ul>{n.children.map((c) => node(c))}</ul>}
+      </li>
+    );
+  };
+  return (
+    <Frame
+      label={`Focus on ${tree.root.title}`}
+      takeFocus={grab}
+      icon={
+        <span className="pi" style={{ color: 'var(--ink)' }}>
+          <Icon name="focus" size={15} />
+        </span>
+      }
+      head={
+        <>
+          <h4>Focus</h4>
+          <small>{plural(size(tree.root), 'work item')} · only on your screen</small>
+        </>
+      }
+      onClose={onClose}
+    >
+      <div className="wi-top">
+        <button className="btn sm btn-ink" type="button" onClick={onClose}>
+          <Icon name="x" size={13} /> Leave focus
+        </button>
+        <span className="tip">Esc also leaves focus.</span>
+      </div>
+      {tree.parent && (
+        <>
+          <p className="q-label">Parent</p>
+          <button
+            className="ft-node up"
+            type="button"
+            title="Focus on the parent instead"
+            onClick={() => onFocus(tree.parent!.id)}
+          >
+            <Icon name="cornerUp" size={13} />
+            <span className="tt">
+              <b>{tree.parent.title}</b>
+              <small>{team(tree.parent.teamId)} · focus on it instead</small>
+            </span>
+          </button>
+        </>
+      )}
+      <p className="q-label">Focused work</p>
+      <ul className="ft">{node(tree.root, true)}</ul>
+    </Frame>
+  );
+}
+
 export function ChangesDrawer({
   session,
   cr,
@@ -377,7 +591,7 @@ export function ChangesDrawer({
         const skip = model?.changes.find((c) => c.opIndex === i)?.skipReason ?? null;
         return (
           <div className={`chg-row${gone ? ' dropped' : ''}${skip ? ' skipped' : ''}`} key={i}>
-            <span className="pi" style={{ color: 'var(--draft)', width: 26, height: 26 }}>
+            <span className="pi" style={{ width: 26, height: 26 }}>
               {d.icon ? <KindIcon kind={d.icon} size={13} /> : <Icon name="pencil" size={13} />}
             </span>
             <div>

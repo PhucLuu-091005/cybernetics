@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { larkspurState } from '../../support/tracker-fixture';
 import {
   EMPTY_VIEW,
+  hiddenList,
+  keepFocus,
+  readNoticeOff,
   readViewState,
   revealRows,
   toggleId,
   viewKey,
+  writeNoticeOff,
   writeViewState,
   type KeyValueStore,
 } from '../../../src/components/tracker/view-state';
@@ -113,5 +118,41 @@ describe('tracker view state', () => {
       hiddenRows: ['c'],
       hiddenTeams: ['t2'],
     });
+  });
+
+  it('remembers "Don\'t show again" for the Main notice per user, and works without storage', () => {
+    const store = memoryStore();
+    expect(readNoticeOff(store, 'u1')).toBe(false);
+    writeNoticeOff(store, 'u1');
+    expect(readNoticeOff(store, 'u1')).toBe(true);
+    expect(readNoticeOff(store, 'u2')).toBe(false);
+    expect(() => writeNoticeOff(throwing, 'u1')).not.toThrow();
+    expect(readNoticeOff(throwing, 'u1')).toBe(false);
+    expect(readNoticeOff(null, 'u1')).toBe(false);
+  });
+
+  it('lists hidden teams and hidden work items that still exist, and counts both', () => {
+    const list = hiddenList(larkspurState(), {
+      hiddenRows: ['pg203', 'gone', 'analyse'],
+      hiddenTeams: ['it', 'nope'],
+    });
+    expect(list).toEqual({
+      teams: [{ id: 'it', name: 'IT', items: 1 }],
+      items: [
+        { id: 'analyse', title: 'Analyse the CRS and FATCA rules', team: 'Digitization' },
+        { id: 'pg203', title: 'PG-203 Country list field type', team: 'Engineering' },
+      ],
+      count: 3,
+    });
+    expect(hiddenList(larkspurState(), EMPTY_VIEW).count).toBe(0);
+  });
+
+  it('ends a focus on a work item that the viewer hides, by row or by team', () => {
+    const teamOf = (id: string) => ({ a: 't1', b: 't2' })[id] ?? null;
+    expect(keepFocus('a', EMPTY_VIEW, teamOf)).toBe('a');
+    expect(keepFocus('a', { hiddenRows: ['a'], hiddenTeams: [] }, teamOf)).toBeNull();
+    expect(keepFocus('a', { hiddenRows: [], hiddenTeams: ['t1'] }, teamOf)).toBeNull();
+    expect(keepFocus('a', { hiddenRows: ['b'], hiddenTeams: ['t2'] }, teamOf)).toBe('a');
+    expect(keepFocus(null, { hiddenRows: ['a'], hiddenTeams: [] }, teamOf)).toBeNull();
   });
 });

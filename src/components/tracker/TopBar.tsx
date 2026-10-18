@@ -1,5 +1,5 @@
 'use client';
-import type { Cr } from '../../tracker';
+import type { Cr, RowFilter, TrackerState } from '../../tracker';
 import { useDismissibleDetails } from '../shell/Popover';
 import { Avatar } from './avatar';
 import {
@@ -11,20 +11,25 @@ import {
   trunc,
   type Session,
 } from './ContextBar';
+import { HiddenMenu, type HiddenMenuProps } from './HiddenMenu';
 import { Icon } from './icons';
+import { WorkSearch } from './Search';
 import type { DrawerMode, TrackerActions, TrackerView } from './TrackerScreen';
 
-type Props = {
+type Props = HiddenMenuProps & {
   session: Session;
   view: TrackerView;
   cr: Cr | null;
-  hiddenCount: number;
+  state: TrackerState;
+  asOf: string;
   drawer: DrawerMode | null;
   actions: TrackerActions;
   onView: (view: TrackerView) => void;
   onDrawer: (mode: DrawerMode) => void;
-  onShowAll: () => void;
   onActAs: (memberId: string) => void;
+  onPick: (workItemId: string) => void;
+  filter: RowFilter;
+  onFilter: (filter: RowFilter) => void;
 };
 
 function ViewMenu({ session, view, cr, actions, onView, onDrawer }: Props) {
@@ -102,8 +107,8 @@ function ViewMenu({ session, view, cr, actions, onView, onDrawer }: Props) {
 }
 
 export function TopBar(props: Props) {
-  const { session, hiddenCount, drawer, onDrawer, onShowAll, onActAs } = props;
-  const { payload, me, isOwner, dir } = session;
+  const { session, state, asOf, drawer, onDrawer, onActAs, onPick, filter, onFilter } = props;
+  const { payload, me, isOwner, dir, tz } = session;
   const waiting =
     (isOwner
       ? payload.crs.filter((c) => c.status === 'ready').length
@@ -116,22 +121,20 @@ export function TopBar(props: Props) {
       </h1>
       <ViewMenu {...props} />
       <span className="sp" />
-      {hiddenCount > 0 && (
-        <span className="hid-pill">
-          <Icon name="eyeoff" size={13} /> {hiddenCount} hidden{' '}
-          <button className="btn sm" type="button" onClick={onShowAll}>
-            Show all
-          </button>
-        </span>
-      )}
-      <button
-        className="btn"
-        type="button"
-        aria-expanded={drawer === 'list'}
-        onClick={() => onDrawer('list')}
-      >
-        <Icon name="list" /> Work list
-      </button>
+      <HiddenMenu
+        hidden={props.hidden}
+        onUnhideTeam={props.onUnhideTeam}
+        onUnhideItem={props.onUnhideItem}
+        onUnhideAll={props.onUnhideAll}
+      />
+      <WorkSearch
+        state={state}
+        asOf={asOf}
+        tz={tz}
+        filter={filter}
+        onFilter={onFilter}
+        onPick={onPick}
+      />
       <button
         className="btn"
         type="button"

@@ -17,5 +17,6 @@ export { actingMember } from './access';
 export { appendOp, createCr, crAction, removeOp, type CrActionInput } from './crs';
 export { FirstMilestoneSchema, ProjectTeamsSchema } from '../../tracker';
 export { createTrackerProject, seedTrackerDemo, type CreateTrackerProjectInput } from './projects';
+export { setEventOffset } from './offsets';
 export { addQueueCard, addQueueEntry, dismissQueueEntry } from './queue';
 export { getTrackerPayload } from './read';

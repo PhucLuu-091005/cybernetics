@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   GEOMETRY,
-  STATUS_TONE,
   layoutTracker,
   type LayoutSegment,
   type TrackerLayout,
@@ -9,7 +8,6 @@ import {
 } from '../../../src/tracker/layout';
 import type { TrackerState } from '../../../src/tracker/model';
 import { replayOps, type Marks } from '../../../src/tracker/ops';
-import { itemStatus } from '../../../src/tracker/status';
 import {
   AS_OF,
   TIME_ZONE,
@@ -21,7 +19,7 @@ import {
   workItem,
 } from '../../support/tracker-fixture';
 
-const { X0, X1, TRUNK_Y, MS_Y, AXIS_Y, FOLD } = GEOMETRY;
+const { VW, X0, X1, SIDE, TRUNK_Y, MS_Y, AXIS_Y, TOP, INDENT } = GEOMETRY;
 
 const view = (over: Partial<View> = {}): View => ({
   hiddenRows: new Set(),
@@ -60,8 +58,12 @@ const noMarks = (): Marks => ({
 describe('layoutTracker: scale and window', () => {
   const L = layoutTracker(larkspurState(), view());
 
-  it('maps the window onto the label column and the right edge', () => {
-    expect(L.width).toBe(1060);
+  it('maps the window from the label column to the right edge, with no milestone chip column', () => {
+    expect(L.zoom).toBe(1);
+    expect(L).not.toHaveProperty('rail');
+    expect(L).not.toHaveProperty('msChips');
+    expect(L.x1).toBe(X1);
+    expect(L.width).toBe(VW);
     expect(L.x(midnight('2026-09-10'))).toBeCloseTo(X0, 9);
     expect(L.x(midnight('2026-10-17'))).toBeCloseTo(X1, 9);
     expect(L.window).toMatchObject({
@@ -137,6 +139,131 @@ describe('layoutTracker: scale and window', () => {
     expect(D.window.start).toBe('2026-10-06');
     expect(D.window.end).toBe('2026-10-16');
   });
+
+  it('gives the same width to the time line with or without milestones', () => {
+    const D = layoutTracker(buildState(), view());
+    expect(D.x1).toBe(X1);
+    expect(D.width).toBe(VW);
+  });
+
+  it('keeps the axis and the milestone line above the first lane, so they can stay pinned', () => {
+    expect(L.lanes[0].top).toBe(TOP);
+    expect(Math.max(...L.milestones.map((m) => m.labelY))).toBeLessThanOrEqual(TOP - 2);
+  });
+});
+
+describe('layoutTracker: time zoom', () => {
+  const fit = layoutTracker(larkspurState(), view());
+  const Z = layoutTracker(larkspurState(), view({ zoom: 3 }));
+
+  it('widens the time line by the zoom factor and keeps the label column', () => {
+    const plot = X1 - X0;
+    expect(Z.zoom).toBe(3);
+    expect(Z.x1).toBeCloseTo(X0 + plot * 3, 9);
+    expect(Z.width).toBeCloseTo(Z.x1 + (VW - X1), 9);
+    expect(Z.x(midnight('2026-09-10'))).toBeCloseTo(X0, 9);
+    expect(Z.x(midnight('2026-10-17'))).toBeCloseTo(Z.x1, 9);
+    expect(Z.rows.map((r) => r.y)).toEqual(fit.rows.map((r) => r.y));
+    expect(Z.height).toBe(fit.height);
+    expect(Z.trunk).toEqual({ x1: X0, x2: Z.x1, y: TRUNK_Y });
+    for (const t of [Date.parse(AS_OF), ms('2026-09-24T09:20')])
+      expect(Math.abs(Z.t(Z.x(t)) - t)).toBeLessThan(1);
+  });
+
+  it('keeps the zoom between fit and 12 times', () => {
+    expect(layoutTracker(larkspurState(), view({ zoom: 0.4 })).zoom).toBe(1);
+    expect(layoutTracker(larkspurState(), view({ zoom: 40 })).zoom).toBe(GEOMETRY.MAX_ZOOM);
+    expect(GEOMETRY.MAX_ZOOM).toBe(12);
+    expect(layoutTracker(larkspurState(), view({ zoom: Number.NaN })).zoom).toBe(1);
+  });
+
+  it('separates a stack when the zoom puts its events 16 units apart', () => {
+    const groups = (L: TrackerLayout) =>
+      L.eventGroups.filter((g) => g.workItemId === 'rehearsal').map((g) => g.eventIds);
+    expect(groups(fit)).toEqual([['r1', 'r2', 'r3']]);
+    expect(groups(Z)).toEqual([['r1', 'r2', 'r3']]);
+    expect(groups(layoutTracker(larkspurState(), view({ zoom: 4 })))).toEqual([
+      ['r1'],
+      ['r2', 'r3'],
+    ]);
+  });
+
+  it('draws a tick every day once a day is wide enough for its label', () => {
+    const wide = layoutTracker(larkspurState(), view({ zoom: 6 }));
+    expect(wide.ticks.slice(0, 3).map((t) => t.date)).toEqual([
+      '2026-09-11',
+      '2026-09-12',
+      '2026-09-13',
+    ]);
+    expect(wide.ticks).toHaveLength(36);
+    const two = layoutTracker(larkspurState(), view({ zoom: 2 }));
+    expect(two.ticks.map((t) => t.date)).toEqual(fit.ticks.map((t) => t.date));
+  });
+});
+
+describe('layoutTracker: day offsets', () => {
+  const groups = (L: TrackerLayout) =>
+    L.eventGroups.filter((g) => g.workItemId === 'rehearsal').map((g) => g.eventIds);
+
+  it('draws an event at its time plus the offset of the viewer', () => {
+    const L = layoutTracker(larkspurState(), view({ offsets: { p31: 120 } }));
+    expect(L.eventGroups.find((g) => g.topId === 'p31')?.x).toBeCloseTo(
+      L.x(ms('2026-09-24T11:20')),
+      9,
+    );
+  });
+
+  it('keeps the real time in the tooltip and the label', () => {
+    const L = layoutTracker(larkspurState(), view({ offsets: { p31: 120 } }));
+    expect(L.eventGroups.find((g) => g.topId === 'p31')).toMatchObject({
+      ariaLabel: 'Task by Lan Phạm, 24 Sept 09:20',
+      tooltip:
+        'Task · Lan Phạm · 24 Sept 09:20\nAdd a multi-select country list field. Target: 6 October.',
+    });
+  });
+
+  it('stops a drawn event at the start and the end of its day', () => {
+    const L = layoutTracker(larkspurState(), view({ offsets: { p31: 5000, p32: -5000 } }));
+    const p32 = larkspurState().events.find((e) => e.id === 'p32')!;
+    const day = p32.at.slice(0, 10);
+    expect(L.eventGroups.find((g) => g.topId === 'p31')?.x).toBeCloseTo(
+      L.x(ms('2026-09-24T23:59')),
+      9,
+    );
+    expect(L.eventGroups.find((g) => g.topId === 'p32')?.x).toBeCloseTo(L.x(midnight(day)), 9);
+  });
+
+  it('stacks by the drawn x, so offsets pull a stack apart', () => {
+    const offsets = { r1: -560, r3: 439 };
+    expect(groups(layoutTracker(larkspurState(), view({ zoom: 3 })))).toEqual([['r1', 'r2', 'r3']]);
+    expect(groups(layoutTracker(larkspurState(), view({ zoom: 3, offsets })))).toEqual([
+      ['r1'],
+      ['r2'],
+      ['r3'],
+    ]);
+  });
+
+  it('orders a stack by the drawn time, so the top event is the one drawn last', () => {
+    const L = layoutTracker(larkspurState(), view({ zoom: 4, offsets: { r1: -560, r2: 50 } }));
+    expect(
+      L.eventGroups.filter((g) => g.workItemId === 'rehearsal').map((g) => g.eventIds),
+    ).toEqual([['r1'], ['r2', 'r3']]);
+    expect(L.eventGroups.find((g) => g.topId === 'r3')?.x).toBeCloseTo(
+      L.x(ms('2026-09-24T16:40')),
+      9,
+    );
+  });
+
+  it('never draws an earlier event right of a later one on the same row and day', () => {
+    const L = layoutTracker(larkspurState(), view({ zoom: 6, offsets: { r1: 600, r3: -400 } }));
+    const rehearsal = L.eventGroups.filter((g) => g.workItemId === 'rehearsal');
+    expect(rehearsal).toHaveLength(1);
+    expect(rehearsal[0]).toMatchObject({
+      eventIds: ['r1', 'r2', 'r3'],
+      topId: 'r3',
+      x: L.x(ms('2026-09-24T19:20')),
+    });
+  });
 });
 
 describe('layoutTracker: lanes and rows', () => {
@@ -154,14 +281,16 @@ describe('layoutTracker: lanes and rows', () => {
     expect(L.lanes.map((l) => l.alt)).toEqual([false, true, false, true, false, true, false]);
     expect(L.lanes[0]).toMatchObject({
       teamId: 'implementation',
+      label: 'IMPLEMENTATION',
       top: TRUNK_Y + 16,
       bottom: 188,
-      hidden: false,
-      count: 3,
-      hiddenCount: 0,
       guide: { y1: TRUNK_Y + 36, y2: 166 },
       eyeLabel: 'Hide Implementation',
     });
+    expect(L.lanes[0]).not.toHaveProperty('more');
+    expect(L.lanes[0]).not.toHaveProperty('hidden');
+    expect(L.lanes[0]).not.toHaveProperty('count');
+    expect(L.lanes[0]).not.toHaveProperty('hiddenCount');
   });
 
   it('gives one row per visible work item and drops items finished before the window', () => {
@@ -181,7 +310,7 @@ describe('layoutTracker: lanes and rows', () => {
       ['incident', 594],
       ['secret', 654],
     ]);
-    expect(L.rows.every((r) => r.fold === null && !r.draft)).toBe(true);
+    expect(L.rows.every((r) => !r.changed)).toBe(true);
     expect(L.rows.find((r) => r.id === 'crs')).toMatchObject({
       title: 'CRS tax residency section with DealCloud sync',
       label: 'CRS tax residency section…',
@@ -190,72 +319,54 @@ describe('layoutTracker: lanes and rows', () => {
       status: 'planned',
       milestoneId: 'golive',
       eyeLabel: 'Hide CRS tax residency section with DealCloud sync',
+      focused: false,
+      focusLabel: 'Focus on CRS tax residency section with DealCloud sync',
+      depth: 0,
+      dimmed: false,
     });
+    const withButtons = layoutTracker(larkspurState(), view({ focusButtons: true }));
+    expect(withButtons.rows.find((r) => r.id === 'crs')!.label).toBe('CRS tax residency secti…');
     expect(L.height).toBe(732);
   });
 
-  it('folds a hidden team into one strip with the hidden count', () => {
+  it('drops a hidden team completely: no head line, no rows, no drop target', () => {
+    const all = layoutTracker(larkspurState(), view());
     const L = layoutTracker(larkspurState(), view({ hiddenTeams: new Set(['engineering']) }));
-    const lane = L.lanes.find((l) => l.teamId === 'engineering');
-    expect(lane).toMatchObject({ hidden: true, count: 4, hiddenCount: 4, guide: null });
-    expect(lane?.eyeLabel).toBe('Show Engineering');
-    const folds = L.folds.filter((f) => f.kind === 'team');
-    expect(folds).toEqual([
-      {
-        kind: 'team',
-        teamId: 'engineering',
-        count: 4,
-        x: 22,
-        y: 362,
-        width: X1 - 22,
-        height: FOLD,
-        textX: 30,
-        textY: 362 + FOLD / 2 + 3.5,
-        text: '4 hidden items in Engineering. Click to show.',
-        ariaLabel: 'Show Engineering',
-      },
-    ]);
     const engineering = ['dynamics', 'syncmon', 'crmlive', 'pg203'];
-    for (const id of engineering) {
-      expect(L.rows.find((r) => r.id === id)).toMatchObject({ fold: 'team', y: 362 + FOLD / 2 });
-    }
+    const lane = all.lanes.find((l) => l.teamId === 'engineering')!;
+    expect(L.lanes.map((l) => l.teamId)).not.toContain('engineering');
+    expect(L.rows.some((r) => engineering.includes(r.id))).toBe(false);
     expect(L.segments.some((s) => engineering.includes(s.workItemId))).toBe(false);
     expect(L.eventGroups.some((g) => engineering.includes(g.workItemId))).toBe(false);
-    expect(L.flags.some((f) => engineering.includes(f.workItemId))).toBe(false);
+    expect(L.deadlines.some((d) => engineering.includes(d.workItemId))).toBe(false);
     expect(L.laneDrops.map((d) => d.teamId)).not.toContain('engineering');
-    expect(L.height).toBe(619);
+    const height = lane.bottom - lane.top;
+    expect(L.lanes.find((l) => l.teamId === 'digitization-qa')!.top).toBe(lane.top);
+    expect(L.rows.find((r) => r.id === 'test')!.y).toBe(534 - height);
+    expect(L.height).toBe(all.height - height);
+    expect(L).not.toHaveProperty('folds');
   });
 
-  it('writes 1 hidden item in the singular', () => {
-    const L = layoutTracker(larkspurState(), view({ hiddenTeams: new Set(['it']) }));
-    expect(L.folds.find((f) => f.kind === 'team')?.text).toBe(
-      '1 hidden item in IT. Click to show.',
-    );
+  it('keeps lanes alternating after a lane drops out', () => {
+    const L = layoutTracker(larkspurState(), view({ hiddenTeams: new Set(['digitization']) }));
+    expect(L.lanes.map((l) => l.alt)).toEqual([false, true, false, true, false, true]);
   });
 
-  it('folds a hidden row into a strip with its title', () => {
+  it('drops a hidden row completely and counts it on its lane', () => {
     const L = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['pg203']) }));
-    expect(L.folds).toEqual([
-      {
-        kind: 'row',
-        workItemId: 'pg203',
-        x: 30,
-        y: 458 + 1,
-        width: X1 - 30,
-        height: FOLD - 2,
-        iconX: 38,
-        textX: 48,
-        textY: 458 + FOLD / 2 + 3.5,
-        text: 'PG-203 Country list field type (hidden)',
-        ariaLabel: 'Show PG-203 Country list field type',
-      },
-    ]);
-    expect(L.rows.find((r) => r.id === 'pg203')).toMatchObject({ fold: 'row', y: 458 + FOLD / 2 });
-    expect(L.lanes.find((l) => l.teamId === 'engineering')).toMatchObject({
-      hidden: false,
-      hiddenCount: 1,
-    });
-    expect(L.height).toBe(713);
+    expect(L.rows.some((r) => r.id === 'pg203')).toBe(false);
+    expect(L.segments.some((s) => s.workItemId === 'pg203')).toBe(false);
+    expect(L.rows.find((r) => r.id === 'test')!.y).toBe(534 - 32);
+    expect(L.height).toBe(732 - 32);
+  });
+
+  it('drops a team whose rows are all hidden, and keeps its full name on other lanes', () => {
+    const all = layoutTracker(larkspurState(), view());
+    const L = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['pg201', 'pg202']) }));
+    const lane = all.lanes.find((l) => l.teamId === 'solutions-engineering')!;
+    expect(L.lanes.map((l) => l.teamId)).not.toContain('solutions-engineering');
+    expect(L.height).toBe(all.height - (lane.bottom - lane.top));
+    expect(lane.label).toBe('SOLUTIONS ENGINEERING');
   });
 
   it('offers a drop target on each visible lane', () => {
@@ -276,11 +387,47 @@ describe('layoutTracker: lanes and rows', () => {
   it('gives an empty lane room for drops', () => {
     const s = buildState({ teams: [{ id: 't', name: 'Team', leadId: null }] });
     const L = layoutTracker(s, view());
-    expect(L.lanes[0]).toMatchObject({ top: 64, bottom: 64 + 22 + 18 + 6, count: 0, guide: null });
+    expect(L.lanes[0]).toMatchObject({ top: 64, bottom: 64 + 22 + 18 + 6, guide: null });
   });
 });
 
-describe('layoutTracker: segments, waits and stems', () => {
+describe('layoutTracker: the row tree', () => {
+  const s = buildState({
+    teams: [{ id: 't', name: 'Team', leadId: null }],
+    workItems: [
+      workItem({ id: 'kid', teamId: 't', parentId: 'top' }),
+      workItem({ id: 'other', teamId: 't' }),
+      workItem({ id: 'top', teamId: 't' }),
+      workItem({ id: 'grandkid', teamId: 't', parentId: 'kid' }),
+      workItem({ id: 'far', teamId: 'u', parentId: 'top' }),
+    ],
+  });
+  s.teams.push({ id: 'u', name: 'Other team', leadId: null });
+
+  it('puts children under their parent inside a team and indents them', () => {
+    const L = layoutTracker(s, view());
+    expect(L.rows.map((r) => [r.id, r.depth])).toEqual([
+      ['other', 0],
+      ['top', 0],
+      ['kid', 1],
+      ['grandkid', 2],
+      ['far', 0],
+    ]);
+    expect(INDENT).toBe(12);
+  });
+
+  it('puts a child at the top level when its parent is hidden', () => {
+    const L = layoutTracker(s, view({ hiddenRows: new Set(['top']) }));
+    expect(L.rows.map((r) => [r.id, r.depth])).toEqual([
+      ['kid', 0],
+      ['grandkid', 1],
+      ['other', 0],
+      ['far', 0],
+    ]);
+  });
+});
+
+describe('layoutTracker: segments and waits', () => {
   const L = layoutTracker(larkspurState(), view());
 
   it('turns PG-203 danger after 7 Oct (planned 6 Oct, still open)', () => {
@@ -308,7 +455,11 @@ describe('layoutTracker: segments, waits and stems', () => {
   it('starts a line that began before the window at the label column', () => {
     const [seg] = lines(L, 'dynamics');
     expect(seg.x1).toBe(X0);
-    expect(L.stems.some((s) => s.workItemId === 'dynamics')).toBe(false);
+  });
+
+  it('draws no connector line: no stems from the trunk or a parent, no leads-from curves', () => {
+    expect(L).not.toHaveProperty('stems');
+    expect(L).not.toHaveProperty('links');
   });
 
   it('draws a waiting line with the open items it waits for', () => {
@@ -350,7 +501,6 @@ describe('layoutTracker: segments, waits and stems', () => {
     const L = layoutTracker(s, view());
     const xt = L.x(Date.parse(AS_OF));
     expect(L.segments.find((x) => x.workItemId === 'placed')).toMatchObject({ x1: xt });
-    expect(L.stems.find((x) => x.workItemId === 'placed')?.x).toBe(xt);
     expect(L.segments.find((x) => x.workItemId === 'led')).toMatchObject({ x1: xt });
   });
 
@@ -372,37 +522,34 @@ describe('layoutTracker: segments, waits and stems', () => {
     });
   });
 
-  it('drops a stem from the parent row, or from the trunk without a parent', () => {
-    expect(L.stems.find((s) => s.workItemId === 'pg203')).toEqual({
-      workItemId: 'pg203',
-      parentId: 'crs',
-      x: L.x(ms('2026-09-24T09:20')),
-      y1: 134,
-      y2: 474,
-      tone: 'route',
-      ghost: false,
+  it('gives a row with a hidden parent a chip', () => {
+    const H = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['crs']) }));
+    const y = H.rows.find((r) => r.id === 'analyse')!.y;
+    const sx = H.x(ms('2026-09-15T13:00'));
+    expect(H.chips.find((c) => c.workItemId === 'analyse')).toEqual({
+      workItemId: 'analyse',
+      sources: ['crs'],
+      ariaLabel: 'Show CRS tax residency section with DealCloud sync',
+      tooltip: 'From CRS tax residency section with DealCloud sync (hidden)',
+      x: sx - 22,
+      y: y - 7,
+      size: 14,
     });
-    expect(L.stems.find((s) => s.workItemId === 'rehearsal')).toMatchObject({
-      parentId: null,
-      y1: TRUNK_Y,
-      y2: 166,
-      tone: 'proceed',
-    });
-    expect(L.stems.find((s) => s.workItemId === 'test')).toMatchObject({ tone: 'ink-3' });
   });
 
-  it('ghosts a stem whose parent row is folded', () => {
+  it('gives the chip to the direct children only, not to rows that lead from a shown child', () => {
     const H = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['crs']) }));
-    const crsY = H.rows.find((r) => r.id === 'crs')!.y;
-    expect(H.stems.find((s) => s.workItemId === 'pg201')).toMatchObject({
-      y1: crsY,
-      ghost: true,
-      tone: 'ink-3',
-    });
+    expect(H.chips.map((c) => c.workItemId)).toEqual(['analyse']);
+  });
+
+  it('gives the chip of a parent in a hidden team to its direct children only', () => {
+    const H = layoutTracker(larkspurState(), view({ hiddenTeams: new Set(['implementation']) }));
+    expect(H.chips.find((c) => c.workItemId === 'analyse')?.sources).toEqual(['crs']);
+    expect(H.chips.some((c) => c.workItemId === 'pg203')).toBe(false);
   });
 });
 
-describe('layoutTracker: events, flags and slips', () => {
+describe('layoutTracker: events and milestone ticks', () => {
   const state = larkspurState();
   const L = layoutTracker(state, view());
 
@@ -416,10 +563,15 @@ describe('layoutTracker: events, flags and slips', () => {
       x: L.x(ms('2026-09-24T16:40')),
       y: 166,
       tone: 'proceed',
-      draft: false,
-      ariaLabel: 'Done by Sarah Kim, 24 Sept 16:40',
+      changed: false,
+      ariaLabel: '3 events, the last: Done by Sarah Kim, 24 Sept 16:40',
+      tooltip: 'Done · Sarah Kim · 24 Sept 16:40\nSarah accepts the rehearsal.\n3 events here',
+    });
+    expect(L.eventGroups.find((g) => g.topId === 'p31')).toMatchObject({
+      eventIds: ['p31'],
+      ariaLabel: 'Task by Lan Phạm, 24 Sept 09:20',
       tooltip:
-        'Done · Sarah Kim · 24 Sept 16:40\nSarah accepts the rehearsal.\n3 events on this day',
+        'Task · Lan Phạm · 24 Sept 09:20\nAdd a multi-select country list field. Target: 6 October.',
     });
     expect(L.eventGroups.filter((g) => g.workItemId === 'analyse').map((g) => g.eventIds)).toEqual([
       ['a1'],
@@ -446,109 +598,366 @@ describe('layoutTracker: events, flags and slips', () => {
     expect(pg202.map((g) => g.tone)).toEqual(['proceed', 'caution']);
   });
 
-  it('colours each date flag by the item status', () => {
-    expect(L.flags).toHaveLength(13);
-    for (const flag of L.flags) {
-      const item = state.workItems.find((w) => w.id === flag.workItemId)!;
-      const status = itemStatus(item, state.events, AS_OF, TIME_ZONE);
-      expect(flag.status).toBe(status);
-      expect(flag.tone).toBe(STATUS_TONE[status]);
-    }
-    const tone = (id: string) => L.flags.find((f) => f.workItemId === id)?.tone;
-    expect([tone('pg203'), tone('pg202'), tone('pg201'), tone('rehearsal'), tone('crs')]).toEqual([
-      'danger',
-      'caution',
-      'proceed',
-      'teal',
-      'ink-3',
-    ]);
-  });
-
-  it('puts the flag at noon of the planned day with its labels', () => {
-    expect(L.flags.find((f) => f.workItemId === 'golive')).toEqual({
-      workItemId: 'golive',
-      date: '2026-10-15',
-      x: L.x(noon('2026-10-15')),
-      y: 102,
-      status: 'planned',
-      tone: 'ink-3',
-      draft: false,
-      moves: 1,
-      ariaLabel: 'Planned finish 15 Oct, Planned',
-      tooltip: 'Planned finish 15 Oct · Planned · moved 1×',
-    });
-  });
-
-  it('keeps a flag inside the right edge', () => {
-    const s = larkspurState();
-    s.workItems.find((w) => w.id === 'test')!.plannedFinish = '2026-12-01';
-    const flag = layoutTracker(s, view()).flags.find((f) => f.workItemId === 'test');
-    expect(flag?.x).toBe(X1 - 4);
-  });
-
-  it('draws a slip line from the first planned date to the current one', () => {
-    expect(L.slips).toEqual([
-      {
-        workItemId: 'golive',
-        from: '2026-09-30',
-        to: '2026-10-15',
-        x1: L.x(noon('2026-09-30')),
-        x2: L.x(noon('2026-10-15')),
-        y: 102 - 12,
-      },
-      {
-        workItemId: 'pg201',
-        from: '2026-09-26',
-        to: '2026-09-30',
-        x1: L.x(noon('2026-09-26')),
-        x2: L.x(noon('2026-09-30')),
-        y: 286 - 12,
-      },
-    ]);
+  it('draws no mark for the own planned finish of a work item', () => {
+    expect(L).not.toHaveProperty('dueMarks');
   });
 });
 
-describe('layoutTracker: links', () => {
+describe('layoutTracker: milestone deadlines on member rows', () => {
   const L = layoutTracker(larkspurState(), view());
+  const mark = (id: string) => L.deadlines.find((d) => d.workItemId === id);
 
-  it('curves a leads-from link from the finish of the source to the start of the target', () => {
-    const link = L.links.find((l) => l.fromId === 'analyse' && l.toId === 'pg201')!;
-    const x1 = L.x(ms('2026-09-22T16:40'));
-    const x2 = L.x(ms('2026-09-23T09:20'));
-    const dx = Math.max(24, Math.abs(x2 - x1) / 2);
-    expect(link).toEqual({
-      fromId: 'analyse',
-      toId: 'pg201',
-      tone: 'proceed',
-      ghost: false,
-      wait: false,
-      from: { x: x1, y: 226 },
-      c1: { x: x1 + dx, y: 226 },
-      c2: { x: x2 - dx, y: 286 },
-      to: { x: x2, y: 286 },
+  it('marks the deadline on every member row, done or open, passed or not', () => {
+    expect(L.deadlines.map((d) => [d.workItemId, d.milestoneId])).toEqual([
+      ['golive', 'golive'],
+      ['crs', 'golive'],
+      ['rehearsal', 'golive'],
+      ['dynamics', 'crm'],
+      ['syncmon', 'crm'],
+      ['crmlive', 'crm'],
+      ['incident', 'golive'],
+      ['secret', 'golive'],
+    ]);
+    expect(L).not.toHaveProperty('goalTicks');
+  });
+
+  it('takes the milestone status colour and names the milestone in its tooltip', () => {
+    expect(mark('rehearsal')).toMatchObject({
+      date: '2026-09-30',
+      x: L.x(noon('2026-09-30')),
+      y: 166,
+      tone: 'danger',
+      stroke: 'danger',
+      filled: true,
+      changed: false,
+      ariaLabel: 'Go-live and first close · deadline 30 Sept · Late',
+      tooltip: 'Go-live and first close · deadline 30 Sept · Late',
+    });
+    expect(mark('rehearsal')!.x).toBe(L.milestones.find((m) => m.id === 'golive')!.x);
+    expect(mark('secret')).toMatchObject({
+      ariaLabel: 'Go-live and first close · deadline 30 Sept · Late, this work item makes it late',
+      tooltip: 'Go-live and first close · deadline 30 Sept · Late\nThis work item makes it late.',
     });
   });
 
-  it('draws a red waiting link at the T line from an open source', () => {
-    const link = L.links.find((l) => l.fromId === 'pg203' && l.toId === 'test')!;
+  it('says when a done row finished after the deadline', () => {
+    const s = larkspurState();
+    s.events.push(
+      event({ id: 'late', workItemId: 'incident', kind: 'done', at: at('2026-10-05T10:00') }),
+    );
+    expect(
+      layoutTracker(s, view()).deadlines.find((d) => d.workItemId === 'incident'),
+    ).toMatchObject({
+      tooltip:
+        'Go-live and first close · deadline 30 Sept · Late\nThis work item finished after it.',
+    });
+  });
+
+  it('draws a planned milestone hollow and a finished one filled', () => {
+    const s = buildState({
+      teams: [{ id: 't', name: 'Team', leadId: null }],
+      milestones: [
+        {
+          id: 'm',
+          name: 'Portal live',
+          planned: '2026-10-12',
+          firstPlanned: '2026-10-12',
+          moves: [],
+        },
+        { id: 'n', name: 'Docs', planned: '2026-09-20', firstPlanned: '2026-09-20', moves: [] },
+      ],
+      workItems: [
+        workItem({ id: 'open', teamId: 't', milestoneId: 'm' }),
+        workItem({ id: 'done', teamId: 't', milestoneId: 'n' }),
+      ],
+      events: [event({ id: 'd1', workItemId: 'done', kind: 'done', at: at('2026-09-18T09:00') })],
+    });
+    const M = layoutTracker(s, view());
+    expect(M.deadlines.map((d) => [d.workItemId, d.tone, d.filled])).toEqual([
+      ['open', 'ink-3', false],
+      ['done', 'teal', true],
+    ]);
+    expect(M.deadlines[0].tooltip).toBe('Portal live · deadline 12 Oct · Planned');
+  });
+
+  const labelled = (over: { [id: string]: Partial<Parameters<typeof workItem>[0]> } = {}) => {
+    const ms = (id: string, name: string, planned: string) => ({
+      id,
+      name,
+      planned,
+      firstPlanned: planned,
+      moves: [],
+    });
+    return buildState({
+      teams: [
+        { id: 't', name: 'Team', leadId: null },
+        { id: 'u', name: 'Other', leadId: null },
+      ],
+      milestones: [
+        ms('m', 'Portal live and first close', '2026-10-12'),
+        ms('z', 'Final sign off', '2026-10-16'),
+      ],
+      workItems: [
+        workItem({ id: 'first', teamId: 't', milestoneId: 'm', ...over.first }),
+        workItem({ id: 'second', teamId: 't', milestoneId: 'm' }),
+        workItem({ id: 'other', teamId: 'u', milestoneId: 'm' }),
+        workItem({ id: 'edge', teamId: 'u', milestoneId: 'z' }),
+      ],
+    });
+  };
+
+  it('names the milestone in full once per team, on the first member row of that team', () => {
+    const M = layoutTracker(labelled(), view({ zoom: 4 }));
+    const d = (id: string) => M.deadlines.find((x) => x.workItemId === id)!;
+    expect(d('first')).toMatchObject({
+      label: 'Portal live and first close',
+      labelAnchor: 'start',
+      labelX: d('first').x + 9,
+    });
+    expect(d('second').label).toBeNull();
+    expect(d('other').label).toBe('Portal live and first close');
+  });
+
+  it('puts the name left of the mark when the right side has no room', () => {
+    const M = layoutTracker(labelled(), view({ zoom: 4 }));
+    const edge = M.deadlines.find((x) => x.workItemId === 'edge')!;
+    expect(edge).toMatchObject({ label: 'Final sign off', labelAnchor: 'end', labelX: edge.x - 9 });
+  });
+
+  it('keeps the name inside its own row band', () => {
+    const M = layoutTracker(labelled(), view({ zoom: 4 }));
+    for (const d of M.deadlines) {
+      expect(d.labelY - 9).toBeGreaterThanOrEqual(d.y - GEOMETRY.ROW / 2);
+      expect(d.labelY).toBeLessThanOrEqual(d.y);
+    }
+  });
+
+  it('gives no name when the first member row has no free room, and no other row takes it', () => {
+    const s = labelled();
+    s.events.push(
+      event({ id: 'b1', workItemId: 'first', at: at('2026-10-12T04:00') }),
+      event({ id: 'b2', workItemId: 'first', at: at('2026-10-12T21:00') }),
+    );
+    const M = layoutTracker(s, view({ zoom: 4 }));
+    expect(M.deadlines.find((x) => x.workItemId === 'first')!.label).toBeNull();
+    expect(M.deadlines.find((x) => x.workItemId === 'second')!.label).toBeNull();
+  });
+
+  it('draws no deadline for a milestone before the window', () => {
+    const s = buildState({
+      teams: [{ id: 't', name: 'Team', leadId: null }],
+      milestones: [
+        { id: 'old', name: 'Old', planned: '2026-09-01', firstPlanned: '2026-09-01', moves: [] },
+      ],
+      workItems: [workItem({ id: 'a', teamId: 't', milestoneId: 'old' })],
+      events: [event({ id: 'a1', workItemId: 'a', at: at('2026-09-20T09:00') })],
+    });
+    const M = layoutTracker(s, view());
+    expect(M.rows.map((r) => r.id)).toEqual(['a']);
+    expect(M.deadlines).toEqual([]);
+  });
+
+  it('keeps the mark inside the time line', () => {
+    const s = buildState({
+      teams: [{ id: 't', name: 'Team', leadId: null }],
+      milestones: [
+        { id: 'm', name: 'M', planned: '2026-12-01', firstPlanned: '2026-12-01', moves: [] },
+      ],
+      workItems: [workItem({ id: 'a', teamId: 't', milestoneId: 'm' })],
+    });
+    const M = layoutTracker(s, view());
+    expect(M.deadlines[0].x).toBe(M.x1 - 4);
+  });
+});
+
+describe('layoutTracker: handoff marks and chips', () => {
+  const L = layoutTracker(larkspurState(), view());
+  const twoTeams = (
+    items: Parameters<typeof workItem>[0][],
+    events: Parameters<typeof event>[0][],
+  ): TrackerState =>
+    buildState({
+      teams: [
+        { id: 't1', name: 'One', leadId: null },
+        { id: 't2', name: 'Two', leadId: null },
+      ],
+      workItems: items.map(workItem),
+      events: events.map(event),
+    });
+
+  it('puts one mark at the finish of a source for all the work items it leads to', () => {
+    const fx = L.x(ms('2026-09-22T16:40'));
+    const marks = L.handoffs.filter((h) => h.fromId === 'analyse');
+    expect(marks).toHaveLength(1);
+    const lines = [
+      'Handed over to Solutions Engineering · received in PG-201 CRS form logic',
+      'Handed over to Solutions Engineering · received in PG-202 DealCloud mapping for CRS fields',
+      'Handed over to Engineering · received in PG-203 Country list field type',
+    ];
+    expect(marks[0]).toEqual({
+      fromId: 'analyse',
+      targets: [
+        {
+          id: 'pg201',
+          teamId: 'solutions-engineering',
+          team: 'Solutions Engineering',
+          title: 'PG-201 CRS form logic',
+          text: lines[0],
+        },
+        {
+          id: 'pg202',
+          teamId: 'solutions-engineering',
+          team: 'Solutions Engineering',
+          title: 'PG-202 DealCloud mapping for CRS fields',
+          text: lines[1],
+        },
+        {
+          id: 'pg203',
+          teamId: 'engineering',
+          team: 'Engineering',
+          title: 'PG-203 Country list field type',
+          text: lines[2],
+        },
+      ],
+      x: fx + 12,
+      y: 226 - 7,
+      width: 24,
+      height: 14,
+      dir: 'down',
+      tone: 'proceed',
+      wait: false,
+      ariaLabel: `3 handoffs from Analyse the CRS and FATCA rules: ${lines.join('; ')}`,
+      tooltip: lines.join('\n'),
+    });
+  });
+
+  it('puts the mark of an open source after the T line, in red, with the when-done wording', () => {
     const xt = L.x(Date.parse(AS_OF));
-    expect(link).toMatchObject({ wait: true, tone: 'danger', ghost: false });
-    expect([link.from, link.to]).toEqual([
-      { x: xt, y: 474 },
-      { x: xt, y: 534 },
+    const text =
+      'Hands over to Digitization QA when done · received in Test the CRS section end to end';
+    expect(L.handoffs.find((h) => h.fromId === 'pg203')).toMatchObject({
+      targets: [{ id: 'test', text }],
+      x: xt + 32,
+      y: 474 - 7,
+      width: 14,
+      tone: 'danger',
+      wait: true,
+      ariaLabel: text,
+      tooltip: text,
+    });
+  });
+
+  it('gives a source one mark per source row, never one per receiver', () => {
+    const sources = L.handoffs.map((h) => h.fromId);
+    expect(new Set(sources).size).toBe(sources.length);
+  });
+
+  it('marks a leads-from link inside one team too, with no curve', () => {
+    const s = twoTeams(
+      [
+        { id: 'a', teamId: 't1' },
+        { id: 'b', teamId: 't1', after: ['a'] },
+      ],
+      [
+        { id: 'a1', workItemId: 'a', kind: 'done', at: at('2026-09-22T16:40') },
+        { id: 'b1', workItemId: 'b', at: at('2026-09-23T09:20') },
+      ],
+    );
+    const S = layoutTracker(s, view());
+    expect(S.handoffs).toEqual([
+      expect.objectContaining({
+        fromId: 'a',
+        dir: 'down',
+        tooltip: 'Handed over to One · received in b',
+      }),
     ]);
   });
 
-  it('ghosts a link whose source row is folded', () => {
-    const H = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['analyse']) }));
-    const link = H.links.find((l) => l.fromId === 'analyse' && l.toId === 'pg201')!;
-    expect(link.ghost).toBe(true);
-    expect(link.from.y).toBe(H.rows.find((r) => r.id === 'analyse')!.y);
+  it('points the mark up, down, or both ways by where the receivers are', () => {
+    const s = twoTeams(
+      [
+        { id: 'up', teamId: 't1', after: ['src'] },
+        { id: 'src', teamId: 't2' },
+        { id: 'down', teamId: 't2', after: ['src'] },
+      ],
+      [{ id: 's1', workItemId: 'src', kind: 'done', at: at('2026-09-20T09:00') }],
+    );
+    expect(layoutTracker(s, view()).handoffs[0].dir).toBe('both');
+    expect(layoutTracker(s, view({ hiddenRows: new Set(['down']) })).handoffs[0].dir).toBe('both');
+    s.workItems.find((w) => w.id === 'down')!.after = [];
+    expect(layoutTracker(s, view()).handoffs[0]).toMatchObject({ dir: 'up', width: 14 });
   });
 
-  it('draws no link into a folded row', () => {
-    const H = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['test']) }));
-    expect(H.links.some((l) => l.toId === 'test')).toBe(false);
+  it('keeps every receiver on the mark when one is hidden, so a click can show it again', () => {
+    const H = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['pg201']) }));
+    const ids = (M: TrackerLayout) =>
+      M.handoffs.find((h) => h.fromId === 'analyse')!.targets.map((t) => t.id);
+    expect(ids(H)).toEqual(['pg201', 'pg202', 'pg203']);
+    const T = layoutTracker(larkspurState(), view({ hiddenTeams: new Set(['engineering']) }));
+    expect(ids(T)).toEqual(['pg201', 'pg202', 'pg203']);
+  });
+
+  it('puts the mark left of the finish when it would pass the right edge', () => {
+    const s = twoTeams(
+      [
+        { id: 'src', teamId: 't1' },
+        { id: 'x', teamId: 't2', after: ['src'] },
+        { id: 'y', teamId: 't2', after: ['src'] },
+      ],
+      [{ id: 's1', workItemId: 'src', kind: 'done', at: at('2026-10-16T22:00') }],
+    );
+    const E = layoutTracker(s, view());
+    const fx = E.x(ms('2026-10-16T22:00'));
+    const [mark] = E.handoffs;
+    expect(mark.x).toBe(fx - 12 - 24);
+    expect(mark.x + mark.width).toBeLessThanOrEqual(E.width);
+  });
+
+  it('draws no mark for a receiving work item outside the window', () => {
+    const s = twoTeams(
+      [
+        { id: 'src', teamId: 't1' },
+        { id: 'gone', teamId: 't2', after: ['src'] },
+      ],
+      [
+        { id: 's1', workItemId: 'src', at: at('2026-09-20T09:00') },
+        { id: 'g1', workItemId: 'gone', kind: 'done', at: at('2026-09-01T09:00') },
+      ],
+    );
+    const W = layoutTracker(s, view());
+    expect(W.rows.map((r) => r.id)).toEqual(['src']);
+    expect(W.handoffs).toEqual([]);
+  });
+
+  it('draws no mark from a hidden source, and its receivers get an arrow chip', () => {
+    const H = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['analyse']) }));
+    expect(H.handoffs.some((h) => h.fromId === 'analyse')).toBe(false);
+    for (const id of ['pg201', 'pg202', 'pg203'])
+      expect(H.chips.find((c) => c.workItemId === id)).toMatchObject({
+        sources: ['analyse'],
+        tooltip: 'From Analyse the CRS and FATCA rules (hidden)',
+      });
+  });
+
+  it('lists every hidden source of a row in one chip', () => {
+    const H = layoutTracker(
+      larkspurState(),
+      view({ hiddenRows: new Set(['pg201', 'pg202', 'pg203', 'crs']) }),
+    );
+    expect(H.chips.find((c) => c.workItemId === 'test')).toMatchObject({
+      sources: ['crs', 'pg201', 'pg202', 'pg203'],
+      ariaLabel:
+        'Show CRS tax residency section with DealCloud sync, PG-201 CRS form logic, PG-202 DealCloud mapping for CRS fields, PG-203 Country list field type',
+    });
+    expect(H.chips.find((c) => c.workItemId === 'test')?.tooltip.split('\n')).toHaveLength(4);
+  });
+
+  it('leaves out a hidden source that a shown source of the row comes from', () => {
+    const H = layoutTracker(
+      larkspurState(),
+      view({ hiddenRows: new Set(['pg201', 'pg202', 'crs']) }),
+    );
+    expect(H.chips.find((c) => c.workItemId === 'test')?.sources).toEqual(['pg201', 'pg202']);
   });
 
   it('shows a chip for a source or parent that finished before the window', () => {
@@ -567,59 +976,34 @@ describe('layoutTracker: links', () => {
     expect(C.rows.map((r) => r.id)).toEqual(['c']);
     const y = C.rows[0].y;
     const sx = C.x(ms('2026-09-20T09:00'));
-    const text = 'from Analyse the CRS and FAT… (hidden)';
-    const width = text.length * 5.6 + 22;
     expect(C.chips).toEqual([
       {
         workItemId: 'c',
         sources: ['p'],
-        label: `↖ ${text}`,
         ariaLabel: 'Show Analyse the CRS and FATCA rules',
-        x: sx + 6,
-        y: y - 26,
-        width,
-        height: 15,
+        tooltip: 'From Analyse the CRS and FATCA rules (finished before 10 Sept)',
+        x: sx - 22,
+        y: y - 7,
+        size: 14,
       },
     ]);
-    expect(C.stems).toEqual([
-      { workItemId: 'c', parentId: 'p', x: sx, y1: TRUNK_Y, y2: y, tone: 'ink-3', ghost: true },
-    ]);
-    expect(C.links).toEqual([]);
+    expect(C.handoffs).toEqual([]);
   });
 
-  it('colours milestone links by spec 2.8', () => {
-    const tone = (id: string) => L.msLinks.find((m) => m.workItemId === id)?.tone;
-    expect(tone('golive')).toBe('danger');
-    expect(tone('incident')).toBe('danger');
-    expect(tone('rehearsal')).toBe('ink-2');
-    expect(tone('secret')).toBe('ink-2');
-    expect(tone('crmlive')).toBe('ink-2');
-    expect(tone('dynamics')).toBe('ink-2');
-    expect(L.msLinks.some((m) => m.workItemId === 'legal')).toBe(false);
-  });
-
-  it('colours a milestone link amber when the item finished after the milestone date', () => {
-    const s = larkspurState();
-    s.events.push(
-      event({ id: 'late', workItemId: 'incident', kind: 'done', at: at('2026-10-05T10:00') }),
-    );
-    const link = layoutTracker(s, view()).msLinks.find((m) => m.workItemId === 'incident');
-    expect(link?.tone).toBe('caution');
-  });
-
-  it('runs a milestone link from the end of the line to under the diamond', () => {
-    const link = L.msLinks.find((m) => m.workItemId === 'rehearsal')!;
-    const mx = L.milestones.find((m) => m.id === 'golive')!.x;
-    const ex = L.x(ms('2026-09-24T16:40'));
-    expect(link).toEqual({
-      workItemId: 'rehearsal',
-      milestoneId: 'golive',
-      tone: 'ink-2',
-      from: { x: ex, y: 166 },
-      c1: { x: ex, y: 166 - 30 },
-      c2: { x: mx, y: TRUNK_Y + 34 },
-      to: { x: mx, y: TRUNK_Y + 8 },
+  it('keeps an arrow chip right of the label column', () => {
+    const s = buildState({
+      teams: [{ id: 't', name: 'Team', leadId: null }],
+      workItems: [
+        workItem({ id: 'p', teamId: 't' }),
+        workItem({ id: 'c', teamId: 't', parentId: 'p' }),
+      ],
+      events: [
+        event({ id: 'p1', workItemId: 'p', at: at('2026-09-20T09:00') }),
+        event({ id: 'c1', workItemId: 'c', at: at('2026-09-10T06:00') }),
+      ],
     });
+    const C = layoutTracker(s, view({ hiddenRows: new Set(['p']) }));
+    expect(C.chips[0].x).toBe(SIDE + 2);
   });
 });
 
@@ -637,14 +1021,15 @@ describe('layoutTracker: milestones and trunk', () => {
       stroke: 'danger',
       labelTone: 'danger',
       filled: true,
-      draft: false,
+      icon: 'bang',
+      changed: false,
       label: 'CRM integration live · 18 Sept · Late',
       ariaLabel: 'CRM integration live · 18 Sept · Late',
       anchor: 'start',
       level: 0,
       labelY: MS_Y,
     });
-    expect(crm.labelX).toBe(crm.x + 13);
+    expect(crm.labelX).toBe(crm.x + 14);
   });
 
   it('draws the trunk and a red segment from each late milestone to the T line', () => {
@@ -687,7 +1072,12 @@ describe('layoutTracker: milestones and trunk', () => {
       events: [event({ id: 'd', workItemId: 'w', kind: 'done', at: at('2026-09-25T10:00') })],
     });
     const M = layoutTracker(s, view());
-    expect(M.milestones[0]).toMatchObject({ status: 'early', tone: 'teal', filled: true });
+    expect(M.milestones[0]).toMatchObject({
+      status: 'early',
+      tone: 'teal',
+      filled: true,
+      icon: 'tick',
+    });
     expect(M.trunkSegments[0]).toMatchObject({
       x1: M.x(ms('2026-09-25T10:00')),
       x2: M.x(noon('2026-09-30')),
@@ -702,7 +1092,12 @@ describe('layoutTracker: milestones and trunk', () => {
       ],
     });
     const M = layoutTracker(s, view());
-    expect(M.milestones[0]).toMatchObject({ status: 'planned', tone: 'ink-3', filled: false });
+    expect(M.milestones[0]).toMatchObject({
+      status: 'planned',
+      tone: 'ink-3',
+      filled: false,
+      icon: null,
+    });
     expect(M.trunkSegments).toEqual([]);
   });
 
@@ -714,8 +1109,8 @@ describe('layoutTracker: milestones and trunk', () => {
     });
     const m = layoutTracker(s, view()).milestones[0];
     expect(m.anchor).toBe('end');
-    expect(m.labelX).toBe(m.x - 13);
-    expect(m.labelBox.x1).toBe(m.x - 13);
+    expect(m.labelX).toBe(m.x - 14);
+    expect(m.labelBox.x1).toBe(m.x - 14);
   });
 
   it('never overlaps two labels on the same level', () => {
@@ -724,8 +1119,8 @@ describe('layoutTracker: milestones and trunk', () => {
       { id: 'm1', name: 'Close one', planned: '2026-09-19', firstPlanned: '2026-09-19', moves: [] },
       { id: 'm2', name: 'Far one', planned: '2026-10-05', firstPlanned: '2026-10-05', moves: [] },
     );
-    for (const state of [larkspurState(), s]) {
-      const ms = layoutTracker(state, view()).milestones;
+    for (const L of [layoutTracker(larkspurState(), view()), layoutTracker(s, view({ zoom: 2 }))]) {
+      const ms = L.milestones;
       for (const a of ms)
         for (const b of ms) {
           if (a === b || a.level !== b.level) continue;
@@ -733,31 +1128,45 @@ describe('layoutTracker: milestones and trunk', () => {
           expect(apart, `${a.id} and ${b.id}`).toBe(true);
         }
     }
-    const levels = layoutTracker(s, view()).milestones.map((m) => [m.id, m.level, m.labelY]);
+    const levels = layoutTracker(s, view({ zoom: 2 })).milestones.map((m) => [
+      m.id,
+      m.level,
+      m.labelY,
+    ]);
     expect(levels).toEqual([
       ['crm', 0, MS_Y],
-      ['m1', 1, TRUNK_Y + 17],
+      ['m1', 1, TRUNK_Y + 13],
       ['golive', 0, MS_Y],
-      ['m2', 1, TRUNK_Y + 17],
+      ['m2', 1, TRUNK_Y + 13],
     ]);
   });
 });
 
-describe('layoutTracker: draft marks', () => {
-  it('flags changed rows, events, milestones and dates as draft', () => {
+describe('layoutTracker: change marks', () => {
+  it('marks changed rows, events, milestones and milestone dates', () => {
     const marks: Marks = {
       workItems: new Set(['pg203']),
       events: new Set(['p32']),
       milestones: new Set(['crm']),
-      dates: new Set(['golive']),
+      dates: new Set(['golive', 'ms:crm']),
     };
     const L = layoutTracker(larkspurState(), view(), marks);
-    expect(L.rows.filter((r) => r.draft).map((r) => r.id)).toEqual(['pg203']);
-    expect(L.eventGroups.filter((g) => g.draft).map((g) => g.eventIds)).toEqual([['p32']]);
-    expect(L.flags.filter((f) => f.draft).map((f) => f.workItemId)).toEqual(['golive']);
+    expect(L.rows.filter((r) => r.changed).map((r) => r.id)).toEqual(['pg203']);
+    expect(L.eventGroups.filter((g) => g.changed).map((g) => g.eventIds)).toEqual([['p32']]);
+    expect(L.deadlines.filter((d) => d.changed).map((d) => d.workItemId)).toEqual([
+      'dynamics',
+      'syncmon',
+      'crmlive',
+    ]);
+    expect(L.deadlines.find((d) => d.workItemId === 'dynamics')?.stroke).toBe('change');
     const crm = L.milestones.find((m) => m.id === 'crm')!;
-    expect(crm).toMatchObject({ draft: true, stroke: 'draft', labelTone: 'draft', tone: 'danger' });
-    expect(L.milestones.find((m) => m.id === 'golive')?.draft).toBe(false);
+    expect(crm).toMatchObject({
+      changed: true,
+      stroke: 'change',
+      labelTone: 'danger',
+      tone: 'danger',
+    });
+    expect(L.milestones.find((m) => m.id === 'golive')?.changed).toBe(false);
   });
 
   it('shows the earlier date of a moved milestone in a change request only', () => {
@@ -807,22 +1216,124 @@ describe('layoutTracker: draft marks', () => {
     ]);
     const L = layoutTracker(replay.state, view(), replay.marks);
     expect(L.rows.find((r) => r.id === 'pg203')).toMatchObject({
-      draft: true,
+      changed: true,
       title: 'PG-203 Country list field (multi-select)',
     });
   });
 
   it('flags nothing without marks', () => {
     const L = layoutTracker(larkspurState(), view(), noMarks());
-    expect(L.rows.some((r) => r.draft) || L.eventGroups.some((g) => g.draft)).toBe(false);
+    expect(L.rows.some((r) => r.changed) || L.eventGroups.some((g) => g.changed)).toBe(false);
   });
 });
 
 describe('layoutTracker: purity', () => {
   it('leaves a frozen state unchanged and gives the same layout twice', () => {
     const state: TrackerState = deepFreeze(larkspurState());
-    const a = layoutTracker(state, view({ hiddenRows: new Set(['pg203']) }));
-    const b = layoutTracker(state, view({ hiddenRows: new Set(['pg203']) }));
+    const a = layoutTracker(state, view({ hiddenRows: new Set(['pg203']), zoom: 2 }));
+    const b = layoutTracker(state, view({ hiddenRows: new Set(['pg203']), zoom: 2 }));
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+});
+
+describe('layoutTracker: focus on a work item', () => {
+  it('shows only the work item and its descendants, and drops lanes without rows', () => {
+    const L = layoutTracker(larkspurState(), view({ focus: 'analyse' }));
+    expect(L.rows.map((r) => r.id)).toEqual(['analyse', 'pg201', 'pg202', 'pg203', 'test']);
+    expect(L.lanes.map((l) => l.teamId)).toEqual([
+      'digitization',
+      'solutions-engineering',
+      'engineering',
+      'digitization-qa',
+    ]);
+    expect(L.lanes[0].top).toBe(TRUNK_Y + 16);
+    expect(L.rows[0]).toMatchObject({
+      focused: true,
+      focusLabel: 'Focus on Analyse the CRS and FATCA rules',
+    });
+    expect(L.rows[1]).toMatchObject({
+      focused: false,
+      focusLabel: 'Focus on PG-201 CRS form logic',
+    });
+  });
+
+  it('drops an empty team while focused', () => {
+    const s = buildState({
+      teams: [
+        { id: 't', name: 'Team', leadId: null },
+        { id: 'empty', name: 'Empty', leadId: null },
+      ],
+      workItems: [workItem({ id: 'a', teamId: 't' })],
+      events: [event({ id: 'a1', workItemId: 'a', at: at('2026-09-20T09:00') })],
+    });
+    const all = layoutTracker(s, view());
+    expect(all.lanes.map((l) => l.teamId)).toEqual(['t', 'empty']);
+    expect(layoutTracker(s, view({ focus: 'a' })).lanes.map((l) => l.teamId)).toEqual(['t']);
+  });
+
+  it('gives no chip for a parent or a source outside the focus', () => {
+    const L = layoutTracker(larkspurState(), view({ focus: 'analyse' }));
+    expect(L.chips).toEqual([]);
+  });
+
+  it('keeps hidden rows hidden inside the focus', () => {
+    const L = layoutTracker(
+      larkspurState(),
+      view({ focus: 'analyse', hiddenRows: new Set(['pg202']) }),
+    );
+    expect(L.rows.map((r) => r.id)).toEqual(['analyse', 'pg201', 'pg203', 'test']);
+    expect(L.chips.find((c) => c.workItemId === 'test')?.sources).toEqual(['pg202']);
+  });
+
+  it('ignores a focus on an unknown work item', () => {
+    const L = layoutTracker(larkspurState(), view({ focus: 'nope' }));
+    expect(L.rows).toHaveLength(13);
+  });
+});
+
+describe('layoutTracker: filters', () => {
+  const only = (match: string[], context: string[] = []) => ({
+    match: new Set(match),
+    context: new Set(context),
+  });
+
+  it('shows the matching rows and their ancestors dimmed, and drops teams without a row', () => {
+    const L = layoutTracker(larkspurState(), view({ filter: only(['pg203'], ['crs']) }));
+    expect(L.rows.map((r) => [r.id, r.dimmed])).toEqual([
+      ['crs', true],
+      ['pg203', false],
+    ]);
+    expect(L.lanes.map((l) => l.teamId)).toEqual(['implementation', 'engineering']);
+    expect(L.lanes[0].top).toBe(TOP);
+  });
+
+  it('drops an empty team while filtering', () => {
+    const s = buildState({
+      teams: [
+        { id: 't', name: 'Team', leadId: null },
+        { id: 'empty', name: 'Empty', leadId: null },
+      ],
+      workItems: [workItem({ id: 'a', teamId: 't' })],
+    });
+    expect(layoutTracker(s, view({ filter: only(['a']) })).lanes.map((l) => l.teamId)).toEqual([
+      't',
+    ]);
+  });
+
+  it('gives no chip for a source the filters leave out', () => {
+    const L = layoutTracker(larkspurState(), view({ filter: only(['test'], ['crs']) }));
+    expect(L.rows.map((r) => r.id)).toEqual(['crs', 'test']);
+    expect(L.chips).toEqual([]);
+  });
+
+  it('combines with hiding and with the focus', () => {
+    const filter = only(['pg201', 'pg203'], ['crs']);
+    const hidden = layoutTracker(
+      larkspurState(),
+      view({ filter, hiddenRows: new Set(['pg201', 'crs']) }),
+    );
+    expect(hidden.rows.map((r) => r.id)).toEqual(['pg203']);
+    const focused = layoutTracker(larkspurState(), view({ filter, focus: 'analyse' }));
+    expect(focused.rows.map((r) => r.id)).toEqual(['pg201', 'pg203']);
   });
 });

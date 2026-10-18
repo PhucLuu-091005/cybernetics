@@ -7,6 +7,7 @@ import {
   trackerCrComments,
   trackerCrShares,
   trackerCrs,
+  trackerEventOffsets,
   trackerMembers,
   trackerProjects,
   trackerQueue,
@@ -190,4 +191,18 @@ export async function addComment(
   },
 ): Promise<void> {
   await tx.insert(trackerCrComments).values({ ...tenant, ...comment });
+}
+
+export async function loadOffsets(
+  db: Reader,
+  projectId: string,
+  userId: string,
+): Promise<Record<string, number>> {
+  const rows = await db
+    .select({ eventId: trackerEventOffsets.eventId, minutes: trackerEventOffsets.offsetMinutes })
+    .from(trackerEventOffsets)
+    .where(
+      and(eq(trackerEventOffsets.projectId, projectId), eq(trackerEventOffsets.userId, userId)),
+    );
+  return Object.fromEntries(rows.map((row) => [row.eventId, row.minutes]));
 }

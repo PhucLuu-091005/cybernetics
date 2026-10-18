@@ -16,19 +16,16 @@ import {
   formatStamp,
   itemInfo,
   KIND_LABEL,
-  replayOps,
   toInstant,
   wallTimeInstant,
   type Cr,
   type CrPermission,
   type EventKind,
-  type Op,
-  type OpDescription,
   type TrackerState,
 } from '../../tracker';
 import type { OpInput, QueueEntry } from './api';
 import { Avatar } from './avatar';
-import { myDrafts, roleIn, trunc, type Session } from './ContextBar';
+import { trunc, type Session } from './ContextBar';
 import { Icon, KindIcon } from './icons';
 import { newTeamOp } from './team';
 
@@ -41,9 +38,8 @@ export type ModalState =
   | { mode: 'ms' }
   | { mode: 'team' }
   | { mode: 'due'; kind: 'item' | 'ms'; id: string; date: string }
-  | { mode: 'newcr'; pending: OpInput[] }
-  | { mode: 'share' }
-  | { mode: 'readonly'; pending: OpInput[] };
+  | { mode: 'newcr' }
+  | { mode: 'share' };
 
 export type ModalHandlers = {
   toast: (text: string) => void;
@@ -51,10 +47,7 @@ export type ModalHandlers = {
   addToQueue: (entry: QueueEntry) => void;
   dismiss: (queueId: string) => void;
   commit: (ops: OpInput[]) => void;
-  createCr: (title: string, pending: OpInput[]) => void;
-  addToCr: (num: number, pending: OpInput[]) => void;
-  askToEdit: () => void;
-  editAgain: (pending: OpInput[]) => void;
+  createCr: (title: string) => void;
   share: (memberId: string, permission: CrPermission | 'remove') => void;
   handOver: (memberId: string) => void;
 };
@@ -85,32 +78,6 @@ export function fromLocalInput(value: string, tz: string): string | null {
 }
 const hourBefore = (asOf: string, tz: string) => toInstant(Date.parse(asOf) - HOUR, tz);
 const weekAfter = (asOf: string, tz: string) => addDays(dayOf(asOf, tz), 7);
-
-export function describePending(
-  state: TrackerState,
-  pending: readonly OpInput[],
-  tz: string,
-): OpDescription | null {
-  if (!pending.length) return null;
-  const ops = pending.map((op) => ({ ...op, rev: 0, by: 'me' }) as Op);
-  return replayOps(state, ops, tz).entries.at(-1) ?? null;
-}
-
-export function suggestTitle(
-  state: TrackerState,
-  pending: readonly OpInput[],
-  myName: string,
-  tz: string,
-): string {
-  const op = pending.at(-1);
-  const d = describePending(state, pending, tz);
-  if (!op || !d) return `${myName.split(' ')[0]}'s changes`;
-  if (op.op === 'attach' || op.op === 'addEvent') {
-    const item = state.workItems.find((w) => w.id === op.a.workItemId);
-    return `${item ? item.title : 'Work item'}: new ${d.item.split(' ')[0].toLowerCase()}`;
-  }
-  return trunc(`${d.item}: ${d.change}`, 60);
-}
 
 function ModalFrame({
   title,
@@ -854,27 +821,12 @@ function DueModal({ modal, session, state, busy, on, onClose }: PropsOf<'due'>) 
   );
 }
 
-function Pending({ d }: { d: OpDescription | null }) {
-  if (!d) return null;
-  return (
-    <div className="pend">
-      <Icon name="pencil" size={14} />
-      <span>
-        Your change goes into it: <b>{d.item}</b>, {d.change}
-        {d.after ? ` → ${trunc(d.after, 50)}` : ''}.
-      </span>
-    </div>
-  );
-}
-
-function NewCrModal({ modal, session, state, busy, on, onClose }: PropsOf<'newcr'>) {
-  const { tz, dir, me, payload } = session;
-  const [title, setTitle] = useState(() =>
-    suggestTitle(state, modal.pending, me ? dir.name(me) : 'My', tz),
-  );
+function NewCrModal({ session, busy, on, onClose }: PropsOf<'newcr'>) {
+  const { dir, me, payload } = session;
+  const [title, setTitle] = useState(() => `${(me ? dir.name(me) : 'My').split(' ')[0]}'s changes`);
   const create = () => {
     if (!title.trim()) return on.toast('Give the change request a name.');
-    on.createCr(title.trim(), modal.pending);
+    on.createCr(title.trim());
   };
   return (
     <ModalFrame title="New change request" onClose={onClose}>
@@ -891,7 +843,6 @@ function NewCrModal({ modal, session, state, busy, on, onClose }: PropsOf<'newcr
         It starts from the latest Main. Only you can edit it until you share it. When you finish,
         mark it as ready, and {dir.name(payload.project.ownerMemberId)} merges it into Main.
       </p>
-      <Pending d={describePending(state, modal.pending, tz)} />
       <Foot label="Create" busy={busy} onCancel={onClose} onCreate={create} />
     </ModalFrame>
   );
@@ -1027,87 +978,6 @@ function ShareModal({ session, cr, busy, on, onClose }: PropsOf<'share'>) {
   );
 }
 
-function ReadonlyModal({ modal, session, state, cr: c, busy, on, onClose }: PropsOf<'readonly'>) {
-  const { dir, me, payload, tz } = session;
-  const owner = dir.name(payload.project.ownerMemberId);
-  const other = myDrafts(payload.crs, me).find((x) => x.num !== c?.num);
-  let title: string;
-  let text: string;
-  if (!c) {
-    title = 'Main is read-only';
-    text = `Changes reach Main through change requests. ${owner} merges them.`;
-  } else if (c.status === 'merged') {
-    title = `#${c.num} is merged`;
-    text =
-      'A merged change request stays read-only as history. Make a new change request to change more.';
-  } else if (c.status === 'closed') {
-    title = `#${c.num} is closed`;
-    text = 'A closed change request stays read-only. Make a new change request.';
-  } else if (c.status === 'ready') {
-    title = `#${c.num} is ready to merge`;
-    text =
-      c.editor === me
-        ? `It is locked while it waits for ${owner}. Press Edit again to change it, or make a new change request.`
-        : `It is locked while it waits for ${owner}. Make a new change request to change more.`;
-  } else if (roleIn(c, me) !== 'view') {
-    title = `${dir.name(c.editor)} is editing #${c.num}`;
-    text = `One person edits at a time. Ask ${dir.first(c.editor)} to hand over, or make your own change request.`;
-  } else {
-    title = `You can view #${c.num}`;
-    text = `Ask ${dir.name(c.author)} for edit access, or make your own change request.`;
-  }
-  const canAsk = !!c && c.status === 'draft' && roleIn(c, me) !== 'view' && c.editor !== me;
-  const asked = !!c && c.asks.some((a) => a.memberId === me);
-  return (
-    <ModalFrame title={title} onClose={onClose}>
-      <p>{text}</p>
-      <Pending d={describePending(state, modal.pending, tz)} />
-      <div className="m-foot">
-        <button className="btn big" type="button" onClick={onClose}>
-          Cancel
-        </button>
-        {c && c.status === 'ready' && c.editor === me && (
-          <button
-            className="btn big"
-            type="button"
-            disabled={busy}
-            onClick={() => on.editAgain(modal.pending)}
-          >
-            <Icon name="pencil" /> Edit again
-          </button>
-        )}
-        {canAsk &&
-          (asked ? (
-            <button className="btn big" type="button" disabled>
-              Waiting for {dir.first(c.editor)}
-            </button>
-          ) : (
-            <button className="btn big" type="button" disabled={busy} onClick={on.askToEdit}>
-              <Icon name="pencil" /> Ask to edit
-            </button>
-          ))}
-        {other && (
-          <button
-            className="btn big"
-            type="button"
-            disabled={busy}
-            onClick={() => on.addToCr(other.num, modal.pending)}
-          >
-            Add to #{other.num}
-          </button>
-        )}
-        <button
-          className="btn btn-ink big"
-          type="button"
-          onClick={() => on.open({ mode: 'newcr', pending: modal.pending })}
-        >
-          <Icon name="plus" /> New change request
-        </button>
-      </div>
-    </ModalFrame>
-  );
-}
-
 export function Modal(props: Props) {
   const { modal } = props;
   switch (modal.mode) {
@@ -1131,7 +1001,5 @@ export function Modal(props: Props) {
       return <NewCrModal {...props} modal={modal} />;
     case 'share':
       return <ShareModal {...props} modal={modal} />;
-    case 'readonly':
-      return <ReadonlyModal {...props} modal={modal} />;
   }
 }

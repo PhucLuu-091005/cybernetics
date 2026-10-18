@@ -119,6 +119,13 @@ const SHAPES = {
       <path d="M12 2v20" />
     </g>
   ),
+  moveX: (
+    <g {...S}>
+      <path d="m18 8 4 4-4 4" />
+      <path d="M2 12h20" />
+      <path d="m6 8-4 4 4 4" />
+    </g>
+  ),
   trash: (
     <g {...S}>
       <path d="M3 6h18" />
@@ -170,9 +177,73 @@ const SHAPES = {
       <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
     </g>
   ),
+  sidebar: (
+    <g {...S}>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M9 3v18" />
+    </g>
+  ),
   chev: (
     <g {...S}>
       <path d="m6 9 6 6 6-6" />
+    </g>
+  ),
+  branch: (
+    <g {...S24}>
+      <path d="M6 3v12" />
+      <circle cx="18" cy="6" r="3" />
+      <circle cx="6" cy="18" r="3" />
+      <path d="M18 9a9 9 0 0 1-9 9" />
+    </g>
+  ),
+  focus: (
+    <g {...S}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+      <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+      <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+      <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+    </g>
+  ),
+  cornerDown: (
+    <g {...S24}>
+      <path d="m15 10 5 5-5 5" />
+      <path d="M4 4v7a4 4 0 0 0 4 4h12" />
+    </g>
+  ),
+  cornerUp: (
+    <g {...S24}>
+      <path d="m15 14 5-5-5-5" />
+      <path d="M4 20v-7a4 4 0 0 1 4-4h12" />
+    </g>
+  ),
+  upDown: (
+    <g {...S24}>
+      <path d="m21 16-4 4-4-4" />
+      <path d="M17 20V4" />
+      <path d="m3 8 4-4 4 4" />
+      <path d="M7 4v16" />
+    </g>
+  ),
+  filter: (
+    <g {...S}>
+      <path d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z" />
+    </g>
+  ),
+  maximize: (
+    <g {...S}>
+      <path d="M15 3h6v6" />
+      <path d="m21 3-7 7" />
+      <path d="m3 21 7-7" />
+      <path d="M9 21H3v-6" />
+    </g>
+  ),
+  minimize: (
+    <g {...S}>
+      <path d="m14 10 7-7" />
+      <path d="M20 10h-6V4" />
+      <path d="m3 21 7-7" />
+      <path d="M4 14h6v6" />
     </g>
   ),
   loop: (
