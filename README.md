@@ -154,7 +154,7 @@ Requirements: Node.js 24, Docker. pnpm is not needed globally; the commands use 
 
 [render.yaml](render.yaml) is a Render Blueprint. It declares one Docker web service (`plan: free`, health check `/api/health`) and one PostgreSQL 17 database (`plan: free`) in the Singapore region. The container applies pending migrations on each start, then starts the server. If a migration fails, the container stops and Render keeps the previous deploy.
 
-**The tracker needs a fresh database.** Migration 0004 adds the tracker tables, and migration 0005 drops the old promise data (records, proposals and graph commits). An account seeds its sandbox only on its first sign-in. An account that signed in before the tracker therefore keeps a project with no tracker, and its graph page says "This project has no tracker yet." Before the first tracker deploy, point the service at an empty database. Each account then gets the Larkspur sandbox on its first sign-in.
+**The tracker needs a fresh database.** One baseline migration (`0000_baseline.sql`) creates the whole schema; the old promise data (records, proposals and graph commits) is not part of it. An account seeds its sandbox only on its first sign-in. An account that signed in before the tracker therefore keeps a project with no tracker, and its graph page says "This project has no tracker yet." Before the first tracker deploy, point the service at an empty database. Each account then gets the Larkspur sandbox on its first sign-in.
 
 On a deployment that already runs the promise version, delete the old database in the Render dashboard. Then sync the Blueprint, so that Render creates a new empty `promise-graph-db`, and deploy. For a new deployment, follow the steps below.
 
