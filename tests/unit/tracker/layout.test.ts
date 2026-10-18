@@ -13,6 +13,7 @@ import {
 } from '../../../src/tracker/layout';
 import type { TrackerState } from '../../../src/tracker/model';
 import { replayOps, type Marks } from '../../../src/tracker/ops';
+import { larkspurCrs } from '../../../src/server/tracker/seed/larkspur';
 import { addDays } from '../../../src/tracker/time';
 import {
   AS_OF,
@@ -860,6 +861,46 @@ describe('layoutTracker: milestone deadlines on member rows', () => {
     });
     const M = layoutTracker(s, view());
     expect(M.deadlines[0].x).toBe(M.x1 - 4);
+  });
+});
+
+describe('layoutTracker: milestone names keep off the T line', () => {
+  const main = () => replayOps(larkspurState(), larkspurCrs()[0].ops, TIME_ZONE).state;
+  const views = [300, 500, 800, 1000, 1200].flatMap((span) =>
+    [1, 1.5, 2, 3].map((zoom) =>
+      view({ windowStart: undefined, windowEnd: undefined, span, zoom }),
+    ),
+  );
+
+  it('moves a row name to the other side of its mark or ends it with an ellipsis', () => {
+    const cut: string[] = [];
+    for (const v of views) {
+      const L = layoutTracker(main(), v);
+      for (const d of L.deadlines.filter((x) => x.label)) {
+        const box = d.labelBox!;
+        expect(box.x1 < L.tLine.x - 2 || box.x0 > L.tLine.x + 2).toBe(true);
+        if (d.label!.endsWith('…')) cut.push(d.label!);
+      }
+    }
+    expect(cut.length).toBeGreaterThan(0);
+    const names = main().milestones.map((m) => m.name);
+    for (const label of cut) {
+      expect(label.length).toBeGreaterThanOrEqual(8);
+      expect(names.some((name) => name.startsWith(label.slice(0, -1)))).toBe(true);
+    }
+  });
+
+  it('gives the box of a row name from its anchor', () => {
+    const L = layoutTracker(
+      main(),
+      view({ windowStart: undefined, windowEnd: undefined, span: 800, zoom: 1.5 }),
+    );
+    for (const d of L.deadlines.filter((x) => x.label)) {
+      const box = d.labelBox!;
+      if (d.labelAnchor === 'start') expect(box.x0).toBe(d.labelX);
+      else expect(box.x1).toBe(d.labelX);
+    }
+    expect(L.deadlines.filter((x) => !x.label).every((x) => x.labelBox === null)).toBe(true);
   });
 });
 
