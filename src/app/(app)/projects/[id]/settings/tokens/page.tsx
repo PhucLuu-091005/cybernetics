@@ -9,7 +9,7 @@ import { TokenCreate } from '../../../../../../components/settings/TokenCreate';
 import { TokenList } from '../../../../../../components/settings/TokenList';
 import { PageHead } from '../../../../../../components/shell/PageHead';
 import { getApp, listAgentTokens } from '../../../../../../server/app';
-import { projectAccount } from '../../../../../../server/domain/account';
+import { projectAccount, tokenCreator } from '../../../../../../server/domain/account';
 import { readAuthEnvironment } from '../../../../../../server/env';
 import { getProject } from '../../../../../../server/domain/projects';
 import {
@@ -27,10 +27,12 @@ const DAY = 86_400_000;
 async function loadTokens(projectId: string, cursor: string | null) {
   const actor = await requireActor(`/projects/${projectId}/settings/tokens`);
   const actAs = (await cookies()).get(`pg_act_${projectId}`)?.value;
-  const [{ project, timeZone }, page, account] = await Promise.all([
-    notFoundOn(getProject(getApp().db, actor, { projectId })),
+  const db = getApp().db;
+  const [{ project, timeZone }, page, account, creator] = await Promise.all([
+    notFoundOn(getProject(db, actor, { projectId })),
     notFoundOnCursor(listAgentTokens(actor, { projectId, cursor }), cursor),
-    projectAccount(getApp().db, actor, projectId, actAs),
+    projectAccount(db, actor, projectId, actAs),
+    tokenCreator(db, actor, projectId),
   ]);
   const now = Date.now();
   const expiryOptions = [30, 7].map((days) => ({
@@ -42,6 +44,7 @@ async function loadTokens(projectId: string, cursor: string | null) {
     timeZone,
     page,
     account,
+    creator,
     expiryOptions,
     now: new Date(now).toISOString(),
   };
@@ -57,19 +60,31 @@ export default async function AgentTokensPage({
   const [{ id }, search] = await Promise.all([params, searchParams]);
   const cursor = searchCursor(search.cursor);
   if (!IdSchema.safeParse(id).success) notFound();
-  const { project, timeZone, page, account, expiryOptions, now } = await loadTokens(id, cursor);
+  const { project, timeZone, page, account, creator, expiryOptions, now } = await loadTokens(
+    id,
+    cursor,
+  );
   const endpoint = `${readAuthEnvironment().appOrigin}/mcp`;
 
   return (
     <div className="tk pg">
       <PageHead title="Settings" project={project} account={account} />
       <div className="pg-body pg-split">
-        <p className="pg-lede">
-          A token lets your own AI agent use this project through MCP. A token belongs to one
-          project and expires after 30 days by default. The app stores only a hash of the secret.
-          Project time zone: {timeZone}.
-        </p>
-        <div>
+        <div className="pg-main">
+          <section className="pg-sec" aria-labelledby="project-facts">
+            <h2 id="project-facts">Project</h2>
+            <dl className="pg-facts">
+              <dt>Name</dt>
+              <dd>{project.title}</dd>
+              <dt>Client</dt>
+              <dd>{project.clientName}</dd>
+              <dt>Time zone</dt>
+              <dd>
+                {timeZone}
+                <small>Dates and times of the project use it.</small>
+              </dd>
+            </dl>
+          </section>
           <TokenList
             projectId={id}
             tokens={page.items}
@@ -79,11 +94,16 @@ export default async function AgentTokensPage({
             nextCursor={page.nextCursor}
             paged={cursor !== null}
           />
-          <TokenCreate projectId={id} endpoint={endpoint} expiryOptions={expiryOptions} />
+          <TokenCreate
+            projectId={id}
+            endpoint={endpoint}
+            expiryOptions={expiryOptions}
+            creator={creator}
+          />
         </div>
-        <div className="pg-aside">
+        <aside className="pg-aside">
           <McpSnippet endpoint={endpoint} />
-        </div>
+        </aside>
       </div>
     </div>
   );

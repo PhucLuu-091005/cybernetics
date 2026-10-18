@@ -83,7 +83,7 @@ Main opens with a notice that it is read-only. Press **×** to close it for now,
 
 Your own agent (for example Claude Code) connects to `/mcp` with a project token. It can do what you can do in the web app, inside the permissions that you tick on the token: read the project, add to the Queue, work on change requests, merge, and manage members and teams. Main changes only through a merged change request.
 
-![Settings: the two agent permissions, the MCP snippet and a created token](docs/screenshots/agent-tokens.png)
+![Settings: the project facts, an agent token with its permissions in short form, the create form with Select all and one checkbox per right, and the MCP snippet](docs/screenshots/agent-tokens.png)
 
 1. Open **Settings** in the rail of a project and create a token. Tick one permission per right, or **Select all**. A right that you do not hold shows greyed out with the reason. No permission manages tokens or deletes the project. Copy the secret; the app shows it once.
 2. Add the server to your MCP client:

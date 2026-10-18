@@ -148,7 +148,7 @@ export default async function SignInPage({
       <div className="card pad stack" style={{ maxWidth: 380 }}>
         <h2>Sign in</h2>
         {mode === 'google' && (
-          <a className="gbtn" href={`/api/auth/google${query}`}>
+          <a className="btn big btn-block" href={`/api/auth/google${query}`}>
             <GoogleLogo />
             Continue with Google
           </a>
@@ -156,7 +156,7 @@ export default async function SignInPage({
         {mode === 'local' && (
           <form action={`/api/auth/local${query}`} method="post">
             {localLabel && <input type="hidden" name="label" value={localLabel} />}
-            <button className="gbtn" type="submit">
+            <button className="btn big btn-block" type="submit">
               Continue (local dev{localLabel ? `, ${localLabel}` : ''})
             </button>
           </form>
@@ -166,14 +166,14 @@ export default async function SignInPage({
             Sign-in is unavailable until authentication is configured.
           </p>
         )}
-        <p className="muted" style={{ fontSize: 13 }}>
+        <p className="muted small">
           Your first visit creates a private sandbox: a copy of the Larkspur Capital demo project
           with its teams, work items and change requests.
         </p>
         <hr style={{ border: 0, borderTop: '1px solid var(--rule-2)', width: '100%' }} />
-        <p className="faint" style={{ fontSize: 12 }}>
-          The app never calls an AI model. Your own agent reads the tracker and adds events and work
-          items to the Queue through MCP.
+        <p className="faint xsmall">
+          The app never calls an AI model. Your own agent works in the tracker through MCP, with the
+          permissions that you give its token.
         </p>
       </div>
     </main>

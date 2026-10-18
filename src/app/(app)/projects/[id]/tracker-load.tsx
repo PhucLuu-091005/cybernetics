@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Notice } from '../../../../components/shell/Notice';
 import type { ActorContext } from '../../../../contracts';
 import { getApp } from '../../../../server/app';
 import { AppError } from '../../../../server/errors';
@@ -31,14 +32,9 @@ export async function trackerPayload(
 
 export function NoViewNotice({ projectId }: { projectId: string }) {
   return (
-    <div className="screen">
-      <div className="card pad" role="status">
-        <h1>You cannot see Main of this project yet.</h1>
-        <p className="muted" style={{ marginTop: 6 }}>
-          The project lead decides who sees Main. The{' '}
-          <Link href={`/projects/${projectId}/members`}>Members page</Link> names the project lead.
-        </p>
-      </div>
-    </div>
+    <Notice role="status" title="You cannot see Main of this project yet.">
+      The project lead decides who sees Main. The{' '}
+      <Link href={`/projects/${projectId}/members`}>Members page</Link> names the project lead.
+    </Notice>
   );
 }

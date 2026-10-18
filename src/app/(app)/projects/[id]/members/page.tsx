@@ -9,6 +9,7 @@ import { getProject } from '../../../../../server/domain/projects';
 import { AppError } from '../../../../../server/errors';
 import { notFoundOn, requireActor } from '../../../../../server/http/rsc';
 import { listProjectMembers, type MembersPayload } from '../../../../../server/tracker';
+import { Notice } from '../../../../../components/shell/Notice';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Members · Promise Graph' };
@@ -45,14 +46,7 @@ export default async function MembersPage({ params }: { params: Promise<{ id: st
     members(actor, id, actAs),
     projectAccount(db, actor, id, actAs),
   ]);
-  if (!list)
-    return (
-      <div className="screen">
-        <div className="card pad" role="status">
-          <h1>This project has no tracker yet.</h1>
-        </div>
-      </div>
-    );
+  if (!list) return <Notice role="status" title="This project has no tracker yet." />;
   return (
     <MembersScreen
       projectId={id}
