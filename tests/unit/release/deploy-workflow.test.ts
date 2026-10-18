@@ -49,9 +49,8 @@ describe('the deploy workflow', () => {
 
   it('deploys only after the same checks as CI pass', () => {
     const ci = load(CI).on as Node;
-    expect(Object.keys(ci)).toEqual(
-      expect.arrayContaining(['push', 'pull_request', 'workflow_call']),
-    );
+    expect(Object.keys(ci).sort()).toEqual(['pull_request', 'push', 'workflow_call']);
+    expect(ci.push).toEqual({ branches: ['**'] });
     const all = jobs(DEPLOY);
     const checks = Object.entries(all).find(([, job]) => job.uses === `./${CI}`);
     expect(checks).toBeDefined();
@@ -59,14 +58,18 @@ describe('the deploy workflow', () => {
     expect(needs).toContain(checks![0]);
   });
 
-  it('gives the deploy job alone an ID token, in the production environment, one deploy at a time', () => {
+  it('gives the deploy job alone an ID token, in the production environment', () => {
     const workflow = load(DEPLOY);
     expect(workflow.permissions).toEqual({ contents: 'read' });
     const { deploy, ...others } = jobs(DEPLOY);
     expect(deploy.permissions).toEqual({ contents: 'read', 'id-token': 'write' });
     for (const job of Object.values(others)) expect(job.permissions ?? null).toBeNull();
     expect(deploy.environment).toBe('production');
-    expect(deploy.concurrency).toEqual({ group: 'deploy', 'cancel-in-progress': false });
+  });
+
+  it('runs one whole workflow at a time, so an older tag never deploys after a newer one', () => {
+    expect(load(DEPLOY).concurrency).toEqual({ group: 'deploy', 'cancel-in-progress': false });
+    for (const job of Object.values(jobs(DEPLOY))) expect(job.concurrency ?? null).toBeNull();
   });
 
   it('signs in to Google through Workload Identity Federation with repository variables and no secret', () => {
