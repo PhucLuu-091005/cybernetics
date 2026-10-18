@@ -266,7 +266,7 @@ The rail is flat: `--sunk` fill and a 1px `--rule` right border. Items (`.rail-i
 - `.cr-side` (side panel of the change request page): 320px, the Changes and Queue tabs as a `.qseg`, a list of changes as rows with hairlines (`.chg-row`; the picked one on `--gray-bg`), the clash picks (`.res-box`) at the top. `.gtools` above the graph holds the Before / After `.seg`.
 - `.btn-stop`: a solid `--danger` button with white text, only for the confirm button of Cancel change request.
 - `.ro-note` (Main is read-only): `--route-bg` with `--route-ink` text, `--r-ctl`, a close button and Don't show again.
-- `.legend2`: a `--fs-xs` legend below the graph with the 5 line colours (Cancelled included), the deadline diamond, the 5 milestone statuses and the yellow "Name" sample.
+- `.legend-pop`: the Legend popover of the zoom bar (no strip under the graph). A `--panel` surface with `--r-pop`, `--shadow` and a `--rule` border, `--fs-xs` text in `--ink-2`, an `.x` close button at the top right. `.lg-grid` has 4 columns (2 under 520 px of popover width and on a phone): LINE with CHANGE under it, MILESTONE, and EVENT over two columns. Group labels are `.q-label` (10.5px upper case, `--ink-3`). Each row (`.lg-it`) is an 18px line with its sample and its word: a 16 × 2.5 line, the deadline diamond, a `.ms-sw` circle, the yellow `.chg` "Name" sample, or `.lg-ring`, an 18px kind circle drawn as on the graph (a 1.5px ring in the kind colour, a `--k-tint` tint over `--panel`, the 11px icon).
 
 ### 8.12 Tables of people and teams (Members page)
 
@@ -297,8 +297,8 @@ Geometry in view-box units (`GEOMETRY` in `src/tracker/layout.ts`): width 1060, 
 | Focus ring | A thin 1px `--focus` stroke with `vector-effect: non-scaling-stroke` on the row hit area (it reads as a line above and below the row); a `--focus` outline on milestone circles. |
 | Focus button | On each row and each team summary row, left of the eye: an 18-unit square (smaller with the row height), radius 4, the `focus` icon. Pressed: a `--focus` fill with a `--panel` icon. |
 | Bin | Shows only while you drag: a sticky box at the bottom left with a `--danger` border and `--danger-ink` text; `--danger-bg` and scale 1.06 when the pointer is over it. |
-| Zoom bar | Floats at the bottom right of the graph: the view menu (Row height and teams), Zoom out, Zoom in, Fit and Full view in a `--panel` box with `--r-ctl` and `--shadow`. Its buttons show the focus ring for the keyboard only: no ring after a click, and none when Esc closes a menu that a click opened. The view menu opens above the bar, from its right end, as a `--r-pop` popover; Esc and a press outside close it. It moves left of an open drawer. |
-| Legend | Below the graph: the line colours, the deadline diamond, the 5 milestone statuses, the change mark, then the 10 kinds (icon in its kind colour, name in `--ink-2`). |
+| Zoom bar | Floats at the bottom right of the graph: the Legend button, the view menu (Row height and teams), Zoom out, Zoom in, Fit and Full view in a `--panel` box with `--r-ctl` and `--shadow`. Its buttons show the focus ring for the keyboard only: no ring after a click, and none when Esc closes a menu that a click opened. The view menu opens above the bar, from its right end, as a `--r-pop` popover; Esc and a press outside close it. It moves left of an open drawer. |
+| Legend | A popover above the zoom bar, aligned to its right end, opened by the Legend button (pressed look while open) and open by default until the person closes it. LINE (Not finished, Done, Late part, Done late, Cancelled) and CHANGE, MILESTONE (Deadline and the 5 statuses), EVENT (the 10 kinds in kind picker order, each as its graph circle, name in `--ink-2`). An outside click leaves it open; Esc closes it only while the focus is inside it. It hides during a drag (`.tk.dragging`). |
 
 ## 10. Graph rules
 
