@@ -90,6 +90,32 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP scopes and write tools', ()
     expect(new Set(MCP_TOOLS.map((tool) => tool.scope))).toEqual(new Set(ALL));
   });
 
+  it('explains the app in the server instructions, so an agent with no other context can work', async () => {
+    const text = (await connect(['project:read'])).getInstructions() ?? '';
+    for (const term of [
+      'Main',
+      'Queue',
+      'change request',
+      'op',
+      'work item',
+      'event',
+      'milestone',
+      'get_tracker',
+      'mark_ready',
+      'merge_change_request',
+      'untrusted',
+      'expectedRevision',
+    ])
+      expect(text).toContain(term);
+    for (const kind of ['idea', 'message', 'issue', 'task', 'meeting', 'decision', 'delivery'])
+      expect(text).toContain(kind);
+    for (const status of ['planned', 'early', 'ontime', 'late', 'flate', 'cancelled'])
+      expect(text).toContain(status);
+    for (const scope of ALL) expect(text).toContain(scope);
+    expect(text).toMatch(/no scope .*token/i);
+    expect(text.length).toBeLessThan(8_000);
+  });
+
   it('refuses each tool to a token that holds every scope but its own', async () => {
     for (const scope of ALL) {
       const client = await connect(ALL.filter((item) => item !== scope));
