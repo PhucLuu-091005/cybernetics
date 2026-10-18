@@ -227,3 +227,26 @@ test('Settings shows plain permission names, and Last call changes from Never af
   await page.getByRole('button', { name: 'Check again' }).click();
   await expect(row.getByTestId('last-call')).toHaveText(/^\d{1,2} [A-Z][a-z]{2} \d{2}:\d{2}$/);
 });
+
+test('a missing page keeps the stored theme and logs no console error', async ({ page }) => {
+  const problems: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && !/Failed to load resource/.test(message.text()))
+      problems.push(message.text());
+  });
+  page.on('pageerror', (error) => problems.push(error.message));
+  await page.goto('/signin?label=shell-missing');
+  await page.evaluate(() => localStorage.setItem('pg-theme', 'dark'));
+  await page.getByRole('button', { name: /continue/i }).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  for (const path of ['/no-such-page', '/projects/00000000-0000-4000-8000-000000000000/graph']) {
+    const response = await page.goto(path);
+    expect(response?.status()).toBe(404);
+    await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  }
+  await page.getByRole('link', { name: 'Go to your projects' }).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  expect(problems).toEqual([]);
+});
