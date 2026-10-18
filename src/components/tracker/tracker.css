@@ -2340,6 +2340,11 @@ svg.tg .deadline-name {
 .tk .wi-top .sp {
   flex: 1;
 }
+.tk .wi-view {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
 .tk .btn-quiet {
   border-color: transparent;
   box-shadow: none;
