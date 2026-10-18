@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { hydrated } from './helpers';
 
 const PROJECT = 'Larkspur Capital';
@@ -343,4 +343,89 @@ test('Revoke shows Revoking until the table shows the token as revoked', async (
   await expect(row.getByRole('button')).toHaveCount(0);
   await expect(row).toContainText(/Revoked \d{1,2} [A-Z][a-z]{2}/);
   await expect(row.getByRole('status')).toHaveCount(0);
+});
+
+test('every page has one main landmark and a Skip to content link that shows on keyboard focus', async ({
+  page,
+}) => {
+  const skip = page.getByRole('link', { name: 'Skip to content' });
+  const main = page.getByRole('main');
+  const check = async () => {
+    await expect(main).toHaveCount(1);
+    await expect(skip).toHaveCount(1);
+    const hidden = (await skip.boundingBox())!;
+    expect(hidden.y + hidden.height).toBeLessThanOrEqual(0);
+    await page.keyboard.press('Tab');
+    await expect(skip).toBeFocused();
+    expect((await skip.boundingBox())!.y).toBeGreaterThanOrEqual(0);
+    await page.keyboard.press('Enter');
+    await expect(main).toBeFocused();
+  };
+  await page.goto('/signin?label=shell-main');
+  await check();
+  await page.getByRole('button', { name: /continue/i }).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  const projectId = new URL(page.url()).pathname.split('/')[2];
+  for (const path of ['graph', 'changes/2', 'members', 'settings/tokens']) {
+    await page.goto(`/projects/${projectId}/${path}`);
+    await hydrated(page);
+    await check();
+  }
+  await page.goto('/no-such-page');
+  await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+  await check();
+});
+
+test('a missing change request, No projects yet and the error page each have one main', async ({
+  page,
+  browser,
+}) => {
+  const main = page.getByRole('main');
+  await page.goto('/signin?label=shell-one-main');
+  await page.getByRole('button', { name: /continue/i }).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  const projectId = new URL(page.url()).pathname.split('/')[2];
+
+  const missing = await page.goto(`/projects/${projectId}/changes/999`);
+  expect(missing?.status()).toBe(404);
+  await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+  await expect(main).toHaveCount(1);
+
+  // A second person becomes the lead of the sandbox and removes its first person.
+  const api = `/api/v1/projects/${projectId}`;
+  const call = async (on: Page, method: string, url: string, body?: object) => {
+    const origin = new URL(on.url()).origin;
+    const response = await on.request.fetch(url, {
+      method,
+      headers: { origin },
+      ...(body ? { data: body } : {}),
+    });
+    expect(response.ok()).toBe(true);
+    return response.json();
+  };
+  await call(page, 'POST', `${api}/members`, { email: 'shell-one-main-b@local.test' });
+  const other = await browser.newPage();
+  await other.goto('/signin?label=shell-one-main-b');
+  await other.getByRole('button', { name: /continue/i }).click();
+  await expect(other.getByText(PROJECT).first()).toBeVisible();
+  const list = await call(page, 'GET', `${api}/members`);
+  const id = (email: string) =>
+    list.members.find((m: { email: string | null }) => m.email === email).id;
+  await call(page, 'PATCH', `${api}/members/${id('shell-one-main-b@local.test')}`, {
+    projectLead: true,
+  });
+  const after = await call(other, 'DELETE', `${api}/members/${id('shell-one-main@local.test')}`);
+  expect(after.leadId).toBe(id('shell-one-main-b@local.test'));
+  await other.close();
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'No projects yet' })).toBeVisible();
+  await expect(main).toHaveCount(1);
+
+  // 300 reads a minute is the limit of one person, so the next page shows the error page.
+  await page.evaluate(async () => {
+    for (let i = 0; i < 300; i++) await fetch('/api/v1/projects');
+  });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
+  await expect(main).toHaveCount(1);
 });

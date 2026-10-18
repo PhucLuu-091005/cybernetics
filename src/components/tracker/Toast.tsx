@@ -6,14 +6,23 @@ export type ToastState = { text: string; at: number; undo?: () => void };
 
 export const TOAST_MS = 4500;
 
-export function Toast({ toast, onClose }: { toast: ToastState | null; onClose: () => void }) {
+/** While `paused` the toast is out of sight but still announced, and its time starts again after. */
+export function Toast({
+  toast,
+  onClose,
+  paused = false,
+}: {
+  toast: ToastState | null;
+  onClose: () => void;
+  paused?: boolean;
+}) {
   useEffect(() => {
-    if (!toast) return;
+    if (!toast || paused) return;
     const timer = setTimeout(onClose, TOAST_MS);
     return () => clearTimeout(timer);
-  }, [toast, onClose]);
+  }, [toast, onClose, paused]);
   return (
-    <div className="tk-toast" role="status" aria-live="polite">
+    <div className="tk-toast" role="status" aria-live="polite" data-paused={paused || undefined}>
       {toast && (
         <>
           <span>{toast.text}</span>

@@ -627,6 +627,20 @@ export function TrackerGraph(props: Props) {
     if (pop.style.getPropertyValue('--lg-room-w') !== w) pop.style.setProperty('--lg-room-w', w);
   }, []);
   useLayoutEffect(fitLegend);
+  // On a phone the page scrolls under the sticky controls, so the first change of a change request
+  // would open under them; the page scrolls it clear once, before the person scrolls.
+  const cleared = useRef(false);
+  const hasRows = L.rows.length > 0;
+  useEffect(() => {
+    const bar = barRef.current;
+    if (cleared.current || !hasRows || !bar) return;
+    cleared.current = true;
+    if (!window.matchMedia('(max-width: 760px)').matches) return;
+    const marks = Array.from(root.current?.querySelectorAll('svg.pg .halo') ?? []);
+    const first = Math.min(...marks.map((mark) => mark.getBoundingClientRect().bottom));
+    const gap = first - (bar.getBoundingClientRect().top - 12);
+    if (marks.length && gap > 0) window.scrollBy(0, gap);
+  }, [hasRows]);
   useEffect(() => {
     if (!legendOpen) return;
     const bar = barRef.current;

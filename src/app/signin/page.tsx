@@ -131,7 +131,7 @@ export default async function SignInPage({
   if (mode && (await optionalActor('/signin'))) redirect(next ?? '/');
   const query = next ? `?next=${encodeURIComponent(next)}` : '';
   return (
-    <main className="signin">
+    <main className="signin" id="content" tabIndex={-1}>
       <div>
         <div className="brand" style={{ padding: 0, marginBottom: 28 }}>
           <BrandMark />

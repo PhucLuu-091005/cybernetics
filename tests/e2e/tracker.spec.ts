@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { choose, drag, hydrated } from './helpers';
+import { centerOf, choose, drag, hydrated } from './helpers';
 
 type TrackerRead = {
   crs: Array<{
@@ -386,6 +386,58 @@ test.describe('the tracker walkthrough', () => {
     });
 
     expect(problems).toEqual([]);
+  });
+});
+
+test.describe('a drag right after a change', () => {
+  test.use({ viewport: { width: 1440, height: 900 }, colorScheme: 'light' });
+
+  test('hides the toast while a Queue card moves, keeps it announced, and holds its timer', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    await signIn(page, 'tracker-toast-drag');
+    const toast = page.locator('.tk-toast');
+    const status = page.getByRole('status').filter({ hasText: 'Message by Sarah Kim: added' });
+    const opacity = () => toast.evaluate((el) => getComputedStyle(el).opacity);
+    const bin = page.locator('.bin');
+    await actAs(page, 'Lan Phạm');
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
+    await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/changes\/5$/);
+    const card = (text: string) => page.locator('[data-qevent]', { hasText: text });
+    await drag(
+      page,
+      card('Where is the root cause report'),
+      page.locator('svg.pg [data-loop="incident"]'),
+    );
+    await expect(status).toHaveCount(1);
+
+    const from = await centerOf(card('Scope call'));
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(from.x + 8, from.y + 8, { steps: 3 });
+    await page.mouse.move(from.x + 300, from.y, { steps: 6 });
+    await expect(bin).toBeVisible();
+    await expect.poll(opacity).toBe('0');
+    const box = (await bin.boundingBox())!;
+    const top = await page.evaluate(
+      ([x, y]) => document.elementFromPoint(x, y)?.closest('.bin, .tk-toast')?.className ?? '',
+      [box.x + box.width / 2, box.y + box.height / 2],
+    );
+    expect(top).toContain('bin');
+    // A drag longer than the toast time keeps the toast and its Undo.
+    await page.clock.fastForward(10_000);
+    await expect(status).toHaveCount(1);
+    await page.mouse.move(from.x, from.y, { steps: 6 });
+    await page.mouse.up();
+    await expect.poll(opacity).toBe('1');
+    await expect(toast.getByRole('button', { name: 'Undo' })).toBeVisible();
+    // After the drop the toast gets its full time again.
+    await page.clock.fastForward(4_000);
+    await expect(status).toHaveCount(1);
+    await page.clock.fastForward(1_000);
+    await expect(status).toHaveCount(0);
   });
 });
 
@@ -1403,6 +1455,65 @@ test.describe('the tracker at phone width', () => {
       .poll(async () => (await shown()).filter((n) => n.text === 'CRM integration live').length)
       .toBeGreaterThan(0);
     await expect(page.locator('svg.pg .deadline-stuck:not(:empty)')).toHaveCount(0);
+  });
+
+  test('the zoom bar stays on the screen and covers no change, no last row and no full view exit', async ({
+    page,
+  }) => {
+    await page.goto('/signin?label=tracker-phone-zoombar');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    const graph = new URL(page.url()).pathname;
+    const bar = page.getByRole('group', { name: 'View controls' });
+    const barBox = async () => (await bar.boundingBox())!;
+    const onScreen = async () => {
+      const b = await barBox();
+      return b.y >= 0 && b.y + b.height <= 844;
+    };
+    const lastRowBottom = () =>
+      page.evaluate(() =>
+        Math.max(
+          ...Array.from(document.querySelectorAll('svg.pg rect.hit')).map(
+            (r) => r.getBoundingClientRect().bottom,
+          ),
+        ),
+      );
+
+    await page.goto(crPath(graph, 4));
+    const changed = page.locator('svg.pg .halo').first();
+    await expect(changed).toBeVisible();
+    await expect
+      .poll(async () => {
+        const c = (await changed.boundingBox())!;
+        return c.y >= 0 && c.y + c.height <= (await barBox()).y;
+      })
+      .toBe(true);
+    expect(await onScreen()).toBe(true);
+    const item = (await page.getByRole('list', { name: 'Changes' }).boundingBox())!;
+    const b = await barBox();
+    expect(item.y + item.height <= b.y || item.y >= b.y + b.height).toBe(true);
+
+    for (const path of [crPath(graph, 4), graph]) {
+      await page.goto(path);
+      await expect(page.locator('svg.pg')).toBeVisible();
+      await page.evaluate(() => window.scrollTo(0, 0));
+      expect(await onScreen()).toBe(true);
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await expect.poll(onScreen).toBe(true);
+      expect(await lastRowBottom()).toBeLessThanOrEqual((await barBox()).y);
+    }
+
+    const full = page.locator('.zoombar .full');
+    await full.click();
+    const board = page.locator('.tk.fullview');
+    await expect(board).toHaveCount(1);
+    for (const to of ['end', 'start'] as const) {
+      await board.evaluate((el, at) => (el.scrollTop = at === 'end' ? el.scrollHeight : 0), to);
+      await expect.poll(onScreen).toBe(true);
+      expect(await lastRowBottom()).toBeLessThanOrEqual(to === 'end' ? (await barBox()).y : 1e6);
+    }
+    await full.click();
+    await expect(board).toHaveCount(0);
   });
 
   test('keeps the names level with their rows while the column still has the wide view box', async ({

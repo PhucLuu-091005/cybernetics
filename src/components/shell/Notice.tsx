@@ -18,8 +18,13 @@ export function Notice({
   page?: boolean;
   role?: 'alert' | 'status';
 }) {
+  // In the frame the project layout already holds the main landmark.
+  const Root = page ? 'main' : 'div';
   return (
-    <main className={`notice${page ? ' notice-page' : ''}`}>
+    <Root
+      className={`notice${page ? ' notice-page' : ''}`}
+      {...(page && { id: 'content', tabIndex: -1 })}
+    >
       <div className="notice-in" role={role}>
         {page && (
           <div className="notice-brand">
@@ -31,6 +36,6 @@ export function Notice({
         {children && <div className="notice-text">{children}</div>}
         {actions && <div className="notice-acts">{actions}</div>}
       </div>
-    </main>
+    </Root>
   );
 }

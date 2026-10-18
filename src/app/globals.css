@@ -800,6 +800,29 @@
     opacity: 0.6;
   }
 
+  .skip {
+    position: fixed;
+    top: 8px;
+    left: 8px;
+    z-index: 100;
+    padding: 6px 12px;
+    border: 1px solid var(--rule);
+    border-radius: var(--r-ctl);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: var(--fs-s);
+    font-weight: 500;
+    text-decoration: none;
+    transform: translateY(calc(-100% - 16px));
+  }
+  .skip:focus {
+    box-shadow: var(--shadow);
+    transform: none;
+  }
+  #content:focus {
+    outline: none;
+  }
+
   .notice {
     display: grid;
     place-items: center;

@@ -2947,6 +2947,11 @@ svg.tg .lane-drop.glow {
   color: var(--danger-ink);
   pointer-events: auto;
 }
+/* The toast would cover the bin. Opacity keeps it in the accessibility tree, so it is still announced. */
+.tk-toast[data-paused] {
+  opacity: 0;
+  pointer-events: none;
+}
 .tk .bin.glow {
   background: var(--danger-bg);
   transform: scale(1.06);

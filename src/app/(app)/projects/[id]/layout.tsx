@@ -27,7 +27,9 @@ export default async function ProjectLayout({
         projects={projects.map(({ id, clientName, title }) => ({ id, clientName, title }))}
         initial={parseRailState(store.get(RAIL_COOKIE)?.value)}
       />
-      <div className="main">{children}</div>
+      <main className="main" id="content" tabIndex={-1}>
+        {children}
+      </main>
     </div>
   );
 }
