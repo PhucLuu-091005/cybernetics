@@ -325,6 +325,13 @@ describe('applyOp', () => {
     expect(state).not.toEqual(input);
   });
 
+  it('names the person of the key, not an agent, as the adder of an event that a key queued', () => {
+    const s = larkspurState();
+    expect(s.queue.events.find((e) => e.id === 'qe3')).toMatchObject({ agent: true });
+    const { state } = applyOp(s, CASES[0][1]);
+    expect(state.events.find((e) => e.id === 'qe3')?.addedBy).toBe('minh');
+  });
+
   it('attach moves the queue event onto the work item', () => {
     const { state } = applyOp(larkspurState(), CASES[0][1]);
     expect(state.queue.events.map((e) => e.id)).toEqual(['qe1', 'qe2', 'qe4']);
@@ -335,7 +342,7 @@ describe('applyOp', () => {
       at: at('2026-10-07T08:30'),
       by: 'sarah',
       text: 'Sarah needs an explanation for the go-live slip before the LP call on Monday.',
-      addedBy: 'agent',
+      addedBy: 'minh',
       hidden: false,
     });
     const human = applyOp(

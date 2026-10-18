@@ -123,7 +123,7 @@ const parse = <S extends z.ZodType>(schema: S, raw: unknown, what: string): z.in
 };
 
 /** The server owns rev, by and d, and records who moved a date and when. */
-function candidate(raw: unknown, rev: number, by: string, agent: boolean): Op {
+function candidate(raw: unknown, rev: number, by: string, via: string | null): Op {
   const value = (raw ?? {}) as { op?: unknown; a?: unknown };
   const a =
     (value.op === 'due' || value.op === 'msDate') && value.a && typeof value.a === 'object'
@@ -131,7 +131,7 @@ function candidate(raw: unknown, rev: number, by: string, agent: boolean): Op {
       : value.a;
   return parse(
     OpSchema,
-    { op: value.op, a, rev, by, ...(agent ? { agent } : {}) },
+    { op: value.op, a, rev, by, ...(via ? { agent: true, via } : {}) },
     'Invalid change',
   );
 }
@@ -160,7 +160,7 @@ type Main = {
   queue: QueueRow[];
   commits: Commit[];
   members: Scope['members'];
-  agent: boolean;
+  via: string | null;
 };
 
 async function loadMain(tx: Tx, scope: Scope): Promise<Main> {
@@ -171,7 +171,7 @@ async function loadMain(tx: Tx, scope: Scope): Promise<Main> {
     queue,
     commits,
     members: scope.members,
-    agent: !!scope.tenant.byAgent,
+    via: scope.tenant.viaKey ?? null,
   };
 }
 
@@ -190,7 +190,7 @@ function admit(
     tz,
   ).state;
   return raws.map((raw) => {
-    const op = candidate(raw, rev, by, main.agent);
+    const op = candidate(raw, rev, by, main.via);
     if (op.op === 'addTeam' && state.teams.some((team) => team.id === op.a.id))
       throw new AppError('VALIDATION', `The change does not fit: team ${op.a.id} already exists`);
     const gone = goneNamed(state, main.members, op).map(

@@ -82,12 +82,14 @@ export function createIdentityServices(options: IdentityOptions) {
         !Number.isFinite(Date.parse(token.expiresAt))
       )
         throw new AppError('UNAUTHENTICATED', 'Invalid or expired token');
-      const project = await store.resolveProject(token.userId, token.projectId);
+      // A personal key opens no project here: each tool call names one and passes the same project check.
       const requested = requestedProject(request);
+      const bound = token.kind === 'project' ? token.projectId : requested;
+      const project = bound ? await store.resolveProject(token.userId, bound) : null;
       if (
-        !project ||
-        project.workspaceId !== token.workspaceId ||
-        (requested && requested !== token.projectId)
+        (bound && !project) ||
+        (token.kind === 'project' && project?.workspaceId !== token.workspaceId) ||
+        (requested && requested !== bound)
       )
         throw new AppError('NOT_FOUND', 'Project not found');
       limiter.consume(`token:${token.id}`, 60, now());
@@ -100,8 +102,10 @@ export function createIdentityServices(options: IdentityOptions) {
         kind: 'agent',
         userId: token.userId,
         tokenId: token.id,
-        workspaceId: token.workspaceId,
-        projectId: token.projectId,
+        key: token.kind,
+        keyLabel: token.label,
+        workspaceId: project?.workspaceId ?? token.workspaceId,
+        projectId: bound,
         scopes: [...token.scopes],
         requestId: newRequestId(),
       };

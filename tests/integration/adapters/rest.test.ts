@@ -19,6 +19,8 @@ type RouteModule = Partial<Record<'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', H
 };
 type Reply = { status: number; headers: Headers; body: any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 const expectedRoutes = [
+  '/me/keys',
+  '/me/keys/:tokenId',
   '/projects',
   '/projects/:projectId',
   '/projects/:projectId/agent-tokens',
@@ -190,6 +192,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
       'createdAt',
       'expiresAt',
       'id',
+      'kind',
       'label',
       'lastUsedAt',
       'prefix',
@@ -223,6 +226,59 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('REST adapters', () => {
     expect(
       after.body.items.find((token: { id: string }) => token.id === first.body.token.id).revokedAt,
     ).toBe(revoked.body.revokedAt);
+  });
+  it('creates, lists and revokes personal keys apart from the project keys', async () => {
+    const created = await call('POST', '/me/keys', {
+      label: 'Laptop',
+      scopes: ['project:read', 'crs:merge'],
+      idempotencyKey: 'k1',
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.token).toMatchObject({ kind: 'personal', projectId: null });
+    expect(created.body.secret).toMatch(/^inv_/);
+    await call('POST', `/projects/${projectId}/agent-tokens`, { label: 'P', idempotencyKey: 'k1' });
+    const keys = await call('GET', '/me/keys');
+    expect(keys.body).toMatchObject({ projectId: null });
+    expect(keys.body.items.map((key: { label: string }) => key.label)).toEqual(['Laptop']);
+    const tokens = await call('GET', `/projects/${projectId}/agent-tokens`);
+    expect(tokens.body.items.map((key: { label: string }) => key.label)).toEqual(['P']);
+    expect((await call('POST', '/me/keys', { label: 'Again', idempotencyKey: 'k1' })).status).toBe(
+      409,
+    );
+    expect(
+      (await call('POST', '/me/keys', { label: 'X', projectId, idempotencyKey: 'k2' })).status,
+    ).toBe(400);
+    const projectKey = tokens.body.items[0].id;
+    expect((await call('DELETE', `/me/keys/${projectKey}`, { idempotencyKey: 'r0' })).status).toBe(
+      404,
+    );
+    const revoked = await call('DELETE', `/me/keys/${created.body.token.id}`, {
+      idempotencyKey: 'r1',
+    });
+    expect(revoked.body).toMatchObject({ projectId: null, revokedAt: expect.any(String) });
+    const other = await testActor(t.db);
+    expect(
+      (
+        await call(
+          'DELETE',
+          `/me/keys/${created.body.token.id}`,
+          { idempotencyKey: 'r2' },
+          {
+            cookie: cookieFor(other.userId),
+          },
+        )
+      ).status,
+    ).toBe(404);
+  });
+  it('refuses a personal key with a right its person holds in no project', async () => {
+    const person = await testActor(t.db);
+    const reply = await call(
+      'POST',
+      '/me/keys',
+      { label: 'L', scopes: ['crs:merge'], idempotencyKey: 'n1' },
+      { cookie: cookieFor(person.userId) },
+    );
+    expect(reply).toMatchObject({ status: 400, body: { code: 'VALIDATION' } });
   });
   it('takes the project scope from the route and rejects a different body projectId', async () => {
     const other = (await seedDemo(t.db, ctx)).projectId;

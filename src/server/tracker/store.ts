@@ -20,10 +20,10 @@ export type TrackerRow = typeof trackerProjects.$inferSelect;
 export type CrRow = typeof trackerCrs.$inferSelect;
 export type QueueDbRow = typeof trackerQueue.$inferSelect;
 /**
- * byAgent rides along with every tenant spread; only tables with a byAgent column keep it, so each
- * change request comment records that an agent wrote it for its person.
+ * byAgent and viaKey ride along with every tenant spread; only tables with those columns keep them,
+ * so each change request comment records the key that wrote it for its person.
  */
-export type Tenant = { workspaceId: string; projectId: string; byAgent?: boolean };
+export type Tenant = { workspaceId: string; projectId: string; byAgent?: boolean; viaKey?: string };
 
 const isoOrNull = (value: string | null) => (value === null ? null : toIso(value));
 
@@ -255,6 +255,7 @@ export async function loadCrs(
       body: comment.body,
       opIndex: comment.opIndex,
       agent: comment.byAgent,
+      viaKey: comment.viaKey,
       createdAt: toIso(comment.createdAt),
     })),
   }));

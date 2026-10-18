@@ -10,6 +10,7 @@ const PATHS = {
   panelOpen:
     'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM9 3v18M14 9l3 3-3 3',
   chevron: 'm6 9 6 6 6-6',
+  user: 'M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z',
 } as const;
 export type RailIconName = keyof typeof PATHS;
 

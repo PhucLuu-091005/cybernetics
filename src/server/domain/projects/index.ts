@@ -129,7 +129,7 @@ export async function listProjects(db: Db, ctx: ActorContext): Promise<Project[]
     .where(
       and(
         projectOpenTo(ctx.userId),
-        ctx.kind === 'agent' ? eq(projects.id, ctx.projectId) : undefined,
+        ctx.kind === 'agent' && ctx.projectId ? eq(projects.id, ctx.projectId) : undefined,
       ),
     )
     .orderBy(asc(projects.createdAt), asc(projects.id));

@@ -14,8 +14,7 @@ export function makeDirectory(members: readonly Member[], people: readonly Perso
   const byId = new Map(members.map((m) => [m.id, m]));
   const byName = new Map(members.map((m) => [m.name, m]));
   const personName = new Map(people.map((p) => [p.id, p.name]));
-  const name = (id: string) =>
-    id === 'agent' ? 'Agent' : (byId.get(id)?.name ?? personName.get(id) ?? id);
+  const name = (id: string) => byId.get(id)?.name ?? personName.get(id) ?? id;
   const member = (id: string) => byId.get(id) ?? byName.get(name(id));
   return {
     name,
@@ -41,7 +40,7 @@ export function Avatar({ id, dir, sm }: { id: string; dir: Directory; sm?: boole
       title={dir.name(id)}
       aria-hidden="true"
     >
-      {id === 'agent' ? 'AI' : initials(dir.name(id))}
+      {initials(dir.name(id))}
     </span>
   );
 }

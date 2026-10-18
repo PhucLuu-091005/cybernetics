@@ -4,6 +4,7 @@ import { users } from '../db/schema';
 import type { Db } from '../db/tx';
 import { AppError } from '../errors';
 import { listProjectMembers } from '../tracker/members';
+import { listProjects } from './projects';
 
 export type AccountBadge = { name: string; detail?: string; color?: string };
 
@@ -54,4 +55,23 @@ export async function tokenCreator(db: Db, ctx: ActorContext, projectId: string)
     if (error instanceof AppError && error.code === 'NOT_FOUND') return READER;
     throw error;
   }
+}
+
+/** A personal key may hold a right that its person holds in at least one project; each call checks that project. */
+export async function personalCreator(db: Db, ctx: ActorContext): Promise<Creator> {
+  const creators = await Promise.all(
+    (await listProjects(db, ctx)).map((project) => tokenCreator(db, ctx, project.id)),
+  );
+  return creators.reduce<Creator>(
+    (all, one) => ({
+      member: all.member || one.member,
+      rights: {
+        viewMain: all.rights.viewMain || one.rights.viewMain,
+        create: all.rights.create || one.rights.create,
+        merge: all.rights.merge || one.rights.merge,
+        manage: all.rights.manage || one.rights.manage,
+      },
+    }),
+    { member: false, rights: { viewMain: false, create: false, merge: false, manage: false } },
+  );
 }
