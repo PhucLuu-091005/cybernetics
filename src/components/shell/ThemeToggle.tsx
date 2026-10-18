@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { RailIcon } from './icons';
 
 const THEMES = ['system', 'light', 'dark'] as const;
 type Theme = (typeof THEMES)[number];
@@ -26,12 +27,14 @@ export function ThemeToggle() {
   };
   return (
     <button
-      className="btn"
+      className="rail-item"
       type="button"
       onClick={next}
       aria-label={`Colour theme: ${theme}. Switch theme`}
+      data-label={`Theme: ${theme}`}
     >
-      Theme: {theme}
+      <RailIcon name="theme" />
+      <span className="rail-label">Theme: {theme}</span>
     </button>
   );
 }

@@ -70,10 +70,7 @@ export function DiffView({
   const decisions = changes.filter((change) => change.collection === 'recordDecisions');
   return (
     <>
-      <section className="card pad" aria-labelledby="diff-structural">
-        <h2 id="diff-structural" style={{ marginBottom: 8 }}>
-          Structural changes
-        </h2>
+      <div className="card pad">
         {structural.length === 0 ? (
           <p className="faint" style={{ fontSize: 13 }}>
             No entity changes.
@@ -83,7 +80,7 @@ export function DiffView({
             <table>
               <thead>
                 <tr>
-                  <th>Entity</th>
+                  <th>Item</th>
                   <th>Change</th>
                   <th>Before</th>
                   <th>After</th>
@@ -126,15 +123,15 @@ export function DiffView({
             )}
           </div>
         )}
-      </section>
+      </div>
       <section className="card pad" aria-labelledby="diff-decisions">
-        <h2 id="diff-decisions" style={{ marginBottom: 8 }}>
+        <h4 id="diff-decisions" style={{ marginBottom: 8 }}>
           Record decisions
-        </h2>
+        </h4>
         <ul className="plain-list">
           {decisions.slice(0, MAX_ROWS).map((change) => {
             const decision = change.after as RecordDecision | null,
-              title = names.records[change.id] ?? `record ${change.id.slice(0, 8)}`;
+              title = names.records[change.id] ?? 'a record';
             return (
               <li key={change.id}>
                 {decision === null
@@ -149,7 +146,7 @@ export function DiffView({
           {pendingEvidenceCount !== undefined && pendingEvidenceCount > 0 && (
             <li className="faint">
               Pending, not part of this view: {pendingEvidenceCount}{' '}
-              {pendingEvidenceCount === 1 ? 'record' : 'records'} on main.
+              {pendingEvidenceCount === 1 ? 'record' : 'records'} not reviewed yet.
             </li>
           )}
         </ul>

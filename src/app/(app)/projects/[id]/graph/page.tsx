@@ -22,6 +22,7 @@ import { getProposal } from '../../../../../server/domain/proposals';
 import { AppError } from '../../../../../server/errors';
 import { diffSnapshots } from '../../../../../server/graph/diff';
 import { notFoundOn, requireActor } from '../../../../../server/http/rsc';
+import { reviewQueue } from '../review-count';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Graph · Promise Graph' };
@@ -67,12 +68,13 @@ export default async function GraphPage({
     filters = parseFilters(search);
   const t = search.get('t'),
     T = t && TimestampSchema.safeParse(t).success ? t : undefined;
-  const [view, projects, history] = await Promise.all([
+  const [view, projects, history, queue] = await Promise.all([
     notFoundOn(
       getGraphView(db, actor, { projectId: id, view: { kind: 'main' }, ...(T ? { T } : {}) }),
     ),
     listProjects(db, actor),
     notFoundOn(listHistory(db, actor, { projectId: id, limit: 1 })),
+    notFoundOn(reviewQueue(db, actor, id)),
   ]);
   const project = projects.find((item) => item.id === id);
   if (!project) notFound();
@@ -130,7 +132,7 @@ export default async function GraphPage({
         explicitT={T !== undefined}
         head={head}
         evidenceRevision={view.evidenceRevision}
-        pendingEvidenceCount={view.pendingEvidenceCount}
+        pendingEvidenceCount={queue.pendingRecords}
       />
       <GraphScreen
         key={`screen-main-${view.T}`}
@@ -138,11 +140,12 @@ export default async function GraphPage({
         title={project.title}
         context={view.snapshot.context}
         engine={view.engine}
-        pendingEvidenceCount={view.pendingEvidenceCount}
+        pendingEvidenceCount={queue.pendingRecords}
         sources={view.sources}
         initialFilters={filters}
         escalation={escalation}
         view={{ kind: 'main' }}
+        heading="Approved graph"
         snapshot={view.snapshot}
         edit={{
           kind: 'main',
@@ -207,8 +210,7 @@ async function ProposalGraph({
       <div className="screen" style={{ paddingBottom: 0 }}>
         {requested !== null && Number(requested) !== proposal.revision && (
           <p className="card pad" role="status" style={{ marginBottom: 10, fontSize: 13 }}>
-            You opened revision {requested}; the draft is now at revision {proposal.revision}. This
-            view shows the current revision.
+            This change set changed after you opened the link. This view shows its latest state.
           </p>
         )}
         <ProposalFrame
@@ -221,20 +223,20 @@ async function ProposalGraph({
           actions={
             <>
               <Link className="btn" href={href}>
-                Open proposal
+                Open change set
               </Link>
               <Link className="btn btn-draft" href={`${href}/review`}>
                 Review changes
               </Link>
               <Link className="btn" href={`/projects/${projectId}/graph`}>
-                Main view
+                Approved graph
               </Link>
             </>
           }
         />
         <p className="faint" style={{ fontSize: 12 }}>
-          The violet halo marks loops this proposal changes. Edits in the loop panel go into this
-          draft; main does not change until a person merges it.
+          The violet halo marks loops this change set changes. Edits in the loop panel go into this
+          change set; the approved graph does not change until a person approves it.
         </p>
       </div>
       <GraphScreen
@@ -258,7 +260,7 @@ async function ProposalGraph({
         }}
         changedLoopIds={highlights.loopIds}
         agentActIds={proposal.author.kind === 'agent' ? highlights.actIds : []}
-        heading={`Candidate graph for ${proposal.title}`}
+        heading={`Change set: ${proposal.title}`}
       />
     </>
   );

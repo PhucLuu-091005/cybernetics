@@ -15,17 +15,21 @@ export function InboxList({
   query,
   selectedId,
   timeZone,
+  hrefFor = (r) => inboxHref(projectId, { ...query, r }),
+  emptyText = 'No records in this state for the selected graph.',
 }: {
   projectId: string;
   items: Item[];
   query: InboxQuery;
   selectedId: string | null;
   timeZone: string;
+  hrefFor?: (recordVersionId: string) => string;
+  emptyText?: string;
 }) {
   if (!items.length)
     return (
       <p className="faint card pad" style={{ fontSize: 13 }}>
-        No records in this state for the selected graph.
+        {emptyText}
       </p>
     );
   return (
@@ -34,7 +38,7 @@ export function InboxList({
         <li key={item.recordVersionId}>
           <Link
             className="ritem"
-            href={inboxHref(projectId, { ...query, r: item.recordVersionId })}
+            href={hrefFor(item.recordVersionId)}
             aria-current={item.recordVersionId === selectedId ? 'true' : undefined}
             title={item.header}
           >

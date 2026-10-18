@@ -66,6 +66,7 @@ describe('graph filters', () => {
       departmentIds: [],
       state: null,
       breakdown: null,
+      problems: false,
       milestoneId: null,
       q: '',
       view: 'graph',
@@ -127,5 +128,28 @@ describe('graph filters', () => {
     );
     expect(parseFilters(filtersToSearch(full))).toEqual(full);
     expect(filtersToSearch(parseFilters(new URLSearchParams(''))).toString()).toBe('');
+  });
+
+  it('problems=1 keeps only loops with a breakdown and round-trips through the URL', () => {
+    const filters = parseFilters(new URLSearchParams('problems=1'));
+    expect(filters.problems).toBe(true);
+    expect(filtersToSearch(filters).get('problems')).toBe('1');
+    expect(parseFilters(new URLSearchParams('problems=yes')).problems).toBe(false);
+    expect(filtersToSearch(parseFilters(new URLSearchParams(''))).has('problems')).toBe(false);
+    const withProblems = engine.loops
+      .filter((item) => item.breakdowns.length > 0)
+      .map((item) => item.loop.title)
+      .sort();
+    expect(withProblems.length).toBeGreaterThan(0);
+    expect(titles(visible('problems=1'))).toEqual(withProblems);
+  });
+
+  it('problems=1 combines with a department filter', () => {
+    const query = `problems=1&dept=${dept('Engineering')}`;
+    for (const title of titles(visible(query))) {
+      const derived = engine.loops.find((item) => item.loop.title === title)!;
+      expect(derived.breakdowns.length).toBeGreaterThan(0);
+      expect(derived.loop.performerDepartmentId).toBe(dept('Engineering'));
+    }
   });
 });

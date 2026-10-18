@@ -1,13 +1,11 @@
 'use client';
-import type { PointerEvent } from 'react';
 import type { GraphLayout } from '../../contracts/layout';
 import type { Viewport } from '../../lib/graph-layout';
 
 // A "22 Sept" label needs about 44 px on screen; the T badge is 88 px wide.
 const LABEL_SPACE = 48,
   T_HALF = 44,
-  // A handle needs a few pixels between two others to stay grabbable; under 12 px the borders read as hatching.
-  HANDLE_MIN_DAY = 8,
+  // Under 12 px the day borders read as hatching.
   BORDER_MIN_DAY = 12;
 
 const dayLabel = (date: string) =>
@@ -17,24 +15,19 @@ const dayLabel = (date: string) =>
     timeZone: 'UTC',
   });
 
-/**
- * Day columns only (owner decision, 15 Oct 2026). Each column has a resize handle on its right edge;
- * a double-click on the handle gives the column its default width back.
- */
+/** Day columns only (owner decision, 15 Oct 2026). */
 export function TimeAxis({
   days: columns,
   xT: tAt,
   tLabel,
   viewport,
   width,
-  onResize,
 }: {
   days: GraphLayout['days'];
   xT: number;
   tLabel: string;
   viewport: Viewport;
   width: number;
-  onResize(date: string, width: number | null, done: boolean): void;
 }) {
   const days: { date: string; left: number; width: number; label: boolean; first: boolean }[] = [];
   let lastLabel = -Infinity;
@@ -47,25 +40,6 @@ export function TimeAxis({
     if (label) lastLabel = left;
     days.push({ date, left, width: size, label, first: date.endsWith('-01') });
   }
-  const startResize = (event: PointerEvent<HTMLDivElement>, date: string) => {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    const handle = event.currentTarget,
-      x0 = event.clientX,
-      width0 = columns.find((column) => column.date === date)?.width ?? 0;
-    handle.setPointerCapture(event.pointerId);
-    const widthAt = (clientX: number) => width0 + (clientX - x0) / viewport.zoom;
-    const onMove = (move: globalThis.PointerEvent) => onResize(date, widthAt(move.clientX), false);
-    const onUp = (up: globalThis.PointerEvent) => {
-      handle.removeEventListener('pointermove', onMove);
-      handle.removeEventListener('pointerup', onUp);
-      handle.removeEventListener('pointercancel', onUp);
-      onResize(date, widthAt(up.clientX), true);
-    };
-    handle.addEventListener('pointermove', onMove);
-    handle.addEventListener('pointerup', onUp);
-    handle.addEventListener('pointercancel', onUp);
-  };
   const xT = viewport.x + tAt * viewport.zoom;
   return (
     <div className="time-axis" data-testid="time-axis" style={{ width }}>
@@ -77,17 +51,6 @@ export function TimeAxis({
           style={{ left: day.left, width: day.width }}
         >
           {day.label && <span>{dayLabel(day.date)}</span>}
-          {day.width >= HANDLE_MIN_DAY && (
-            <div
-              className="axis-handle"
-              role="separator"
-              aria-orientation="vertical"
-              aria-label={`Resize ${dayLabel(day.date)}`}
-              title="Drag to resize this day; double-click to reset it"
-              onPointerDown={(event) => startResize(event, day.date)}
-              onDoubleClick={() => onResize(day.date, null, true)}
-            />
-          )}
         </div>
       ))}
       <div className="axis-t" style={{ left: xT - T_HALF, width: T_HALF * 2 }}>

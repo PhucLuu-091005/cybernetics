@@ -24,16 +24,15 @@ const openLoop = async (locator: Locator) => {
   await locator.focus();
   await locator.click();
 };
-const preset = async (page: Page, name: string) => {
-  await controls(page).getByRole('button', { name: 'Zoom level' }).click();
-  await page.getByRole('menuitem', { name }).click();
+const stepZoom = async (page: Page, name: 'Zoom in' | 'Zoom out', times: number) => {
+  for (let i = 0; i < times; i++) await controls(page).getByRole('button', { name }).click();
 };
 
 // The canvas and card tests sign in as their own users, so the spec stays under the per-user read limit of 60 a minute.
 async function signIn(page: Page, label = 'graph') {
   await page.goto(`/signin?label=${label}`);
   await page.getByRole('button', { name: /continue/i }).click();
-  await expect(page.getByText(PROJECT)).toBeVisible();
+  await expect(page.getByText(PROJECT).first()).toBeAttached();
   // Keyboard and wheel handlers attach on hydration; data-ready appears once the client has measured the graph.
   await expect(page.getByRole('group', { name: /promise graph for/i })).toHaveAttribute(
     'data-ready',
@@ -47,8 +46,8 @@ test('sign in reaches the seeded graph in at most 3 clicks and shows proof in on
 }) => {
   await page.goto('/signin?label=graph');
   await page.getByRole('button', { name: /continue/i }).click();
-  await expect(page.getByText('Larkspur Capital, Fund III onboarding')).toBeVisible();
-  await expect(page.getByTestId('main-badge')).toHaveText(/main/i);
+  await expect(page.getByText('Larkspur Capital, Fund III onboarding').first()).toBeVisible();
+  await expect(page.getByTestId('main-badge')).toHaveText(/approved graph/i);
   for (const name of [
     'unanswered request',
     'silent overdue',
@@ -143,6 +142,7 @@ test('list view shows the same loops as the graph with the same filters', async 
   const total = await branches(page).count();
 
   await page.getByRole('searchbox', { name: /search loop titles and quotes/i }).fill('sync');
+  await page.locator('details.filter-pop > summary').click();
   await page
     .getByRole('group', { name: /^side$/i })
     .getByRole('button', { name: 'Vendor' })
@@ -322,11 +322,11 @@ test('a drag on empty canvas moves it; the lane names stay in their column and f
     .poll(() => viewport.evaluate((node) => new DOMMatrix(getComputedStyle(node).transform).e))
     .toBeLessThan(before - 200);
   expect((await boxOf(name)).x).toBe(nameBefore.x);
-  await preset(page, '200%');
+  await stepZoom(page, 'Zoom in', 3);
   await expect.poll(async () => (await boxOf(name)).height).toBeGreaterThan(nameBefore.height);
 });
 
-test('the controls step the zoom, the % menu applies presets, and titles hide under 60 %', async ({
+test('the controls step the zoom, the % is plain text, and titles hide under 60 %', async ({
   page,
 }) => {
   await signIn(page, 'graph-canvas');
@@ -336,20 +336,20 @@ test('the controls step the zoom, the % menu applies presets, and titles hide un
   await controls(page).getByRole('button', { name: 'Zoom out' }).click();
   await controls(page).getByRole('button', { name: 'Zoom out' }).click();
   await expect.poll(() => zoomOf(page)).toBe(0.75);
-  await preset(page, '200%');
+  await stepZoom(page, 'Zoom in', 4);
   await expect.poll(() => zoomOf(page)).toBe(2);
-  await expect(page.getByRole('menu')).toBeHidden();
+  await expect(controls(page).getByLabel('Zoom level')).toHaveText('200%');
+  await expect(controls(page).getByRole('button', { name: 'Zoom level' })).toHaveCount(0);
+  await expect(page.getByRole('menu')).toHaveCount(0);
   await expect(
     page
       .getByTestId('time-axis')
       .getByText(/^\d{1,2} \w+$/)
       .first(),
   ).toBeVisible();
-  await preset(page, '50%');
+  await stepZoom(page, 'Zoom out', 5);
   await expect.poll(() => zoomOf(page)).toBe(0.5);
   await expect(page.locator('text.br-title').first()).toBeHidden();
-  await preset(page, 'Fit this week');
-  await expect.poll(() => zoomOf(page)).toBeGreaterThan(1);
   await controls(page).getByRole('button', { name: 'Fit the project' }).click();
   await expect.poll(() => zoomOf(page)).toBeLessThan(1);
 });
@@ -369,20 +369,10 @@ test('a double-click on a branch zooms to that loop, between 60 % and 150 %', as
   expect(hit.x).toBeLessThan(area.x + area.width);
 });
 
-test('the minimap moves the canvas on a click; full screen enters and exits', async ({ page }) => {
+test('the canvas has no minimap; full screen enters and exits', async ({ page }) => {
   await signIn(page, 'graph-canvas');
-  await controls(page).getByRole('button', { name: 'Minimap' }).click();
-  const map = page.getByRole('img', { name: 'Minimap' });
-  await expect(map).toBeVisible();
-  const viewport = page.locator('.react-flow__viewport');
-  const before = await viewport.evaluate((node) => getComputedStyle(node).transform);
-  const m = await boxOf(map);
-  await page.mouse.click(m.x + 8, m.y + m.height / 2);
-  await expect
-    .poll(() => viewport.evaluate((node) => getComputedStyle(node).transform))
-    .not.toBe(before);
-  await controls(page).getByRole('button', { name: 'Minimap' }).click();
-  await expect(map).toBeHidden();
+  await expect(controls(page).getByRole('button', { name: 'Minimap' })).toHaveCount(0);
+  await expect(page.getByRole('img', { name: 'Minimap' })).toHaveCount(0);
 
   const enabled = await page.evaluate(() => document.fullscreenEnabled);
   if (!enabled) {
@@ -640,45 +630,12 @@ test('a promise split into tasks shows its gateways, its waiting note, its task 
   await expect(rows.filter({ hasText: 'PG-201 CRS form logic' })).toHaveClass(/task-row/);
 });
 
-test('the time axis shows days; weeks and months wait in its menu; a resized day survives a reload and resets', async ({
-  page,
-}) => {
+test('the time axis shows day labels and no axis menu or resize handle', async ({ page }) => {
   await signIn(page, 'graph-days');
   const axis = page.getByTestId('time-axis');
   await expect(axis.getByText(/^\d{1,2} \w+$/).first()).toBeVisible();
-  await page.getByRole('button', { name: 'Time axis: days' }).click();
-  const menu = page.getByRole('menu', { name: 'Time axis' });
-  await expect(menu.getByRole('menuitemradio', { name: /^Days/ })).toHaveAttribute(
-    'aria-checked',
-    'true',
-  );
-  for (const name of ['Weeks', 'Months']) {
-    const item = menu.getByRole('menuitemradio', { name: new RegExp(`^${name}`) });
-    await expect(item).toHaveAttribute('aria-disabled', 'true');
-    await expect(item).toContainText('not implemented yet');
-  }
-  const reset = menu.getByRole('menuitem', { name: 'Reset column widths' });
-  await expect(reset).toHaveAttribute('aria-disabled', 'true');
-  await page.keyboard.press('Escape');
-
-  const date = (await axis.locator('.axis-day').nth(3).getAttribute('data-date'))!;
-  const column = axis.locator(`.axis-day[data-date="${date}"]`);
-  const before = await boxOf(column);
-  const handle = await boxOf(column.locator('.axis-handle'));
-  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(handle.x + 120, handle.y + handle.height / 2, { steps: 6 });
-  await page.mouse.up();
-  await expect.poll(async () => (await boxOf(column)).width).toBeGreaterThan(before.width + 100);
-
-  await page.reload();
-  await expect(graph(page)).toHaveAttribute('data-ready', 'true');
-  await expect.poll(async () => (await boxOf(column)).width).toBeGreaterThan(before.width + 100);
-  await page.getByRole('button', { name: 'Time axis: days' }).click();
-  await reset.click();
-  await expect
-    .poll(async () => Math.abs((await boxOf(column)).width - before.width))
-    .toBeLessThan(2);
+  await expect(page.getByRole('button', { name: 'Time axis: days' })).toHaveCount(0);
+  await expect(axis.getByRole('separator')).toHaveCount(0);
 });
 
 test('the loop list search narrows the list by title or department and keeps a task with its promise', async ({

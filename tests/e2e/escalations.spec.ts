@@ -4,6 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { Pool } from 'pg';
 import { uuidFromKey } from '../../scripts/build-fixtures';
 import { testDatabaseUrl } from '../support/db';
+import { approvedStatus, changeSets, clickApprove } from './review-helpers';
 
 const PROJECT = 'Larkspur Capital, Fund III onboarding';
 const COMPLAINT = 'You promised go-live by 30 September and never told us it slipped.';
@@ -187,17 +188,19 @@ test('an escalation analysis shows verdicts and cited acts, copies and downloads
   await page.reload();
   await expect(answer.getByTestId('approval')).toHaveCount(0);
   await expect(
-    page.getByRole('list', { name: 'Analysis revisions' }).getByRole('listitem'),
+    page.getByRole('list', { name: 'Analysis history' }).getByRole('listitem'),
   ).toHaveCount(2);
   await expect(answer.getByRole('button', { name: 'Approve answer' })).toBeEnabled();
 
-  await page.goto(`/projects/${projectId}/proposals`);
-  await page.getByRole('link', { name: 'Retitle the Dynamics loop as a phase 1 request' }).click();
-  await page.getByRole('link', { name: 'Review changes' }).click();
-  await expect(page.getByRole('button', { name: 'Merge into main' })).toBeVisible();
-  await page.getByRole('checkbox', { name: /still pending review/ }).check();
-  await page.getByRole('button', { name: 'Merge into main' }).click();
-  await expect(page).toHaveURL(/\/history\/[0-9a-f-]{36}$/);
+  await page.goto(`/projects/${projectId}/review`);
+  const phaseOne = changeSets(page).getByRole('link', {
+    name: 'Retitle the Dynamics loop as a phase 1 request',
+  });
+  await phaseOne.click();
+  await expect(phaseOne).toHaveAttribute('aria-current', 'true');
+  await expect(page.getByRole('heading', { level: 2, name: /phase 1 request/ })).toBeVisible();
+  await clickApprove(page);
+  await expect(approvedStatus(page)).toBeVisible();
 
   await page.goto(`/projects/${projectId}/escalations/${escalationId}`);
   await expect(answer.getByTestId('stale-badge')).toHaveText('Stale');
@@ -225,7 +228,7 @@ test('an escalation analysis shows verdicts and cited acts, copies and downloads
   // The sandbox seeds the same complaint with one analysis, so the list holds it twice.
   const rows = page.getByRole('row', { name: new RegExp(COMPLAINT.slice(0, 30)) });
   await expect(rows).toHaveCount(2);
-  await expect(rows.filter({ hasText: 'revision 2' })).toHaveCount(1);
+  await expect(rows.filter({ hasText: '2 analyses' })).toHaveCount(1);
 });
 
 test('agent tokens: default scopes, a secret shown once, revocation, and the MCP config snippet', async ({
@@ -238,7 +241,7 @@ test('agent tokens: default scopes, a secret shown once, revocation, and the MCP
     await expect(form.getByRole('checkbox', { name: new RegExp(`^${scope}`) })).toBeChecked();
   for (const scope of ['graph:merge', 'escalations:write'])
     await expect(form.getByRole('checkbox', { name: new RegExp(`^${scope}`) })).not.toBeChecked();
-  await expect(form).toContainText('Lets this token merge, revert and restore without you.');
+  await expect(form).toContainText('Lets this token approve and undo without you.');
 
   const origin = new URL(page.url()).origin;
   await expect(page.getByTestId('mcp-snippet')).toContainText(`"url": "${origin}/mcp"`);

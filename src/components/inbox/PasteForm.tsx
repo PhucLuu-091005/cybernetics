@@ -106,7 +106,7 @@ export function PasteForm({
       <form className="pad stack" style={{ paddingTop: 0 }} onSubmit={submit}>
         <p className="guarantee">
           <CheckIcon />
-          Importing never changes main.
+          Importing never changes the graph.
         </p>
         <label className="field">
           Source label
@@ -203,11 +203,9 @@ export function PasteForm({
               ),
             )}
             <div className="faint">
-              Evidence revision {receipt.evidenceRevision}.{' '}
               {receipt.mainCommitId === mainCommitId
-                ? 'Main did not change'
-                : 'Main moved since this page loaded, through another merge'}{' '}
-              (commit <span className="id">{receipt.mainCommitId.slice(0, 7)}</span>).
+                ? 'The graph did not change.'
+                : 'The graph changed since this page loaded, through another approval.'}
             </div>
           </div>
         )}

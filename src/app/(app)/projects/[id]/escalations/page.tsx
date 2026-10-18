@@ -53,7 +53,7 @@ export default async function EscalationsPage({
           <p>
             Open a client complaint, then let your agent save claims, cited acts and an answer
             draft. The app derives each verdict from the cited acts, marks an analysis stale when
-            main or the evidence moves, and never sends the answer.
+            the approved graph or the records change, and never sends the answer.
           </p>
         </div>
         <div className="grid2" style={{ alignItems: 'start' }}>
@@ -86,7 +86,7 @@ export default async function EscalationsPage({
                       {escalation.latestAnalysisRevision === null ? (
                         <span className="faint">no analysis yet</span>
                       ) : (
-                        `revision ${escalation.latestAnalysisRevision}`
+                        `${escalation.latestAnalysisRevision} ${escalation.latestAnalysisRevision === 1 ? 'analysis' : 'analyses'}`
                       )}
                     </td>
                   </tr>

@@ -3,10 +3,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { IdSchema } from '../../../../../../contracts';
 import { RecordViewer } from '../../../../../../components/inbox/RecordViewer';
-import { inboxHref } from '../../../../../../components/inbox/links';
+import { pickMyReview, reviewHref } from '../../../../../../components/review-queue/state';
 import { getApp } from '../../../../../../server/app';
 import { resolveView } from '../../../../../../server/domain/graph';
 import { listProjects } from '../../../../../../server/domain/projects';
+import { listProposals } from '../../../../../../server/domain/proposals';
 import { notFoundOn, requireActor } from '../../../../../../server/http/rsc';
 import { loadViewedRecord } from '../viewed-record';
 
@@ -22,9 +23,10 @@ export default async function RecordPage({
   if (!IdSchema.safeParse(id).success || !IdSchema.safeParse(versionId).success) notFound();
   const actor = await requireActor(`/projects/${id}/records/${versionId}`);
   const db = getApp().db;
-  const [main, projects] = await Promise.all([
+  const [main, projects, drafts] = await Promise.all([
     notFoundOn(resolveView(db, actor, id, { kind: 'main' })),
     listProjects(db, actor),
+    notFoundOn(listProposals(db, actor, { projectId: id, status: 'draft', limit: 50 })),
   ]);
   const project = projects.find((item) => item.id === id);
   if (!project) notFound();
@@ -50,19 +52,14 @@ export default async function RecordPage({
           </small>
         </div>
         <span className="sp" />
-        <Link
-          className="btn"
-          href={inboxHref(id, { state: 'pending', proposal: null, r: versionId })}
-        >
-          Review in inbox
+        <Link className="btn" href={reviewHref(id, { tab: 'records', r: versionId })}>
+          Open in Review
         </Link>
       </header>
       <div className="screen">
         <div className="screen-head">
           <h1>Record</h1>
-          <p className="id" title={record.header}>
-            {record.header}
-          </p>
+          <p>The original text of one imported record.</p>
         </div>
         <div className="card pad" style={{ maxWidth: 900 }}>
           <RecordViewer
@@ -71,7 +68,7 @@ export default async function RecordPage({
             state={null}
             decision={decision}
             hints={hints}
-            proposalId={null}
+            proposalId={pickMyReview(drafts.items, actor.userId)?.id ?? null}
             basis={{ mainCommitId: head.mainCommitId, evidenceRevision: head.evidenceRevision }}
           />
         </div>

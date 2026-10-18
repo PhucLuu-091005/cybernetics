@@ -63,7 +63,7 @@ export function AnswerDraft({
       ),
     [analysis.answerText, acts],
   );
-  const pinnedLine = `Analysis revision ${analysis.revision}, pinned graph commit ${analysis.graphCommitId.slice(0, 7)}, evidence revision ${analysis.evidenceRevision}.`;
+  const pinnedLine = `Analysis ${analysis.revision}, graph version ${analysis.graphCommitId.slice(0, 7)}, evidence revision ${analysis.evidenceRevision}.`;
 
   const copy = async () => {
     try {
@@ -120,31 +120,38 @@ export function AnswerDraft({
         )}
         <span style={{ flex: 1 }} />
         <span className="faint" style={{ fontSize: 12 }}>
-          analysis revision {analysis.revision} by {authorLabel}
+          Latest analysis by {authorLabel}
         </span>
       </div>
-      <dl className="kv">
-        <dt>Pinned graph</dt>
-        <dd>
-          <span className="id" data-testid="pinned-commit" title={analysis.graphCommitId}>
-            {analysis.graphCommitId.slice(0, 7)}
-          </span>{' '}
-          <span className="faint">
-            {analysis.graphCommitId === basis.mainCommitId
-              ? 'current main'
-              : `main is now ${basis.mainCommitId.slice(0, 7)}`}
-          </span>
-        </dd>
-        <dt>Pinned evidence</dt>
-        <dd>
-          revision {analysis.evidenceRevision}{' '}
-          <span className="faint">
-            {analysis.evidenceRevision === basis.evidenceRevision
-              ? 'current'
-              : `current is ${basis.evidenceRevision}`}
-          </span>
-        </dd>
-      </dl>
+      <details className="tech">
+        <summary>Technical details</summary>
+        <dl className="kv">
+          <dt>Analysis revision</dt>
+          <dd>{analysis.revision}</dd>
+          <dt>Content hash</dt>
+          <dd className="digest">{analysis.contentHash}</dd>
+          <dt>Pinned graph</dt>
+          <dd>
+            <span className="id" data-testid="pinned-commit" title={analysis.graphCommitId}>
+              {analysis.graphCommitId}
+            </span>{' '}
+            <span className="faint">
+              {analysis.graphCommitId === basis.mainCommitId
+                ? 'Approved graph'
+                : `The approved graph is now ${basis.mainCommitId}`}
+            </span>
+          </dd>
+          <dt>Pinned evidence</dt>
+          <dd>
+            revision {analysis.evidenceRevision}{' '}
+            <span className="faint">
+              {analysis.evidenceRevision === basis.evidenceRevision
+                ? 'current'
+                : `current is ${basis.evidenceRevision}`}
+            </span>
+          </dd>
+        </dl>
+      </details>
       <div className="answer" data-testid="answer">
         {parts.length ? (
           parts.map((part, index) =>
@@ -210,8 +217,8 @@ export function AnswerDraft({
       </p>
       <p className="faint" style={{ fontSize: 12 }}>
         {stale
-          ? `Approval needs current pinned inputs. Ask the agent for a new analysis revision on ${basis.mainCommitId.slice(0, 7)} first. The app never sends the answer.`
-          : 'Approval records your name, the time and the content hash. A new analysis revision clears it. The app never sends the answer.'}
+          ? 'Approval needs current pinned inputs. Ask the agent for a new analysis of the latest approved graph first. The app never sends the answer.'
+          : 'Approval records your name, the time and the content hash. A new analysis clears it. The app never sends the answer.'}
       </p>
     </section>
   );

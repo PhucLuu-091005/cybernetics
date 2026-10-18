@@ -3,9 +3,7 @@ import {
   MAX_ZOOM,
   MIN_ZOOM,
   fitViewport,
-  fitWidth,
   lodOf,
-  minimapViewport,
   nextZoom,
   zoomAround,
 } from '../../../src/lib/graph-layout';
@@ -23,12 +21,6 @@ describe('viewport helpers', () => {
     expect(fitViewport({ x0: 0, x1: 10, y0: 0, y1: 10 }, size, 48, 1.5).zoom).toBe(1.5);
     expect(fitViewport({ x0: 0, x1: 1e6, y0: 0, y1: 10 }, size).zoom).toBe(MIN_ZOOM);
   });
-  it('fits a date range across the width and centres a y', () => {
-    const v = fitWidth(100, 640, 300, size, 32);
-    expect(v.zoom).toBeCloseTo(936 / 540, 5);
-    expect(v.x + 100 * v.zoom).toBeCloseTo(32, 5);
-    expect(v.y + 300 * v.zoom).toBeCloseTo(300, 5);
-  });
   it('steps through the zoom steps', () => {
     expect(nextZoom(1, 1)).toBe(1.25);
     expect(nextZoom(1, -1)).toBe(0.75);
@@ -43,12 +35,5 @@ describe('viewport helpers', () => {
   });
   it('shows titles from 60 % and labels from 80 %', () => {
     expect([lodOf(0.4), lodOf(0.6), lodOf(0.79), lodOf(0.8), lodOf(2)]).toEqual([0, 1, 1, 2, 2]);
-  });
-  it('centres the canvas on a minimap point', () => {
-    const content = { x0: 0, x1: 2200, y0: 0, y1: 1200 };
-    const map = { width: 220, height: 120 };
-    const v = minimapViewport({ x: 110, y: 60 }, map, content, size, 1);
-    expect(v.x + 1100).toBeCloseTo(500, 5);
-    expect(v.y + 600).toBeCloseTo(300, 5);
   });
 });

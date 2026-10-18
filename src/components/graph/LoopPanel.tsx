@@ -250,7 +250,7 @@ function StepEditor({
         disabled={busy || (edit.action === 'type' && type === act.type)}
         onClick={() => onApply(edit.action, value)}
       >
-        Apply to draft
+        Apply to change set
       </button>
       <button className="btn btn-quiet" type="button" onClick={onCancel}>
         Cancel
@@ -402,10 +402,10 @@ export function LoopPanel({
             </select>{' '}
             <span className="faint" style={{ fontSize: 12 }}>
               {!edit.editable
-                ? 'This proposal is not a draft, so it cannot change.'
+                ? 'This change set is closed, so it cannot change.'
                 : onMain
-                  ? 'Main is read-only. A change here creates a proposal from main first.'
-                  : 'Changes go into this draft.'}
+                  ? 'The approved graph is read-only. A change here starts a change set first.'
+                  : 'Changes go into this change set.'}
             </span>
           </dd>
         </dl>
@@ -413,13 +413,13 @@ export function LoopPanel({
           <ConflictBanner
             title={
               edit.failure.status === 409
-                ? 'Conflict: the draft or the evidence changed since this view loaded.'
+                ? 'Conflict: the change set or the records changed since this view loaded.'
                 : 'The edit was not saved.'
             }
             error={edit.failure}
             message={
               edit.failure.status === 409
-                ? 'Nothing changed. Reload to see the current revision, then edit again.'
+                ? 'Nothing changed. Reload to see the latest change set, then edit again.'
                 : undefined
             }
             actions={
@@ -504,12 +504,12 @@ export function LoopPanel({
                         <ul>
                           <li className="hint">
                             {!edit.editable
-                              ? 'This proposal is not a draft.'
+                              ? 'This change set is closed.'
                               : act.quote === null
-                                ? 'Unavailable evidence: edit this act in a proposal from the inbox.'
+                                ? 'Unavailable evidence: edit this act in a change set.'
                                 : onMain
-                                  ? 'Main is read-only. An edit creates a proposal first.'
-                                  : 'Edits go into this draft.'}
+                                  ? 'The approved graph is read-only. An edit starts a change set first.'
+                                  : 'Edits go into this change set.'}
                           </li>
                           {(
                             [
@@ -595,11 +595,10 @@ export function LoopPanel({
         {pendingEvidenceCount > 0 && (
           <Link
             className="btn"
-            href={`/projects/${projectId}/inbox`}
+            href={`/projects/${projectId}/review?tab=records`}
             style={{ alignSelf: 'flex-start' }}
           >
-            Inbox: {pendingEvidenceCount} unreviewed{' '}
-            {pendingEvidenceCount === 1 ? 'record' : 'records'}
+            {pendingEvidenceCount} new {pendingEvidenceCount === 1 ? 'record' : 'records'} to review
           </Link>
         )}
       </div>

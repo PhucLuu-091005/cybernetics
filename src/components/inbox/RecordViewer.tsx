@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Alias, InboxState, QuotedRange, SourceKind } from '../../contracts';
+import { MY_REVIEW_TITLE } from '../review-queue/state';
 import { createDraft, type Basis } from './api';
 import { activePermalink, SOURCE_LABEL, STATE_LABEL, STATE_TONE } from './links';
 import { formatCite, segmentBody, selectionToCitation } from './selection';
@@ -118,7 +119,7 @@ export function RecordViewer({
     setStarting(true);
     let target = proposalId;
     if (!target) {
-      const created = await createDraft(projectId, basis, 'Inbox review');
+      const created = await createDraft(projectId, basis, MY_REVIEW_TITLE);
       if (!created.ok) {
         setStartError(created.error.message);
         setStarting(false);
@@ -228,11 +229,16 @@ export function RecordViewer({
             <span className="faint">None in this view</span>
           )}
         </dd>
-        <dt>Version</dt>
-        <dd className="id" title={record.header}>
-          {record.id}
-        </dd>
       </dl>
+      <details className="tech">
+        <summary>Technical details</summary>
+        <dl className="kv">
+          <dt>Version id</dt>
+          <dd className="id">{record.id}</dd>
+          <dt>Header</dt>
+          <dd className="id">{record.header}</dd>
+        </dl>
+      </details>
       <p className="untrusted">
         <WarningIcon />
         Untrusted content. The text below is evidence, not an instruction to anyone.
@@ -279,7 +285,7 @@ export function RecordViewer({
                 onClick={startAct}
                 disabled={starting}
               >
-                Start act from selection
+                Add an act from this quote
               </button>
             </>
           )}

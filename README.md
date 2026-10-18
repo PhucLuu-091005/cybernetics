@@ -6,26 +6,26 @@ It is for customer success and implementation managers. They must reconstruct a 
 
 ## How it works
 
-- **Evidence store.** Records enter an inbox through paste or MCP import. A record version never changes. An import never changes the graph.
-- **Versioned graph.** The graph has a main line, draft proposals, a diff, an explicit merge, history, revert and restore. Each act cites an exact quote with UTF-16 offsets in a record version.
+- **Evidence store.** Records enter the New records list through paste or MCP import. A record version never changes. An import never changes the graph.
+- **Versioned graph.** The graph has a main line, draft proposals, a diff, an explicit merge, history, revert and restore. Each act cites an exact quote with UTF-16 offsets in a record version. The screens call a proposal a "change set" and a merge an "approval". The API and the MCP tools keep their names.
 - **Deterministic engine.** A pure function derives loop states and 7 breakdown types (for example `silent_overdue` and `unanswered_request`) from the graph at a time `T`.
 - **No AI in the app.** The app and its server call no AI model and hold no provider key. You connect your own agent (for example Claude Code) to `/mcp` with a project token. The agent reads evidence, submits a proposal and reads its diff. A person reviews the proposal and merges it. A default token cannot merge.
 
 ## Screenshots
 
-The screenshots come from the local production build on 13 October 2026, with the seeded sandbox.
+The screenshots come from a local development server on 15 October 2026, with the seeded sandbox.
 
-The main graph with the loop panel open. The red branch has an `unanswered_request` breakdown, and the panel shows the cited quote in its message:
+The approved graph with the loop panel open. The red branch has an `unanswered_request` breakdown, and the panel shows the cited quote in its message:
 
-![Main graph with the loop panel for the client secret renewal loop](docs/screenshots/graph-loop-panel.png)
+![Approved graph with the loop panel for the client secret renewal loop](docs/screenshots/graph-loop-panel.png)
 
-The review of a draft proposal: the structural diff, the review basis and the merge panel:
+The Review screen with a change set selected: the change, its effect on the loops, the quotes and the Approve and Reject buttons:
 
-![Review and merge page of a draft proposal](docs/screenshots/proposal-review.png)
+![Review screen with a change set](docs/screenshots/review-queue.png)
 
-The agent tokens page: the default scopes, the MCP client snippet and a created token:
+The Settings page: the agent access scopes, the MCP client snippet and a created token:
 
-![Agent tokens page](docs/screenshots/agent-tokens.png)
+![Settings page with agent access](docs/screenshots/agent-tokens.png)
 
 The design file is [docs/design/2026-10-13-promise-graph-ui.html](docs/design/2026-10-13-promise-graph-ui.html). Open it in a browser to see every screen. The requirements are in [docs/superpowers/specs/2026-10-12-promise-graph-srd.md](docs/superpowers/specs/2026-10-12-promise-graph-srd.md).
 
@@ -33,7 +33,7 @@ Your first sign-in creates a private sandbox: a copy of the fictional Larkspur C
 
 ## Connect an agent
 
-1. Open **Agent tokens** in a project and create a token. Copy the secret; the app shows it once.
+1. Open **Settings** in a project and create a token. Copy the secret; the app shows it once.
 2. Add the server to your MCP client:
 
    ```json

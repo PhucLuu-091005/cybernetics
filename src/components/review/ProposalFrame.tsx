@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { reviewHref } from '../review-queue/state';
 import type { ActorReference, Proposal } from '../../contracts';
 
 export type ProposalSummary = Pick<
@@ -36,18 +37,15 @@ export function AuthorBadge({
   viewerUserId: string;
   prefix?: string;
 }) {
-  if (author.kind === 'agent')
-    return (
-      <span className="badge b-agent" title={`Token ${author.tokenId}`}>
-        Agent via MCP, token {author.tokenId.slice(0, 8)}
-      </span>
-    );
+  if (author.kind === 'agent') return <span className="badge b-agent">Agent via MCP</span>;
   return (
     <span className="badge" style={{ color: 'var(--ink-2)' }}>
       {prefix}: {author.userId === viewerUserId ? 'you' : 'a workspace member'}
     </span>
   );
 }
+
+const STATUS_LABEL = { draft: 'open', merged: 'approved', closed: 'rejected' } as const;
 
 export function ProposalFrame({
   projectId,
@@ -64,27 +62,13 @@ export function ProposalFrame({
   const stale = proposal.status === 'draft' && proposal.baseCommitId !== mainCommitId;
   const unacknowledged =
     proposal.status === 'draft' && proposal.evidenceRevision !== evidenceRevision;
-  const href = `/projects/${projectId}/proposals/${proposal.id}`;
   return (
     <div className="pframe">
       <div className="pband" aria-hidden="true" />
       <div className="phead">
-        <span className="badge b-draft">Proposal, {proposal.status}</span>
+        <span className="badge b-draft">Change set, {STATUS_LABEL[proposal.status]}</span>
         <Heading style={{ fontSize: 17 }}>{proposal.title}</Heading>
         <span style={{ flex: 1 }} />
-        <span style={{ fontSize: 12 }}>
-          <span className="faint">Based on </span>
-          <span className="id" title={proposal.baseCommitId}>
-            {proposal.baseCommitId.slice(0, 7)}
-          </span>
-          {proposal.baseCommitId === mainCommitId ? (
-            <span className="faint"> (current main)</span>
-          ) : null}
-        </span>
-        <span style={{ fontSize: 12 }}>
-          <span className="faint">Revision </span>
-          <b data-testid="proposal-revision">{proposal.revision}</b>
-        </span>
         <AuthorBadge author={proposal.author} viewerUserId={viewerUserId} />
         {actions}
       </div>
@@ -100,32 +84,34 @@ export function ProposalFrame({
         <div className="pad pnotice">
           {proposal.status === 'merged' && (
             <span>
-              This proposal is merged
+              This change set is approved. It is read-only.
               {proposal.mergedCommitId ? (
                 <>
                   {' '}
-                  as{' '}
                   <Link
                     className="lnk"
                     href={`/projects/${projectId}/history/${proposal.mergedCommitId}`}
                   >
-                    commit {proposal.mergedCommitId.slice(0, 7)}
+                    See it in Activity
                   </Link>
                 </>
               ) : null}
-              . It is read-only.
             </span>
           )}
-          {proposal.status === 'closed' && <span>This proposal is closed. It is read-only.</span>}
-          {stale && <span className="warn">Main moved since this draft was based. </span>}
+          {proposal.status === 'closed' && (
+            <span>This change set is rejected. It is read-only.</span>
+          )}
           {stale && (
             <span>
-              Merging needs a rebase onto current main.
+              The graph changed after this change set was made.
               {rebaseLink && (
                 <>
                   {' '}
-                  <Link className="lnk" href={`${href}/rebase`}>
-                    Preview rebase
+                  <Link
+                    className="lnk"
+                    href={reviewHref(projectId, { tab: 'sets', item: proposal.id })}
+                  >
+                    Update to latest
                   </Link>
                 </>
               )}
@@ -133,13 +119,46 @@ export function ProposalFrame({
           )}
           {unacknowledged && (
             <span>
-              {stale ? ' ' : ''}New evidence arrived at revision {evidenceRevision}; the draft
-              pinned revision {proposal.evidenceRevision}. The next save or an explicit
-              acknowledgement pins it.
+              {stale ? ' ' : ''}New records arrived after this change set was made.{' '}
+              <Link
+                className="lnk"
+                href={reviewHref(projectId, { tab: 'sets', item: proposal.id })}
+              >
+                Refresh it in Review
+              </Link>
+              .
             </span>
           )}
         </div>
       )}
+      <details className="tech pad">
+        <summary>Technical details</summary>
+        <dl className="kv">
+          <dt>Based on version</dt>
+          <dd className="id">
+            {proposal.baseCommitId}
+            {proposal.baseCommitId === mainCommitId ? ' (current)' : ''}
+          </dd>
+          <dt>Change set revision</dt>
+          <dd data-testid="proposal-revision">{proposal.revision}</dd>
+          <dt>Evidence revision</dt>
+          <dd>
+            {proposal.evidenceRevision} (project: {evidenceRevision})
+          </dd>
+          {proposal.mergedCommitId && (
+            <>
+              <dt>Approved as version</dt>
+              <dd className="id">{proposal.mergedCommitId}</dd>
+            </>
+          )}
+          {proposal.author.kind === 'agent' && (
+            <>
+              <dt>Agent token</dt>
+              <dd className="id">{proposal.author.tokenId}</dd>
+            </>
+          )}
+        </dl>
+      </details>
       {children}
     </div>
   );

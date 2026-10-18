@@ -1,16 +1,4 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
-
-export type Preset = 'project' | 'week' | 'month' | 0.5 | 1 | 2;
-const PRESETS: readonly (readonly [Preset, string] | null)[] = [
-  ['project', 'Fit the project'],
-  ['week', 'Fit this week'],
-  ['month', 'Fit this month'],
-  null,
-  [0.5, '50%'],
-  [1, '100%'],
-  [2, '200%'],
-];
 
 const Icon = ({ d }: { d: string }) => (
   <svg
@@ -31,9 +19,7 @@ const Icon = ({ d }: { d: string }) => (
 export function CanvasControls({
   zoom,
   onStep,
-  onPreset,
-  minimap,
-  onMinimap,
+  onFit,
   fullscreen,
   fullscreenEnabled,
   onFullscreen,
@@ -43,9 +29,7 @@ export function CanvasControls({
 }: {
   zoom: number;
   onStep(direction: 1 | -1): void;
-  onPreset(preset: Preset): void;
-  minimap: boolean;
-  onMinimap(): void;
+  onFit(): void;
   fullscreen: boolean;
   fullscreenEnabled: boolean;
   onFullscreen(): void;
@@ -54,60 +38,15 @@ export function CanvasControls({
   listOpen: boolean;
   onList(): void;
 }) {
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onPointer = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointer);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onPointer);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
   return (
-    <div ref={root} className="canvas-controls-wrap">
-      {open && (
-        <div className="canvas-menu" role="menu" aria-label="Zoom presets">
-          {PRESETS.map((item, index) =>
-            item === null ? (
-              <hr key={index} />
-            ) : (
-              <button
-                key={item[1]}
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onPreset(item[0]);
-                  setOpen(false);
-                }}
-              >
-                {item[1]}
-              </button>
-            ),
-          )}
-        </div>
-      )}
+    <div className="canvas-controls-wrap">
       <div className="canvas-controls" role="toolbar" aria-label="Canvas controls">
         <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => onStep(-1)}>
           <Icon d="M5 12h14" />
         </button>
-        <button
-          type="button"
-          className="pct"
-          aria-label="Zoom level"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          onClick={() => setOpen((value) => !value)}
-        >
+        <output className="pct" aria-label="Zoom level">
           {Math.round(zoom * 100)}%
-        </button>
+        </output>
         <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => onStep(1)}>
           <Icon d="M12 5v14M5 12h14" />
         </button>
@@ -122,12 +61,7 @@ export function CanvasControls({
             <Icon d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5" />
           </button>
         )}
-        <button
-          type="button"
-          aria-label="Fit the project"
-          title="Fit the project"
-          onClick={() => onPreset('project')}
-        >
+        <button type="button" aria-label="Fit the project" title="Fit the project" onClick={onFit}>
           <Icon d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3" />
         </button>
         <button
@@ -138,15 +72,6 @@ export function CanvasControls({
           onClick={onList}
         >
           <Icon d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
-        </button>
-        <button
-          type="button"
-          aria-label="Minimap"
-          title="Minimap"
-          aria-pressed={minimap}
-          onClick={onMinimap}
-        >
-          <Icon d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM12 12h6v5h-6z" />
         </button>
         {fullscreenEnabled && (
           <button

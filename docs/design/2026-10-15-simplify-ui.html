@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simpler Promise Graph</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap&subset=vietnamese">
+<style>
+:root {
+  --panel: #ffffff; --surface: #ffffff; --sunk: #fafafa; --ink: #0a0a0a; --ink-2: #525252; --ink-3: #8a8a8a;
+  --rule: #ebebeb; --rule-2: #f2f2f2; --proceed: #16a34a; --route: #2563eb; --danger: #dc2626; --caution: #d97706;
+  --draft: #7c3aed; --proceed-bg: #dcfce7; --route-bg: #dbeafe; --danger-bg: #fee2e2; --caution-bg: #fef3c7; --draft-bg: #ede9fe;
+  --mark: #fef08a; --page: #f4f4f5;
+  --shadow: 0 1px 2px rgba(0,0,0,.05), 0 8px 24px -12px rgba(0,0,0,.18);
+  --f-ui: 'Geist', system-ui, sans-serif; --f-id: 'Geist Mono', ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --panel: #0a0a0a; --surface: #111111; --sunk: #0d0d0d; --ink: #ededed; --ink-2: #b3b3b3; --ink-3: #7a7a7a;
+    --rule: #262626; --rule-2: #1c1c1c; --proceed: #4ade80; --route: #60a5fa; --danger: #f87171; --caution: #fbbf24;
+    --draft: #a78bfa; --proceed-bg: #052e16; --route-bg: #0c1f3d; --danger-bg: #3b0d0d; --caution-bg: #3a2a05; --draft-bg: #2e1065;
+    --mark: #4d3d00; --page: #000000;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 28px -12px rgba(0,0,0,.75);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --panel: #0a0a0a; --surface: #111111; --sunk: #0d0d0d; --ink: #ededed; --ink-2: #b3b3b3; --ink-3: #7a7a7a;
+  --rule: #262626; --rule-2: #1c1c1c; --proceed: #4ade80; --route: #60a5fa; --danger: #f87171; --caution: #fbbf24;
+  --draft: #a78bfa; --proceed-bg: #052e16; --route-bg: #0c1f3d; --danger-bg: #3b0d0d; --caution-bg: #3a2a05; --draft-bg: #2e1065;
+  --mark: #4d3d00; --page: #000000;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 28px -12px rgba(0,0,0,.75);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.5 var(--f-ui); }
+main { max-width: 1180px; margin: 0 auto; padding: 32px 16px 80px; }
+h1 { font-size: 24px; letter-spacing: -.02em; margin: 0 0 6px; }
+h2 { font-size: 18px; letter-spacing: -.01em; margin: 48px 0 6px; }
+h3 { font-size: 14px; margin: 0 0 8px; }
+p.lead { color: var(--ink-2); max-width: 780px; margin: 0 0 16px; }
+.note { color: var(--ink-2); font-size: 13px; max-width: 780px; margin: 0 0 14px; }
+.num { font-family: var(--f-id); color: var(--ink-3); margin-right: 8px; font-weight: 500; }
+.topline { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
+.topline .sp { flex: 1; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
+.frame { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); }
+.cap { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 8px; display: flex; gap: 8px; align-items: center; }
+.cap .tag { text-transform: none; letter-spacing: 0; font-weight: 600; border-radius: 999px; padding: 1px 8px; font-size: 11px; }
+.tag.before { background: var(--danger-bg); color: var(--danger); }
+.tag.after { background: var(--proceed-bg); color: var(--proceed); }
+.ic { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.btn { font: inherit; font-size: 13px; font-weight: 500; display: inline-flex; gap: 6px; align-items: center; padding: 5px 10px; border-radius: 7px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); cursor: pointer; white-space: nowrap; }
+.btn:hover { background: var(--rule-2); }
+.btn-ink { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.btn-ink:hover { background: var(--ink); opacity: .9; }
+.btn-quiet { border-color: transparent; background: transparent; color: var(--ink-2); }
+.btn-danger { color: var(--danger); }
+.badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--rule-2); color: var(--ink-2); white-space: nowrap; }
+.b-agent { background: var(--draft-bg); color: var(--draft); }
+.b-ok { background: var(--proceed-bg); color: var(--proceed); }
+.b-warn { background: var(--caution-bg); color: var(--caution); }
+.b-bad { background: var(--danger-bg); color: var(--danger); }
+.mono { font-family: var(--f-id); font-size: 12px; }
+.faint { color: var(--ink-3); }
+.strike { text-decoration: line-through; text-decoration-color: var(--danger); text-decoration-thickness: 2px; }
+
+/* App shell mock */
+.app { display: grid; grid-template-columns: auto minmax(0, 1fr); min-height: 520px; }
+.rail { width: 212px; background: var(--sunk); border-right: 1px solid var(--rule); padding: 14px 10px; display: flex; flex-direction: column; gap: 12px; transition: width .18s ease; overflow: hidden; }
+.rail.collapsed { width: 56px; }
+.rail a, .rail .item { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 8px; color: var(--ink-2); text-decoration: none; font-weight: 500; white-space: nowrap; position: relative; }
+.rail a:hover { background: var(--rule-2); color: var(--ink); }
+.rail a.on { background: var(--rule-2); color: var(--ink); font-weight: 600; }
+.rail .label { transition: opacity .12s; }
+.rail.collapsed .label, .rail.collapsed .count, .rail.collapsed .foot-note, .rail.collapsed .caret { display: none; }
+.rail .count { margin-left: auto; font-size: 11px; font-weight: 600; background: var(--ink); color: var(--panel); border-radius: 999px; padding: 0 6px; }
+.rail.collapsed .dot::after { content: ""; position: absolute; top: 6px; left: 24px; width: 7px; height: 7px; border-radius: 50%; background: var(--draft); box-shadow: 0 0 0 2px var(--sunk); }
+.proj-switch { display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 8px; border: 1px solid var(--rule); background: var(--surface); white-space: nowrap; cursor: pointer; }
+.rail.collapsed .proj-switch { border-color: transparent; background: transparent; padding: 6px 4px; }
+.avatar { width: 24px; height: 24px; border-radius: 6px; background: var(--ink); color: var(--panel); display: grid; place-items: center; font-weight: 700; font-size: 12px; flex: none; }
+.proj-switch b { font-size: 13px; display: block; line-height: 1.2; }
+.proj-switch small { font-size: 11px; color: var(--ink-3); display: block; line-height: 1.2; }
+.caret { margin-left: auto; color: var(--ink-3); }
+.rail nav { display: flex; flex-direction: column; gap: 2px; }
+.rail .foot { margin-top: auto; display: flex; flex-direction: column; gap: 2px; }
+.foot-note { font-size: 11px; color: var(--ink-3); padding: 4px 8px 8px; white-space: normal; }
+.rail .tip { display: none; }
+.rail.collapsed a:hover .tip, .rail.collapsed .item:hover .tip { display: block; position: absolute; left: 46px; top: 4px; background: var(--ink); color: var(--panel); font-size: 12px; padding: 3px 8px; border-radius: 6px; z-index: 5; white-space: nowrap; }
+.old-rail { width: 212px; background: var(--sunk); border-right: 1px solid var(--rule); padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; }
+.old-rail .group { font-size: 12px; font-weight: 500; color: var(--ink-3); padding: 10px 8px 4px; }
+.old-rail span.it { padding: 5px 8px; border-radius: 8px; color: var(--ink-2); font-weight: 500; }
+.old-rail span.on { background: var(--rule-2); color: var(--ink); font-weight: 600; }
+.old-rail .brand { font-weight: 600; font-size: 15px; padding: 0 8px 6px; }
+.old-rail .foot-note { padding: 12px 8px 0; margin-top: auto; }
+
+.content { min-width: 0; display: flex; flex-direction: column; }
+.topbar { display: flex; align-items: center; gap: 10px 14px; padding: 12px 18px; border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+.topbar b { font-size: 14px; }
+.topbar small { color: var(--ink-3); font-size: 12px; display: block; }
+.topbar .sp { flex: 1; }
+.status { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; padding: 8px 18px; border-bottom: 1px solid var(--rule); font-size: 12px; color: var(--ink-2); }
+.status .sp { flex: 1; }
+.status input { font: inherit; font-size: 12px; padding: 3px 6px; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); color: var(--ink); }
+.pill { background: var(--draft-bg); color: var(--draft); border-radius: 999px; padding: 2px 9px; font-weight: 600; text-decoration: none; font-size: 12px; }
+.filters { display: flex; gap: 8px 12px; flex-wrap: wrap; align-items: center; padding: 8px 18px; border-bottom: 1px solid var(--rule); font-size: 12px; }
+.filters .lbl { color: var(--ink-3); font-weight: 500; margin-right: 4px; }
+.seg { display: inline-flex; background: var(--rule-2); border-radius: 7px; padding: 2px; }
+.seg span { padding: 2px 9px; border-radius: 5px; color: var(--ink-2); font-weight: 500; }
+.seg span.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.chip { border: 1px solid var(--rule); border-radius: 999px; padding: 1px 8px; color: var(--ink-2); }
+.chip.on { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.sel { border: 1px solid var(--rule); border-radius: 6px; padding: 2px 8px; color: var(--ink-2); }
+.search { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rule); border-radius: 7px; padding: 4px 8px; color: var(--ink-3); min-width: 220px; background: var(--surface); }
+.toggle { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rule); border-radius: 7px; padding: 4px 9px; font-weight: 500; cursor: pointer; background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; }
+.toggle[aria-pressed="true"] { background: var(--danger-bg); color: var(--danger); border-color: transparent; }
+.toggle .n { font-weight: 600; }
+.popwrap { position: relative; }
+.popover { position: absolute; top: 34px; left: 0; z-index: 6; width: 300px; background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; box-shadow: var(--shadow); padding: 12px; display: none; }
+.popover.open { display: block; }
+.popover .row { display: grid; grid-template-columns: 92px 1fr; gap: 8px; align-items: start; padding: 5px 0; font-size: 12px; }
+.popover .row > span:first-child { color: var(--ink-3); padding-top: 2px; }
+.popover .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.canvas { position: relative; flex: 1; min-height: 300px; background: linear-gradient(var(--surface), var(--surface)); overflow: hidden; }
+.canvas > svg { width: 100%; height: 100%; display: block; }
+.controls { position: absolute; right: 14px; bottom: 14px; display: flex; gap: 2px; align-items: center; background: var(--surface); border: 1px solid var(--rule); border-radius: 9px; padding: 3px; box-shadow: var(--shadow); font-size: 12px; }
+.controls span { padding: 4px 6px; border-radius: 6px; color: var(--ink-2); display: inline-flex; align-items: center; }
+.controls .pct { font-weight: 600; color: var(--ink); min-width: 40px; justify-content: center; }
+.controls .sep { width: 1px; height: 16px; background: var(--rule); padding: 0; margin: 0 2px; }
+.axismenu { position: absolute; left: 10px; top: 8px; font-size: 12px; border: 1px solid var(--rule); border-radius: 6px; padding: 2px 8px; background: var(--surface); color: var(--ink-2); }
+.minimap { position: absolute; right: 14px; bottom: 56px; width: 120px; height: 66px; border: 1px solid var(--rule); border-radius: 8px; background: var(--sunk); }
+.callout { position: absolute; font-size: 11px; font-weight: 600; color: var(--danger); background: var(--danger-bg); border-radius: 6px; padding: 1px 6px; }
+
+/* Review screen */
+.review { display: grid; grid-template-columns: 330px minmax(0, 1fr); min-height: 560px; }
+.list { border-right: 1px solid var(--rule); display: flex; flex-direction: column; min-width: 0; }
+.tabs { display: flex; gap: 2px; padding: 10px 12px 0; border-bottom: 1px solid var(--rule); }
+.tabs button { font: inherit; font-size: 13px; font-weight: 500; border: 0; background: none; color: var(--ink-2); padding: 6px 8px 9px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs button[aria-selected="true"] { color: var(--ink); font-weight: 600; border-bottom-color: var(--ink); }
+.tabs .c { font-size: 11px; background: var(--rule-2); border-radius: 999px; padding: 0 6px; margin-left: 4px; color: var(--ink-2); }
+.items { list-style: none; margin: 0; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.items li { padding: 9px 10px; border-radius: 8px; cursor: pointer; display: grid; gap: 3px; }
+.items li:hover { background: var(--rule-2); }
+.items li[aria-selected="true"] { background: var(--rule-2); box-shadow: inset 0 0 0 1px var(--rule); }
+.items .t { font-weight: 600; font-size: 13px; line-height: 1.35; }
+.items .m { font-size: 12px; color: var(--ink-3); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.listfoot { margin-top: auto; padding: 10px 12px; border-top: 1px solid var(--rule); }
+.detail { padding: 18px 22px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.detail .head { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+.detail .head h3 { font-size: 16px; margin: 0; flex: 1; min-width: 220px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.box { border: 1px solid var(--rule); border-radius: 10px; padding: 12px 14px; }
+.box h4 { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .05em; }
+.change { display: flex; gap: 10px; align-items: baseline; padding: 4px 0; font-size: 13px; }
+.change .op { font-size: 11px; font-weight: 600; border-radius: 5px; padding: 0 6px; flex: none; }
+.op.add { background: var(--proceed-bg); color: var(--proceed); }
+.op.edit { background: var(--route-bg); color: var(--route); }
+.quote { border-left: 3px solid var(--draft); padding: 6px 10px; background: var(--sunk); border-radius: 0 8px 8px 0; font-size: 13px; color: var(--ink-2); }
+.quote mark { background: var(--mark); color: var(--ink); border-radius: 3px; padding: 0 2px; }
+.effect { font-size: 13px; display: flex; gap: 8px; align-items: center; padding: 3px 0; }
+details { font-size: 12px; color: var(--ink-3); }
+details summary { cursor: pointer; }
+details dl { display: grid; grid-template-columns: 150px 1fr; gap: 2px 10px; margin: 8px 0 0; }
+.banner { border-radius: 10px; padding: 10px 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+.banner.warn { background: var(--caution-bg); color: var(--ink); }
+.banner.bad { background: var(--danger-bg); color: var(--ink); }
+.banner .sp { flex: 1; }
+.record { font-size: 13px; line-height: 1.6; border: 1px solid var(--rule); border-radius: 10px; padding: 12px 14px; }
+.record .from { font-size: 12px; color: var(--ink-3); margin-bottom: 6px; }
+.reason { font: inherit; font-size: 13px; padding: 5px 8px; border: 1px solid var(--rule); border-radius: 7px; background: var(--surface); color: var(--ink); min-width: 200px; flex: 1; }
+[hidden] { display: none !important; }
+
+table.vocab { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; font-size: 13px; }
+table.vocab th, table.vocab td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+table.vocab th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); font-weight: 600; background: var(--sunk); }
+table.vocab tr:last-child td { border-bottom: 0; }
+.cuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.cuts .frame { padding: 14px 16px; }
+.cuts ul { margin: 0; padding-left: 18px; font-size: 13px; color: var(--ink-2); }
+.cuts li { margin: 3px 0; }
+@media (max-width: 760px) {
+  .review { grid-template-columns: minmax(0, 1fr); }
+  .list { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .rail, .old-rail { width: auto !important; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-graph" viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></symbol>
+  <symbol id="i-review" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
+  <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><path d="M8 16h.01M16 16h.01"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5M3 21v-5h5"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/></symbol>
+  <symbol id="i-full" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-gmail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></symbol>
+  <symbol id="i-quote" viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h7"/></symbol>
+</svg>
+
+<main>
+  <div class="topline">
+    <div>
+      <h1>A simpler Promise Graph</h1>
+      <p class="lead">Option B on the seeded Larkspur data. A person does three jobs: <b>look</b> at the graph, <b>review</b> what changed, <b>answer</b> an escalation. The engine, the API, the MCP tools and the data model stay the same. Only the screens and the words change.</p>
+    </div>
+    <span class="sp"></span>
+    <button class="btn" type="button" id="theme"><svg class="ic"><use href="#i-moon"/></svg>Light / dark</button>
+  </div>
+
+  <h2><span class="num">1</span>Sidebar: three jobs, and it folds to icons</h2>
+  <p class="note">The rail shows one project at a time. A switcher at the top changes the project. Settings holds the agent tokens. The button at the bottom folds the rail to icons and opens it again. The app keeps the choice in a cookie, so the page loads at the right width with no jump. On a phone the rail stays a top bar, as today.</p>
+  <div class="pair">
+    <div>
+      <p class="cap"><span class="tag before">Before</span> 2 projects × 6 items</p>
+      <div class="frame" style="display:flex; min-height:470px">
+        <div class="old-rail">
+          <div class="brand">Promise Graph</div>
+          <div class="group">Larkspur Capital</div>
+          <span class="it on">Graph</span><span class="it">Inbox</span><span class="it">Proposals</span><span class="it">History</span><span class="it">Escalations</span><span class="it">Agent tokens</span>
+          <div class="group">Isolation Co</div>
+          <span class="it">Graph</span><span class="it">Inbox</span><span class="it">Proposals</span><span class="it">History</span><span class="it">Escalations</span><span class="it">Agent tokens</span>
+          <div class="foot-note">The app never calls an AI model. Nothing changes the graph until a person merges it.</div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="cap"><span class="tag after">After</span> open and folded. Press the panel button.</p>
+      <div class="frame" style="display:flex; min-height:470px; gap:0">
+        <div class="rail" data-rail>
+          <div class="proj-switch" title="Switch project">
+            <span class="avatar">L</span>
+            <span class="label"><b>Larkspur Capital</b><small>Fund III onboarding</small></span>
+            <svg class="ic caret"><use href="#i-down"/></svg>
+          </div>
+          <nav>
+            <a href="#" class="on"><svg class="ic"><use href="#i-graph"/></svg><span class="label">Graph</span><span class="tip">Graph</span></a>
+            <a href="#" class="dot"><svg class="ic"><use href="#i-review"/></svg><span class="label">Review</span><span class="count">7</span><span class="tip">Review, 7 waiting</span></a>
+            <a href="#"><svg class="ic"><use href="#i-flag"/></svg><span class="label">Escalations</span><span class="tip">Escalations</span></a>
+          </nav>
+          <div class="foot">
+            <div class="foot-note">Nothing changes the graph until a person approves it.</div>
+            <a href="#"><svg class="ic"><use href="#i-settings"/></svg><span class="label">Settings</span><span class="tip">Settings</span></a>
+            <a href="#"><svg class="ic"><use href="#i-moon"/></svg><span class="label">Theme</span><span class="tip">Theme</span></a>
+            <a href="#"><svg class="ic"><use href="#i-out"/></svg><span class="label">Sign out</span><span class="tip">Sign out</span></a>
+            <a href="#" data-fold><svg class="ic"><use href="#i-panel"/></svg><span class="label">Collapse sidebar</span><span class="tip">Expand sidebar</span></a>
+          </div>
+        </div>
+        <div class="rail collapsed" data-rail style="border-left:1px solid var(--rule)">
+          <div class="proj-switch" title="Switch project"><span class="avatar">L</span><span class="label"><b>Larkspur Capital</b><small>Fund III onboarding</small></span><svg class="ic caret"><use href="#i-down"/></svg></div>
+          <nav>
+            <a href="#" class="on"><svg class="ic"><use href="#i-graph"/></svg><span class="label">Graph</span><span class="tip">Graph</span></a>
+            <a href="#" class="dot"><svg class="ic"><use href="#i-review"/></svg><span class="label">Review</span><span class="count">7</span><span class="tip">Review, 7 waiting</span></a>
+            <a href="#"><svg class="ic"><use href="#i-flag"/></svg><span class="label">Escalations</span><span class="tip">Escalations</span></a>
+          </nav>
+          <div class="foot">
+            <div class="foot-note">Nothing changes the graph until a person approves it.</div>
+            <a href="#"><svg class="ic"><use href="#i-settings"/></svg><span class="label">Settings</span><span class="tip">Settings</span></a>
+            <a href="#"><svg class="ic"><use href="#i-moon"/></svg><span class="label">Theme</span><span class="tip">Theme</span></a>
+            <a href="#"><svg class="ic"><use href="#i-out"/></svg><span class="label">Sign out</span><span class="tip">Sign out</span></a>
+            <a href="#" data-fold><svg class="ic"><use href="#i-panel"/></svg><span class="label">Collapse sidebar</span><span class="tip">Expand sidebar</span></a>
+          </div>
+        </div>
+        <div style="flex:1; display:grid; place-items:center; color:var(--ink-3); font-size:12px; padding:16px; text-align:center">Folded: 56 px, icons and a tooltip on hover.<br>A violet dot on Review means items wait.</div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="num">2</span>Graph screen: fewer words, fewer controls</h2>
+  <p class="note">The header drops the commit id, the evidence revision, the keyboard hint and the "Create proposal" button. One line tells who changed the graph last and links to the activity list. The filters fold into one "Filter" button next to search and "Problems only". The canvas keeps zoom, fit and full screen.</p>
+  <p class="cap"><span class="tag before">Before</span></p>
+  <div class="frame">
+    <div class="topbar"><div><b>Larkspur Capital, Fund III onboarding</b><small>Larkspur Capital project, time zone Asia/Ho_Chi_Minh</small></div><span class="sp"></span><span class="faint" style="font-size:12px">Keyboard: Tab moves through milestones then loops, Enter opens, ← → step through acts, Esc closes</span></div>
+    <div class="status"><span class="badge">🔒 Main, read-only</span><span>Head commit <span class="mono">3f9c2a1</span> merge 9 Oct 17:40 by Minh Trần</span><span>Evidence revision <b>7</b></span><a class="pill" href="#">4 new records awaiting review</a><span class="sp"></span><span>Evaluate at <input value="2026-10-09 18:00"></span><span class="btn btn-ink">Create proposal</span></div>
+    <div class="filters">
+      <span><span class="lbl">Side</span><span class="seg"><span class="on">All</span><span>Vendor</span><span>Client</span></span></span>
+      <span><span class="lbl">Departments</span> <span class="chip on">Implementation</span> <span class="chip on">Digitization</span> <span class="chip on">Solutions Eng.</span> <span class="chip on">Engineering</span> <span class="chip on">Digitization QA</span> <span class="chip on">Customer Success</span> <span class="chip on">Fund Ops</span> <span class="chip on">Legal</span> <span class="chip on">IT</span></span>
+      <span><span class="lbl">State</span><span class="sel">Any ▾</span></span>
+      <span><span class="lbl">Breakdown</span><span class="sel">Any ▾</span></span>
+      <span><span class="lbl">Milestone</span><span class="sel">Any ▾</span></span>
+      <span class="search"><svg class="ic"><use href="#i-search"/></svg>Search titles and quotes</span>
+      <span class="seg" style="margin-left:auto"><span class="on">Graph</span><span>List</span></span>
+    </div>
+    <div class="canvas" style="height:200px">
+      <span class="axismenu">Days ▾ <span class="faint">(Weeks, Months: not implemented yet)</span></span>
+      <svg viewBox="0 0 1000 200" preserveAspectRatio="none" aria-hidden="true">
+        <g stroke="var(--rule)">
+          <line x1="0" y1="66" x2="1000" y2="66"/><line x1="0" y1="133" x2="1000" y2="133"/>
+          <line x1="300" y1="0" x2="300" y2="200" stroke-dasharray="3 3"/><line x1="380" y1="0" x2="380" y2="200" stroke-dasharray="3 3"/><line x1="460" y1="0" x2="460" y2="200" stroke-dasharray="3 3"/>
+        </g>
+        <line x1="40" y1="100" x2="960" y2="100" stroke="var(--ink)" stroke-width="3"/>
+        <path d="M200 100 C240 100 240 50 280 50 L640 50" stroke="var(--danger)" stroke-width="2" fill="none"/>
+        <path d="M420 100 C460 100 460 160 500 160 L820 160" stroke="var(--proceed)" stroke-width="2" fill="none"/>
+      </svg>
+      <span class="callout" style="left:384px; top:34px">↔ drag to resize each day</span>
+      <div class="minimap"></div>
+      <div class="controls"><span><svg class="ic"><use href="#i-minus"/></svg></span><span class="pct">100% ▾</span><span><svg class="ic"><use href="#i-plus"/></svg></span><span class="sep"></span><span><svg class="ic"><use href="#i-refresh"/></svg></span><span><svg class="ic"><use href="#i-fit"/></svg></span><span>▣</span><span><svg class="ic"><use href="#i-full"/></svg></span></div>
+    </div>
+  </div>
+
+  <p class="cap" style="margin-top:18px"><span class="tag after">After</span> press "Filter" and "Problems only"</p>
+  <div class="frame">
+    <div class="topbar"><div><b>Larkspur Capital, Fund III onboarding</b><small>Time zone Asia/Ho_Chi_Minh</small></div><span class="sp"></span>
+      <a class="pill" href="#">4 new records to review</a>
+    </div>
+    <div class="status">
+      <span class="badge b-ok"><svg class="ic" style="width:12px;height:12px"><use href="#i-check"/></svg>Approved graph</span>
+      <span>Last change 9 Oct 17:40 by Minh Trần · <a href="#" style="color:var(--route); text-decoration:none"><svg class="ic" style="width:12px;height:12px; vertical-align:-2px"><use href="#i-history"/></svg> Activity</a></span>
+      <span class="sp"></span>
+      <span>As of <input value="2026-10-09 18:00"></span>
+    </div>
+    <div class="filters">
+      <span class="search"><svg class="ic"><use href="#i-search"/></svg>Search loops and quotes</span>
+      <button class="toggle" type="button" id="problems" aria-pressed="false"><svg class="ic"><use href="#i-alert"/></svg>Problems only <span class="n">7</span></button>
+      <span class="popwrap">
+        <button class="toggle" type="button" id="filterbtn"><svg class="ic"><use href="#i-filter"/></svg>Filter</button>
+        <div class="popover" id="filterpop">
+          <div class="row"><span>Side</span><span class="seg"><span class="on">All</span><span>Vendor</span><span>Client</span></span></div>
+          <div class="row"><span>Departments</span><span class="chips"><span class="chip on">Implementation</span><span class="chip on">Digitization</span><span class="chip on">Engineering</span><span class="chip">+6</span></span></div>
+          <div class="row"><span>State</span><span class="sel">Any ▾</span></div>
+          <div class="row"><span>Problem type</span><span class="sel">Any ▾</span></div>
+          <div class="row"><span>Milestone</span><span class="sel">Any ▾</span></div>
+          <div style="display:flex; justify-content:flex-end; margin-top:6px"><span class="btn btn-quiet">Clear</span></div>
+        </div>
+      </span>
+      <span class="seg" style="margin-left:auto"><span class="on">Graph</span><span>List</span></span>
+    </div>
+    <div class="canvas" style="height:220px">
+      <svg viewBox="0 0 1000 220" preserveAspectRatio="none" aria-hidden="true" id="aftergraph">
+        <g stroke="var(--rule)"><line x1="0" y1="73" x2="1000" y2="73"/><line x1="0" y1="146" x2="1000" y2="146"/></g>
+        <line x1="40" y1="110" x2="960" y2="110" stroke="var(--ink)" stroke-width="3"/>
+        <path d="M200 110 C240 110 240 50 280 50 L640 50" stroke="var(--danger)" stroke-width="2.5" fill="none"/>
+        <path class="ok" d="M420 110 C460 110 460 175 500 175 L820 175" stroke="var(--proceed)" stroke-width="2" fill="none"/>
+        <path class="ok" d="M520 110 C560 110 560 85 600 85 L760 85" stroke="var(--proceed)" stroke-width="2" fill="none"/>
+      </svg>
+      <div class="controls"><span><svg class="ic"><use href="#i-minus"/></svg></span><span class="pct">100%</span><span><svg class="ic"><use href="#i-plus"/></svg></span><span class="sep"></span><span><svg class="ic"><use href="#i-fit"/></svg></span><span><svg class="ic"><use href="#i-full"/></svg></span></div>
+    </div>
+  </div>
+
+  <h2><span class="num">3</span>Review: one queue for new records and change sets</h2>
+  <p class="note">Inbox and Proposals become one screen. The left list has two tabs. A change set shows what it changes in plain sentences, what that does to the loops, and the quotes it cites. "Approve" puts it on the graph. Click the items on the left to see each state.</p>
+  <div class="frame">
+    <div class="topbar"><div><b>Review</b><small>Larkspur Capital, Fund III onboarding</small></div><span class="sp"></span><span class="btn"><svg class="ic"><use href="#i-plus"/></svg>New change set</span></div>
+    <div class="review">
+      <div class="list">
+        <div class="tabs" role="tablist">
+          <button role="tab" aria-selected="true" data-tab="sets">Change sets<span class="c">3</span></button>
+          <button role="tab" aria-selected="false" data-tab="records">New records<span class="c">4</span></button>
+        </div>
+        <ul class="items" data-list="sets">
+          <li aria-selected="true" data-item="agent"><span class="t">Add Sarah's follow-up on the incident report</span><span class="m"><span class="badge b-agent"><svg class="ic" style="width:11px;height:11px"><use href="#i-bot"/></svg>Agent</span>2 changes · 9 Oct 18:20 <span class="badge b-ok">Ready</span></span></li>
+          <li data-item="stale"><span class="t">Retitle the Dynamics loop as a phase 1 request</span><span class="m">Minh Trần · 1 change · 9 Oct 15:02 <span class="badge b-warn">Needs update</span></span></li>
+          <li data-item="conflict"><span class="t">Retitle the Dynamics loop with the SOW scope</span><span class="m">Daniel Reyes · 1 change · 9 Oct 15:10 <span class="badge b-warn">Needs update</span></span></li>
+        </ul>
+        <ul class="items" data-list="records" hidden>
+          <li data-item="rec"><span class="t">Missing investors after the sync failure</span><span class="m"><svg class="ic" style="width:12px;height:12px"><use href="#i-gmail"/></svg>Sarah Kim · 9 Oct 14:20</span></li>
+          <li data-item="rec"><span class="t">Dynamics sync scope</span><span class="m"><svg class="ic" style="width:12px;height:12px"><use href="#i-gmail"/></svg>Sarah Kim · 8 Oct 09:10</span></li>
+          <li data-item="rec"><span class="t">Go-live slip</span><span class="m"><svg class="ic" style="width:12px;height:12px"><use href="#i-gmail"/></svg>Sarah Kim · 7 Oct 08:30</span></li>
+          <li data-item="rec"><span class="t">Automatic reply: out of office</span><span class="m"><svg class="ic" style="width:12px;height:12px"><use href="#i-gmail"/></svg>Tom Becker · 22 Sep 09:25</span></li>
+        </ul>
+        <div class="listfoot faint" style="font-size:12px">Closed and approved change sets are in <a href="#" style="color:var(--route); text-decoration:none">Activity</a>.</div>
+      </div>
+
+      <div class="detail" data-detail="agent">
+        <div class="head">
+          <h3>Add Sarah's follow-up on the incident report</h3>
+          <div class="actions">
+            <span class="btn"><svg class="ic"><use href="#i-graph"/></svg>View on graph</span>
+            <span class="btn"><svg class="ic"><use href="#i-pencil"/></svg>Edit</span>
+            <span class="btn btn-danger"><svg class="ic"><use href="#i-x"/></svg>Reject</span>
+            <span class="btn btn-ink"><svg class="ic"><use href="#i-check"/></svg>Approve</span>
+          </div>
+        </div>
+        <div class="faint" style="font-size:13px; margin-top:-8px"><span class="badge b-agent"><svg class="ic" style="width:11px;height:11px"><use href="#i-bot"/></svg>Agent via MCP</span> "The 9 October email asks where the promised root cause report is."</div>
+        <div class="box">
+          <h4>What changes</h4>
+          <div class="change"><span class="op add">Add</span><span>Follow-up by <b>Sarah Kim</b> on <b>Sync incident report</b>, 9 Oct 14:20</span></div>
+          <div class="change"><span class="op add">Use</span><span>Record "Missing investors after the sync failure" as evidence</span></div>
+        </div>
+        <div class="box">
+          <h4>Effect on the loops</h4>
+          <div class="effect"><span class="badge b-bad">Silent overdue</span> Sync incident report: still overdue, now with a follow-up from the client</div>
+        </div>
+        <div class="box">
+          <h4>Quote</h4>
+          <div class="quote">Daniel, The sync dropped 40 investors and nobody told us for a week. <mark>Where is the root cause report you promised?</mark></div>
+          <div class="faint" style="font-size:12px; margin-top:6px"><svg class="ic" style="width:12px;height:12px; vertical-align:-2px"><use href="#i-gmail"/></svg> Sarah Kim, Gmail, 9 Oct 14:20</div>
+        </div>
+        <div class="faint" style="font-size:12px">4 new records are not reviewed yet. You can approve this change set before them.</div>
+        <details><summary>Technical details</summary>
+          <dl><dt>Based on version</dt><dd class="mono">3f9c2a1 (current)</dd><dt>Change set revision</dt><dd>2</dd><dt>Evidence revision</dt><dd>7</dd><dt>Review digest</dt><dd class="mono">sha256:9b1e…40af</dd></dl>
+        </details>
+      </div>
+
+      <div class="detail" data-detail="stale" hidden>
+        <div class="head"><h3>Retitle the Dynamics loop as a phase 1 request</h3>
+          <div class="actions"><span class="btn"><svg class="ic"><use href="#i-pencil"/></svg>Edit</span><span class="btn btn-danger"><svg class="ic"><use href="#i-x"/></svg>Reject</span><span class="btn btn-ink" style="opacity:.4">Approve</span></div></div>
+        <div class="banner warn"><svg class="ic"><use href="#i-refresh"/></svg><span>The graph changed after Minh made this change set. Nothing conflicts.</span><span class="sp"></span><span class="btn btn-ink">Update to latest</span></div>
+        <div class="box"><h4>What changes</h4><div class="change"><span class="op edit">Rename</span><span>Loop <b>Dynamics CRM sync scope</b> to <b>Dynamics CRM sync in phase 1</b></span></div></div>
+        <p class="faint" style="font-size:12px; margin:0">After "Update to latest" the app reloads this change set. Check it again, then approve. Today this needs the rebase page, a fresh review and a commit message.</p>
+      </div>
+
+      <div class="detail" data-detail="conflict" hidden>
+        <div class="head"><h3>Retitle the Dynamics loop with the SOW scope</h3>
+          <div class="actions"><span class="btn btn-danger"><svg class="ic"><use href="#i-x"/></svg>Reject</span><span class="btn btn-ink" style="opacity:.4">Approve</span></div></div>
+        <div class="banner bad"><svg class="ic"><use href="#i-alert"/></svg><span>Another approved change renamed the same loop. Pick which title stays.</span><span class="sp"></span><span class="btn btn-ink">Resolve conflict</span></div>
+        <div class="box"><h4>What changes</h4><div class="change"><span class="op edit">Rename</span><span>Loop <b>Dynamics CRM sync scope</b> to <b>Dynamics CRM sync scope (SOW phase 2)</b></span></div></div>
+      </div>
+
+      <div class="detail" data-detail="rec" hidden>
+        <div class="head"><h3>Missing investors after the sync failure</h3></div>
+        <div class="record"><div class="from"><svg class="ic" style="width:12px;height:12px; vertical-align:-2px"><use href="#i-gmail"/></svg> Sarah Kim &lt;sarah.kim@larkspur.example&gt; · Gmail · 9 Oct 14:20</div>
+          Daniel,<br>The sync dropped 40 investors and nobody told us for a week. Where is the root cause report you promised?</div>
+        <div class="box">
+          <h4>What to do with it</h4>
+          <div class="actions" style="margin-bottom:8px"><span class="btn btn-ink"><svg class="ic"><use href="#i-quote"/></svg>Select a quote to add an act</span></div>
+          <div class="actions"><input class="reason" placeholder="Reason to ignore, for example: auto-reply"><span class="btn">Ignore</span></div>
+          <p class="faint" style="font-size:12px; margin:8px 0 0">Your decisions go into your change set "My review". The graph changes when you approve it.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="num">4</span>Words on screen</h2>
+  <p class="note">Only the screen text changes. The REST API, the MCP tools, the database and the docs for agents keep the old names, so connected agents need no change.</p>
+  <table class="vocab">
+    <thead><tr><th>Today</th><th>After</th><th>Where</th></tr></thead>
+    <tbody>
+      <tr><td>Main, read-only</td><td>Approved graph</td><td>Graph header</td></tr>
+      <tr><td>Proposal, draft</td><td>Change set, open</td><td>Everywhere</td></tr>
+      <tr><td>Merge into main</td><td>Approve</td><td>Review</td></tr>
+      <tr><td>Close proposal</td><td>Reject</td><td>Review</td></tr>
+      <tr><td>Commit, head commit <span class="mono">3f9c2a1</span></td><td>Version, "Last change … by …"</td><td>Graph header, Activity</td></tr>
+      <tr><td>History</td><td>Activity</td><td>Link in the graph header</td></tr>
+      <tr><td>Revert</td><td>Undo this change</td><td>Activity</td></tr>
+      <tr><td>Restore</td><td>Go back to this version</td><td>Activity</td></tr>
+      <tr><td>Rebase, stale, rebase needed</td><td>Update to latest, Needs update</td><td>Review</td></tr>
+      <tr><td>Evidence revision, acknowledge evidence revision 8</td><td>Hidden. "New records arrived. Refresh."</td><td>Review</td></tr>
+      <tr><td>Evaluate at (T)</td><td>As of</td><td>Graph header</td></tr>
+      <tr><td>Breakdown</td><td>Problem</td><td>Filter, loop panel</td></tr>
+      <tr><td>Include in proposal / Ignore in proposal</td><td>Select a quote to add an act / Ignore</td><td>Review, new record</td></tr>
+      <tr><td>Commit message (required field)</td><td>Hidden. The app uses the change set title.</td><td>Review</td></tr>
+      <tr><td>Review basis card (hashes, digest)</td><td>"Technical details", closed</td><td>Review</td></tr>
+    </tbody>
+  </table>
+
+  <h2><span class="num">5</span>What goes away, what stays</h2>
+  <div class="cuts">
+    <div class="frame"><h3>Removed from the screen</h3><ul>
+      <li>Inbox, Proposals and History in the sidebar</li>
+      <li>Second project block in the sidebar (a switcher replaces it)</li>
+      <li>Keyboard hint line in the graph header</li>
+      <li>Head commit id and evidence revision in headers</li>
+      <li>"Create proposal" on the graph (now "New change set" in Review)</li>
+      <li>Axis menu with Weeks and Months marked "not implemented yet"</li>
+      <li>Resizable day columns and "Reset column widths" (PR #13)</li>
+      <li>Zoom preset menu and minimap</li>
+      <li>"I understand N records are pending" checkbox before approve</li>
+    </ul></div>
+    <div class="frame"><h3>Moved, not removed</h3><ul>
+      <li>Side, departments, state, problem type, milestone: in "Filter"</li>
+      <li>Agent tokens: in Settings</li>
+      <li>History: in Activity, linked from the graph header</li>
+      <li>Rebase page: opens only on a conflict, as "Resolve conflict"</li>
+      <li>Change set editor: opens from "Edit"</li>
+      <li>Review basis: in "Technical details"</li>
+    </ul></div>
+    <div class="frame"><h3>Not changed</h3><ul>
+      <li>Engine, loop states and the 7 problem types</li>
+      <li>Every act cites an exact quote</li>
+      <li>Agents only propose; a person approves</li>
+      <li>Merge checks: the same version, revision and digest as today</li>
+      <li>REST API, MCP tools, database, fixtures</li>
+      <li>Escalations screen, loop panel, event cards</li>
+    </ul></div>
+  </div>
+</main>
+<script>
+(() => {
+  const root = document.documentElement;
+  document.getElementById('theme').addEventListener('click', () => {
+    const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    root.dataset.theme = dark ? 'light' : 'dark';
+  });
+  document.querySelectorAll('[data-fold]').forEach((link) => link.addEventListener('click', (event) => {
+    event.preventDefault();
+    const rail = link.closest('[data-rail]');
+    rail.classList.toggle('collapsed');
+    link.querySelector('.tip').textContent = rail.classList.contains('collapsed') ? 'Expand sidebar' : 'Collapse sidebar';
+  }));
+  document.querySelectorAll('.rail a:not([data-fold])').forEach((link) => link.addEventListener('click', (event) => event.preventDefault()));
+  const pop = document.getElementById('filterpop');
+  document.getElementById('filterbtn').addEventListener('click', () => pop.classList.toggle('open'));
+  const problems = document.getElementById('problems');
+  problems.addEventListener('click', () => {
+    const on = problems.getAttribute('aria-pressed') !== 'true';
+    problems.setAttribute('aria-pressed', String(on));
+    document.querySelectorAll('#aftergraph .ok').forEach((path) => { path.style.opacity = on ? '.12' : '1'; });
+  });
+  const show = (key) => {
+    document.querySelectorAll('[data-detail]').forEach((pane) => { pane.hidden = pane.dataset.detail !== key; });
+  };
+  document.querySelectorAll('[data-item]').forEach((item) => item.addEventListener('click', () => {
+    document.querySelectorAll('[data-item]').forEach((other) => other.setAttribute('aria-selected', 'false'));
+    item.setAttribute('aria-selected', 'true');
+    show(item.dataset.item);
+  }));
+  document.querySelectorAll('[data-tab]').forEach((tab) => tab.addEventListener('click', () => {
+    document.querySelectorAll('[data-tab]').forEach((other) => other.setAttribute('aria-selected', String(other === tab)));
+    document.querySelectorAll('[data-list]').forEach((list) => { list.hidden = list.dataset.list !== tab.dataset.tab; });
+    const first = document.querySelector(`[data-list="${tab.dataset.tab}"] [data-item]`);
+    first.click();
+  }));
+})();
+</script>
+</body>
+</html>

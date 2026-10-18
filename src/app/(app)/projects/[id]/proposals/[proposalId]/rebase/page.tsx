@@ -22,7 +22,7 @@ import { diffSnapshots } from '../../../../../../../server/graph/diff';
 import { notFoundOn, requireActor } from '../../../../../../../server/http/rsc';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Rebase · Promise Graph' };
+export const metadata: Metadata = { title: 'Resolve conflict · Promise Graph' };
 
 export default async function RebasePage({
   params,
@@ -44,8 +44,7 @@ export default async function RebasePage({
 
   let preview: RebasePreview | null = null,
     problem: string | null = null;
-  if (proposal.status !== 'draft')
-    problem = `This proposal is ${proposal.status}. Only a draft can be rebased.`;
+  if (proposal.status !== 'draft') problem = 'This change set is no longer open.';
   else {
     try {
       preview = await previewRebase(db, actor, {
@@ -59,11 +58,11 @@ export default async function RebasePage({
     } catch (error) {
       if (!(error instanceof AppError) || error.code !== 'CONFLICT') throw error;
       problem =
-        'Main, the draft or the evidence changed while the preview loaded. Reload the page.';
+        'The graph, the change set or the records changed while the preview loaded. Reload the page.';
     }
   }
 
-  let body: React.ReactNode = <ConflictBanner title="No rebase preview." message={problem} />;
+  let body: React.ReactNode = <ConflictBanner title="No preview." message={problem} />;
   if (preview) {
     const base =
       preview.baseCommitId === main.project.mainCommitId
@@ -104,14 +103,27 @@ export default async function RebasePage({
     body = (
       <>
         <p style={{ fontSize: 13, color: 'var(--ink-2)', marginBottom: 12, maxWidth: '72ch' }}>
-          Base <span className="id">{preview.baseCommitId.slice(0, 7)}</span>, main{' '}
-          <span className="id">{preview.mainCommitId.slice(0, 7)}</span>, proposal revision{' '}
-          {preview.proposalRevision}. One-sided changes are kept.{' '}
+          The approved graph changed after this change set was made. Changes made on one side only
+          are kept.{' '}
           {preview.conflicts.length
-            ? `${preview.conflicts.length} ${preview.conflicts.length === 1 ? 'entity changed' : 'entities changed'} on both sides, so you choose.`
+            ? `${preview.conflicts.length} ${preview.conflicts.length === 1 ? 'item changed' : 'items changed'} on both sides, so you choose.`
             : ''}{' '}
-          Nothing is dropped and nothing is merged until a fresh review.
+          Nothing is dropped, and nothing reaches the approved graph until you check the changes
+          again and approve.
         </p>
+        <details className="tech" style={{ marginBottom: 12 }}>
+          <summary>Technical details</summary>
+          <dl className="kv">
+            <dt>Based on version</dt>
+            <dd className="id">{preview.baseCommitId}</dd>
+            <dt>Approved graph now</dt>
+            <dd className="id">{preview.mainCommitId}</dd>
+            <dt>Change set revision</dt>
+            <dd>{preview.proposalRevision}</dd>
+            <dt>Evidence revision</dt>
+            <dd>{preview.evidenceRevision}</dd>
+          </dl>
+        </details>
         <OmittedRecordsNote omitted={wanted.omitted} />
         <RebaseConflictView
           key={preview.digest}
@@ -138,7 +150,7 @@ export default async function RebasePage({
       </header>
       <div className="screen">
         <div className="screen-head">
-          <h1>Rebase onto current main</h1>
+          <h1>Resolve conflict</h1>
         </div>
         <ProposalFrame
           projectId={id}

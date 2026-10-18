@@ -1,6 +1,6 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import type { CommitPreview, CommitReceipt, Proposal } from '../../contracts';
 import { send, type ApiError, type Basis } from '../inbox/api';
 import { ConflictBanner } from '../review/ConflictBanner';
@@ -63,9 +63,7 @@ export function RevertRestorePreview({
     }
     setPreview(result.data);
     setMessage(
-      kind === 'revert'
-        ? `Revert ${quoted(target.message)}`
-        : `Restore graph as of ${quoted(target.message)}`,
+      kind === 'revert' ? `Undo ${quoted(target.message)}` : `Go back to ${quoted(target.message)}`,
     );
   };
   const apply = async () => {
@@ -123,7 +121,7 @@ export function RevertRestorePreview({
           aria-pressed={preview?.kind === 'revert'}
           onClick={() => load('revert')}
         >
-          Preview revert
+          Preview undo
         </button>
         <button
           className="btn"
@@ -132,23 +130,21 @@ export function RevertRestorePreview({
           aria-pressed={preview?.kind === 'restore'}
           onClick={() => load('restore')}
         >
-          Preview restore
+          Preview go back
         </button>
       </div>
       {failure && (
         <ConflictBanner
           title={
             failure.error.status === 409
-              ? 'Conflict: main or the evidence moved since this page loaded.'
+              ? 'Conflict: the graph or the records changed since this page loaded.'
               : failure.during === 'preview'
                 ? 'The preview failed.'
                 : 'Nothing was applied.'
           }
           error={failure.error}
           message={
-            failure.error.status === 409
-              ? 'No commit was created. Reload to preview against the current main.'
-              : undefined
+            failure.error.status === 409 ? 'Nothing changed. Reload to preview again.' : undefined
           }
           actions={
             failure.error.status === 409 ? (
@@ -170,13 +166,9 @@ export function RevertRestorePreview({
       {preview && (
         <section
           className={`card pad stack preview-${preview.kind}`}
-          aria-label={`${preview.kind === 'revert' ? 'Revert' : 'Restore'} preview for ${target.id.slice(0, 7)}`}
+          aria-label={`${preview.kind === 'revert' ? 'Undo preview' : 'Go back preview'}`}
         >
-          <h2>
-            {preview.kind === 'revert'
-              ? `Revert preview for ${target.id.slice(0, 7)}`
-              : `Restore preview: graph as of ${target.id.slice(0, 7)}`}
-          </h2>
+          <h2>{preview.kind === 'revert' ? 'Undo preview' : 'Go back preview'}</h2>
           {blocked ? (
             <>
               <p style={{ fontSize: 13 }}>
@@ -205,11 +197,11 @@ export function RevertRestorePreview({
                     disabled={disabled}
                     onClick={inverse}
                   >
-                    Create proposal from inverse
+                    Create a change set that undoes it
                   </button>
                   <span className="faint" style={{ fontSize: 12 }}>
-                    The draft applies the inverse where it is safe and keeps main for each
-                    conflicting entity, so you resolve them explicitly before a merge.
+                    The change set undoes what is safe to undo and keeps the approved graph for each
+                    conflicting entity, so you resolve them explicitly before an approval.
                   </span>
                 </div>
               )}
@@ -217,8 +209,8 @@ export function RevertRestorePreview({
           ) : preview.kind === 'revert' ? (
             <>
               <p style={{ fontSize: 13 }}>
-                Touched entities: {preview.diff.changes.length}. Main still equals this
-                commit&apos;s result for every touched entity, so the inverse applies without
+                Touched entities: {preview.diff.changes.length}. The approved graph still matches
+                this version&apos;s result for every touched entity, so the inverse applies without
                 conflict.
               </p>
               <div className="tablewrap" style={{ border: 0 }}>
@@ -226,8 +218,8 @@ export function RevertRestorePreview({
                   <thead>
                     <tr>
                       <th>Entity</th>
-                      <th>Main now</th>
-                      <th>After revert</th>
+                      <th>Approved graph now</th>
+                      <th>After undo</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -251,24 +243,20 @@ export function RevertRestorePreview({
                 {preserved.length ? (
                   <>
                     ✓ Unrelated later work stays:{' '}
-                    {preserved
-                      .map((commit) => `${quoted(commit.message)} (${commit.id.slice(0, 7)})`)
-                      .join(', ')}
-                    .
+                    {preserved.map((commit) => quoted(commit.message)).join(', ')}.
                   </>
                 ) : (
-                  '✓ No later commit changed other entities.'
+                  '✓ No later version changed other items.'
                 )}
               </p>
             </>
           ) : (
             <>
               <p style={{ fontSize: 13 }}>
-                Restore copies this snapshot into a new commit on top of{' '}
-                {preview.mainCommitId.slice(0, 7)}.{' '}
+                Going back copies this version into a new version on top of the approved graph.{' '}
                 {preview.diff.changes.length
                   ? 'It replaces later interpretation:'
-                  : 'Main already equals this snapshot, so the restore changes no entity.'}
+                  : 'The approved graph already matches this version, so going back changes nothing.'}
               </p>
               <ul className="plain-list" data-testid="removed-later">
                 {preview.diff.changes.map((change) => {
@@ -297,29 +285,41 @@ export function RevertRestorePreview({
                       }
                     >
                       {verb} {kind.toLowerCase()}: {name}
-                      {from ? ` (from ${quoted(from.message)}, ${from.id.slice(0, 7)})` : ''}
+                      {from ? ` (from ${quoted(from.message)})` : ''}
                     </li>
                   );
                 })}
               </ul>
               <p className="faint" style={{ fontSize: 12 }}>
-                History, evidence and token settings stay. Restore is blocked when a citation in the
-                old snapshot is withdrawn.
+                Activity, records and token settings stay. Going back is blocked when a citation in
+                the old snapshot is withdrawn.
               </p>
             </>
           )}
           <p className="faint" style={{ fontSize: 12 }}>
-            Preview digest{' '}
-            <span className="digest">
-              {preview.digest.slice(0, 4)}…{preview.digest.slice(-4)}
-            </span>
-            , expected head {preview.mainCommitId.slice(0, 7)}, evidence revision{' '}
-            {preview.evidenceRevision}. No evidence and no commit is deleted.
+            No record and no version is deleted.
           </p>
+          <details className="tech">
+            <summary>Technical details</summary>
+            <dl className="kv">
+              <dt>On top of version</dt>
+              <dd className="id">{preview.mainCommitId}</dd>
+              <dt>Evidence revision</dt>
+              <dd>{preview.evidenceRevision}</dd>
+              <dt>Preview digest</dt>
+              <dd className="digest">{preview.digest}</dd>
+              {(preview.kind === 'revert' ? preserved : later).map((commit) => (
+                <Fragment key={commit.id}>
+                  <dt>{quoted(commit.message)}</dt>
+                  <dd className="id">{commit.id}</dd>
+                </Fragment>
+              ))}
+            </dl>
+          </details>
           {!blocked && (
             <div className="row" style={{ alignItems: 'flex-end' }}>
               <label className="field" style={{ flex: 1 }}>
-                Commit message
+                Note
                 <input
                   value={message}
                   maxLength={2000}
@@ -332,7 +332,7 @@ export function RevertRestorePreview({
                 disabled={disabled || !message.trim()}
                 onClick={apply}
               >
-                Apply {preview.kind} as new commit
+                Apply {preview.kind === 'revert' ? 'undo' : 'go back'} as a new version
               </button>
             </div>
           )}
