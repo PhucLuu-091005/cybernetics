@@ -69,6 +69,7 @@ describe('page actor: one session resolution and one read charge per request', (
     configureApp({ db: {} as Db, identity: store, pool: {} as never });
   });
   afterEach(() => {
+    page.asked = null;
     vi.unstubAllEnvs();
     resetApp();
     delete (globalThis as { promiseRateLimiter?: RateLimiter }).promiseRateLimiter;
@@ -100,7 +101,6 @@ describe('page actor: one session resolution and one read charge per request', (
     await expect(requireActor('/')).rejects.toMatchObject({
       digest: expect.stringContaining(';/signin;'),
     });
-    page.asked = null;
   });
   it('a foreign project still answers 404 without a second charge', async () => {
     await requireActor('/');
