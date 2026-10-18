@@ -31,6 +31,17 @@ Next.js 16 (App Router), React 19, TypeScript, PostgreSQL 17 with Drizzle, Zod, 
 | `tests/` | `unit/` (pure code), `integration/` (real Postgres), `e2e/` (Playwright), `support/` (test databases and fixtures). |
 | `docs/` | Spec, plans, design option pages (`docs/design/`), design system, MCP recipe, README screenshots. |
 
+## Skills
+
+The repository has 4 skills in `.claude/skills/`. Each one holds the steps and a script for a job that every task repeats. Use them before you write the same steps by hand.
+
+| Skill | Use it to |
+|---|---|
+| `et-worktree-setup` | Create the worktree, branch, database, `.env.local` and port of a task, and apply the migrations. |
+| `et-gates` | Run every gate with real exit codes and the test counts. |
+| `et-ui-qa` | Take light and dark screenshots at 1440 px and 390 px, and measure scroll, dashed lines and page errors. |
+| `et-option-page` | Build an HTML option page for a question that the owner decides. |
+
 ## Commands
 
 pnpm is not on PATH. Call the binaries in `node_modules/.bin` directly:
