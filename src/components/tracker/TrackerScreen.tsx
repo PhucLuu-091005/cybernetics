@@ -14,6 +14,8 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  collapsedTeams,
+  teamsGivenWork,
   descendantsOf,
   formatDay,
   formatDeadline,
@@ -30,6 +32,8 @@ import {
   type RowMatch,
   type Cr,
   type CrPermission,
+  type Density,
+  type TeamToggles,
   type EventKind,
   type TrackerLayout,
   type TrackerPayload,
@@ -101,11 +105,15 @@ import {
   EMPTY_VIEW,
   hiddenList,
   keepFocus,
+  readDensity,
   readNoticeOff,
+  readTeamOpen,
   readViewState,
   revealRows,
   toggleId,
+  writeDensity,
   writeNoticeOff,
+  writeTeamOpen,
   writeViewState,
   type ViewState,
 } from './view-state';
@@ -191,7 +199,7 @@ const OUTSIDE_EXEMPT =
   '.p-head, .bbar, .pop, .drawer, .p-side, .empty, .ro-note, svg.tg, .tk-modal, .tk-toast, .zoombar, .gtools';
 // These layers close themselves on Esc, so the screen leaves the rest open.
 const OWN_ESCAPE =
-  '.tk details[open], .tk .tsearch-pop:not([hidden]), .tk .hand-menu, .tk .field-pop';
+  '.tk details[open], .tk .tsearch-pop:not([hidden]), .tk .hand-menu, .tk .field-pop, .tk .view-pop';
 const MINUTE = 60_000;
 
 const samePayload = (a: TrackerPayload, b: TrackerPayload) =>
@@ -387,6 +395,25 @@ export function TrackerScreen({
     writeViewState(browserStore(), projectId, next);
   };
 
+  const [density, setDensity] = useState<Density>('compact');
+  const [teamOpen, setTeamOpen] = useState<TeamToggles>(new Map());
+  useLayoutEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDensity(readDensity(browserStore(), userId));
+  }, [userId]);
+  useLayoutEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTeamOpen(readTeamOpen(browserStore(), projectId));
+  }, [projectId]);
+  const changeDensity = (next: Density) => {
+    setDensity(next);
+    writeDensity(browserStore(), userId, next);
+  };
+  const changeTeamOpen = (next: TeamToggles) => {
+    setTeamOpen(next);
+    writeTeamOpen(browserStore(), projectId, next);
+  };
+
   // Null until the browser storage is read, so the server HTML and the first render agree.
   const [noticeOff, setNoticeOff] = useState<boolean | null>(null);
   useLayoutEffect(() => {
@@ -501,6 +528,25 @@ export function TrackerScreen({
     return () => document.removeEventListener('click', onClick);
   }, [shownPop]);
 
+  // Search, filters and a focus open every team; a toggle made then lasts until the graph is whole again.
+  const narrowed = !!rowMatch || !!focused || !!focusedTeam;
+  const narrowKey = narrowed ? JSON.stringify([rowFilter, focused, focusedTeam]) : null;
+  const [activeToggles, setActiveToggles] = useState<{ key: string | null; map: TeamToggles }>({
+    key: null,
+    map: new Map(),
+  });
+  if (activeToggles.key !== narrowKey) setActiveToggles({ key: narrowKey, map: new Map() });
+  const collapsed = useMemo(
+    () =>
+      collapsedTeams(state, {
+        asOf,
+        timeZone: tz,
+        toggles: teamOpen,
+        active: narrowed,
+        activeToggles: activeToggles.map,
+      }),
+    [state, asOf, tz, teamOpen, narrowed, activeToggles.map],
+  );
   const windowStart = useMemo(
     () => windowStartFor(state, project.windowStart, asOf, tz),
     [state, project.windowStart, asOf, tz],
@@ -519,11 +565,28 @@ export function TrackerScreen({
           focusTeam: focusedTeam,
           filter: rowMatch,
           focusButtons: true,
+          density,
+          collapsedTeams: collapsed,
+          plusButtons: edit,
           ...(windowStart ? { windowStart } : {}),
         },
         current.marks,
       ),
-    [state, hidden, asOf, tz, scale, focused, focusedTeam, rowMatch, windowStart, current.marks],
+    [
+      state,
+      hidden,
+      asOf,
+      tz,
+      scale,
+      focused,
+      focusedTeam,
+      rowMatch,
+      windowStart,
+      current.marks,
+      density,
+      collapsed,
+      edit,
+    ],
   );
   // Pointer handlers outlive the render that started a drag, and a poll can land in between.
   const live = useRef<{
@@ -573,11 +636,40 @@ export function TrackerScreen({
     hide({ ...hidden, hiddenRows: toggleId(hidden.hiddenRows, id) });
   const toggleTeam = (id: string) =>
     hide({ ...hidden, hiddenTeams: toggleId(hidden.hiddenTeams, id) });
-  const reveal = (ids: string[]) => changeHidden(revealRows(hidden, ids, teamOf));
+  /** A row inside a collapsed team needs its team open first, also once the filters clear. */
+  const openTeams = (teams: string[]) => {
+    const quiet = collapsedTeams(state, { asOf, timeZone: tz, toggles: teamOpen, active: false });
+    const known = new Set(state.teams.map((t) => t.id));
+    if (teams.some((t) => quiet.has(t) || !known.has(t)))
+      changeTeamOpen(new Map([...teamOpen, ...teams.map((t) => [t, true] as const)]));
+    if (teams.some((t) => collapsed.has(t)))
+      setActiveToggles((a) => ({
+        ...a,
+        map: new Map([...a.map, ...teams.map((t) => [t, true] as const)]),
+      }));
+  };
+  const openTeamsOf = (ids: string[]) => openTeams(ids.map(teamOf).filter((t): t is string => !!t));
+  const toggleCollapse = (teamId: string) => {
+    setPop(null);
+    const open = collapsed.has(teamId);
+    if (narrowed) setActiveToggles((a) => ({ ...a, map: new Map([...a.map, [teamId, open]]) }));
+    else changeTeamOpen(new Map([...teamOpen, [teamId, open]]));
+  };
+  const setAllTeams = (open: boolean) => {
+    setPop(null);
+    const all = new Map(state.teams.map((t) => [t.id, open] as const));
+    changeTeamOpen(new Map([...teamOpen, ...all]));
+    if (narrowed) setActiveToggles((a) => ({ ...a, map: all }));
+  };
+  const reveal = (ids: string[]) => {
+    changeHidden(revealRows(hidden, ids, teamOf));
+    openTeamsOf(ids);
+  };
   const filteredOut = (workItemId: string, match: RowMatch | null) =>
     !!match && !match.match.has(workItemId) && !match.context.has(workItemId);
   const bringIn = (workItemId: string, match = rowMatch) => {
     if (isHidden(workItemId)) reveal([workItemId]);
+    else openTeamsOf([workItemId]);
     if (inFocus && !inFocus.has(workItemId)) setFocus(null);
     if (filteredOut(workItemId, match)) setRowFilter(NO_FILTER);
   };
@@ -708,6 +800,7 @@ export function TrackerScreen({
       return;
     }
     closeModal();
+    openTeams(teamsGivenWork(ops));
     void appendAll(cr.num, ops).then((p) => {
       if (p && after?.added) setPopFor({ kind: 'added', id: after.added });
     });
@@ -1377,6 +1470,11 @@ export function TrackerScreen({
               onBackground={() => setPop(null)}
               full={full}
               onFull={toggleFull}
+              onCollapse={toggleCollapse}
+              density={density}
+              onDensity={changeDensity}
+              onExpandAll={() => setAllTeams(true)}
+              onCollapseAll={() => setAllTeams(false)}
             />
             {edit && (
               <div className="bin" aria-hidden="true">
@@ -1475,6 +1573,7 @@ export function TrackerScreen({
               milestoneId={drawer.id}
               edit={edit}
               actions={actions}
+              onPick={(id) => openItem(id)}
             />
           )}
           {drawer?.mode === 'crs' && (

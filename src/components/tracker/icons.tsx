@@ -181,6 +181,13 @@ const SHAPES = {
       <path d="m6 9 6 6 6-6" />
     </g>
   ),
+  rows: (
+    <g {...S}>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M21 9H3" />
+      <path d="M21 15H3" />
+    </g>
+  ),
   branch: (
     <g {...S24}>
       <path d="M6 3v12" />
