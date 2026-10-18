@@ -113,19 +113,29 @@ export type Creator = {
   rights: { viewMain: boolean; create: boolean; merge: boolean; manage: boolean };
 };
 
-const NOT_MEMBER = 'Only members of the project can do this';
-const BLOCKED: Record<ScopeNeed, string> = {
-  viewMain: 'You cannot see Main of this project',
-  create: 'You cannot create or edit change requests in this project',
-  merge: 'You do not have the Merge right in this project',
-  manage: 'Only the project lead can do this',
+const BLOCKED: Record<'project' | 'personal', Record<ScopeNeed | 'member', string>> = {
+  project: {
+    member: 'Only members of the project can do this',
+    viewMain: 'You cannot see Main of this project',
+    create: 'You cannot create or edit change requests in this project',
+    merge: 'You do not have the Merge right in this project',
+    manage: 'Only the project lead can do this',
+  },
+  personal: {
+    member: 'You are not a member of any project',
+    viewMain: 'You cannot see Main of any of your projects',
+    create: 'You cannot create or edit change requests in any of your projects',
+    merge: 'You do not have the Merge right in any of your projects',
+    manage: 'You are not the lead of any project',
+  },
 };
 
-/** Why the creator cannot give this scope today, or null. */
+/** Why the creator cannot give this scope today, or null. A personal key asks across all projects. */
 export function scopeBlock(
   info: Pick<ScopeInfo, 'scope' | 'need'>,
   creator: Creator,
+  key: 'project' | 'personal' = 'project',
 ): string | null {
-  if (info.scope !== 'project:read' && !creator.member) return NOT_MEMBER;
-  return creator.rights[info.need] ? null : BLOCKED[info.need];
+  if (info.scope !== 'project:read' && !creator.member) return BLOCKED[key].member;
+  return creator.rights[info.need] ? null : BLOCKED[key][info.need];
 }

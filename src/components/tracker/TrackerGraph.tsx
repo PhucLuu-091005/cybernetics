@@ -27,7 +27,7 @@ import {
 } from '../../tracker';
 import { svgPoint } from './drag';
 import { gestureFactor, openScale, wheelZoomFactor, zoomTarget } from './scale';
-import { cutToFit, keepInView } from './in-view';
+import { changeScroll, cutToFit, keepInView, menuPlace } from './in-view';
 import { Icon, KIND_COLOR, KindIcon, SvgIcon } from './icons';
 import { teamMenuItems } from './team';
 
@@ -41,6 +41,47 @@ const REVEAL_ZOOM = 2;
 const REVEAL_FLASH_MS = 1500;
 const REVEAL_PAD = 40;
 const TIP_ROOM = 180;
+/** The space between a menu and its anchor; `.hand-menu` moves by the same 6 px. */
+const MENU_GAP = 6;
+const OPEN_QUIET_MS = 300;
+/** The page scroll that shows the first change of a change request above the zoom bar, or null. */
+function changeInView(
+  graph: HTMLElement | null,
+  bar: HTMLElement,
+  axis: HTMLElement | null,
+): number | null {
+  const marks = Array.from(graph?.querySelectorAll('svg.pg .halo') ?? []).map((mark) =>
+    mark.getBoundingClientRect(),
+  );
+  if (!marks.length) return null;
+  const board = graph?.closest('.tk.board');
+  const stops = Array.from(
+    board?.querySelectorAll(
+      ':scope > .p-head > *, :scope > .bbar, :scope > .ro-note, .p-side, .gwrap',
+    ) ?? [],
+  ).map((el) => el.getBoundingClientRect().top);
+  return changeScroll({
+    scrollY: window.scrollY,
+    viewport: window.innerHeight,
+    scrollHeight: document.documentElement.scrollHeight,
+    first: marks.reduce((a, b) => (b.top < a.top ? b : a)),
+    barHeight: bar.offsetHeight,
+    stickyTop:
+      parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tk-top')) || 0,
+    axisHeight: axis?.offsetHeight ?? 0,
+    stops,
+  });
+}
+
+type MenuPlace = { up: boolean; maxHeight: number | null };
+
+const menuStyle = (m: { x: number; y: number; top: number; place?: MenuPlace }) => ({
+  left: m.x,
+  top: m.place?.up ? m.top : m.y,
+  ...(m.place?.maxHeight != null
+    ? { maxHeight: m.place.maxHeight, overflowY: 'auto' as const }
+    : {}),
+});
 
 export type PopKind = 'act' | 'stack';
 export type DatePreview = { kind: 'item' | 'ms'; id: string; x: number; label?: string };
@@ -490,10 +531,16 @@ export function TrackerGraph(props: Props) {
     setTip({ text, x, y: r.top - box.top, align });
   };
   const hideTip = () => setTip(null);
-  const [menu, setMenu] = useState<{ fromId: string; x: number; y: number; align: string } | null>(
-    null,
-  );
+  const [menu, setMenu] = useState<{
+    fromId: string;
+    x: number;
+    y: number;
+    top: number;
+    align: string;
+    place?: MenuPlace;
+  } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const quietUntil = useRef(0);
   const menuMark = menu ? L.handoffs.find((h) => h.fromId === menu.fromId) : undefined;
   // A poll, a hide or a filter can take the source mark away while its list is open.
   if (menu && !menuMark) setMenu(null);
@@ -513,9 +560,16 @@ export function TrackerGraph(props: Props) {
     const r = el.getBoundingClientRect();
     const x = r.left + r.width / 2 - box.left;
     const align = x < TIP_ROOM ? 'start' : x > box.width - TIP_ROOM ? 'end' : 'mid';
-    setMenu({ fromId: h.fromId, x, y: r.bottom - box.top, align });
+    quietUntil.current = performance.now() + OPEN_QUIET_MS;
+    setMenu({ fromId: h.fromId, x, y: r.bottom - box.top, top: r.top - box.top, align });
   };
-  const [teamMenu, setTeamMenu] = useState<{ teamId: string; x: number; y: number } | null>(null);
+  const [teamMenu, setTeamMenu] = useState<{
+    teamId: string;
+    x: number;
+    y: number;
+    top: number;
+    place?: MenuPlace;
+  } | null>(null);
   const teamMenuRef = useRef<HTMLDivElement>(null);
   // A hidden team takes its name away, so the focus moves to the badge that unhides it.
   const hiddenByMenu = useRef(false);
@@ -537,42 +591,117 @@ export function TrackerGraph(props: Props) {
     const box = root.current?.getBoundingClientRect();
     if (!box) return;
     const r = el.getBoundingClientRect();
-    setTeamMenu({ teamId, x: r.left - box.left + 12, y: r.bottom - box.top });
+    quietUntil.current = performance.now() + OPEN_QUIET_MS;
+    setTeamMenu({ teamId, x: r.left - box.left + 12, y: r.bottom - box.top, top: r.top - box.top });
   };
+  /** The room below the anchor reaches down to the sticky zoom bar, above it up to the pinned axis. */
+  const placeOf = (pop: HTMLElement | null, anchor: { y: number; top: number }): MenuPlace => {
+    const box = root.current?.getBoundingClientRect();
+    if (!pop || !box) return { up: false, maxHeight: null };
+    const bar = barRef.current?.getBoundingClientRect();
+    const bottom = box.top + anchor.y;
+    const floor = Math.min(innerHeight, bar && bar.top >= bottom ? bar.top : Infinity) - 4;
+    const ceiling = Math.max(0, head.current?.getBoundingClientRect().bottom ?? 0);
+    return menuPlace({
+      below: floor - bottom - MENU_GAP,
+      above: box.top + anchor.top - MENU_GAP - ceiling,
+      height: pop.scrollHeight,
+    });
+  };
+  useLayoutEffect(() => {
+    if (menu && !menu.place) setMenu({ ...menu, place: placeOf(menuRef.current, menu) });
+    if (teamMenu && !teamMenu.place)
+      setTeamMenu({ ...teamMenu, place: placeOf(teamMenuRef.current, teamMenu) });
+  }, [menu, teamMenu]);
+  // The opening may still move the page in its quiet time, so the menu then measures its anchor and
+  // its room again.
+  const replace = useCallback(
+    <M extends { y: number; top: number; place?: MenuPlace }>(
+      open: M,
+      selector: string,
+      pop: HTMLElement | null,
+    ): M | null => {
+      const box = root.current?.getBoundingClientRect();
+      const el = root.current?.querySelector(selector);
+      if (!box || !el) return null;
+      const r = el.getBoundingClientRect();
+      const at = { y: r.bottom - box.top, top: r.top - box.top };
+      const place = placeOf(pop, at);
+      const same =
+        Math.abs(at.y - open.y) <= 2 &&
+        place.up === open.place?.up &&
+        place.maxHeight === open.place?.maxHeight;
+      return same ? null : { ...open, ...at, place };
+    },
+    [],
+  );
   const floating = !!tip || !!menu || !!teamMenu;
   useEffect(() => {
     if (!floating) return;
     const hide = (event: Event) => {
+      // Opening a menu can move the page by a pixel; only a scroll of the person closes it.
+      if (performance.now() < quietUntil.current) return;
       if (menuRef.current?.contains(event.target as Node)) return;
       if (teamMenuRef.current?.contains(event.target as Node)) return;
       setTip(null);
       setMenu(null);
       setTeamMenu(null);
     };
+    const close = () => {
+      setTip(null);
+      setMenu(null);
+      setTeamMenu(null);
+    };
     // Capture sees the scroll of every container, and any of them moves the mark away from its tip.
     document.addEventListener('scroll', hide, { capture: true, passive: true });
-    return () => document.removeEventListener('scroll', hide, { capture: true });
+    window.addEventListener('resize', close);
+    window.addEventListener('orientationchange', close);
+    return () => {
+      document.removeEventListener('scroll', hide, { capture: true });
+      window.removeEventListener('resize', close);
+      window.removeEventListener('orientationchange', close);
+    };
   }, [floating]);
+  const recheck = useRef<() => void>(() => {});
+  useLayoutEffect(() => {
+    recheck.current = () => {
+      const handoff =
+        menu && replace(menu, `svg.pg [data-handoff="${menu.fromId}"]`, menuRef.current);
+      if (handoff) setMenu(handoff);
+      const team =
+        teamMenu &&
+        replace(teamMenu, `svg.pg-side [data-teammenu="${teamMenu.teamId}"]`, teamMenuRef.current);
+      if (team) setTeamMenu(team);
+    };
+  });
+  const openKey = `${menu?.fromId ?? ''}/${teamMenu?.teamId ?? ''}`;
   useEffect(() => {
-    if (!menu) return;
-    menuRef.current?.querySelector<HTMLElement>('button')?.focus();
+    if (openKey === '/') return;
+    const timer = setTimeout(() => recheck.current(), OPEN_QUIET_MS + 20);
+    return () => clearTimeout(timer);
+  }, [openKey]);
+  const menuFrom = menu?.fromId;
+  useEffect(() => {
+    if (!menuFrom) return;
+    menuRef.current?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
     const onDown = (event: PointerEvent) => {
       const t = event.target as Element;
       if (!menuRef.current?.contains(t) && !t.closest?.('[data-handoff]')) setMenu(null);
     };
     document.addEventListener('pointerdown', onDown);
     return () => document.removeEventListener('pointerdown', onDown);
-  }, [menu]);
+  }, [menuFrom]);
+  const teamMenuId = teamMenu?.teamId;
   useEffect(() => {
-    if (!teamMenu) return;
-    teamMenuRef.current?.querySelector<HTMLElement>('button')?.focus();
+    if (!teamMenuId) return;
+    teamMenuRef.current?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
     const onDown = (event: PointerEvent) => {
       const t = event.target as Element;
       if (!teamMenuRef.current?.contains(t) && !t.closest?.('[data-teammenu]')) setTeamMenu(null);
     };
     document.addEventListener('pointerdown', onDown);
     return () => document.removeEventListener('pointerdown', onDown);
-  }, [teamMenu]);
+  }, [teamMenuId]);
   const [viewMenu, setViewMenu] = useState(false);
   const viewRef = useRef<HTMLSpanElement>(null);
   // A menu opened with the mouse gives the focus back to its button without a ring, even on Esc.
@@ -628,19 +757,48 @@ export function TrackerGraph(props: Props) {
   }, []);
   useLayoutEffect(fitLegend);
   // On a phone the page scrolls under the sticky controls, so the first change of a change request
-  // would open under them; the page scrolls it clear once, before the person scrolls.
-  const cleared = useRef(false);
-  const hasRows = L.rows.length > 0;
+  // would open under them. Until the person scrolls or touches the page, every new layout (the saved
+  // fold loads after the first one) places the change above the bar again.
+  const touched = useRef(false);
+  const placedAt = useRef<number | null>(null);
+  const pageChecked = useRef(false);
+  useEffect(() => {
+    const stop = () => {
+      touched.current = true;
+    };
+    // A scroll before hydration and the scroll that Back restores belong to the person. The check
+    // runs once, as a remount (Strict Mode, for one) finds the page's own scroll.
+    if (!pageChecked.current) {
+      pageChecked.current = true;
+      const nav = performance.getEntriesByType('navigation')[0] as
+        PerformanceNavigationTiming | undefined;
+      if (window.scrollY > 2 || nav?.type === 'back_forward') stop();
+    }
+    const onScroll = () => {
+      if (placedAt.current === null || Math.abs(window.scrollY - placedAt.current) > 2) stop();
+    };
+    const kinds = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
+    for (const kind of kinds) window.addEventListener(kind, stop, { capture: true, passive: true });
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      for (const kind of kinds) window.removeEventListener(kind, stop, { capture: true });
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, []);
   useEffect(() => {
     const bar = barRef.current;
-    if (cleared.current || !hasRows || !bar) return;
-    cleared.current = true;
+    if (touched.current || !bar || !L.rows.length) return;
     if (!window.matchMedia('(max-width: 760px)').matches) return;
-    const marks = Array.from(root.current?.querySelectorAll('svg.pg .halo') ?? []);
-    const first = Math.min(...marks.map((mark) => mark.getBoundingClientRect().bottom));
-    const gap = first - (bar.getBoundingClientRect().top - 12);
-    if (marks.length && gap > 0) window.scrollBy(0, gap);
-  }, [hasRows]);
+    const target = changeInView(root.current, bar, head.current);
+    if (target === null) return;
+    const first = placedAt.current === null;
+    if (first && target <= window.scrollY) {
+      placedAt.current = window.scrollY;
+      return;
+    }
+    if (Math.abs(window.scrollY - target) > 1) window.scrollTo(0, target);
+    placedAt.current = window.scrollY;
+  }, [L]);
   useEffect(() => {
     if (!legendOpen) return;
     const bar = barRef.current;
@@ -1367,7 +1525,14 @@ export function TrackerGraph(props: Props) {
     } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       const step = event.key === 'ArrowDown' ? 1 : -1;
-      items[(at + step + items.length) % items.length]?.focus();
+      const next = items[(at + step + items.length) % items.length];
+      if (!next) return;
+      // A focus scroll would move the page, and the page scroll closes the menu.
+      next.focus({ preventScroll: true });
+      const list = event.currentTarget;
+      if (next.offsetTop < list.scrollTop) list.scrollTop = next.offsetTop;
+      else if (next.offsetTop + next.offsetHeight > list.scrollTop + list.clientHeight)
+        list.scrollTop = next.offsetTop + next.offsetHeight - list.clientHeight;
     }
   };
 
@@ -1420,10 +1585,10 @@ export function TrackerGraph(props: Props) {
       {menu && menuMark && (
         <div
           ref={menuRef}
-          className={`hand-menu ${menu.align}`}
+          className={`hand-menu ${menu.align}${menu.place?.up ? ' up' : ''}`}
           role="menu"
           aria-label={`Handoffs from ${L.rows.find((r) => r.id === menu.fromId)?.title ?? ''}`}
-          style={{ left: menu.x, top: menu.y }}
+          style={menuStyle(menu)}
           onKeyDown={(event) => onMenuKey(event, closeMenu)}
           onBlur={(event) => {
             const to = event.relatedTarget as Element | null;
@@ -1473,10 +1638,10 @@ export function TrackerGraph(props: Props) {
       {teamMenu && teamMenuLane && (
         <div
           ref={teamMenuRef}
-          className="hand-menu team-menu start"
+          className={`hand-menu team-menu start${teamMenu.place?.up ? ' up' : ''}`}
           role="menu"
           aria-label={teamMenuLane.name}
-          style={{ left: teamMenu.x, top: teamMenu.y }}
+          style={menuStyle(teamMenu)}
           onKeyDown={(event) => onMenuKey(event, closeTeamMenu)}
           onBlur={(event) => {
             const to = event.relatedTarget as Element | null;

@@ -37,7 +37,12 @@ export function TopBar(props: Props) {
   const { payload, me, dir, tz } = session;
   const ready = payload.crs.filter((c) => c.status === 'ready').length;
   const account: Account = me
-    ? { name: dir.name(me), detail: dir.role(me) || undefined, color: dir.color(me) }
+    ? {
+        name: dir.name(me),
+        detail: dir.role(me) || undefined,
+        color: dir.color(me),
+        photo: dir.photo(me),
+      }
     : { ...props.account, detail: 'Can view' };
   return (
     <header className="p-head">

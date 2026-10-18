@@ -198,7 +198,6 @@ table.t td.mono { font: 12px var(--f-id); white-space: nowrap; }
 .tk .st-ontime { background: var(--proceed-bg); color: var(--proceed-ink); }
 .tk .st-late { background: var(--danger-bg); color: var(--danger-ink); }
 .tk .st-flate { background: var(--caution-bg); color: var(--caution-ink); }
-.tk .bot { display: inline-flex; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 500; padding: 0 6px; border-radius: 99px; background: var(--route-bg); color: var(--route-ink); }
 .tk .hid-pill { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 500; background: var(--gray-bg); color: var(--ink-2); border-radius: 99px; padding: 0 8px 0 10px; white-space: nowrap; cursor: pointer; min-height: 28px; border: 0; }
 .tk .hid-pill:hover { background: var(--rule); color: var(--ink); }
 .tk .fgroup { border: 0; margin: 0 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
@@ -448,7 +447,7 @@ svg.tg .note { font-size: 10px; fill: var(--ink-3); }
   </ol>
   <div class="stage flush tk" style="display:flex;min-width:0">
     <div class="qlist" style="flex:1;min-width:0;border-top:0">
-      <div class="qc" style="--kc:var(--k-message)"><span class="qk" id="qk1"></span><div class="qt"><b>Where is the root cause report for the sync outage?</b></div><div class="qf"><span class="who">Tom Becker</span> · 8 Oct, 14:20 <span class="bot">Agent</span></div></div>
+      <div class="qc" style="--kc:var(--k-message)"><span class="qk" id="qk1"></span><div class="qt"><b>Where is the root cause report for the sync outage?</b></div><div class="qf"><span class="who">Tom Becker</span> · 8 Oct, 14:20</div></div>
       <div class="qc" style="--kc:var(--k-meeting)"><span class="qk" id="qk2"></span><div class="qt"><b>Scope call with the Dynamics CRM team</b></div><div class="qf"><span class="who">Khoa Lê</span> · 9 Oct, 10:00</div></div>
       <div class="qc" style="--kc:var(--k-issue)"><span class="qk" id="qk3"></span><div class="qt"><b>PG-204 Tax ID format check fails on Cayman entities</b></div><div class="qf"><span class="who">Hà Đỗ</span> · 9 Oct, 16:45</div></div>
     </div>
@@ -605,7 +604,7 @@ svg.tg .note { font-size: 10px; fill: var(--ink-3); }
     <div class="stage">
       <div class="row">
         <span class="chipx">Draft</span><span class="chipx route">Ready</span><span class="chipx ok">Merged</span><span class="chipx warn">1 clash</span><span class="chipx pen">Changed</span>
-        <span class="badge st-late">Late</span><span class="cnt">12</span><span class="bot" id="bot-chip">Agent</span>
+        <span class="badge st-late">Late</span><span class="cnt">12</span>
         <button class="hid-pill" type="button" id="hid-pill">3 hidden</button>
       </div>
     </div>
@@ -910,7 +909,6 @@ Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fiel
   put('qk2', svg(KIND.meeting, 13) + 'Meeting');
   put('qk3', svg(KIND.issue, 13) + 'Issue');
   put('ib-undo', svg(UI.undo, 16));
-  prepend('bot-chip', svg(UI.bot, 11));
   prepend('hid-pill', svg(UI.eyeoff, 13));
   put('ic-search', svg(UI.search, 14));
   put('ic-search2', svg(UI.search, 14));

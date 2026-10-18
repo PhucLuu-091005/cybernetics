@@ -65,6 +65,7 @@ export function memoryStore(): MemoryStore {
           ({
             id,
             userId,
+            kind,
             projectId,
             prefix,
             label,
@@ -76,6 +77,7 @@ export function memoryStore(): MemoryStore {
           }) => ({
             id,
             userId,
+            kind,
             projectId,
             prefix,
             label,

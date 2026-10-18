@@ -113,7 +113,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('container migration script', ()
     await admin?.end();
   });
 
-  it('applies the one baseline migration to an empty database, then a second start applies nothing and still succeeds', async () => {
+  it('applies the baseline and the later migrations to an empty database, then a second start applies nothing and still succeeds', async () => {
     const first = run(url);
     expect(first.stderr).toBe('');
     expect(first.status).toBe(0);
@@ -125,8 +125,11 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('container migration script', ()
       const { rows } = await pool.query<{ applied: number }>(
         'select count(*)::int as applied from drizzle.__drizzle_migrations',
       );
-      expect(journal.entries.map((entry) => entry.tag)).toEqual(['0000_baseline']);
-      expect(rows[0].applied).toBe(1);
+      expect(journal.entries.map((entry) => entry.tag)).toEqual([
+        '0000_baseline',
+        '0001_personal_keys_and_photos',
+      ]);
+      expect(rows[0].applied).toBe(journal.entries.length);
       expect(await tablesOf(pool)).toEqual(TABLES);
       for (const table of PROMISE_TABLES) expect(await tablesOf(pool)).not.toContain(table);
       expect(await columnsOf(pool, 'projects')).toEqual([
@@ -153,7 +156,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('container migration script', ()
     if (password) expect(unreachable.stderr + unreachable.stdout).not.toContain(password);
   });
 
-  it('lets two containers that start at once both succeed, and applies the baseline once', async () => {
+  it('lets two containers that start at once both succeed, and applies each migration once', async () => {
     const db = await freshDatabase(admin);
     extra.push(db.name);
     const [a, b] = [start(db.url), start(db.url)];
@@ -161,7 +164,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('container migration script', ()
     expect(a.stderr() + b.stderr()).toBe('');
     expect(a.stdout()).toContain('"event":"migrations_applied"');
     expect(b.stdout()).toContain('"event":"migrations_applied"');
-    expect(await appliedIn(db.url)).toBe(1);
+    expect(await appliedIn(db.url)).toBe(journal.entries.length);
   });
   it('waits while another session holds the migration lock, then migrates', async () => {
     const db = await freshDatabase(admin);
@@ -185,7 +188,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('container migration script', ()
       session.release();
       await holder.end();
     }
-    expect(await appliedIn(db.url)).toBe(1);
+    expect(await appliedIn(db.url)).toBe(journal.entries.length);
   });
   it('sets UTC as the default time zone of its role, since a pooled connection takes no startup options', async () => {
     expect(run(url).status).toBe(0);

@@ -1068,12 +1068,16 @@ export function HistoryDrawer({
                   · merged by {dir.name(commit.mergedBy)} · {formatStamp(commit.mergedAt, tz)}
                 </div>
                 <ul>
-                  {(lines.get(commit.rev) ?? []).map((e) => (
-                    <li key={e.i}>
-                      {e.item}: {e.change}
-                      {e.after && ` → ${trunc(e.after, 40)}`}
-                    </li>
-                  ))}
+                  {(lines.get(commit.rev) ?? []).map((e) => {
+                    const via = commit.ops[e.i]?.via;
+                    return (
+                      <li key={e.i}>
+                        {e.item}: {e.change}
+                        {e.after && ` → ${trunc(e.after, 40)}`}
+                        {via && <small className="via"> · via key {trunc(via, 40)}</small>}
+                      </li>
+                    );
+                  })}
                 </ul>
                 {n > 0 && (
                   <div className="resolved">

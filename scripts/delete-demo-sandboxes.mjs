@@ -1,6 +1,11 @@
 // Deletes the demo copies (AUTH_MODE=demo) made more than N days ago. Run by hand, not by a cron job.
 // Usage: DATABASE_URL=... node scripts/delete-demo-sandboxes.mjs [--days 30] [--apply]
 // Without --apply it only counts. Steps and numbers: docs/deploy-cloud-run-neon.md.
+// Profile photos go too: AVATAR_BUCKET=<bucket> deletes them with gcloud, AVATAR_STORE=local from
+// AVATAR_DIR; without either, the script lists the photo objects it leaves behind.
+import { spawnSync } from 'node:child_process';
+import { rm } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import pg from 'pg';
 
 const args = process.argv.slice(2);
@@ -41,6 +46,42 @@ async function tenantTablesInDeleteOrder(client) {
   return order;
 }
 
+const PHOTO_KEY = /^avatars\/[0-9a-f-]{36}\/[0-9a-f]{64}\.webp$/;
+
+/** Deletes the photo objects of the deleted people; returns how many went. */
+async function deletePhotos(keys) {
+  const valid = keys.filter((key) => PHOTO_KEY.test(key));
+  if (!valid.length) return 0;
+  const left = (why, rest) =>
+    console.error(JSON.stringify({ event: 'demo_photos_left', why, keys: rest }));
+  if (process.env.AVATAR_BUCKET) {
+    const bucket = process.env.AVATAR_BUCKET;
+    let done = 0;
+    for (let at = 0; at < valid.length; at += 100) {
+      const batch = valid.slice(at, at + 100);
+      const result = spawnSync(
+        'gcloud',
+        ['storage', 'rm', '--quiet', ...batch.map((key) => `gs://${bucket}/${key}`)],
+        { stdio: ['ignore', 'ignore', 'pipe'] },
+      );
+      if (result.status !== 0) {
+        process.exitCode = 1;
+        left('gcloud storage rm failed', valid.slice(at));
+        return done;
+      }
+      done += batch.length;
+    }
+    return done;
+  }
+  if (process.env.AVATAR_STORE === 'local') {
+    const root = resolve(process.env.AVATAR_DIR || '.avatars');
+    for (const key of valid) await rm(join(root, key), { force: true });
+    return valid.length;
+  }
+  left('set AVATAR_BUCKET (or AVATAR_STORE=local) to delete them', valid);
+  return 0;
+}
+
 const client = new pg.Client({
   connectionString: process.env.DATABASE_URL,
   connectionTimeoutMillis: 15_000,
@@ -67,11 +108,19 @@ try {
     (await client.query(`select count(*)::int as n from ${table}`)).rows[0].n;
   const people = await count('doomed_users');
   const workspaces = await count('doomed_workspaces');
+  const photos = (
+    await client.query(
+      `select avatar_key as key from users
+       where id in (select id from doomed_users) and avatar_key is not null order by avatar_key`,
+    )
+  ).rows.map((row) => row.key);
   if (apply) {
     for (const table of await tenantTablesInDeleteOrder(client))
       await client.query(
         `delete from ${pg.escapeIdentifier(table)} where workspace_id in (select id from doomed_workspaces)`,
       );
+    // A personal key keeps its person's home workspace, but goes with its person in any case.
+    await client.query('delete from agent_tokens where user_id in (select id from doomed_users)');
     await client.query(
       `delete from workspace_members
        where workspace_id in (select id from doomed_workspaces) or user_id in (select id from doomed_users)`,
@@ -80,8 +129,18 @@ try {
     await client.query('delete from users where id in (select id from doomed_users)');
     await client.query('commit');
   } else await client.query('rollback');
+  // The rows are gone first: a photo object that stays is unreachable, a row without its object is not.
+  const photosDeleted = apply ? await deletePhotos(photos) : 0;
   console.log(
-    JSON.stringify({ event: 'demo_sandboxes', days, people, workspaces, deleted: apply }),
+    JSON.stringify({
+      event: 'demo_sandboxes',
+      days,
+      people,
+      workspaces,
+      photos: photos.length,
+      ...(apply ? { photosDeleted } : {}),
+      deleted: apply,
+    }),
   );
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));

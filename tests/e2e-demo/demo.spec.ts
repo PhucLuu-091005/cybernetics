@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import sharp from 'sharp';
 import { hydrated } from '../e2e/helpers';
 
 test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
@@ -97,4 +98,49 @@ test.describe('a link preview', () => {
     const head = await page.request.head('/');
     expect(new URL(head.url()).pathname).toBe('/welcome');
   });
+});
+
+test('a demo visitor uses Profile in their own copy: a photo and a personal key for that copy only', async ({
+  page,
+}) => {
+  const projectId = await open(page);
+  await page.locator('.me > summary').click();
+  await page.getByRole('link', { name: 'Profile' }).click();
+  await expect(page).toHaveURL(`/projects/${projectId}/profile`);
+  await page.getByRole('button', { name: 'Upload photo' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Upload a photo' });
+  const png = await sharp({
+    create: { width: 300, height: 300, channels: 3, background: { r: 90, g: 60, b: 160 } },
+  })
+    .png()
+    .toBuffer();
+  await page
+    .getByLabel('Photo file')
+    .setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: png });
+  await dialog.getByRole('button', { name: 'Save photo' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('details.acct .acct-av img')).toHaveAttribute(
+    'src',
+    /^\/api\/v1\/avatars\//,
+  );
+
+  const form = page.getByRole('form', { name: 'Create a personal key' });
+  await form.getByLabel('Label').fill('Demo laptop');
+  await form.getByRole('button', { name: 'Create key' }).click();
+  const secret = (await page.getByTestId('token-secret').innerText()).trim();
+  const reply = await page.request.post('/mcp', {
+    headers: {
+      authorization: `Bearer ${secret}`,
+      accept: 'application/json, text/event-stream',
+      'content-type': 'application/json',
+    },
+    data: {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'list_projects', arguments: {} },
+    },
+  });
+  const projects = (await reply.json()).result.structuredContent.projects;
+  expect(projects.map((p: { id: string }) => p.id)).toEqual([projectId]);
 });

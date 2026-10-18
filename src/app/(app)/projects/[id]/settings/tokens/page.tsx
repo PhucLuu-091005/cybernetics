@@ -86,7 +86,7 @@ export default async function AgentTokensPage({
             </dl>
           </section>
           <TokenList
-            projectId={id}
+            api={`/api/v1/projects/${id}/agent-tokens`}
             tokens={page.items}
             now={now}
             timeZone={timeZone}
@@ -95,7 +95,7 @@ export default async function AgentTokensPage({
             paged={cursor !== null}
           />
           <TokenCreate
-            projectId={id}
+            api={`/api/v1/projects/${id}/agent-tokens`}
             endpoint={endpoint}
             expiryOptions={expiryOptions}
             creator={creator}

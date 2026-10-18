@@ -17,6 +17,9 @@ case "$AUTH_MODE" in
     exit 2
     ;;
 esac
+AVATAR_BUCKET="${AVATAR_BUCKET:-promise-graph-avatars}"
+# The Cloud Storage free tier covers Standard storage in us-east1, us-west1 and us-central1 only.
+BUCKET_LOCATION="us-central1"
 
 required="GCP_PROJECT_ID NEXT_PUBLIC_APP_URL SESSION_SECRET DATABASE_URL MIGRATE_DATABASE_URL"
 [ "$AUTH_MODE" = google ] && required="$required GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET"
@@ -49,6 +52,9 @@ esac
 case "$(host_of "$MIGRATE_DATABASE_URL")" in
   *-pooler.*) problems="$problems\n- MIGRATE_DATABASE_URL must be the direct Neon URL (no -pooler in its host)" ;;
 esac
+if ! printf '%s' "$AVATAR_BUCKET" | grep -Eq '^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$'; then
+  problems="$problems\n- AVATAR_BUCKET must be a bucket name: 3 to 63 lower-case letters, digits, dots, - and _"
+fi
 if [ -n "$problems" ]; then
   printf "Wrong values:%b\n" "$problems" >&2
   exit 2
@@ -60,7 +66,7 @@ for tool in gcloud node; do
   fi
 done
 
-# The service runs as its own account, which can read its own secrets and nothing else.
+# The service runs as its own account, which can read its own secrets and use the photo bucket.
 runtime_name="$SERVICE-runtime"
 runtime_account="$runtime_name@$GCP_PROJECT_ID.iam.gserviceaccount.com"
 if ! gcloud iam service-accounts describe "$runtime_account" --project "$GCP_PROJECT_ID" > /dev/null 2>&1; then
@@ -107,12 +113,60 @@ put_secret() {
 put_secret "$SERVICE-session-secret" "$SESSION_SECRET"
 put_secret "$SERVICE-database-url" "$DATABASE_URL"
 put_secret "$SERVICE-migrate-database-url" "$MIGRATE_DATABASE_URL"
-env_vars="AUTH_MODE=$AUTH_MODE,NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL"
+env_vars="AUTH_MODE=$AUTH_MODE,NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL,AVATAR_STORE=gcs,AVATAR_BUCKET=$AVATAR_BUCKET"
 secret_vars="SESSION_SECRET=$SERVICE-session-secret:latest,DATABASE_URL=$SERVICE-database-url:latest,MIGRATE_DATABASE_URL=$SERVICE-migrate-database-url:latest"
 if [ "$AUTH_MODE" = google ]; then
   put_secret "$SERVICE-google-client-secret" "$GOOGLE_CLIENT_SECRET"
   env_vars="$env_vars,GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID"
   secret_vars="$secret_vars,GOOGLE_CLIENT_SECRET=$SERVICE-google-client-secret:latest"
+fi
+
+# Profile photos live in a private bucket. A missing one gets
+# uniform access, enforced public access prevention and no soft delete, so a removed photo is gone.
+gcloud services enable storage.googleapis.com --project "$GCP_PROJECT_ID" > /dev/null
+if bucket_json="$(gcloud storage buckets describe "gs://$AVATAR_BUCKET" --project "$GCP_PROJECT_ID" \
+  --format=json 2> /dev/null)"; then
+  # An existing bucket is kept, but only when no photo in it can ever be public.
+  if ! bucket_problems="$(printf '%s' "$bucket_json" | node -e '
+    let text = "";
+    process.stdin.on("data", (chunk) => (text += chunk)).on("end", () => {
+      const bucket = JSON.parse(text || "{}");
+      const problems = [];
+      if (bucket.uniform_bucket_level_access !== true) problems.push("uniform bucket-level access is off");
+      if (bucket.public_access_prevention !== "enforced") problems.push("public access prevention is not enforced");
+      console.log(problems.join("; "));
+    });
+  ')"; then
+    echo "Could not read the settings of gs://$AVATAR_BUCKET" >&2
+    exit 5
+  fi
+  if [ -n "$bucket_problems" ]; then
+    echo "The bucket gs://$AVATAR_BUCKET is not private enough: $bucket_problems." >&2
+    echo "Fix it, then run this script again:" >&2
+    echo "  gcloud storage buckets update gs://$AVATAR_BUCKET --project $GCP_PROJECT_ID --uniform-bucket-level-access --public-access-prevention" >&2
+    exit 5
+  fi
+  echo "Kept bucket gs://$AVATAR_BUCKET"
+else
+  gcloud storage buckets create "gs://$AVATAR_BUCKET" --project "$GCP_PROJECT_ID" \
+    --location "$BUCKET_LOCATION" --default-storage-class STANDARD \
+    --uniform-bucket-level-access --public-access-prevention --soft-delete-duration 0 > /dev/null
+  echo "Created bucket gs://$AVATAR_BUCKET in $BUCKET_LOCATION"
+fi
+# objectUser is the smallest predefined role that creates, reads and deletes objects; it is
+# granted on this bucket only, never on the project.
+granted=""
+for attempt in 1 2 3 4 5; do
+  if gcloud storage buckets add-iam-policy-binding "gs://$AVATAR_BUCKET" --project "$GCP_PROJECT_ID" \
+    --member "serviceAccount:$runtime_account" --role roles/storage.objectUser --quiet > /dev/null; then
+    granted=1
+    break
+  fi
+  [ "$attempt" = 5 ] || sleep 5
+done
+if [ -z "$granted" ]; then
+  echo "Could not let $runtime_account use gs://$AVATAR_BUCKET" >&2
+  exit 4
 fi
 
 # One instance: the rate limits live in process memory. Request-based billing (the default CPU

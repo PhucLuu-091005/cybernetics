@@ -525,6 +525,7 @@ describe('openedReview', () => {
       body: 'Looks fine.',
       opIndex: null,
       agent: false,
+      viaKey: null,
       createdAt: at('2026-10-09T17:10'),
     };
     const edited: Cr = {

@@ -1581,6 +1581,188 @@ test.describe('the tracker at phone width', () => {
     await noHorizontalScroll(page);
   });
 
+  test('a change request opens with its first change above the zoom bar when every team is open', async ({
+    page,
+  }) => {
+    await page.goto('/signin?label=tracker-phone-open-cr');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    await expect(page.locator('svg.pg')).toBeVisible();
+    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Expand all' }).click());
+    await page.goto(new URL(page.url()).pathname.replace(/graph$/, 'changes/4'));
+    const changed = page.locator('svg.pg .halo').first();
+    await expect(changed).toBeVisible();
+    const place = () =>
+      page.evaluate(() => {
+        const box = (s: string) => document.querySelector(s)!.getBoundingClientRect();
+        const rail = box('.rail');
+        const change = box('svg.pg .halo');
+        const history = box('.hist-btn');
+        return {
+          clear: change.top >= rail.bottom && change.bottom <= box('.zoombar').top,
+          whole: history.top >= rail.bottom || history.bottom <= rail.bottom,
+          rail: rail.top === 0,
+        };
+      });
+    // The saved fold loads after the first layout and opens the Implementation team.
+    await expect(page.locator('svg.pg [data-loop="golive"]')).toHaveCount(1);
+    await expect.poll(place).toEqual({ clear: true, whole: true, rail: true });
+  });
+
+  test('a scroll made before the page hydrates stays where the person left it', async ({
+    page,
+  }) => {
+    await page.goto('/signin?label=tracker-phone-early-scroll');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    const path = new URL(page.url()).pathname.replace(/graph$/, 'changes/4');
+    let release = () => {};
+    const scripts = new Promise<void>((resolve) => (release = resolve));
+    await page.route(/\/_next\/static\/chunks\/.*\.js/, async (route) => {
+      await scripts;
+      await route.continue();
+    });
+    await page.goto(path, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => window.scrollTo(0, 300));
+    const early = await page.evaluate(() => window.scrollY);
+    expect(early).toBeGreaterThan(100);
+    release();
+    // The rail button is enabled once React runs, and the graph effects run in the frames after.
+    await expect(page.locator('.rail-fold')).toBeEnabled();
+    await expect(page.locator('svg.pg .halo').first()).toBeVisible();
+    await page.evaluate(
+      () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))),
+    );
+    expect(await page.evaluate(() => window.scrollY)).toBe(early);
+  });
+
+  test('an open team menu closes on a resize, and a menu with no room scrolls inside', async ({
+    page,
+  }) => {
+    await page.goto('/signin?label=tracker-phone-menu-room');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    await expect(page.locator('svg.pg')).toBeVisible();
+    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Expand all' }).click());
+    const team = page.locator('svg.pg-side [data-teammenu="engineering"]');
+    const menu = page.getByRole('menu', { name: 'Engineering' });
+    await team.click();
+    await expect(menu).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 800 });
+    await expect(menu).toHaveCount(0);
+
+    // A short screen with the team name in the middle leaves room for neither side.
+    await page.setViewportSize({ width: 390, height: 330 });
+    await page.evaluate(() => {
+      const name = document.querySelector('svg.pg-side [data-teammenu="engineering"]')!;
+      window.scrollBy(0, name.getBoundingClientRect().top - 175);
+    });
+    await team.click();
+    await expect(menu).toBeVisible();
+    await page.waitForTimeout(400);
+    await expect(menu).toBeVisible();
+    const box = (await menu.boundingBox())!;
+    const bar = (await page.getByRole('group', { name: 'View controls' }).boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(bar.y + 1);
+    expect(await menu.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+    const y = await page.evaluate(() => window.scrollY);
+    await page.keyboard.press('ArrowUp');
+    const last = menu.getByRole('menuitem', { name: 'Hide Engineering' });
+    await expect(last).toBeFocused();
+    const item = (await last.boundingBox())!;
+    const now = (await menu.boundingBox())!;
+    expect(item.y + item.height).toBeLessThanOrEqual(now.y + now.height + 1);
+    expect(await page.evaluate(() => window.scrollY)).toBe(y);
+    await expect(menu).toBeVisible();
+  });
+
+  test('the menu of the lowest team on the screen opens above the zoom bar with every item in reach', async ({
+    page,
+  }) => {
+    await page.goto('/signin?label=tracker-phone-low-menu');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    await expect(page.locator('svg.pg')).toBeVisible();
+    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Expand all' }).click());
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const barTop = async () =>
+      (await page.getByRole('group', { name: 'View controls' }).boundingBox())!.y;
+    const top = await barTop();
+    const id = await page.evaluate((limit) => {
+      const names = Array.from(document.querySelectorAll('svg.pg-side [data-teammenu]'));
+      const shown = names.filter((n) => n.getBoundingClientRect().bottom <= limit);
+      shown.sort((a, b) => b.getBoundingClientRect().top - a.getBoundingClientRect().top);
+      return shown[0].getAttribute('data-teammenu')!;
+    }, top);
+    const team = page.locator(`svg.pg-side [data-teammenu="${id}"]`);
+    const name = (await team.getAttribute('aria-label'))!.split(',')[0];
+    const menu = page.getByRole('menu', { name });
+    const inReach = async () => {
+      const limit = await barTop();
+      for (const item of await menu.getByRole('menuitem').all()) {
+        const box = (await item.boundingBox())!;
+        expect(box.y).toBeGreaterThanOrEqual(0);
+        expect(box.y + box.height).toBeLessThanOrEqual(limit);
+      }
+    };
+
+    await team.click();
+    await expect(menu).toBeVisible();
+    await page.waitForTimeout(400);
+    await expect(menu).toBeVisible();
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    await inReach();
+    await menu.getByRole('menuitem', { name: `Focus on ${name}` }).click();
+    const panel = page.getByRole('complementary', { name: `Focus on ${name}` });
+    await expect(panel).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(panel).toHaveCount(0);
+
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await team.focus();
+    await page.keyboard.press('Enter');
+    await expect(menu.getByRole('menuitem').first()).toBeFocused();
+    await page.waitForTimeout(400);
+    await expect(menu).toBeVisible();
+    await inReach();
+    await menu.getByRole('menuitem', { name: `Hide ${name}` }).click();
+    await expect(team).toHaveCount(0);
+  });
+
+  test('a handoff list near the zoom bar opens above it and stays open', async ({ page }) => {
+    await page.goto('/signin?label=tracker-phone-low-handoff');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    await expect(page.locator('svg.pg')).toBeVisible();
+    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Expand all' }).click());
+    const mark = page.locator('svg.pg [data-handoff="analyse"]');
+    await expect(mark).toBeVisible();
+    await mark.scrollIntoViewIfNeeded();
+    const bar = page.getByRole('group', { name: 'View controls' });
+    // A shorter screen puts the mark just above the sticky bar.
+    const room = await page.evaluate(() => {
+      const m = document.querySelector('svg.pg [data-handoff="analyse"]')!.getBoundingClientRect();
+      const b = document.querySelector('.zoombar')!.getBoundingClientRect();
+      return { bottom: m.bottom, under: innerHeight - b.top };
+    });
+    await page.setViewportSize({ width: 390, height: Math.ceil(room.bottom + 20 + room.under) });
+    const y = await page.evaluate(() => window.scrollY);
+    await mark.click();
+    const menu = page.getByRole('menu', { name: /^Handoffs from Analyse/ });
+    await expect(menu).toBeVisible();
+    await page.waitForTimeout(400);
+    await expect(menu).toBeVisible();
+    expect(await page.evaluate(() => window.scrollY)).toBe(y);
+    // The list stays between the pinned axis and the bar; with too little room it scrolls inside.
+    const limit = (await bar.boundingBox())!.y;
+    const box = (await menu.boundingBox())!;
+    const axis = (await page.locator('.ghead').boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(axis.y + axis.height - 1);
+    expect(box.y + box.height).toBeLessThanOrEqual(limit);
+    await expect(menu.getByRole('menuitem').first()).toBeFocused();
+  });
+
   test('the details panel focuses a work item, and a tap on a team name opens its Focus and Hide menu', async ({
     page,
   }) => {

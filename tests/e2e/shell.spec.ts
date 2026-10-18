@@ -421,11 +421,38 @@ test('a missing change request, No projects yet and the error page each have one
   await expect(page.getByRole('heading', { name: 'No projects yet' })).toBeVisible();
   await expect(main).toHaveCount(1);
 
-  // 300 reads a minute is the limit of one person, so the next page shows the error page.
-  await page.evaluate(async () => {
-    for (let i = 0; i < 300; i++) await fetch('/api/v1/projects');
-  });
-  await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
+  // 300 reads a minute is the limit of one person; the limit counts in clock minutes, so a burst
+  // that crosses a minute starts again.
+  const again = page.getByRole('button', { name: 'Try again' });
+  for (let attempt = 0; attempt < 3 && !(await again.isVisible()); attempt++) {
+    await page.evaluate(async () => {
+      for (let i = 0; i < 700; i++) if ((await fetch('/api/v1/projects')).status === 429) return;
+    });
+    await page.goto('/');
+  }
+  await expect(again).toBeVisible();
   await expect(main).toHaveCount(1);
+});
+
+test('the token Label takes typing only after hydration, so a typed label is never reset', async ({
+  page,
+}) => {
+  await page.goto('/signin?label=settings-label-race');
+  await page.getByRole('button', { name: /continue/i }).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  const projectId = new URL(page.url()).pathname.split('/')[2];
+  let release = () => {};
+  const scripts = new Promise<void>((resolve) => (release = resolve));
+  await page.route(/\/_next\/static\/chunks\/.*\.js/, async (route) => {
+    await scripts;
+    await route.continue();
+  });
+  await page.goto(`/projects/${projectId}/settings/tokens`, { waitUntil: 'domcontentloaded' });
+  const label = page.getByRole('textbox', { name: 'Label' });
+  await expect(label).toBeDisabled();
+  release();
+  await hydrated(page);
+  await label.fill('After hydration');
+  await expect(page.getByRole('button', { name: 'Create token' })).toBeEnabled();
+  await expect(label).toHaveValue('After hydration');
 });

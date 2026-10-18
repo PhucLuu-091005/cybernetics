@@ -1,11 +1,14 @@
 'use client';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useId } from 'react';
 import { useDemoMode } from './demo-mode';
 import { RailIcon } from './icons';
+import { PhotoOr } from './PhotoImg';
 import { useDismissibleDetails } from './Popover';
 import { THEME_LABEL, THEMES, useTheme } from './theme';
 
-export type Account = { name: string; detail?: string; color?: string };
+export type Account = { name: string; detail?: string; color?: string; photo?: string | null };
 
 const initials = (name: string) =>
   name
@@ -16,8 +19,9 @@ const initials = (name: string) =>
     .join('')
     .toUpperCase();
 
-export function AccountMenu({ name, detail, color }: Account) {
+export function AccountMenu({ name, detail, color, photo }: Account) {
   const ref = useDismissibleDetails();
+  const project = (usePathname() ?? '').match(/^\/projects\/([^/]+)/)?.[1];
   const [theme, setTheme] = useTheme();
   const themeLabel = useId();
   const demo = useDemoMode();
@@ -29,9 +33,14 @@ export function AccountMenu({ name, detail, color }: Account) {
   };
   return (
     <details ref={ref} className="acct me">
-      <summary aria-label={`${name}: theme and ${demo ? 'start over' : 'sign out'}`} title={name}>
+      <summary
+        aria-label={`${name}: profile, theme and ${demo ? 'start over' : 'sign out'}`}
+        title={name}
+      >
         <span className="acct-av" style={color ? { background: color } : undefined}>
-          {initials(name)}
+          <PhotoOr src={photo} size={28}>
+            {initials(name)}
+          </PhotoOr>
         </span>
         <span className="acct-names">
           <b>{name}</b>
@@ -46,6 +55,14 @@ export function AccountMenu({ name, detail, color }: Account) {
         </p>
         {demo && <p className="acct-note">Your own demo copy. Nobody else sees your changes.</p>}
         <hr />
+        {project && (
+          <>
+            <Link className="acct-item" href={`/projects/${project}/profile`}>
+              <RailIcon name="user" /> Profile
+            </Link>
+            <hr />
+          </>
+        )}
         <p className="acct-label" id={themeLabel}>
           Theme
         </p>

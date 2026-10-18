@@ -82,7 +82,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP scopes and write tools', ()
   it('ties every tool to one scope, names it, and offers no tool for tokens or deleting the project', async () => {
     const { tools } = await (await connect(ALL)).listTools();
     expect(JSON.stringify({ tools }).length).toBeLessThanOrEqual(50_000);
-    expect(tools).toHaveLength(MCP_TOOLS.length);
+    expect(tools).toHaveLength(MCP_TOOLS.filter((tool) => !tool.personalOnly).length);
     for (const tool of tools) {
       const scope = MCP_TOOLS.find((item) => item.name === tool.name)!.scope;
       expect(tool.description).toContain(`Scope: ${scope}.`);
@@ -90,7 +90,9 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP scopes and write tools', ()
       expect(Object.keys(tool.inputSchema.properties ?? {})).not.toContain('actAs');
       expect(tool.name).not.toMatch(/token|delete_project/);
     }
-    expect(new Set(MCP_TOOLS.map((tool) => tool.scope))).toEqual(new Set(ALL));
+    expect(new Set(MCP_TOOLS.flatMap((tool) => (tool.scope ? [tool.scope] : [])))).toEqual(
+      new Set(ALL),
+    );
   });
 
   it('explains the app in the server instructions, so an agent with no other context can work', async () => {
@@ -336,6 +338,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP scopes and write tools', ()
       kind: 'agent',
       userId: demo.owner.userId,
       tokenId: randomUUID(),
+      key: 'project',
+      keyLabel: 'Agent',
       workspaceId: demo.workspaceId,
       projectId: demo.projectId,
       scopes: ALL,
@@ -406,7 +410,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP scopes and write tools', ()
 
   it('parses every tool input strictly', async () => {
     const agent = await connect(ALL);
-    for (const tool of MCP_TOOLS) {
+    for (const tool of MCP_TOOLS.filter((item) => !item.personalOnly)) {
       for (const extra of [{ zzz: 1 }, { projectId: demo.projectId }, { actAs: demo.ids.lan }])
         expect(
           await call(agent, tool.name, extra),
@@ -443,6 +447,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP scopes and write tools', ()
       kind: 'agent',
       userId: demo.owner.userId,
       tokenId: randomUUID(),
+      key: 'project',
+      keyLabel: 'Agent',
       workspaceId: demo.workspaceId,
       projectId: demo.projectId,
       scopes: ALL,

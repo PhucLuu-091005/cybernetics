@@ -80,8 +80,7 @@ function visibleEvent(s: TrackerState, id: string): TrackerEvent {
   return ev;
 }
 
-const personName = (s: TrackerState, id: string) =>
-  id === 'agent' ? 'Agent' : (s.people.find((p) => p.id === id)?.name ?? id);
+const personName = (s: TrackerState, id: string) => s.people.find((p) => p.id === id)?.name ?? id;
 
 const eventLabel = (s: TrackerState, ev: Pick<TrackerEvent, 'kind' | 'by' | 'finishes'>) =>
   `${KIND_LABEL[ev.kind]} by ${personName(s, ev.by)}${isFinishingHandoff(ev) ? `, ${FINISHES_NOTE}` : ''}`;
@@ -119,7 +118,7 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
         by: q.by,
         text: q.text,
         ...finishFlag(q),
-        addedBy: q.agent ? 'agent' : q.addedBy,
+        addedBy: q.addedBy,
         hidden: false,
       });
       return {
@@ -200,7 +199,7 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
         by: q.by,
         text: q.text,
         ...finishFlag(q),
-        addedBy: q.agent ? 'agent' : q.addedBy,
+        addedBy: q.addedBy,
         hidden: false,
       });
       return {
