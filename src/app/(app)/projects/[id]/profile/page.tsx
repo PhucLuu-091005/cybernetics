@@ -103,7 +103,7 @@ export default async function ProfilePage({
           />
         </div>
         <aside className="pg-aside">
-          <McpSnippet endpoint={endpoint} />
+          <McpSnippet endpoint={endpoint} kind="personal" />
         </aside>
       </div>
     </div>

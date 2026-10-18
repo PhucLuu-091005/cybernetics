@@ -1,6 +1,8 @@
 'use client';
 import { useState } from 'react';
+import type { KeyKind } from '../../contracts';
 import { useHydrated } from '../shell/hydrated';
+import { KEY_COPY } from './copy';
 
 export const SECRET_PLACEHOLDER = 'inv_...';
 /** Same shape as docs/mcp-agent-recipe.md, so the page and the recipe never disagree. */
@@ -28,15 +30,16 @@ export async function copyText(text: string, done: string): Promise<string> {
   }
 }
 
-export function McpSnippet({ endpoint }: { endpoint: string }) {
+export function McpSnippet({ endpoint, kind = 'project' }: { endpoint: string; kind?: KeyKind }) {
   const hydrated = useHydrated();
+  const { noun } = KEY_COPY[kind];
   const [status, setStatus] = useState('');
   return (
     <section className="pg-sec" aria-labelledby="connect-agent">
       <h2 id="connect-agent">Connect your agent</h2>
       <p>
-        Paste this into your agent&apos;s MCP settings. Replace inv_... with the secret of your
-        token. Address:{' '}
+        Paste this into your agent&apos;s MCP settings. Replace inv_... with the secret of your{' '}
+        {noun}. Address:{' '}
         <span className="id" data-testid="mcp-endpoint">
           {endpoint}
         </span>
@@ -53,7 +56,7 @@ export function McpSnippet({ endpoint }: { endpoint: string }) {
             setStatus(
               await copyText(
                 mcpConfig(endpoint, SECRET_PLACEHOLDER),
-                'Config copied. Replace inv_... with your token secret.',
+                `Config copied. Replace inv_... with your ${noun} secret.`,
               ),
             )
           }

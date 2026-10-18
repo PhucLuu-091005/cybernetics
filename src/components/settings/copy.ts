@@ -3,6 +3,7 @@ import type { KeyKind } from '../../contracts';
 export const KEY_COPY: Record<
   KeyKind,
   {
+    noun: string;
     list: string;
     column: string;
     lede: string;
@@ -15,6 +16,7 @@ export const KEY_COPY: Record<
   }
 > = {
   project: {
+    noun: 'token',
     list: 'Agent tokens',
     column: 'Token',
     lede: 'A token lets your own AI agent work in this project through MCP, with the permissions you pick. Only you see your tokens.',
@@ -26,6 +28,7 @@ export const KEY_COPY: Record<
     notCreated: 'The token was not created.',
   },
   personal: {
+    noun: 'key',
     list: 'Personal keys',
     column: 'Key',
     lede: 'A personal key lets your own AI agent work in every project you belong to, now and later, as you. In each project it has only the rights you hold there. Only you see your keys.',
