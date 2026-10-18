@@ -207,6 +207,7 @@ const OUTSIDE_EXEMPT =
 const OWN_ESCAPE =
   '.tk details[open], .tk .tsearch-pop:not([hidden]), .tk .hand-menu, .tk .field-pop, .tk .view-pop, .tk .legend-pop:focus-within';
 const MINUTE = 60_000;
+const PHONE_QUERY = '(max-width: 760px)';
 
 const samePayload = (a: TrackerPayload, b: TrackerPayload) =>
   JSON.stringify(a) === JSON.stringify(b);
@@ -415,10 +416,12 @@ export function TrackerScreen({
     setDensity(next);
     writeDensity(browserStore(), userId, next);
   };
-  const [legend, setLegend] = useState(true);
+  // Null until the browser storage and width are read, so the server HTML holds no legend.
+  const [legend, setLegend] = useState<boolean | null>(null);
   useLayoutEffect(() => {
+    const phone = window.matchMedia(PHONE_QUERY).matches;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLegend(readLegendOpen(browserStore(), userId));
+    setLegend(readLegendOpen(browserStore(), userId, { phone }));
   }, [userId]);
   const changeLegend = (open: boolean) => {
     setLegend(open);

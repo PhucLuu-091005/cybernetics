@@ -142,13 +142,19 @@ export function writeDensity(store: KeyValueStore | null, userId: string, densit
 
 export const legendKey = (userId: string) => `promise-graph:legend:v1:${userId}`;
 
-/** The legend opens for a newcomer, and stays closed once the person closes it. */
-export function readLegendOpen(store: KeyValueStore | null, userId: string): boolean {
+/** The stored choice wins; without one the legend opens on a desktop, as it would cover a phone. */
+export function readLegendOpen(
+  store: KeyValueStore | null,
+  userId: string,
+  { phone }: { phone: boolean },
+): boolean {
   try {
-    return store?.getItem(legendKey(userId)) !== 'closed';
+    const raw = store?.getItem(legendKey(userId));
+    if (raw === 'open' || raw === 'closed') return raw === 'open';
   } catch {
-    return true;
+    // Without storage the width decides.
   }
+  return !phone;
 }
 
 export function writeLegendOpen(store: KeyValueStore | null, userId: string, open: boolean): void {

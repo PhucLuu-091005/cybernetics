@@ -33,6 +33,8 @@ const { X0, SIDE, AXIS_Y, TRUNK_Y, TOP, INDENT, MAX_DAY_WIDTH } = GEOMETRY;
 // The bin floats over the bottom of the graph, so the New team pill needs room above it.
 const TEAM_PILL_ROOM = 28;
 const ZOOM_STEP = 1.5;
+// Below this the pop is a sliver of its own padding, so it steps aside until the graph scrolls up.
+const LEGEND_MIN_ROOM = 48;
 const REVEAL_ZOOM = 2;
 const REVEAL_FLASH_MS = 1500;
 const REVEAL_PAD = 40;
@@ -90,7 +92,8 @@ type Props = {
   onDensity?: (density: Density) => void;
   onExpandAll?: () => void;
   onCollapseAll?: () => void;
-  legend?: boolean;
+  /** Null until the browser storage is read; the popover then stays out of the page. */
+  legend?: boolean | null;
   /** Without it, the zoom corner has no Legend button. */
   onLegend?: (open: boolean) => void;
 };
@@ -484,39 +487,45 @@ export function TrackerGraph(props: Props) {
       document.removeEventListener('keydown', onKey);
     };
   }, [viewMenu]);
-  const legendOpen = !!props.onLegend && !!props.legend;
+  const legendOpen = !!props.onLegend && props.legend === true;
   const barRef = useRef<HTMLDivElement>(null);
   const legendRef = useRef<HTMLDivElement>(null);
   const legendBtn = useRef<HTMLButtonElement>(null);
   const legendId = `legend-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
-  useLayoutEffect(() => {
+  // The pop hangs above the controls and gets the room between them and the top of the visible
+  // graph (on a phone, below the sticky top bar), scrolling inside when that is short. A drawer
+  // moves the controls without a resize, so every render measures again.
+  const fitLegend = useCallback(() => {
     const bar = barRef.current;
     const pop = legendRef.current;
-    if (!legendOpen || !bar || !pop) return;
-    // The pop hangs above the controls; it gets the room between them and the top of the visible
-    // graph (on a phone, the sticky top bar), and scrolls inside when that is not enough.
-    const fit = () => {
-      const box = bar.getBoundingClientRect();
-      const area = (bar.closest('.gcanvas') ?? bar.parentElement)!.getBoundingClientRect();
-      const stickyTop =
-        parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tk-top')) || 0;
-      const top = Math.max(area.top, stickyTop, 0);
-      const h = `${Math.round(Math.max(120, box.top - top - 16))}px`;
-      const w = `${Math.round(Math.max(240, box.right - Math.max(area.left, 0) - 12))}px`;
-      if (pop.style.getPropertyValue('--lg-room-h') !== h) pop.style.setProperty('--lg-room-h', h);
-      if (pop.style.getPropertyValue('--lg-room-w') !== w) pop.style.setProperty('--lg-room-w', w);
-    };
-    fit();
-    const sizes = new ResizeObserver(fit);
-    sizes.observe(bar.closest('.gcanvas') ?? bar);
-    window.addEventListener('resize', fit);
-    document.addEventListener('scroll', fit, { capture: true, passive: true });
+    if (!bar || !pop) return;
+    const box = bar.getBoundingClientRect();
+    const area = (bar.closest('.gcanvas') ?? bar.parentElement)!.getBoundingClientRect();
+    const stickyTop =
+      parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tk-top')) || 0;
+    const top = Math.max(area.top, stickyTop, 0);
+    const room = Math.floor(box.top - 8 - top);
+    const h = `${Math.max(0, room)}px`;
+    const w = `${Math.max(0, Math.floor(box.right - Math.max(area.left, 0) - 12))}px`;
+    pop.toggleAttribute('data-no-room', room < LEGEND_MIN_ROOM);
+    if (pop.style.getPropertyValue('--lg-room-h') !== h) pop.style.setProperty('--lg-room-h', h);
+    if (pop.style.getPropertyValue('--lg-room-w') !== w) pop.style.setProperty('--lg-room-w', w);
+  }, []);
+  useLayoutEffect(fitLegend);
+  useEffect(() => {
+    if (!legendOpen) return;
+    const bar = barRef.current;
+    const sizes = new ResizeObserver(fitLegend);
+    sizes.observe(bar?.closest('.gcanvas') ?? document.body);
+    if (bar) sizes.observe(bar);
+    window.addEventListener('resize', fitLegend);
+    document.addEventListener('scroll', fitLegend, { capture: true, passive: true });
     return () => {
       sizes.disconnect();
-      window.removeEventListener('resize', fit);
-      document.removeEventListener('scroll', fit, { capture: true });
+      window.removeEventListener('resize', fitLegend);
+      document.removeEventListener('scroll', fitLegend, { capture: true });
     };
-  }, [legendOpen]);
+  }, [legendOpen, fitLegend]);
   const closeLegend = (refocus: boolean) => {
     props.onLegend?.(false);
     if (refocus) legendBtn.current?.focus();

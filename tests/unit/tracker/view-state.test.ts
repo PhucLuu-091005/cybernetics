@@ -224,23 +224,30 @@ describe('row height and team toggles', () => {
 });
 
 describe('legend popover', () => {
-  it('reads open when nothing is stored, and remembers closed and open again per person', () => {
+  it('opens on a desktop and stays closed on a phone when nothing is stored', () => {
     const store = memoryStore();
-    expect(readLegendOpen(store, 'u1')).toBe(true);
+    expect(readLegendOpen(store, 'u1', { phone: false })).toBe(true);
+    expect(readLegendOpen(store, 'u1', { phone: true })).toBe(false);
+  });
+
+  it('remembers closed and open again per person, and the stored choice wins on both widths', () => {
+    const store = memoryStore();
     writeLegendOpen(store, 'u1', false);
-    expect(readLegendOpen(store, 'u1')).toBe(false);
-    expect(readLegendOpen(store, 'u2')).toBe(true);
+    expect(readLegendOpen(store, 'u1', { phone: false })).toBe(false);
+    expect(readLegendOpen(store, 'u2', { phone: false })).toBe(true);
     writeLegendOpen(store, 'u1', true);
-    expect(readLegendOpen(store, 'u1')).toBe(true);
+    expect(readLegendOpen(store, 'u1', { phone: false })).toBe(true);
+    expect(readLegendOpen(store, 'u1', { phone: true })).toBe(true);
     expect(legendKey('u1')).not.toBe(legendKey('u2'));
   });
 
-  it('reads open from an unknown value or a missing or throwing store', () => {
+  it('falls back to the width default from an unknown value or a missing or throwing store', () => {
     const store = memoryStore();
     store.setItem(legendKey('u1'), 'maybe');
-    expect(readLegendOpen(store, 'u1')).toBe(true);
-    expect(readLegendOpen(null, 'u1')).toBe(true);
-    expect(readLegendOpen(throwing, 'u1')).toBe(true);
+    expect(readLegendOpen(store, 'u1', { phone: false })).toBe(true);
+    expect(readLegendOpen(store, 'u1', { phone: true })).toBe(false);
+    expect(readLegendOpen(null, 'u1', { phone: false })).toBe(true);
+    expect(readLegendOpen(throwing, 'u1', { phone: true })).toBe(false);
     expect(() => writeLegendOpen(throwing, 'u1', false)).not.toThrow();
     expect(() => writeLegendOpen(null, 'u1', false)).not.toThrow();
   });
