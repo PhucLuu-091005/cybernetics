@@ -25,6 +25,9 @@ export const KIND_LABEL: Record<EventKind, string> = {
   cancelled: 'Cancelled',
 };
 
+export const kindWithArticle = (kind: EventKind) =>
+  `${/^[AEIOU]/.test(KIND_LABEL[kind]) ? 'an' : 'a'} ${KIND_LABEL[kind]}`;
+
 export const FINISHES_NOTE = 'finishes the work item';
 
 export const isFinishingHandoff = (e: { kind: EventKind; finishes?: boolean }) =>
@@ -92,6 +95,10 @@ export type WorkItem = {
   moves: DateMove[];
   since: string | null;
 };
+
+/** The person a new event of this kind names first in Who: the doer closes the work, the requester opens it. */
+export const whoDid = (item: Pick<WorkItem, 'doneBy' | 'requestedBy'>, kind: EventKind) =>
+  kind === 'done' || kind === 'cancelled' ? item.doneBy : item.requestedBy;
 
 export type TrackerEvent = {
   id: string;

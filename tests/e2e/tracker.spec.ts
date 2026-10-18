@@ -497,6 +497,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await crm.first().focus();
     await page.keyboard.press(' ');
     await expect(drawer).toContainText('CRM integration live');
+    await expect(drawer.locator('.badge')).toHaveText(/^Late by \d+ days$/);
+    await expect(drawer).not.toContainText(/late \d/);
     await page.keyboard.press('Escape');
     await expect(drawer).toHaveCount(0);
 
@@ -531,6 +533,68 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await page.keyboard.press('Escape');
       await expect(drawer).toHaveCount(0);
     }
+  });
+
+  test('a milestone name on the axis keeps the T line behind its own background and covers no circle', async ({
+    page,
+  }) => {
+    const { projectId, graph } = await signIn(page, 'tracker-axis', { classic: false });
+    // Both milestones move next to T (9 Oct 18:00): whichever side each name takes, one crosses T.
+    const num = await page.evaluate(async (pid) => {
+      const read = await (await fetch(`/api/v1/projects/${pid}/tracker`)).json();
+      const move = (milestoneId: string, date: string) => ({
+        op: 'msDate',
+        a: { milestoneId, date, why: 'Axis test.', by: read.me.id, at: new Date().toISOString() },
+      });
+      const created = await fetch(`/api/v1/projects/${pid}/tracker/crs`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Axis',
+          ops: [move('crm', '2026-10-08'), move('golive', '2026-10-11')],
+        }),
+      });
+      return ((await created.json()) as { num: number }).num;
+    }, projectId);
+    await visit(page, crPath(graph, num));
+    const read = () =>
+      page.evaluate(() => {
+        const probe = document.createElement('div');
+        probe.style.color = 'var(--panel)';
+        document.querySelector('.tk')!.append(probe);
+        const panel = getComputedStyle(probe).color;
+        probe.remove();
+        const head = document.querySelector('svg.pg-top-time')!;
+        const tline = head.querySelector('.tline')!;
+        const xt = tline.getBoundingClientRect().left;
+        const groups = Array.from(head.querySelectorAll('.ms'));
+        return groups.map((g) => {
+          const text = g.querySelector('.ms-label')!.getBoundingClientRect();
+          const back = head.querySelector(`.label-back[data-back="${g.getAttribute('data-ms')}"]`);
+          const box = back?.getBoundingClientRect();
+          return {
+            crosses: text.left < xt && text.right > xt,
+            covered:
+              !!box &&
+              box.left <= text.left &&
+              box.right >= text.right &&
+              box.top <= text.top + 1 &&
+              box.bottom >= text.bottom - 1,
+            panel: !!back && getComputedStyle(back).fill === panel,
+            overT:
+              !!back && !!(tline.compareDocumentPosition(back) & Node.DOCUMENT_POSITION_FOLLOWING),
+            underCircles:
+              !!back &&
+              groups.every(
+                (other) =>
+                  !!(back.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING),
+              ),
+          };
+        });
+      });
+    await expect.poll(async () => (await read()).some((m) => m.crosses)).toBe(true);
+    for (const m of await read())
+      expect(m).toMatchObject({ covered: true, panel: true, overT: true, underCircles: true });
   });
 
   test('a milestone deadline with a time sits at that time inside its busy day', async ({
@@ -1281,6 +1345,103 @@ test.describe('events at their own time', () => {
 test.describe('the tracker at phone width', () => {
   test.use({ viewport: { width: 390, height: 844 }, colorScheme: 'light', hasTouch: true });
 
+  test('a milestone name on a row never sits under the pinned column: it moves right and ends with an ellipsis', async ({
+    page,
+  }) => {
+    await page.goto('/signin?label=tracker-row-names');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    const time = page.locator('.gscroll .gtime');
+    await expect(page.locator('.gscroll svg.pg-side')).toHaveAttribute('viewBox', /^0 64 128 /);
+    await expect.poll(() => time.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+    const shown = () =>
+      page.evaluate(() => {
+        const edge = document.querySelector('.gscroll svg.pg-side')!.getBoundingClientRect().right;
+        return Array.from(document.querySelectorAll<SVGTextElement>('svg.pg .deadline-name'))
+          .filter((t) => t.getAttribute('visibility') !== 'hidden' && t.textContent)
+          .map((t) => {
+            const box = t.getBoundingClientRect();
+            return { text: t.textContent!, cut: box.left < edge - 1 && box.right > edge };
+          });
+      });
+    await expect.poll(async () => (await shown()).filter((n) => n.cut)).toEqual([]);
+    const moved = (await shown()).filter((n) => n.text.startsWith('CRM integ'));
+    expect(moved.length).toBeGreaterThan(0);
+    for (const n of moved)
+      expect(n.text === 'CRM integration live' || n.text.endsWith('…')).toBe(true);
+
+    await time.evaluate((el) => (el.scrollLeft = 0));
+    await expect
+      .poll(async () => (await shown()).filter((n) => n.text === 'CRM integration live').length)
+      .toBeGreaterThan(0);
+    await expect(page.locator('svg.pg .deadline-stuck:not(:empty)')).toHaveCount(0);
+  });
+
+  test('keeps the names level with their rows while the column still has the wide view box', async ({
+    page,
+  }) => {
+    await page.goto('/signin?label=tracker-level');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    const side = page.locator('.gscroll svg.pg-side');
+    await expect(side).toHaveAttribute('viewBox', /^0 64 128 /);
+    // A server-rendered first frame has the desktop view box until the phone flag arrives.
+    const offsets = await page.evaluate(() => {
+      const svg = document.querySelector<SVGSVGElement>('.gscroll svg.pg-side')!;
+      const [, y, , h] = svg.getAttribute('viewBox')!.split(' ');
+      svg.setAttribute('viewBox', `0 ${y} 228 ${h}`);
+      return Array.from(svg.querySelectorAll('.hit[data-rowlabel]')).map((hit) => {
+        const id = hit.getAttribute('data-rowlabel');
+        const line = document.querySelector(`svg.pg .hit[data-loop="${id}"]`);
+        const a = hit.getBoundingClientRect();
+        const b = line?.getBoundingClientRect();
+        return b ? Math.abs(a.top + a.height / 2 - (b.top + b.height / 2)) : 0;
+      });
+    });
+    expect(offsets.length).toBeGreaterThan(0);
+    for (const offset of offsets) expect(offset).toBeLessThan(1);
+  });
+
+  test('pins a narrow column of row names beside the time line, which scrolls on its own', async ({
+    page,
+  }) => {
+    await page.goto('/signin?label=tracker-pin');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    const side = page.locator('.gscroll svg.pg-side');
+    const time = page.locator('.gscroll .gtime');
+    await expect(side).toHaveAttribute('viewBox', /^0 64 128 /);
+    await expect.poll(() => time.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+    const box = (await side.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.width).toBeLessThanOrEqual(140);
+    await expect(side.locator('.row-label').first()).toBeInViewport();
+    await expect(page.locator('svg.pg-top-time .tpill')).toBeInViewport();
+    await expect(side.locator('[data-eyerow], [data-eyeteam], [data-focusitem]')).toHaveCount(0);
+    const names = await side.locator('.row-label').evaluateAll((els) =>
+      els.map((el) => {
+        const column = el.closest('svg')!.getBoundingClientRect();
+        const text = el.firstChild!;
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        return {
+          text: text.textContent ?? '',
+          room: column.right - range.getBoundingClientRect().right,
+        };
+      }),
+    );
+    const cut = names.filter((n) => n.text.endsWith('…'));
+    expect(cut.length).toBeGreaterThan(0);
+    for (const n of names) expect(n.room).toBeGreaterThanOrEqual(2);
+
+    await time.evaluate((el) => (el.scrollLeft = 0));
+    expect((await side.boundingBox())!.x).toBe(box.x);
+    expect(
+      await page.locator('.gscroll').evaluate((el) => el.scrollWidth - el.clientWidth),
+    ).toBeLessThanOrEqual(0);
+    await noHorizontalScroll(page);
+  });
+
   test('the graph, a change request page, its modals and the other pages never scroll sideways', async ({
     page,
   }) => {
@@ -1712,6 +1873,12 @@ test.describe('row height and collapsible teams', () => {
       await expect(hint).toHaveCount(0);
       await drawer.getByRole('button', { name: 'Add an event' }).click();
       const dialog = page.getByRole('dialog', { name: 'Add an event' });
+      await expect(dialog.getByLabel('Who').locator('option:checked')).toHaveText('Minh Trần');
+      await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+      await expect(dialog.getByLabel('Who').locator('option:checked')).toHaveText('Hà Đỗ');
+      await dialog.getByLabel('Who').selectOption({ label: 'Lan Phạm' });
+      await dialog.getByRole('button', { name: 'Message', exact: true }).click();
+      await expect(dialog.getByLabel('Who').locator('option:checked')).toHaveText('Lan Phạm');
       const group = (name: string) => dialog.getByRole('group', { name, exact: true });
       await expect(group('Start').getByRole('button')).toHaveText(['Idea', 'Message', 'Issue']);
       await expect(group('Progress').getByRole('button')).toHaveText([
@@ -1743,9 +1910,16 @@ test.describe('row height and collapsible teams', () => {
 
     await test.step('Cancel work item needs a reason, then the row is grey and not late', async () => {
       await details('PG-203', 'PG-203 Country list field type');
-      await expect(drawer.locator('.wi-top .badge')).toHaveText('Late');
+      await expect(drawer.locator('.wi-top .badge')).toHaveText(/^Late by \d+ days?$/);
+      await expect(drawer).not.toContainText(/late \d/);
+      await drawer.getByRole('button', { name: 'Mark done' }).click();
+      const done = page.getByRole('dialog', { name: 'Add an event' });
+      await expect(done.getByLabel('Who').locator('option:checked')).toHaveText('Quang Nguyễn');
+      await done.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await expect(done).toHaveCount(0);
       await drawer.getByRole('button', { name: 'Cancel work item' }).click();
       const dialog = page.getByRole('dialog', { name: 'Cancel this work item' });
+      await expect(dialog.getByLabel('Who').locator('option:checked')).toHaveText('Quang Nguyễn');
       await expect(dialog.getByRole('button', { name: 'Cancelled', exact: true })).toHaveAttribute(
         'aria-pressed',
         'true',
@@ -2035,5 +2209,146 @@ test.describe('the legend popover on a phone', () => {
         return box.y - area.y;
       })
       .toBeGreaterThanOrEqual(0);
+  });
+});
+
+test.describe('changes that no longer apply', () => {
+  test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
+
+  test('when Clear fails part way, the rows left keep their Clear button', async ({ page }) => {
+    const { projectId, graph } = await signIn(page, 'tracker-clear-409', { classic: false });
+    const num = await page.evaluate(async (pid) => {
+      const read = await (await fetch(`/api/v1/projects/${pid}/tracker`)).json();
+      const item = read.queue.items.find(
+        (q: { title: string }) => q.title === 'PG-204 Tax ID format check',
+      );
+      const created = await fetch(`/api/v1/projects/${pid}/tracker/crs`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Tax ID check',
+          ops: [
+            { op: 'place', a: { itemId: item.id, teamId: 'engineering' } },
+            { op: 'rename', a: { workItemId: item.id, title: 'PG-204 Tax ID check' } },
+            { op: 'rename', a: { workItemId: item.id, title: 'PG-204 Tax ID rules' } },
+          ],
+        }),
+      });
+      return ((await created.json()) as { num: number }).num;
+    }, projectId);
+    await visit(page, crPath(graph, num));
+    const side = page.locator('.cr-side');
+    const rows = side.locator('.chg-row');
+    const clear = side.getByRole('button', { name: 'Clear the changes that no longer apply' });
+    const note = side.getByRole('note', { name: 'Changes that no longer apply' });
+    await rows
+      .first()
+      .getByRole('button', { name: /^Undo this change/ })
+      .click();
+    await expect(note).toHaveText('2 changes no longer apply.Clear');
+
+    let removals = 0;
+    await page.route(/\/ops\/\d+$/, async (route) => {
+      if (route.request().method() !== 'DELETE' || ++removals < 2) return route.continue();
+      await route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: { code: 'CONFLICT', message: 'The change request changed.' },
+        }),
+      });
+    });
+    await clear.click();
+    await expect(note).toHaveText('1 change no longer applies.Clear');
+    await expect(rows).toHaveCount(1);
+    await expect(clear).toBeEnabled();
+    expect(removals).toBe(2);
+  });
+
+  test('a draft whose every change is already in Main says so and can be cancelled', async ({
+    page,
+  }) => {
+    const { projectId, graph } = await signIn(page, 'tracker-inmain', { classic: false });
+    const num = await page.evaluate(async (pid) => {
+      const base = `/api/v1/projects/${pid}/tracker/crs`;
+      const post = (url: string, body: unknown) =>
+        fetch(url, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        }).then((r) => r.json());
+      const ops = [{ op: 'rename', a: { workItemId: 'secret', title: 'Client secret renewed' } }];
+      const first = await post(base, { title: 'First', ops });
+      const copy = await post(base, { title: 'Copy', ops });
+      await post(`${base}/${first.num}/actions`, { action: 'ready' });
+      const read = await (await fetch(`/api/v1/projects/${pid}/tracker`)).json();
+      const revision = read.crs.find((c: { num: number }) => c.num === first.num).revision;
+      await post(`${base}/${first.num}/actions`, { action: 'merge', expectedRevision: revision });
+      return copy.num as number;
+    }, projectId);
+    await visit(page, crPath(graph, num));
+    const bar = page.locator('.bbar').first();
+    await expect(bar).toContainText('0 changes');
+    await expect(bar).toContainText('Every change is already in Main.');
+    await expect(bar.getByRole('button', { name: 'Mark as ready' })).toBeDisabled();
+    await expect(bar.getByRole('button', { name: 'Cancel change request' })).toBeEnabled();
+    await expect(page.locator('.cr-side')).toContainText('Every change is already in Main.');
+  });
+
+  test('an undone placement leaves its later changes out of the count and of Mark as ready, and Clear removes them', async ({
+    page,
+  }) => {
+    const { projectId, graph } = await signIn(page, 'tracker-stale', { classic: false });
+    const num = await page.evaluate(async (pid) => {
+      const read = await (await fetch(`/api/v1/projects/${pid}/tracker`)).json();
+      const item = read.queue.items.find(
+        (q: { title: string }) => q.title === 'PG-204 Tax ID format check',
+      );
+      const created = await fetch(`/api/v1/projects/${pid}/tracker/crs`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Tax ID check',
+          ops: [
+            { op: 'place', a: { itemId: item.id, teamId: 'engineering' } },
+            { op: 'rename', a: { workItemId: item.id, title: 'PG-204 Tax ID check' } },
+            { op: 'rename', a: { workItemId: item.id, title: 'PG-204 Tax ID rules' } },
+          ],
+        }),
+      });
+      return ((await created.json()) as { num: number }).num;
+    }, projectId);
+    await visit(page, crPath(graph, num));
+    const bar = page.locator('.bbar').first();
+    const side = page.locator('.cr-side');
+    const rows = side.locator('.chg-row');
+    const ready = bar.getByRole('button', { name: 'Mark as ready' });
+    const clear = side.getByRole('button', { name: 'Clear the changes that no longer apply' });
+    await expect(bar).toContainText('3 changes');
+    await expect(ready).toBeEnabled();
+    await expect(clear).toHaveCount(0);
+
+    await rows
+      .first()
+      .getByRole('button', { name: /^Undo this change/ })
+      .click();
+    await expect(rows).toHaveCount(2);
+    await expect(rows.first()).toContainText('no longer applies');
+    await expect(bar).toContainText('0 changes');
+    await expect(side.getByRole('button', { name: /^Changes/ })).toHaveText('Changes 0');
+    await expect(ready).toBeDisabled();
+    await expect(side.getByRole('note', { name: 'Changes that no longer apply' })).toHaveText(
+      '2 changes no longer apply.Clear',
+    );
+
+    await side.getByRole('button', { name: 'Hide the side panel' }).click();
+    const show = page.getByRole('button', { name: /^Changes and Queue/ });
+    await expect(show.locator('.cnt')).toHaveText('0');
+    await show.click();
+
+    await clear.click();
+    await expect(rows).toHaveCount(0);
+    await expect(clear).toHaveCount(0);
+    await expect(side).toContainText('No changes yet.');
   });
 });

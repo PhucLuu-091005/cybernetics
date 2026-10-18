@@ -436,6 +436,36 @@ describe('reviewModel', () => {
     expect(reviewModel(p, 7, { 'event:qe1': 'main' })?.canMerge).toBe(false);
   });
 
+  it('counts only the changes that still apply, and lists the others for Clear, last first', () => {
+    const { crs, commits } = mainTookTheSpots();
+    const p = payload(crs, commits);
+    expect(reviewModel(p, 5, {})).toMatchObject({ applying: 1, stale: [1, 0] });
+    const { cr1, commits: first } = seed();
+    const gone = makeOp('attach', { eventId: 'nope', workItemId: 'pg203' }, 1, 'lan');
+    const cr = makeCr(5, { author: 'lan', status: 'draft', ops: [gone] });
+    expect(reviewModel(payload([cr1, cr], first), 5, {})).toMatchObject({
+      applying: 0,
+      stale: [0],
+    });
+  });
+
+  it('says when every change of an open CR is already in Main', () => {
+    const { crs, commits } = afterTwoMerges();
+    const merged = crs.find((c) => c.num === 2)!;
+    const copy = makeCr(6, {
+      author: 'lan',
+      status: 'draft',
+      ops: merged.ops.map((op) => ({ ...op, rev: 1 })),
+    });
+    expect(reviewModel(payload([...crs, copy], commits), 6, {})).toMatchObject({
+      applying: 0,
+      inMain: true,
+      changes: [],
+    });
+    expect(reviewModel(payload(crs, commits), 3, {})?.inMain).toBe(false);
+    expect(reviewModel(payload(crs, commits), 2, {})?.inMain).toBe(false);
+  });
+
   it('blames Main, not the queue, for a closed change whose card or spot Main used before the close', () => {
     const { crs, commits } = mainTookTheSpots();
     const [, cr5] = crs;

@@ -13,6 +13,7 @@ import {
 } from '../../../src/tracker/layout';
 import type { TrackerState } from '../../../src/tracker/model';
 import { replayOps, type Marks } from '../../../src/tracker/ops';
+import { larkspurCrs } from '../../../src/server/tracker/seed/larkspur';
 import { addDays } from '../../../src/tracker/time';
 import {
   AS_OF,
@@ -860,6 +861,68 @@ describe('layoutTracker: milestone deadlines on member rows', () => {
     });
     const M = layoutTracker(s, view());
     expect(M.deadlines[0].x).toBe(M.x1 - 4);
+  });
+});
+
+describe('layoutTracker: milestone names keep off the T line', () => {
+  const main = () => replayOps(larkspurState(), larkspurCrs()[0].ops, TIME_ZONE).state;
+  const views = [300, 500, 800, 1000, 1200].flatMap((span) =>
+    [1, 1.5, 2, 3].map((zoom) =>
+      view({ windowStart: undefined, windowEnd: undefined, span, zoom }),
+    ),
+  );
+
+  it('moves a row name to the other side of its mark or ends it with an ellipsis', () => {
+    const cut: string[] = [];
+    for (const v of views) {
+      const L = layoutTracker(main(), v);
+      for (const d of L.deadlines.filter((x) => x.label)) {
+        const width = d.label!.length * 5.4 * (L.level.nameFont / 9.5);
+        const [x0, x1] =
+          d.labelAnchor === 'start' ? [d.labelX, d.labelX + width] : [d.labelX - width, d.labelX];
+        expect(x1 < L.tLine.x - 2 || x0 > L.tLine.x + 2).toBe(true);
+        if (d.label!.endsWith('…')) cut.push(d.label!);
+      }
+    }
+    expect(cut.length).toBeGreaterThan(0);
+    const names = main().milestones.map((m) => m.name);
+    for (const label of cut) {
+      expect(label.length).toBeGreaterThanOrEqual(8);
+      expect(names.some((name) => name.startsWith(label.slice(0, -1)))).toBe(true);
+    }
+  });
+});
+
+describe('layoutTracker: the narrow label column of a phone', () => {
+  const { NARROW_SIDE } = GEOMETRY;
+
+  it('keeps the wide column without a width and reports the narrow one with it', () => {
+    expect(layoutTracker(larkspurState(), view()).side).toBe(SIDE);
+    expect(layoutTracker(larkspurState(), view({ side: NARROW_SIDE })).side).toBe(NARROW_SIDE);
+    expect(NARROW_SIDE).toBeLessThanOrEqual(140);
+  });
+
+  it('cuts the row and team names to the narrow column, with an ellipsis', () => {
+    for (const density of ['comfortable', 'compact', 'dense'] as Density[]) {
+      const L = layoutTracker(larkspurState(), view({ side: NARROW_SIDE, density }));
+      const char = (6.6 * L.level.font) / ROW_LEVELS.comfortable.font;
+      for (const r of L.rows) {
+        expect(28 + r.depth * INDENT + r.label.length * char).toBeLessThanOrEqual(NARROW_SIDE - 4);
+        if (r.label !== r.title) expect(r.label.endsWith('…')).toBe(true);
+      }
+      expect(L.rows.some((r) => r.label !== r.title)).toBe(true);
+      for (const lane of L.lanes) {
+        const count = laneNameWidth(` · ${lane.summary.count}`, true);
+        expect(24 + laneNameWidth(lane.label) + count).toBeLessThanOrEqual(NARROW_SIDE - 4);
+      }
+    }
+  });
+
+  it('leaves the time line where it was', () => {
+    const wide = layoutTracker(larkspurState(), view({ span: 262 }));
+    const narrow = layoutTracker(larkspurState(), view({ span: 262, side: NARROW_SIDE }));
+    expect(narrow.tLine.x).toBe(wide.tLine.x);
+    expect(narrow.width).toBe(wide.width);
   });
 });
 
@@ -1744,6 +1807,28 @@ describe('layoutTracker: row height', () => {
         d.labelAnchor === 'start' ? [d.labelX, d.labelX + width] : [d.labelX - width, d.labelX];
       expect(b < plus - room || a > plus + room).toBe(true);
     }
+  });
+
+  it.each(LEVELS)('keeps a %s waiting text off the + button of an editable view', (density) => {
+    const state = buildState({
+      teams: [{ id: 'team', name: 'Team', leadId: null }],
+      workItems: [
+        workItem({ id: 'above', plannedFinish: '2026-10-20' }),
+        workItem({ id: 'placed', since: AS_OF, plannedFinish: '2026-10-20' }),
+      ],
+    });
+    const waitOf = (L: TrackerLayout) =>
+      L.segments.find(
+        (x): x is Extract<LayoutSegment, { kind: 'wait' }> =>
+          x.kind === 'wait' && x.workItemId === 'placed',
+      )!;
+    const plain = waitOf(layoutTracker(state, view({ density })));
+    expect(plain.textX).toBe(plain.x1 + 8);
+    const L = layoutTracker(state, view({ density, plusButtons: true }));
+    const wait = waitOf(L);
+    const plus = L.tLine.x + 20;
+    expect(wait.textX).toBeGreaterThan(plus + L.level.plus);
+    expect(wait.textX + wait.text.length * 5.6).toBeLessThanOrEqual(L.width);
   });
 
   it('puts a Dense milestone name only where the row has no line', () => {

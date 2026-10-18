@@ -27,6 +27,7 @@ import {
 } from '../../tracker';
 import { svgPoint } from './drag';
 import { gestureFactor, openScale, wheelZoomFactor, zoomTarget } from './scale';
+import { cutToFit, keepInView } from './in-view';
 import { Icon, KIND_COLOR, KindIcon, SvgIcon } from './icons';
 
 const { X0, SIDE, AXIS_Y, TRUNK_Y, TOP, INDENT, MAX_DAY_WIDTH } = GEOMETRY;
@@ -157,6 +158,8 @@ function MilestoneMark({ m }: { m: LayoutMilestone }) {
   );
 }
 
+const BACK_PAD = 3;
+
 export function TrackerGraph(props: Props) {
   const { layout: L, edit, selectedMs, focusRow, focusMs, lifted, preview } = props;
   const lv = L.level;
@@ -176,6 +179,7 @@ export function TrackerGraph(props: Props) {
   const head = useRef<HTMLDivElement>(null);
   const headTime = useRef<HTMLDivElement>(null);
   const timeSvg = useRef<SVGSVGElement>(null);
+  const headSvg = useRef<SVGSVGElement>(null);
   const latest = useRef({
     L,
     onZoom: props.onZoom,
@@ -232,9 +236,83 @@ export function TrackerGraph(props: Props) {
     anchor.current = null;
     const scale = svg.getBoundingClientRect().width / (L.width - SIDE);
     el.scrollLeft = (L.x(a.t) - SIDE) * scale - (a.clientX - el.getBoundingClientRect().left);
-    // On a phone the whole graph is wider than the screen and scrolls as well, so T needs both.
+    // A frame wider than its box (a narrow window, not a phone) scrolls too, so T needs both.
     if (a.open && body.current) body.current.scrollLeft = body.current.scrollWidth;
   }, [L]);
+
+  // The T line and the grid run through the axis row, so each milestone name gets the panel behind it.
+  const fitBacks = useCallback(() => {
+    const svg = headSvg.current;
+    if (!svg) return;
+    for (const back of Array.from(svg.querySelectorAll<SVGRectElement>('.label-back'))) {
+      const id = CSS.escape(back.dataset.back ?? '');
+      const label = svg.querySelector<SVGTextElement>(`[data-ms="${id}"] .ms-label`);
+      const group = label?.parentNode;
+      if (!label || !(group instanceof SVGGElement) || typeof label.getBBox !== 'function')
+        continue;
+      const box = label.getBBox();
+      const at = group.transform.baseVal.consolidate()?.matrix;
+      back.setAttribute('x', String(box.x + (at?.e ?? 0) - BACK_PAD));
+      back.setAttribute('y', String(box.y + (at?.f ?? 0)));
+      back.setAttribute('width', String(box.width + 2 * BACK_PAD));
+      back.setAttribute('height', String(box.height));
+    }
+  }, []);
+  useLayoutEffect(fitBacks, [L, preview, fitBacks]);
+
+  // A row name that the sideways scroll pushes under the pinned names starts again after them.
+  const fitRowNames = useCallback(() => {
+    const svg = timeSvg.current;
+    const el = scroller.current;
+    if (!svg || !el) return;
+    const left = SIDE + el.scrollLeft;
+    for (const g of Array.from(svg.querySelectorAll<SVGGElement>('.deadline'))) {
+      const label = g.querySelector<SVGTextElement>('.deadline-name:not(.deadline-stuck)');
+      const stuck = g.querySelector<SVGTextElement>('.deadline-stuck');
+      if (!label || !stuck || typeof label.getBBox !== 'function') continue;
+      const gx = g.transform.baseVal.consolidate()?.matrix.e ?? 0;
+      const box = label.getBBox();
+      const place = keepInView({ x0: gx + box.x, x1: gx + box.x + box.width }, left);
+      let text: string | null = null;
+      if (place && place !== 'whole') {
+        stuck.setAttribute('x', String(place.x - gx));
+        text = cutToFit(label.textContent ?? '', place.room, (t) => {
+          stuck.textContent = t;
+          return stuck.getComputedTextLength();
+        });
+      }
+      stuck.textContent = text ?? '';
+      if (place === 'whole') label.removeAttribute('visibility');
+      else label.setAttribute('visibility', 'hidden');
+    }
+  }, []);
+  useLayoutEffect(fitRowNames, [L, fitRowNames]);
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    let frame = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(fitRowNames);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      el.removeEventListener('scroll', onScroll);
+    };
+  }, [fitRowNames]);
+  useEffect(() => {
+    let mounted = true;
+    // A web font that arrives later changes the width of the names.
+    void document.fonts?.ready.then(() => {
+      if (!mounted) return;
+      fitBacks();
+      fitRowNames();
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [fitBacks, fitRowNames]);
 
   useEffect(() => {
     const el = root.current;
@@ -288,7 +366,7 @@ export function TrackerGraph(props: Props) {
   // The pinned axis sits outside the scrolling graph, so it copies the sideways scroll of the rows.
   const syncHead = useCallback(() => {
     if (head.current && body.current) head.current.scrollLeft = body.current.scrollLeft;
-    // On a phone the whole graph scrolls too, so the lane counts also move past the hidden labels.
+    // When the whole graph scrolls too, the lane counts also move past the hidden labels.
     if (body.current && scroller.current)
       scroller.current.style.setProperty(
         '--lane-shift',
@@ -532,7 +610,11 @@ export function TrackerGraph(props: Props) {
   };
   // Label text measures differ by glyph, so a clip keeps a long label off the buttons.
   const clipId = `labels-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
-  const labelEnd = X0 - (props.onFocusItem ? 54 : 36);
+  const sideW = L.side;
+  const narrow = sideW < SIDE;
+  const labelEnd = narrow ? sideW - 4 : X0 - (props.onFocusItem ? 54 : 36);
+  const focusItem = narrow ? undefined : props.onFocusItem;
+  const focusTeam = narrow ? undefined : props.onFocusTeam;
 
   const run = (target: Element) => {
     const el = target.closest<SVGElement>(TARGETS);
@@ -596,20 +678,22 @@ export function TrackerGraph(props: Props) {
   const sideHead = (
     <svg
       className="tg pg-top pg-top-side"
-      viewBox={`0 0 ${SIDE} ${TOP}`}
-      style={{ width: SIDE }}
+      viewBox={`0 0 ${sideW} ${TOP}`}
+      width={sideW}
+      style={{ height: TOP }}
+      preserveAspectRatio="xMinYMin slice"
       role="group"
       aria-label="Milestones"
       {...svgProps}
     >
-      <text className="lane-name" x={12} y={TRUNK_Y + 4}>
+      <text className="lane-name" x={12} y={narrow && edit ? AXIS_Y + 4 : TRUNK_Y + 4}>
         MILESTONES
       </text>
       {edit && (
         <g
           className="pill"
           data-newms="1"
-          transform={`translate(112 ${TRUNK_Y - 8})`}
+          transform={`translate(${narrow ? 12 : 112} ${TRUNK_Y - 8})`}
           {...button('New milestone')}
         >
           <rect width={104} height={16} rx={8} />
@@ -618,20 +702,23 @@ export function TrackerGraph(props: Props) {
           </text>
         </g>
       )}
-      <line className="divider" x1={SIDE - 0.5} x2={SIDE - 0.5} y1={0} y2={TOP} />
+      <line className="divider" x1={sideW - 0.5} x2={sideW - 0.5} y1={0} y2={TOP} />
     </svg>
   );
 
   const side = (
     <svg
       className="tg pg-side"
-      viewBox={`0 ${TOP} ${SIDE} ${BODY}`}
-      style={{ width: SIDE }}
+      viewBox={`0 ${TOP} ${sideW} ${BODY}`}
+      width={sideW}
+      // Until the phone flag arrives, CSS already narrows a wide view box; slice keeps the scale and crops it.
+      style={{ height: BODY }}
+      preserveAspectRatio="xMinYMin slice"
       role="group"
       aria-label="Teams and work items"
       {...svgProps}
     >
-      {bands(0, SIDE)}
+      {bands(0, sideW)}
       <clipPath id={clipId}>
         <rect x={0} y={0} width={labelEnd} height={H} />
       </clipPath>
@@ -653,7 +740,7 @@ export function TrackerGraph(props: Props) {
                 data-teamsum={lane.teamId}
                 x={0.5}
                 y={top + 0.5}
-                width={SIDE - 1}
+                width={sideW - 1}
                 height={head - 1}
                 aria-expanded={!lane.collapsed}
                 {...button(summary.ariaLabel)}
@@ -684,7 +771,7 @@ export function TrackerGraph(props: Props) {
                 <title>{lane.name}</title>
               )}
             </text>
-            {props.onFocusTeam && (
+            {focusTeam && (
               <g
                 className={cls('eye', 'focus-btn', lane.focused && 'on')}
                 data-focusteam={lane.teamId}
@@ -698,10 +785,12 @@ export function TrackerGraph(props: Props) {
                 </title>
               </g>
             )}
-            <g className="eye" data-eyeteam={lane.teamId} {...button(lane.eyeLabel)}>
-              <rect x={X0 - 24 - btn / 2} y={by} width={btn} height={btn} />
-              <SvgIcon name="eye" x={X0 - 24} y={by + btn / 2} size={icon} />
-            </g>
+            {!narrow && (
+              <g className="eye" data-eyeteam={lane.teamId} {...button(lane.eyeLabel)}>
+                <rect x={X0 - 24 - btn / 2} y={by} width={btn} height={btn} />
+                <SvgIcon name="eye" x={X0 - 24} y={by + btn / 2} size={icon} />
+              </g>
+            )}
             {lane.guide && (
               <line className="guide" x1={16} x2={16} y1={lane.guide.y1} y2={lane.guide.y2} />
             )}
@@ -730,7 +819,7 @@ export function TrackerGraph(props: Props) {
               data-rowlabel={r.id}
               x={22}
               y={r.y - lv.hit / 2}
-              width={SIDE - 22}
+              width={sideW - 22}
               height={lv.hit}
             />
             <line className="guide" x1={16} x2={24 + indent} y1={r.y} y2={r.y} />
@@ -754,14 +843,14 @@ export function TrackerGraph(props: Props) {
               data-rowlabel={r.id}
               x={26}
               y={r.y - Math.min(10, lv.hit / 2)}
-              width={X0 - (props.onFocusItem ? 82 : 64)}
+              width={narrow ? sideW - 30 : X0 - (props.onFocusItem ? 82 : 64)}
               height={Math.min(20, lv.hit)}
             >
               <title>
                 {edit ? 'Open the details, or drag onto a milestone to add it' : 'Open the details'}
               </title>
             </rect>
-            {props.onFocusItem && (
+            {focusItem && (
               <g
                 className={cls('eye', 'focus-btn', r.focused && 'on')}
                 data-focusitem={r.id}
@@ -781,14 +870,21 @@ export function TrackerGraph(props: Props) {
                 </title>
               </g>
             )}
-            <g className="eye" data-eyerow={r.id} {...button(r.eyeLabel)}>
-              <rect x={X0 - 24 - lv.btn / 2} y={r.y - lv.btn / 2} width={lv.btn} height={lv.btn} />
-              <SvgIcon name="eye" x={X0 - 24} y={r.y} size={lv.btnIcon} />
-            </g>
+            {!narrow && (
+              <g className="eye" data-eyerow={r.id} {...button(r.eyeLabel)}>
+                <rect
+                  x={X0 - 24 - lv.btn / 2}
+                  y={r.y - lv.btn / 2}
+                  width={lv.btn}
+                  height={lv.btn}
+                />
+                <SvgIcon name="eye" x={X0 - 24} y={r.y} size={lv.btnIcon} />
+              </g>
+            )}
           </Fragment>
         );
       })}
-      <line className="divider" x1={SIDE - 0.5} x2={SIDE - 0.5} y1={TOP} y2={H} />
+      <line className="divider" x1={sideW - 0.5} x2={sideW - 0.5} y1={TOP} y2={H} />
     </svg>
   );
 
@@ -807,6 +903,7 @@ export function TrackerGraph(props: Props) {
 
   const timeHead = (
     <svg
+      ref={headSvg}
       className="tg pg-top pg-top-time"
       viewBox={`${SIDE} 0 ${L.width - SIDE} ${TOP}`}
       style={timeWidth}
@@ -842,6 +939,12 @@ export function TrackerGraph(props: Props) {
           style={{ stroke: color(s.tone) }}
         />
       ))}
+      {/* One layer under every milestone, so no name box covers a circle. */}
+      <g className="label-backs">
+        {L.milestones.map((m) => (
+          <rect key={m.id} className="label-back" data-back={m.id} />
+        ))}
+      </g>
       {L.milestones.map((m) => {
         const moved = preview?.kind === 'ms' && preview.id === m.id ? preview : null;
         const mx = moved ? moved.x : m.x;
@@ -996,6 +1099,16 @@ export function TrackerGraph(props: Props) {
                 >
                   {d.label}
                 </text>
+              )}
+              {d.label && (
+                <text
+                  className="deadline-name deadline-stuck"
+                  y={d.labelY - d.y}
+                  style={{
+                    fill: ink(d.tone === 'ink-3' ? 'ink-2' : d.tone),
+                    fontSize: lv.nameFont,
+                  }}
+                />
               )}
             </g>
           ))}
