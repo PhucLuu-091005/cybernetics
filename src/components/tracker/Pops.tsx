@@ -6,6 +6,7 @@ import {
   FINISHES_NOTE,
   isFinishingHandoff,
   KIND_LABEL,
+  kindWithArticle,
   type DateMove,
   type EventKind,
   type TrackerState,
@@ -349,11 +350,11 @@ function AddedPop({
     <PopFrame
       target={target}
       container={container}
-      label={`Added a ${KIND_LABEL[ev.kind]}`}
+      label={`Added ${kindWithArticle(ev.kind)}`}
       icon={ring('var(--ink)', <KindIcon kind={ev.kind} size={15} />)}
       head={
         <>
-          <b>Added a {KIND_LABEL[ev.kind]}</b> by {c.dir.name(ev.by)}
+          <b>Added {kindWithArticle(ev.kind)}</b> by {c.dir.name(ev.by)}
           <small>
             {formatStamp(ev.at, c.tz)} · {item?.title}
           </small>
