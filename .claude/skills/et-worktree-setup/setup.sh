@@ -26,12 +26,15 @@ if docker exec cybernetics-pg psql -U promise_graph -d promise_graph -tAc \
   exit 1
 fi
 
-# The first entry of `git worktree list` is the main checkout, which holds the real node_modules.
-main=$(git worktree list --porcelain | awk '/^worktree /{print $2; exit}')
-base_dir=$(git worktree list --porcelain | awk -v b="refs/heads/$base" '
-  /^worktree /{w=$2} $0=="branch " b {print w; exit}')
-src=${base_dir:-$main}
-[ -d "$src/node_modules" ] || { echo "no node_modules in $src" >&2; exit 1; }
+checkout_of() {
+  git worktree list --porcelain | awk -v b="refs/heads/$1" '/^worktree /{w=$2} $0=="branch " b {print w; exit}'
+}
+src=
+for c in "$(checkout_of "$base")" "$(checkout_of phucluu/event-tracker)" \
+  "$(git worktree list --porcelain | awk '/^worktree /{print $2; exit}')"; do
+  if [ -n "$c" ] && [ -d "$c/node_modules" ]; then src=$c; break; fi
+done
+[ -n "$src" ] || { echo "no checkout with node_modules found" >&2; exit 1; }
 
 git worktree add -b "$branch" "$dir" "$base"
 if [ "$(uname)" = Darwin ]; then cp -cR "$src/node_modules" "$dir/"; else cp -R "$src/node_modules" "$dir/"; fi

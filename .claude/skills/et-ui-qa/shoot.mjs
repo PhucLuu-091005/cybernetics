@@ -1,6 +1,6 @@
 // Usage (from the worktree root, with your own dev server running):
 //   node .claude/skills/et-ui-qa/shoot.mjs --base http://localhost:<port> --out <dir> \
-//     [--pages graph,members,settings,changes/2] [--widths 1440,390] [--themes light,dark] [--label qa]
+//     [--pages graph,members,settings/tokens,changes/2] [--widths 1440,390] [--themes light,dark] [--label qa]
 import path from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -26,7 +26,7 @@ if (['3100', '3200', '3310'].includes(port)) {
   console.error(`port ${port} belongs to the owner; start your own dev server`);
   process.exit(2);
 }
-const pages = arg('pages', 'graph,members,settings').split(',');
+const pages = arg('pages', 'graph,members,settings/tokens').split(',');
 const widths = arg('widths', '1440,390').split(',').map(Number);
 const themes = arg('themes', 'light,dark').split(',');
 const label = arg('label', 'qa');
@@ -65,7 +65,14 @@ for (const theme of themes) {
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-    page.on('console', (m) => m.type() === 'error' && errors.push(`console: ${m.text()}`));
+    // A failed load also logs a console error without its URL; the response line names it.
+    page.on('console', (m) => {
+      if (m.type() === 'error' && !m.text().startsWith('Failed to load resource'))
+        errors.push(`console: ${m.text()}`);
+    });
+    page.on('response', (r) => {
+      if (r.status() >= 400) errors.push(`HTTP ${r.status()} ${new URL(r.url()).pathname}`);
+    });
     await page.goto(`${base}/signin?label=${label}`);
     await page.getByRole('button', { name: /continue/i }).click();
     await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);

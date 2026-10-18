@@ -13,7 +13,7 @@ Start your own dev server in your worktree (never port 3100, 3200 or 3310), then
 
 ```sh
 node .claude/skills/et-ui-qa/shoot.mjs --base http://localhost:<port> --out <scratch>/shots-<task> \
-  --pages graph,members,settings,changes/2
+  --pages graph,members,settings/tokens,changes/2
 ```
 
 - The script signs in with a new local user (`/signin?label=qa`), which seeds the Larkspur demo, and opens each page under `/projects/<id>/`.
