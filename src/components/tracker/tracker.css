@@ -97,52 +97,6 @@
   font-size: var(--fs-s);
 }
 
-.tk .btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: 1px solid var(--rule);
-  background: var(--panel);
-  color: var(--ink);
-  border-radius: var(--r-ctl);
-  padding: 6px 11px;
-  font-weight: 500;
-  font-size: var(--fs-s);
-  cursor: pointer;
-  min-height: 32px;
-  white-space: nowrap;
-  line-height: 1.2;
-  box-shadow: var(--shadow-sm);
-  text-decoration: none;
-}
-.tk .btn:hover:not(:disabled) {
-  background: var(--sunk);
-}
-.tk .btn svg {
-  flex: none;
-}
-.tk .btn.big {
-  min-height: 40px;
-  font-size: var(--fs);
-  padding: 8px 16px;
-  border-radius: var(--r-ctl);
-}
-.tk .btn.sm {
-  min-height: 28px;
-  font-size: var(--fs-xs);
-  padding: 4px 9px;
-  border-radius: 8px;
-}
-.tk .btn-ink,
-.tk .btn-ink:hover:not(:disabled) {
-  background: var(--ink);
-  color: var(--panel);
-  border-color: var(--ink);
-}
-.tk .btn-ink:hover:not(:disabled) {
-  opacity: 0.9;
-}
 .tk .btn-draft,
 .tk .btn-draft:hover:not(:disabled) {
   background: var(--panel);
@@ -162,10 +116,6 @@
 }
 .tk .btn-stop:hover:not(:disabled) {
   background: var(--danger-ink);
-}
-.tk .btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 .tk .cnt {
   display: inline-grid;
@@ -435,18 +385,9 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
-.tk .demo select {
-  min-height: 32px;
-  border: 1px solid var(--rule);
-  background: var(--panel);
-  border-radius: var(--r-ctl);
-  padding: 0 6px;
-  font-size: var(--fs-s);
+.tk .demo .sel-btn {
+  max-width: 160px;
   font-weight: 500;
-  text-transform: none;
-  letter-spacing: 0;
-  color: var(--ink);
-  max-width: 140px;
   box-shadow: var(--shadow-sm);
 }
 /* The search gets the room of the word on a laptop; the select keeps its name and title. */
@@ -2398,7 +2339,6 @@ svg.tg .deadline-name {
   gap: 6px;
   min-width: 0;
 }
-.tk .wi-facts select,
 .tk .wi-facts input,
 .tk .wi-title {
   max-width: 100%;
@@ -2413,19 +2353,20 @@ svg.tg .deadline-name {
   font: inherit;
   font-size: var(--fs-s);
 }
-.tk .wi-facts select:hover,
 .tk .wi-facts input:hover,
 .tk .wi-title:hover {
   border-color: var(--rule);
 }
-.tk .wi-facts select:focus-visible,
 .tk .wi-facts input:focus-visible,
 .tk .wi-title:focus-visible {
   outline: none;
   border-color: var(--focus);
   background: var(--panel);
 }
-.tk .wi-pick select {
+.tk .wi-facts .sel-in.quiet {
+  margin: -4px 0 -4px -7px;
+}
+.tk .wi-pick .sel-in.quiet {
   margin-left: -4px;
 }
 .tk .wi-title {
@@ -3127,10 +3068,6 @@ svg.tg .lane-drop.glow {
   color: var(--ink);
   cursor: pointer;
 }
-.tk .check input {
-  margin: 0;
-  accent-color: var(--ink);
-}
 .tk .kind {
   display: flex;
   flex-direction: column;
@@ -3158,11 +3095,8 @@ svg.tg .lane-drop.glow {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
 }
-.tk .field select,
 .tk .field textarea,
-.tk .sel,
-.tk .share-add select,
-.tk .share-row select {
+.tk .sel {
   border: 1px solid var(--rule);
   background: var(--panel);
   color: var(--ink);
@@ -3174,7 +3108,6 @@ svg.tg .lane-drop.glow {
   min-width: 0;
   min-height: 32px;
 }
-.tk .field select,
 .tk .field textarea,
 .tk .sel {
   width: 100%;
@@ -3185,7 +3118,6 @@ svg.tg .lane-drop.glow {
   font-size: var(--fs);
 }
 .tk .field input:focus-visible,
-.tk .field select:focus-visible,
 .tk .field textarea:focus-visible,
 .tk .tsearch input:focus-visible,
 .tk .qsearch input:focus-visible {
@@ -3256,7 +3188,7 @@ svg.tg .lane-drop.glow {
   margin-top: 6px;
   flex-wrap: wrap;
 }
-.tk .share-add select:first-child {
+.tk .share-add .sel-in.grow {
   flex: 1;
   min-width: 140px;
 }

@@ -6,6 +6,12 @@ export type Point = { x: number; y: number };
 export const hydrated = (page: Page) =>
   expect(page.getByRole('button', { name: 'Collapse sidebar' })).toBeEnabled();
 
+/** Picks an option of the app's Select: a combobox button with its list in a pop. */
+export async function choose(select: Locator, option: string, timeout?: number) {
+  await select.click({ timeout });
+  await select.page().getByRole('option', { name: option, exact: true }).click({ timeout });
+}
+
 /** The centre of the part that shows: a graph row is wider than its scrolling time line. */
 export async function centerOf(locator: Locator): Promise<Point> {
   const box = await locator.evaluate((el) => {

@@ -15,6 +15,7 @@ import type { Account } from '../shell/AccountMenu';
 import { errorText, send, type ApiError } from '../shell/api';
 import { useHydrated } from '../shell/hydrated';
 import { PageHead } from '../shell/PageHead';
+import { Checkbox } from '../tracker/Checkbox';
 import { Icon } from '../tracker/icons';
 import { ModalFrame } from '../tracker/Modals';
 import { Toast, type ToastState } from '../tracker/Toast';
@@ -272,12 +273,11 @@ export function MembersScreen({
                         key={grant}
                         title={why ?? undefined}
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={checked}
                           disabled={!manage || off || why !== null}
                           aria-label={`${GRANT_LABEL[grant]}: ${member.name}`}
-                          onChange={(event) => toggle(member, grant, event.target.checked)}
+                          onChange={(on) => toggle(member, grant, on)}
                         />
                         <span className="mb-grant-name">{SHORT[grant]}</span>
                       </label>
@@ -505,11 +505,7 @@ function TeamEditor({
               return (
                 <li key={member.id}>
                   <label className="mb-pick-who">
-                    <input
-                      type="checkbox"
-                      checked={inTeam}
-                      onChange={(event) => pick(member.id, event.target.checked)}
-                    />
+                    <Checkbox checked={inTeam} onChange={(on) => pick(member.id, on)} />
                     <Face member={member} sm />
                     <span>
                       {member.pending ? member.email : member.name}

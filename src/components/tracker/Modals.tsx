@@ -31,6 +31,8 @@ import {
 import type { OpInput, QueueEntry } from './api';
 import { Avatar } from './avatar';
 import { mergerNames, trunc, type Session } from './ContextBar';
+import { Checkbox } from './Checkbox';
+import { Select } from './Select';
 import { Icon, KindIcon } from './icons';
 import { newTeamOp } from './team';
 import { DateInput } from './DateInput';
@@ -234,15 +236,9 @@ export function FinishesCheck({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="check">
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.checked)}
-      />
+    <Checkbox className="check" checked={checked} disabled={disabled} onChange={onChange}>
       This finishes the work item
-    </label>
+    </Checkbox>
   );
 }
 
@@ -275,45 +271,49 @@ const finishFields = (kind: EventKind, finishes: boolean) =>
   kind === 'handoff' && finishes ? { finishes: true } : {};
 
 function PeopleSelect({
+  label,
   people,
   value,
   onChange,
 }: {
+  label: string;
   people: readonly Person[];
   value: string;
   onChange: (v: string) => void;
 }) {
   return (
-    <select value={value} onChange={(event) => onChange(event.target.value)}>
-      {people.map((p) => (
-        <option key={p.id} value={p.id}>
-          {p.name}
-        </option>
-      ))}
-    </select>
+    <Select
+      label={label}
+      value={value}
+      onChange={onChange}
+      options={people.map((p) => ({ value: p.id, label: p.name }))}
+    />
   );
 }
 
 function ItemSelect({
+  label,
   state,
   value,
   none,
   onChange,
 }: {
+  label: string;
   state: TrackerState;
   value: string;
   none?: string;
   onChange: (v: string) => void;
 }) {
   return (
-    <select value={value} onChange={(event) => onChange(event.target.value)}>
-      {none !== undefined && <option value="">{none}</option>}
-      {state.workItems.map((w) => (
-        <option key={w.id} value={w.id}>
-          {trunc(w.title, 44)}
-        </option>
-      ))}
-    </select>
+    <Select
+      label={label}
+      value={value}
+      onChange={onChange}
+      options={[
+        ...(none !== undefined ? [{ value: '', label: none }] : []),
+        ...state.workItems.map((w) => ({ value: w.id, label: trunc(w.title, 44) })),
+      ]}
+    />
   );
 }
 
@@ -425,7 +425,7 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
           <div className="grid2">
             <label className="field">
               Who
-              <PeopleSelect people={people} value={by} onChange={setBy} />
+              <PeopleSelect label="Who" people={people} value={by} onChange={setBy} />
             </label>
             <div className="field">
               When
@@ -455,17 +455,28 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
           <div className="grid2">
             <label className="field">
               Done by
-              <PeopleSelect people={people} value={doneBy} onChange={setDoneBy} />
+              <PeopleSelect label="Done by" people={people} value={doneBy} onChange={setDoneBy} />
             </label>
             <label className="field">
               For (requested by)
-              <PeopleSelect people={people} value={requestedBy} onChange={setRequestedBy} />
+              <PeopleSelect
+                label="For (requested by)"
+                people={people}
+                value={requestedBy}
+                onChange={setRequestedBy}
+              />
             </label>
           </div>
           <div className="grid2">
             <label className="field">
               Leads from
-              <ItemSelect state={state} value={after} none="Nothing" onChange={setAfter} />
+              <ItemSelect
+                label="Leads from"
+                state={state}
+                value={after}
+                none="Nothing"
+                onChange={setAfter}
+              />
             </label>
             <label className="field">
               Planned finish
@@ -517,23 +528,18 @@ function AttachModal({ modal, session, state, busy, on, onClose }: PropsOf<'atta
       {state.workItems.length > 0 && (
         <label className="field">
           Work item
-          <ItemSelect state={state} value={workItemId} onChange={setWorkItemId} />
+          <ItemSelect label="Work item" state={state} value={workItemId} onChange={setWorkItemId} />
         </label>
       )}
       {/* The click way to drop the event on a team: it starts a new work item there. */}
       <p className="q-label">Or start a new work item from it</p>
       <div className="share-add">
-        <select
-          aria-label="Team"
+        <Select
+          label="Team"
           value={teamId}
-          onChange={(event) => setTeamId(event.target.value)}
-        >
-          {state.teams.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </select>
+          onChange={setTeamId}
+          options={state.teams.map((t) => ({ value: t.id, label: t.name }))}
+        />
         <button
           className="btn"
           type="button"
@@ -588,24 +594,24 @@ function PlaceModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<
       <div className="grid2">
         <label className="field">
           Team
-          <select value={teamId} onChange={(event) => setTeamId(event.target.value)}>
-            {state.teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
+          <Select
+            label="Team"
+            value={teamId}
+            onChange={setTeamId}
+            options={state.teams.map((t) => ({ value: t.id, label: t.name }))}
+          />
         </label>
         <label className="field">
           Milestone
-          <select value={ms} onChange={(event) => setMs(event.target.value)}>
-            <option value="">No milestone</option>
-            {state.milestones.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
+          <Select
+            label="Milestone"
+            value={ms}
+            onChange={setMs}
+            options={[
+              { value: '', label: 'No milestone' },
+              ...state.milestones.map((m) => ({ value: m.id, label: m.name })),
+            ]}
+          />
         </label>
         <label className="field">
           Planned finish
@@ -663,7 +669,7 @@ function EventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<
     <ModalFrame title={modal.cancel ? 'Cancel this work item' : 'Add an event'} onClose={onClose}>
       <label className="field">
         Work item
-        <ItemSelect state={state} value={workItemId} onChange={setWorkItemId} />
+        <ItemSelect label="Work item" state={state} value={workItemId} onChange={setWorkItemId} />
       </label>
       <div className="field">
         Kind
@@ -674,7 +680,7 @@ function EventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<
       <div className="grid2">
         <label className="field">
           Who
-          <PeopleSelect people={people} value={by} onChange={setBy} />
+          <PeopleSelect label="Who" people={people} value={by} onChange={setBy} />
         </label>
         <div className="field">
           When
@@ -735,29 +741,39 @@ function FromEventModal({ modal, session, state, asOf, busy, on, onClose }: Prop
         </label>
         <label className="field">
           Team
-          <select value={teamId} onChange={(event) => setTeamId(event.target.value)}>
-            {state.teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
+          <Select
+            label="Team"
+            value={teamId}
+            onChange={setTeamId}
+            options={state.teams.map((t) => ({ value: t.id, label: t.name }))}
+          />
         </label>
       </div>
       <div className="grid2">
         <label className="field">
           Done by
-          <PeopleSelect people={people} value={doneBy} onChange={setDoneBy} />
+          <PeopleSelect label="Done by" people={people} value={doneBy} onChange={setDoneBy} />
         </label>
         <label className="field">
           For (requested by)
-          <PeopleSelect people={people} value={requestedBy} onChange={setRequestedBy} />
+          <PeopleSelect
+            label="For (requested by)"
+            people={people}
+            value={requestedBy}
+            onChange={setRequestedBy}
+          />
         </label>
       </div>
       <div className="grid2">
         <label className="field">
           Leads from
-          <ItemSelect state={state} value={after} none="Nothing" onChange={setAfter} />
+          <ItemSelect
+            label="Leads from"
+            state={state}
+            value={after}
+            none="Nothing"
+            onChange={setAfter}
+          />
         </label>
         <label className="field">
           Planned finish
@@ -830,14 +846,14 @@ function MilestoneModal({ session, state, asOf, busy, on, onClose }: PropsOf<'ms
         {state.workItems.map((w) => {
           const checked = members.includes(w.id);
           return (
-            <label key={w.id} className={`pcard${checked ? ' on' : ''}`}>
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={(event) => toggle(w.id, event.target.checked)}
-              />{' '}
+            <Checkbox
+              key={w.id}
+              className={`pcard${checked ? ' on' : ''}`}
+              checked={checked}
+              onChange={(on) => toggle(w.id, on)}
+            >
               {w.title}
-            </label>
+            </Checkbox>
           );
         })}
         {!state.workItems.length && <p className="tip">No work item yet.</p>}
@@ -1160,20 +1176,19 @@ function ShareModal({ session, cr, busy, on, onClose }: PropsOf<'share'>) {
           </div>
           {s.permission === 'edit' && hand(s.memberId)}
           {s.memberId !== cr.editor && (
-            <select
-              aria-label={`Access for ${dir.name(s.memberId)}`}
+            <Select
+              label={`Access for ${dir.name(s.memberId)}`}
               value={s.permission}
               disabled={busy}
-              onChange={(event) =>
-                on.share(s.memberId, event.target.value as CrPermission | 'remove')
-              }
-            >
-              {(s.permission === 'edit' || creates(s.memberId)) && (
-                <option value="edit">Can edit</option>
-              )}
-              <option value="view">Can view</option>
-              <option value="remove">Remove</option>
-            </select>
+              onChange={(next) => on.share(s.memberId, next as CrPermission | 'remove')}
+              options={[
+                ...(s.permission === 'edit' || creates(s.memberId)
+                  ? [{ value: 'edit', label: 'Can edit' }]
+                  : []),
+                { value: 'view', label: 'Can view' },
+                { value: 'remove', label: 'Remove' },
+              ]}
+            />
           )}
         </div>
       ))}
@@ -1191,25 +1206,22 @@ function ShareModal({ session, cr, busy, on, onClose }: PropsOf<'share'>) {
         <>
           <p className="q-label">Add a person</p>
           <div className="share-add">
-            <select
-              aria-label="Person"
+            <Select
+              label="Person"
+              className="grow"
               value={pick}
-              onChange={(event) => setWho(event.target.value)}
-            >
-              {others.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-            <select
-              aria-label="Access"
+              onChange={setWho}
+              options={others.map((m) => ({ value: m.id, label: m.name }))}
+            />
+            <Select
+              label="Access"
               value={access}
-              onChange={(event) => setPerm(event.target.value as CrPermission)}
-            >
-              {creates(pick) && <option value="edit">Can edit</option>}
-              <option value="view">Can view</option>
-            </select>
+              onChange={(next) => setPerm(next as CrPermission)}
+              options={[
+                ...(creates(pick) ? [{ value: 'edit', label: 'Can edit' }] : []),
+                { value: 'view', label: 'Can view' },
+              ]}
+            />
             <button
               className="btn btn-ink"
               type="button"

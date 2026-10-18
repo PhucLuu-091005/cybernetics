@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { makeDirectory } from '../../../src/components/tracker/avatar';
 import type { Session } from '../../../src/components/tracker/ContextBar';
 import { ContextBar } from '../../../src/components/tracker/ContextBar';
-import { TopBar } from '../../../src/components/tracker/TopBar';
+import { demoPeople, TopBar } from '../../../src/components/tracker/TopBar';
 import { NO_ACTIONS } from '../../../src/components/tracker/TrackerScreen';
 import type { HiddenList } from '../../../src/components/tracker/view-state';
 import { NO_FILTER, type RowFilter } from '../../../src/tracker/filter';
@@ -216,10 +216,13 @@ describe('TopBar', () => {
 
   it('lists only the seeded members who can act and your own member in the Demo select', () => {
     const html = render(members[1]);
-    expect(html).toContain('>Lan Phạm</option>');
-    expect(html).not.toContain('Bảo Ngô</option>');
-    expect(html).not.toContain('Mai Vũ</option>');
-    expect(html).toContain('>Minh Trần</option>');
+    expect(html).toContain('aria-label="Demo: act as"');
+    expect(html).toContain('<span class="sel-val">Lan Phạm</span>');
+    const names = demoPeople(members, 'u1').map((option) => option.label);
+    expect(names).toContain('Lan Phạm');
+    expect(names).toContain('Minh Trần');
+    expect(names).not.toContain('Bảo Ngô');
+    expect(names).not.toContain('Mai Vũ');
   });
 
   it('opens a menu with the theme and Sign out from the acting member, or from the signed-in person', () => {
