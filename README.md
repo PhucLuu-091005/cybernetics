@@ -6,6 +6,8 @@ Main is read-only. People and their agents add events and work items to a Queue.
 
 To put the app online, follow [docs/deploy-cloud-run-neon.md](docs/deploy-cloud-run-neon.md) (Google Cloud Run and Neon).
 
+After the first deploy, each pushed `v*` tag deploys itself through GitHub Actions: see [Deploy from a tag](docs/deploy-cloud-run-neon.md#deploy-from-a-tag).
+
 ![The Larkspur demo project on Main: teams, work items, events, milestones and the legend](docs/screenshots/tracker-main.png)
 
 ## Main screens
