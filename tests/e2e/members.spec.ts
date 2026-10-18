@@ -145,12 +145,12 @@ test('the project lead invites, sets grants, edits a team, removes a member and 
     await who.click();
     await expect(page.getByRole('option', { name: 'Hà Đỗ' })).toHaveCount(0);
     await expect(page.getByRole('option', { name: 'Lan Phạm' })).toHaveCount(1);
-    await who.press('Escape');
+    await page.keyboard.press('Escape');
     await dialog.getByRole('button', { name: 'Work item' }).click();
     const doneBy = dialog.getByLabel('Done by');
     await doneBy.click();
     await expect(page.getByRole('option', { name: 'Hà Đỗ' })).toHaveCount(0);
-    await doneBy.press('Escape');
+    await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
     await page.goto(`/projects/${projectId}/members`);
     await hydrated(page);
