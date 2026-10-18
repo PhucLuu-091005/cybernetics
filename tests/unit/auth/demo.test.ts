@@ -22,7 +22,7 @@ describe('MemoryRateLimiter', () => {
   it('keeps at most maxKeys buckets and drops the oldest', () => {
     const limiter = new MemoryRateLimiter(3);
     for (const key of ['a', 'b', 'c', 'd']) limiter.consume(key, 1, 1000);
-    expect(() => limiter.consume('a', 1, 1000)).not.toThrow();
-    expect(() => limiter.consume('d', 1, 1000)).toThrow();
+    expect(limiter.consume('a', 1, 1000)).toBe(true);
+    expect(limiter.consume('d', 1, 1000)).toBe(false);
   });
 });

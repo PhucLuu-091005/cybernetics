@@ -64,7 +64,7 @@ describe('page actor: one session resolution and one read charge per request', (
     });
     page.cookie = signSession({ userId, expiresAt: Date.now() + 60_000 }, secret);
     page.memos.forEach((memo) => memo.clear());
-    consume = vi.fn<RateLimiter['consume']>();
+    consume = vi.fn<RateLimiter['consume']>(() => true);
     (globalThis as { promiseRateLimiter?: RateLimiter }).promiseRateLimiter = { consume };
     configureApp({ db: {} as Db, identity: store, pool: {} as never });
   });
@@ -116,7 +116,7 @@ describe('page actor: one session resolution and one read charge per request', (
 describe('browser actor split', () => {
   it('the session step charges the limit once and the project step never charges', async () => {
     const store = memoryStore(),
-      consume = vi.fn();
+      consume = vi.fn(() => true);
     const { userId } = await store.provisionUser({
       subject: 'local:dev',
       email: null,
