@@ -2,43 +2,52 @@
 
 Promise Graph is an event tracker for a whole project. It shows what happened at every step, which work led to which work across teams, and why plans changed.
 
-People and their agents add events and work items to a Queue. In a change request, a person drags them onto the graph. Main is read-only: every change goes through a change request, and the owner of Main merges it.
+People and their agents add events and work items to a Queue. In a change request, a person drags them onto the graph. Main is read-only: every change goes through a change request, and a person with the Merge right merges it.
 
-![The Larkspur demo project on Main: the read-only notice, teams, work items, events, milestones and their chips](docs/screenshots/tracker-main.png)
+![The Larkspur demo project on Main: the view selector with read-only and the project lead, the read-only notice, teams, work items, events and milestones](docs/screenshots/tracker-main.png)
 
 ## What it does
 
-- **Events.** An event is a Message, Task, Handoff, Decision, Meeting, Delivery, Issue or Done. Each event sits on the row of one work item.
+- **Events.** An event is a Message, Task, Handoff, Decision, Meeting, Delivery, Issue or Done. Each event sits on the row of one work item, at its own time. Events that sit close stack, the earlier ones under the later one; zoom in to pull them apart.
 - **Work items and teams.** Each work item has one row under its team. A work item can have a parent and can lead from other work items. It is done when it has a Done event. The eye buttons hide a row or a whole team for you only. A hidden row leaves no line on the graph. The graph draws no connector lines: a child row sits indented under its parent in the same team, and a click on a row opens its details. A row whose own parent or source is hidden shows a small branch chip. Press the chip to show that row again.
-- **Handoff marks.** A work item that other work items lead from shows one small mark after its finish. Hover or focus it to read every handoff. A click jumps to the receiving row, or opens a short list to choose from when there are several.
+- **Handoff marks.** A work item that other work items lead from shows one handoff mark. When it has a Handoff event, that event icon is the mark, with a small receiver count when there are several. Without a Handoff event, a small mark sits after its finish. Hover or focus it to read every handoff. A click jumps to the receiving row, or opens a short list to choose from when there are several.
 - **Milestones.** A milestone has 5 statuses: Planned, Finished early, Finished on time, Late and Finished late. It is done when all its work items are done. Its circle on the milestone line shows the status.
-- **Milestone deadlines.** Each work item in a milestone shows a diamond at the milestone date, in the milestone status colour. The first row of each team in that milestone also shows the milestone name when it has room. Its tooltip names the milestone, the date and the status, and says when the row makes the milestone late. A click on the diamond opens the milestone.
-- **Planned finish.** Each work item has a Planned finish date and the same 5 statuses. To move a Planned finish or a milestone date, you must write a reason. The app keeps the first date and every move: who, when, from, to and why.
-- **Queue.** New events and work items wait in the Queue. People add them with **Add**, and agents add them through MCP. The Queue shows only in a change request that you edit. Drag a card onto a work item or a team to place it. Every drag also has a click way. The Queue toggle hides the Queue, so the graph gets the full width.
-- **Main is read-only.** On Main, the graph and its pops show information only: no drag that changes the graph, no edit buttons. A notice at the top says so; **New change request** is in the bar above it. **Don't show again** hides the notice for you. A merged or closed change request and a change request that someone else edits are read-only too.
-- **Search.** Type in **Search work items** at the top right. The search matches the title, the team and the people of each work item. Pick a result with the arrow keys and Enter, or with a click. A click on a row of the graph opens the same details panel. The graph shows the row again if it is hidden, zooms to it and flashes it. The details panel opens: the status, the planned finish with every move and its reason, the start, the finish, the time spent in hours and days, the parent, the sources and all the events. A click on an event opens its pop on the graph.
-- **Your own event positions.** Drag an event left or right to move its icon inside its day, for example to pull a stack apart. This works in every view, Main included. The position is yours only, stays after a reload, and never changes the event time. **Reset position** in the event pop puts it back.
+- **Milestone deadlines.** Each work item in a milestone shows a diamond at the milestone deadline, in the milestone status colour. A deadline can have a time, such as 15 Oct 17:00; without one, it is the end of that day, after every event of the day. The first row of each team in that milestone also shows the milestone name when it has room. Its tooltip names the milestone, the date and the status, and says when the row makes the milestone late. A click on the diamond opens the milestone.
+- **Planned finish.** Each work item has a Planned finish date with an optional time, such as 6 Oct 17:00, and the same 5 statuses. Without a time it is the end of that day. The red part of the row line starts at that moment, and the item is late from then on. To move a Planned finish or a milestone date, you must write a reason. The app keeps the first date and every move: who, when, from, to and why.
+- **Queue.** New events and work items wait in the Queue. People add them with **Add**, and agents add them through MCP. The Queue shows only on a change request page that you edit, in the **Queue** tab of the side panel. Drag a card onto a work item or a team to place it. Every drag also has a click way. The panel button hides the side panel, so the graph gets the full width.
+- **Main is read-only.** On Main, the graph and its pops show information only: no drag that changes the graph, no edit buttons. The second row starts with the view selector: on Main it says **Main**, read-only, and shows the project lead. A notice below the top bar says so too; **New change request** is in the top bar. **Don't show again** hides the notice for you. A merged or closed change request and a change request that someone else edits are read-only too.
+- **View selector.** The title in the second row is the view selector: **Main**, or the number and name of a change request. A click opens a menu with Main, the open change requests, **New change request** and **All change requests**.
+- **Change requests button.** The **Change requests** button beside History opens the list of change requests. A red badge on it counts the change requests that are ready to merge; at 0 it has no badge.
+- **Search.** Type in **Search work items** at the top right. The search matches the title, the team and the people of each work item. Pick a result with the arrow keys and Enter, or with a click. A click on a row of the graph opens the same details panel. The graph shows the row again if it is hidden, zooms to it and flashes it. The details panel opens as a short list in three groups: people (team, done by, requested by), dates (milestone, start, planned finish, finish or "Not yet", time spent) and links (parent, leads from, leads to). **Date moves** opens every move with its reason. All the events follow; a click on one opens its pop on the graph. In a change request that you edit, the same panel is editable: rename the work item, pick the team, the people, the milestone, the parent and the sources, and move the planned finish date and time with a reason right under the date.
+- **Focus.** The focus button of a row shows only that work item and the work that comes from it. The focus button of a team head shows the rows of that team and the work that comes from them. The Focus panel lists them as a tree; Esc leaves the focus.
 - **Filters.** The filter button in the search box narrows the graph by status, team, milestone and person. Typed text narrows it too, with the same matches as the search list. The parents of a matching row stay as dimmed context. **Clear filters** shows every row again. Filters are yours only and are not saved.
-- **Zoom and full view.** The zoom buttons at the bottom right of the graph stretch the time line. Ctrl (or Cmd) and the mouse wheel also zoom. **Fit** shows the whole window again. The full view button makes the graph fill the screen; press it again or Esc to leave. The dates and the milestone line stay at the top while the rows scroll.
+- **Zoom and full view.** The zoom buttons at the bottom right of the graph stretch the time line. Ctrl (or Cmd) and the mouse wheel also zoom. The graph opens on the last five weeks up to a week after T, with T in view. **Fit** fits the whole window to the current width. The window starts early enough to show the earliest event on the board. The dates on the axis step by day, week, two weeks, month or quarter, so they never touch. The sizes of the graph never follow the width of the screen: when the sidebar folds, the graph shows more of the time line instead. The full view button makes the graph fill the screen; press it again or Esc to leave. The dates and the milestone line stay at the top while the rows scroll.
+- **Projects and teams.** **+ New project** asks for the project name, the client, the teams and an optional first milestone. The teams start as Product, Design, Engineering, QA and Operations: remove a row with ×, or type a name in **Add a team** and press Enter. The creator is the project lead.
+- **Members and access.** The **Members** page lists the people of the project with their teams and four grants: **View Main**, **View change requests**, **Create change requests** and **Merge change requests**. Create and Merge include View change requests, and every grant includes View Main. The project lead (one per project) has every right, ticks the grants, invites a person by email, removes a member, hands the lead to another member, and manages the teams: add, rename, delete (only a team that no work item or change request uses), people and one lead per team. A team lead can always create change requests. An invite waits until that person signs in with Google using the same email; then the project opens for them. Other people see the page read-only.
+- **Account menu.** A click on your avatar at the top right opens a menu with the theme (System, Light or Dark) and **Sign out**.
 - **Change requests.** A change request is a Draft, Ready, Merged or Closed. It always shows the latest Main plus its own changes. **Share** gives a person Can edit or Can view. Everyone in the project can view every change request.
-- **One editor at a time.** A person with Can edit presses **Ask to edit**. The current editor presses **Hand over** or **Not now**.
+- **One editor at a time.** A person with Can edit presses **Ask to edit**. The current editor presses **Hand over** or **Not now**. A member without edit access sees **View only.** and presses **Ask for edit access**; the editor sees the ask in the header and presses **Grant Can edit** or **Not now**.
 - **Ready.** **Mark as ready** locks the change request. The editor presses **Edit again** to unlock it.
-- **Review.** The owner of Main reviews a ready change request on its own page: **Changes** (before and after, the reason of each date move, comments), **On the graph** (Before and After) and **Conversation**. The owner can merge it, request changes or close it.
-- **Clashes.** A change clashes when Main took a different change on the same spot after the change request made its change. The owner picks Main or the change request for each clash. The merge records each pick.
-- **History.** History lists every merge into Main, newest first, with **See changes** and **Open graph**.
+- **The change request page.** Each change request has one page. Its header holds the title (the view selector), the status, the people and the actions. The side panel lists the **Changes** (before and after, the reason of each date move, who; a click finds the change on the graph). The graph shows **Before** (Main) and **After** (the change request, with yellow marks). The editor edits right there: the **Queue** tab, drag onto the graph, add an event, mark done, move a date, rename, × to undo one change, **Mark as ready**, **Edit again**, **Share**. A person with the Merge right reviews a ready change request on the same page: **Request changes** (with a note) or **Merge into Main**.
+- **Cancel.** The author, the editor or a person with the Merge right presses **Cancel change request** and writes a reason. The change request becomes Closed; its header and History show who cancelled it and why.
+- **Clashes.** A change clashes when Main took a different change on the same spot after the change request made its change. The person who merges picks Main or the change request for each clash at the top of the Changes list. The merge records each pick.
+- **History.** History lists every merge into Main, newest first, with **Open #N**, and below them the cancelled change requests with the reason.
 
 The app never calls an AI model and holds no provider key.
 
 | | |
 |---|---|
-| ![The details panel of the Go-live date: first planned 30 Sept, moved once to 15 Oct, with the reason and the events](docs/screenshots/date-moves.png) | ![Change request #5 with the Queue and its Changes drawer: an event from the Queue and a date move with its reason](docs/screenshots/change-request.png) |
-| The details of a work item after a search: the status, the times, the first date, each move and its reason, and the events. | A change request with 2 changes. The second change moves a date and shows why. |
-| ![The review of #3 with one clash with Main on the PG-203 name](docs/screenshots/review-clash.png) | ![Main history with the merges and the resolved clash](docs/screenshots/history.png) |
-| The review page. **Merge into Main** stays off until the owner picks a version for the clash. | History records each merge and each resolved clash. |
+| ![The details panel of the Go-live date: first planned 30 Sept, moved once to 15 Oct, with the reason and the events](docs/screenshots/date-moves.png) | ![The change request page of #4 in edit mode: the Queue tab in the side panel, the graph with Before and After](docs/screenshots/change-request.png) |
+| The details of a work item after a search: the status, the times, the first date, each move and its reason, and the events. | A change request page that you edit: the Queue in the side panel and the graph on the right. |
+| ![The change request page of #3 with one clash with Main on the PG-203 name](docs/screenshots/review-clash.png) | ![Main history with the merges and the resolved clash](docs/screenshots/history.png) |
+| A person with the Merge right on a ready change request. **Merge into Main** stays off until they pick a version for the clash. | History records each merge and each resolved clash. |
 
-<img src="docs/screenshots/phone.png" alt="The tracker at phone width: a change request with the Queue above the graph" width="300">
+| | |
+|---|---|
+| ![The Members page: people with their teams and grants, and the teams with their leads](docs/screenshots/members.png) | <img src="docs/screenshots/phone.png" alt="The tracker at phone width: a change request with the Queue above the graph" width="300"> |
+| The Members page of the project lead: grants per person, teams with their lead. | A change request at phone width. |
 
-The screenshots come from a local development server on 16 October 2026, with the seeded sandbox and the light theme. The desktop shots use a 1440 x 900 viewport; the phone shot uses a 390 x 844 viewport.
+The screenshots come from a local development server on 17 October 2026, with the seeded sandbox and the light theme. The desktop shots use a 1440 x 900 viewport; the phone shot uses a 390 x 844 viewport.
 
 The prototype is [docs/design/2026-10-16-event-tracker-v8.html](docs/design/2026-10-16-event-tracker-v8.html). The design is [docs/superpowers/specs/2026-10-16-event-tracker-design.md](docs/superpowers/specs/2026-10-16-event-tracker-design.md).
 
@@ -46,7 +55,7 @@ The prototype is [docs/design/2026-10-16-event-tracker-v8.html](docs/design/2026
 
 Your first sign-in creates a private sandbox: the fictional Larkspur Capital onboarding project with 7 teams, 2 milestones, a Queue and 4 change requests ([fixtures/README.md](fixtures/README.md)). The demo clock stands at 9 October 2026, 18:00 (Asia/Ho_Chi_Minh).
 
-Use the **Demo** select at the top right to change who you work as. Minh Trần owns Main. Lan Phạm, Quang Nguyễn, Hà Đỗ and Khoa Lê are members. The select shows only in the demo project. In your own projects, you work as yourself.
+Use the **Demo** select at the top right to change who you work as. Minh Trần is the project lead. Lan Phạm, Quang Nguyễn, Hà Đỗ and Khoa Lê are members. The select shows only in your own demo project. In other projects, and in a demo project that you were invited into, you work as yourself.
 
 Main opens with a notice that it is read-only. Press **×** to close it for now, or **Don't show again**.
 
@@ -54,25 +63,27 @@ Main opens with a notice that it is read-only. Press **×** to close it for now,
 2. Lan: press **New change request**, then **Create**. Drag the Queue event "Where is the root cause report…" onto Sync incident report.
 3. Lan: search "PG-203" and pick it. In the details panel, press **Move the date**. Pick the date, write the reason, then press **Move the date**.
 4. Lan: press **Share**, pick Khoa Lê with **Can edit**, then press **Add**.
-5. Khoa: Lan's change request opens, and Lan is editing. Press **Ask to edit**.
+5. Khoa: Lan's change request stays open, and Lan is editing. Press **Ask to edit**.
 6. Lan: the yellow row says that Khoa asks to edit. Press **Hand over**.
-7. Khoa: drag the event "Scope call…" onto Dynamics CRM sync scope.
+7. Khoa: open the **Queue** tab and drag the event "Scope call…" onto Dynamics CRM sync scope.
 8. Khoa: press **Mark as ready**.
-9. Minh: on #2, press **Review and merge**. Look at the Changes and On the graph tabs, then press **Merge into Main**.
+9. Minh: press **Change requests** (its badge counts the ready ones), then **Review and merge** on #2. Look at the Changes, Before and After, then press **Merge into Main**.
 10. Minh: open #3 by Quang. Its PG-203 name clashes with #2. Pick one version, then merge.
-11. Minh: open #5 and read why the PG-203 date moves. Press **Request changes**. Then Khoa: press **Read**, then **Mark as ready** again.
-12. Anyone: press **History**, then **See changes** on a merge.
-13. Anyone: open a merged change request (**History**, **Open graph**). It is read-only history: no Queue, no drag and no edit buttons. Press **New change request** to change more.
+11. Minh: open #5 and read why the PG-203 date moves. Press **Request changes** and write a note. Then Khoa: the header shows the note; press **Mark as ready** again.
+12. Anyone: press **History**, then **Open #3** on a merge.
+13. Anyone: open a merged change request (**History**, **Open #1**). It is read-only history: no Queue, no drag and no edit buttons. Press **New change request** to change more.
+14. Quang: open #4 by Hà. It says **View only.** Press **Ask for edit access**. Then Hà: press **Grant Can edit**.
+15. Hà: press **Cancel change request**, write a reason, and confirm. History lists #4 under Cancelled with the reason.
 
-[tests/e2e/tracker.spec.ts](tests/e2e/tracker.spec.ts) runs these 13 steps in a browser.
+[tests/e2e/tracker.spec.ts](tests/e2e/tracker.spec.ts) runs these 15 steps in a browser.
 
 ## Connect an agent
 
-Your own agent (for example Claude Code) connects to `/mcp` with a project token. It reads the project and adds events and work items to the Queue. No tool changes Main: a person places each card through a change request, and the owner of Main merges it.
+Your own agent (for example Claude Code) connects to `/mcp` with a project token. It reads the project and adds events and work items to the Queue. No tool changes Main: a person places each card through a change request, and a person with the Merge right merges it.
 
 ![Settings: the two agent permissions, the MCP snippet and a created token](docs/screenshots/agent-tokens.png)
 
-1. Open **Settings** in a project and create a token. Keep both permissions: **Read the project** (`project:read`) and **Add to the Queue** (`queue:add`). Copy the secret; the app shows it once.
+1. Open **Settings** in the rail of a project and create a token. Keep both permissions: **Read the project** (`project:read`) and **Add to the Queue** (`queue:add`). Copy the secret; the app shows it once.
 2. Add the server to your MCP client:
 
    ```json

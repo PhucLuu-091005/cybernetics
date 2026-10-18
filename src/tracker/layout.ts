@@ -2,20 +2,22 @@ import {
   KIND_LABEL,
   STATUS_LABEL,
   type EventKind,
+  type Milestone,
   type Status,
   type TrackerEvent,
   type TrackerState,
   type WorkItem,
 } from './model';
-import { descendantsOf } from './focus';
-import { drawnTimes, type Offsets } from './offsets';
+import { formatDeadline, itemDeadline, milestoneDeadline } from './deadline';
+import { descendantsOf, teamDescendants } from './focus';
 import type { Marks } from './ops';
 import { itemInfo, itemStatus, milestoneStatus, type ItemInfo } from './status';
 import { addDays, compareDay, dayOf, formatDay, formatStamp, startOfDayInstant } from './time';
 
 /**
- * SIDE is the fixed label column; at zoom 1 the label column and the time line fill VW together.
- * Everything above TOP (the axis and the milestone line) stays pinned while the rows scroll.
+ * One unit is one CSS pixel. SIDE is the fixed label column; VW - SIDE is the visible time line when
+ * the view does not give its width. Everything above TOP (the axis and the milestone line) stays
+ * pinned while the rows scroll.
  */
 export const GEOMETRY = {
   VW: 1060,
@@ -30,15 +32,24 @@ export const GEOMETRY = {
   HEAD: 22,
   INDENT: 12,
   MAX_ZOOM: 12,
+  MIN_DAY_WIDTH: 2,
+  MAX_DAY_WIDTH: 480,
 } as const;
 
 const { VW, X0, X1, SIDE, AXIS_Y, MS_Y, TRUNK_Y, TOP, ROW, HEAD, MAX_ZOOM } = GEOMETRY;
+const { MIN_DAY_WIDTH, MAX_DAY_WIDTH } = GEOMETRY;
+/** A window so long that its fit is under the floor can still fit. */
+export const clampDayWidth = (dayWidth: number, fitDayWidth: number) =>
+  Math.min(MAX_DAY_WIDTH, Math.max(Math.min(MIN_DAY_WIDTH, fitDayWidth), dayWidth));
 const RIGHT = VW - X1;
+const DAY = 86_400_000;
 const HOUR = 3_600_000;
 const GROUP_GAP = 16;
 const EMPTY_LEAD = 48 * HOUR;
-// A day this wide fits its own "14 Sept" label, so the axis can tick every day.
-const DAY_TICK = 60;
+// The widest date label ("28 Sept") with a gap on each side, so two neighbouring labels never touch.
+const TICK_ROOM = 64;
+// Half the T pill (88 wide) plus half a tick label such as "12 Oct", so the pill never covers a date.
+const T_PILL_ROOM = 66;
 
 export type Tone =
   'proceed' | 'route' | 'danger' | 'caution' | 'teal' | 'ink-2' | 'ink-3' | 'change';
@@ -61,10 +72,16 @@ export type View = {
   timeZone: string;
   windowStart?: string;
   windowEnd?: string;
-  /** 1 fits the window to the width; more widens the time line. */
+  /** The visible width of the time line; a wider view shows more time at the same scale. */
+  span?: number;
+  /** Units per day. Without it the scale is `zoom` times the fit of the window to `fitSpan`. */
+  dayWidth?: number;
+  /** The width the first fit used, so the scale does not follow later changes of `span`. */
+  fitSpan?: number;
+  /** 1 fits the window to `fitSpan`; more widens the time line. Used only without `dayWidth`. */
   zoom?: number;
-  offsets?: Offsets;
   focus?: string | null;
+  focusTeam?: string | null;
   filter?: RowMatch | null;
   /** Rows carry a focus button next to the eye, so their labels are cut shorter. */
   focusButtons?: boolean;
@@ -91,6 +108,8 @@ export type LayoutLane = {
   alt: boolean;
   guide: { y1: number; y2: number } | null;
   eyeLabel: string;
+  focused: boolean;
+  focusLabel: string;
 };
 export type LayoutRow = {
   id: string;
@@ -129,6 +148,7 @@ export type LayoutDeadline = {
   workItemId: string;
   milestoneId: string;
   date: string;
+  time: string | null;
   x: number;
   y: number;
   tone: Tone;
@@ -153,6 +173,10 @@ export type LayoutHandoffTarget = {
 export type LayoutHandoff = {
   fromId: string;
   targets: LayoutHandoffTarget[];
+  /** The Handoff event whose icon is the mark, or null when the mark sits after the finish or the T line. */
+  eventId: string | null;
+  /** The top event of the icon group that holds that Handoff event; the group draws the mark. */
+  groupId: string | null;
   x: number;
   y: number;
   width: number;
@@ -213,7 +237,11 @@ export type LayoutLaneDrop = {
 };
 
 export type TrackerLayout = {
+  /** The day width over the fit to the current `span`: 1 at fit, less when the view widened since. */
   zoom: number;
+  dayWidth: number;
+  /** The day width that fits the window to the current `span`. */
+  fitDayWidth: number;
   /** The right end of the time line content, including its right margin. */
   width: number;
   /** The right end of the plotted window. */
@@ -260,7 +288,7 @@ type Ctx = {
   rows: Map<string, LayoutRow>;
   name: (id: string) => string;
   dayStart: (date: string) => number;
-  noonX: (date: string) => number;
+  deadlineX: (m: Milestone) => number;
   lateFrom: (w: WorkItem) => number;
 };
 
@@ -296,6 +324,31 @@ function windowDays(
   return { start, end: compareDay(end, start) > 0 ? end : addDays(start, 1) };
 }
 
+const START_MARGIN_DAYS = 3;
+
+/**
+ * The project's window start, moved earlier when a work item on the board starts before it, so every
+ * event of the board shows at Fit. Work items that finished before the project's start stay off the board.
+ */
+export function windowStartFor(
+  state: Pick<TrackerState, 'workItems' | 'events'>,
+  windowStart: string | null | undefined,
+  asOf: string,
+  timeZone: string,
+): string | undefined {
+  if (!windowStart) return undefined;
+  const startMs = Date.parse(startOfDayInstant(windowStart, timeZone));
+  const infos = new Map(state.workItems.map((w) => [w.id, itemInfo(w, state.events, asOf)]));
+  let earliest = Infinity;
+  for (const w of state.workItems) {
+    const info = infos.get(w.id)!;
+    if (info.finishedAt && Date.parse(info.finishedAt) < startMs) continue;
+    earliest = Math.min(earliest, itemStartMs(w, infos, asOf));
+  }
+  if (!(earliest < startMs)) return windowStart;
+  return addDays(dayOf(new Date(earliest).toISOString(), timeZone), -START_MARGIN_DAYS);
+}
+
 // The lane name is 10.5 px bold capitals with letter spacing.
 const LANE_CHAR = 7.6;
 const MAX_DEPTH = 3;
@@ -329,7 +382,7 @@ function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
     const members = state.workItems.filter((w) => w.teamId === team.id && c.inWindow.has(w.id));
     const shown = members.filter((w) => !c.hidden.has(w.id) && !c.outside.has(w.id));
     if (view.hiddenTeams.has(team.id)) continue;
-    if (!shown.length && (members.length || view.focus || view.filter)) continue;
+    if (!shown.length && (members.length || view.focus || view.focusTeam || view.filter)) continue;
     const top = y;
     y += HEAD;
     for (const { w, depth } of treeOrder(shown)) {
@@ -360,30 +413,37 @@ function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
     lanes.push({
       teamId: team.id,
       name: team.name,
-      label: trunc(team.name.toUpperCase(), Math.floor((X0 - 40 - 12) / LANE_CHAR)),
+      label: trunc(
+        team.name.toUpperCase(),
+        Math.floor((X0 - (view.focusButtons ? 58 : 40) - 12) / LANE_CHAR),
+      ),
       index,
       top,
       bottom: y,
       alt: index % 2 === 1,
       guide: lastY ? { y1: top + 20, y2: lastY } : null,
       eyeLabel: `Hide ${team.name}`,
+      focused: view.focusTeam === team.id,
+      focusLabel: `Focus on ${team.name}`,
     });
   }
   return { lanes, height: y + 56 };
 }
 
-function startOf(c: Ctx, w: WorkItem): number {
-  const info = c.infos.get(w.id)!;
+function itemStartMs(w: WorkItem, infos: ReadonlyMap<string, ItemInfo>, asOfIso: string): number {
+  const info = infos.get(w.id)!;
   if (info.start) return Date.parse(info.start);
   const ends = w.after
-    .map((id) => c.infos.get(id))
+    .map((id) => infos.get(id))
     .flatMap((i) => (i?.finishedAt ? [Date.parse(i.finishedAt)] : []));
   const sourcesDone = ends.length ? Math.max(...ends) : null;
-  const asOf = Date.parse(c.view.asOf);
+  const asOf = Date.parse(asOfIso);
   // A demo project keeps asOf in the past while the item is placed today, so since can lie after the T line.
   if (w.since) return Math.max(Math.min(Date.parse(w.since), asOf), sourcesDone ?? 0);
   return sourcesDone ?? asOf - EMPTY_LEAD;
 }
+
+const startOf = (c: Ctx, w: WorkItem) => itemStartMs(w, c.infos, c.view.asOf);
 
 function linesOf(c: Ctx, shown: LayoutRow[]): LayoutSegment[] {
   const segments: LayoutSegment[] = [];
@@ -441,8 +501,22 @@ const MARK_WIDE = 24;
 // A done source ends in its Done icon (radius 10); an open one ends at the T line, where an editor has the + button.
 const MARK_AFTER_DONE = 12;
 const MARK_AFTER_OPEN = 32;
+const ICON_R = 10;
 
-function handoffsOf(c: Ctx): LayoutHandoff[] {
+function handoffEventOf(
+  c: Ctx,
+  id: string,
+  groups: LayoutEventGroup[],
+): { id: string; group: LayoutEventGroup } | null {
+  const ev = c.infos
+    .get(id)!
+    .events.filter((e) => e.kind === 'handoff')
+    .at(-1);
+  const group = ev && groups.find((g) => g.workItemId === id && g.eventIds.includes(ev.id));
+  return ev && group ? { id: ev.id, group } : null;
+}
+
+function handoffsOf(c: Ctx, groups: LayoutEventGroup[]): LayoutHandoff[] {
   const teamIndex = new Map(c.state.teams.map((t, i) => [t.id, i]));
   const teamName = new Map(c.state.teams.map((t) => [t.id, t.name]));
   const itemIndex = new Map(c.state.workItems.map((w, i) => [w.id, i]));
@@ -466,12 +540,14 @@ function handoffsOf(c: Ctx): LayoutHandoff[] {
     const source = c.items.get(src)!;
     const sr = c.rows.get(src)!;
     const finishedAt = c.infos.get(src)!.finishedAt;
-    const wait = !finishedAt;
-    const end = wait ? c.xt : c.x(Date.parse(finishedAt));
-    const width = list.length > 1 ? MARK_WIDE : MARK;
+    const handoff = handoffEventOf(c, src, groups);
+    const wait = !finishedAt && !handoff;
+    const end = wait ? c.xt : c.x(Date.parse(finishedAt ?? c.view.asOf));
+    const width = handoff ? 2 * ICON_R : list.length > 1 ? MARK_WIDE : MARK;
     const after = end + (wait ? MARK_AFTER_OPEN : MARK_AFTER_DONE);
     // Near the right edge the mark goes left of the end, so the graph never cuts it.
-    const x = after + width <= c.width - 2 ? after : end - MARK_AFTER_DONE - width;
+    const before = end - MARK_AFTER_DONE - width;
+    const x = handoff ? handoff.group.x - ICON_R : after + width <= c.width - 2 ? after : before;
     const targets = list.map((w) => {
       const team = teamName.get(w.teamId)!;
       const text = wait
@@ -484,10 +560,12 @@ function handoffsOf(c: Ctx): LayoutHandoff[] {
     return {
       fromId: src,
       targets,
+      eventId: handoff?.id ?? null,
+      groupId: handoff?.group.topId ?? null,
       x,
-      y: sr.y - MARK / 2,
+      y: handoff ? sr.y - ICON_R : sr.y - MARK / 2,
       width,
-      height: MARK,
+      height: handoff ? 2 * ICON_R : MARK,
       dir: ups.every(Boolean) ? 'up' : ups.some(Boolean) ? 'both' : 'down',
       tone: wait ? 'danger' : 'proceed',
       wait,
@@ -500,12 +578,12 @@ function handoffsOf(c: Ctx): LayoutHandoff[] {
   });
 }
 
-/** Owner rule: done after the milestone day, or open while today or its own date is past that day. */
-function makesLate(c: Ctx, w: WorkItem, planned: string): boolean {
+/** Owner rule: done after the deadline, or open while now or its own planned day is past it. */
+function makesLate(c: Ctx, w: WorkItem, m: Milestone): boolean {
   const info = c.infos.get(w.id)!;
-  const after = (day: string) => compareDay(day, planned) > 0;
-  if (info.finishedAt) return after(dayOf(info.finishedAt, c.tz));
-  return after(c.today) || after(w.plannedFinish);
+  const deadline = milestoneDeadline(m, c.tz);
+  if (info.finishedAt) return Date.parse(info.finishedAt) > deadline;
+  return Date.parse(c.view.asOf) > deadline || itemDeadline(w, c.tz) > deadline;
 }
 
 type Span = [number, number];
@@ -522,14 +600,13 @@ function busyOf(
   groups: LayoutEventGroup[],
   handoffs: LayoutHandoff[],
   chips: LayoutChip[],
-  rowOf: Map<number, string>,
 ): Map<string, Span[]> {
   const busy = new Map<string, Span[]>();
   const add = (id: string | undefined, span: Span) => {
     if (id) busy.set(id, [...(busy.get(id) ?? []), span]);
   };
   for (const g of groups) add(g.workItemId, [g.x - EVENT_ROOM, g.x + EVENT_ROOM]);
-  for (const h of handoffs) add(rowOf.get(h.y + h.height / 2), [h.x - 2, h.x + h.width + 2]);
+  for (const h of handoffs) add(h.fromId, [h.x - 2, h.x + h.width + 2]);
   for (const ch of chips) add(ch.workItemId, [ch.x - 2, ch.x + ch.size + 2]);
   for (const s of segments)
     if (s.kind === 'wait') add(s.workItemId, [s.textX - 2, s.textX + s.text.length * WAIT_CHAR]);
@@ -548,20 +625,16 @@ function deadlinesOf(
     const m = r.milestoneId ? byId.get(r.milestoneId) : undefined;
     if (!m) return [];
     // A deadline left of the window would sit on the edge and look like the start of the row.
-    if (c.dayStart(m.planned) + 12 * HOUR < c.startMs) return [];
+    if (milestoneDeadline(m, c.tz) < c.startMs) return [];
     const first = !named.has(`${r.teamId}|${m.id}`);
     named.add(`${r.teamId}|${m.id}`);
     const w = c.items.get(r.id)!;
     const { status } = statusOf.get(m.id)!;
     const tone = STATUS_TONE[status];
     const changed = !!c.marks?.dates.has(`ms:${m.id}`);
-    const reason = makesLate(c, w, m.planned)
-      ? r.done
-        ? 'finished after it'
-        : 'makes it late'
-      : null;
-    const x = c.noonX(m.planned);
-    const text = `${m.name} · deadline ${formatDay(m.planned)} · ${STATUS_LABEL[status]}`;
+    const reason = makesLate(c, w, m) ? (r.done ? 'finished after it' : 'makes it late') : null;
+    const x = c.deadlineX(m);
+    const text = `${m.name} · deadline ${formatDeadline(m.planned, m.plannedTime)} · ${STATUS_LABEL[status]}`;
     const width = m.name.length * LABEL_CHAR;
     const free = ([a, b]: Span) =>
       a >= X0 && b <= c.width - 2 && (busy.get(r.id) ?? []).every(([p, q]) => b < p || a > q);
@@ -573,6 +646,7 @@ function deadlinesOf(
         workItemId: r.id,
         milestoneId: m.id,
         date: m.planned,
+        time: m.plannedTime ?? null,
         x,
         y: r.y,
         tone,
@@ -593,7 +667,7 @@ function deadlinesOf(
 function trunkSegmentsOf(c: Ctx, statusOf: Map<string, MsStatus>): LayoutTrunkSegment[] {
   return c.state.milestones.flatMap((m): LayoutTrunkSegment[] => {
     const { status, finishedAt } = statusOf.get(m.id)!;
-    const mx = c.noonX(m.planned);
+    const mx = c.deadlineX(m);
     const seg = (x1: number, x2: number, tone: Tone) => [
       { milestoneId: m.id, x1, x2, y: TRUNK_Y, tone },
     ];
@@ -643,26 +717,70 @@ function chipOf(c: Ctx, w: WorkItem, r: LayoutRow, sources: string[]): LayoutChi
   };
 }
 
+/** The first day of a month from `start` on whose month number is a multiple of `months` plus 1. */
+function nextMonthStart(start: string, months: number): string {
+  let [y, m] = start.split('-').map(Number);
+  do {
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  } while ((m - 1) % months !== 0);
+  return `${y}-${String(m).padStart(2, '0')}-01`;
+}
+
+function addMonths(date: string, months: number): string {
+  const [y, m] = date.split('-').map(Number);
+  const index = y * 12 + (m - 1) + months;
+  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}-01`;
+}
+
+/** The shortest step whose shortest gap still holds a label, so neighbouring dates never touch. */
+function tickStep(dayWidth: number): {
+  first: (start: string) => string;
+  next: (d: string) => string;
+} {
+  const weekly = (days: number) => ({
+    first: (start: string) => {
+      const weekday = new Date(`${start}T00:00:00Z`).getUTCDay();
+      return addDays(start, (8 - weekday) % 7 || 7);
+    },
+    next: (d: string) => addDays(d, days),
+  });
+  const monthly = (months: number) => ({
+    first: (start: string) => nextMonthStart(start, months),
+    next: (d: string) => addMonths(d, months),
+  });
+  // A tick on the first day would sit on the label column and lose half its date.
+  if (dayWidth >= TICK_ROOM)
+    return { first: (start) => addDays(start, 1), next: (d) => addDays(d, 1) };
+  if (7 * dayWidth >= TICK_ROOM) return weekly(7);
+  if (14 * dayWidth >= TICK_ROOM) return weekly(14);
+  if (28 * dayWidth >= TICK_ROOM) return monthly(1);
+  if (89 * dayWidth >= TICK_ROOM) return monthly(3);
+  return monthly(12);
+}
+
 function ticksOf(c: Ctx, start: string, endMs: number): LayoutTick[] {
   const ticks: LayoutTick[] = [];
-  const daily = c.x(c.dayStart(addDays(start, 1))) - c.x(c.startMs) >= DAY_TICK;
-  const weekday = new Date(`${start}T00:00:00Z`).getUTCDay();
-  const first = daily ? addDays(start, 1) : addDays(start, (8 - weekday) % 7);
-  for (let d = first; c.dayStart(d) < endMs; d = addDays(d, daily ? 1 : 7)) {
+  const step = tickStep(c.x(c.dayStart(addDays(start, 1))) - c.x(c.startMs));
+  for (let d = step.first(start); c.dayStart(d) < endMs; d = step.next(d)) {
     const tx = c.x(c.dayStart(d));
-    ticks.push({ date: d, x: tx, label: formatDay(d), labelled: Math.abs(tx - c.xt) > 56 });
+    ticks.push({
+      date: d,
+      x: tx,
+      label: formatDay(d),
+      labelled: Math.abs(tx - c.xt) > T_PILL_ROOM,
+    });
   }
   return ticks;
 }
 
 function groupsOf(c: Ctx, w: WorkItem, r: LayoutRow, info: ItemInfo): LayoutEventGroup[] {
-  const times = drawnTimes(info.events, c.view.offsets ?? {}, c.tz);
-  const real = new Map(info.events.map((e, i) => [e.id, i]));
-  const drawn = info.events
-    .map((e) => ({ e, at: times.get(e.id)! }))
-    .sort((a, b) => a.at - b.at || real.get(a.e.id)! - real.get(b.e.id)!);
   const groups: Array<{ x: number; events: TrackerEvent[] }> = [];
-  for (const { e, at } of drawn) {
+  for (const e of info.events) {
+    const at = Date.parse(e.at);
     if (at < c.startMs) continue;
     const ex = c.x(at);
     const last = groups.at(-1);
@@ -698,16 +816,18 @@ const MS_GAP = 14;
 
 function placeMilestones(c: Ctx, statusOf: Map<string, MsStatus>): LayoutMilestone[] {
   const placed: LayoutMilestone[] = [];
-  const sorted = [...c.state.milestones].sort((a, b) => compareDay(a.planned, b.planned));
+  const sorted = [...c.state.milestones].sort(
+    (a, b) => milestoneDeadline(a, c.tz) - milestoneDeadline(b, c.tz),
+  );
   for (const m of sorted) {
     const { status } = statusOf.get(m.id)!;
     const tone = STATUS_TONE[status];
     const changed = !!c.marks?.milestones.has(m.id);
-    const mx = c.noonX(m.planned);
+    const mx = c.deadlineX(m);
     const right = mx > c.x1 - 280;
     const previous = c.marks?.dates.has(`ms:${m.id}`) ? m.moves.at(-1) : undefined;
-    const was = previous ? ` (was ${formatDay(previous.from)})` : '';
-    const label = `${m.name} · ${formatDay(m.planned)} · ${STATUS_LABEL[status]}${was}`;
+    const was = previous ? ` (was ${formatDeadline(previous.from, previous.fromTime)})` : '';
+    const label = `${m.name} · ${formatDeadline(m.planned, m.plannedTime)} · ${STATUS_LABEL[status]}${was}`;
     const w = label.length * 5.9;
     const x0 = right ? mx - MS_GAP - w : mx + MS_GAP;
     const x1 = x0 + w;
@@ -768,7 +888,15 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     }),
   );
   const focus = view.focus && items.has(view.focus) ? view.focus : null;
-  const inFocus = focus ? descendantsOf(state, focus) : null;
+  const focusTeam =
+    !focus && view.focusTeam && state.teams.some((t) => t.id === view.focusTeam)
+      ? view.focusTeam
+      : null;
+  const inFocus = focus
+    ? descendantsOf(state, focus)
+    : focusTeam
+      ? teamDescendants(state, focusTeam)
+      : null;
   const filter = view.filter ?? null;
   const outside = new Set(
     [...inWindow].filter(
@@ -777,15 +905,28 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
         (filter && !filter.match.has(id) && !filter.context.has(id)),
     ),
   );
-  const raw = view.zoom ?? 1;
-  const zoom = Number.isFinite(raw) ? Math.min(MAX_ZOOM, Math.max(1, raw)) : 1;
-  const x1 = X0 + (X1 - X0) * zoom;
-  const x = (t: number) => X0 + ((t - startMs) / (endMs - startMs)) * (x1 - X0);
-  const t = (px: number) => startMs + ((px - X0) / (x1 - X0)) * (endMs - startMs);
+  const days = (endMs - startMs) / DAY;
+  const room = (span: number | undefined) =>
+    Math.max(1, (span && Number.isFinite(span) ? span : VW - SIDE) - (X0 - SIDE) - RIGHT);
+  const visible = room(view.span);
+  const given = view.dayWidth;
+  let plot: number;
+  if (given !== undefined && Number.isFinite(given) && given > 0) {
+    plot = clampDayWidth(given, visible / days) * days;
+  } else {
+    const raw = view.zoom ?? 1;
+    const zoom = Number.isFinite(raw) ? Math.min(MAX_ZOOM, Math.max(1, raw)) : 1;
+    plot = room(view.fitSpan ?? view.span) * zoom;
+  }
+  // A fit computed from the day width can land a hair past the view, which would add a scroll bar.
+  const x1 = X0 + (plot - visible > 1e-6 ? plot : visible);
+  const x = (t: number) => X0 + ((t - startMs) / (endMs - startMs)) * plot;
+  const t = (px: number) => startMs + ((px - X0) / plot) * (endMs - startMs);
+  const plotEndMs = t(x1);
   const people = new Map(state.people.map((p) => [p.id, p.name]));
   const c: Ctx = {
     state,
-    view: { ...view, focus, filter },
+    view: { ...view, focus, focusTeam, filter },
     marks,
     tz,
     today: dayOf(view.asOf, tz),
@@ -804,13 +945,12 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     rows: new Map(),
     name: (id) => (id === 'agent' ? 'Agent' : (people.get(id) ?? id)),
     dayStart,
-    noonX: (date) => Math.min(x1 - 4, x(dayStart(date) + 12 * HOUR)),
-    lateFrom: (w) => dayStart(addDays(w.plannedFinish, 1)),
+    deadlineX: (m) => Math.min(x1 - 4, x(milestoneDeadline(m, tz))),
+    lateFrom: (w) => itemDeadline(w, tz),
   };
   const { lanes, height } = placeRows(c);
   const shown = [...c.rows.values()].sort((a, b) => a.y - b.y);
   const segments = linesOf(c, shown);
-  const handoffs = handoffsOf(c);
   const statusOf = new Map(
     state.milestones.map((m) => [
       m.id,
@@ -825,15 +965,12 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     return sources.length ? [chipOf(c, w, r, sources)] : [];
   });
   const eventGroups = shown.flatMap((r) => groupsOf(c, item(r), r, infos.get(r.id)!));
-  const busy = busyOf(
-    segments,
-    eventGroups,
-    handoffs,
-    chips,
-    new Map(shown.map((r) => [r.y, r.id])),
-  );
+  const handoffs = handoffsOf(c, eventGroups);
+  const busy = busyOf(segments, eventGroups, handoffs, chips);
   return {
-    zoom,
+    zoom: plot / visible,
+    dayWidth: plot / days,
+    fitDayWidth: visible / days,
     width: c.width,
     x1,
     height,
@@ -846,7 +983,7 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
       endMs,
       label: `Work items from ${formatDay(start)} to ${formatDay(addDays(end, -1))}`,
     },
-    ticks: ticksOf(c, start, endMs),
+    ticks: ticksOf(c, start, plotEndMs),
     tLine: { x: c.xt, y1: AXIS_Y + 5, y2: height, label: `T ${formatStamp(view.asOf, tz)}` },
     lanes,
     rows: shown,

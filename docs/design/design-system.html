@@ -1,0 +1,1043 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event tracker design system</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+  // Applies the saved theme before the first paint, as the app does with pg-theme.
+  try {
+    var saved = localStorage.getItem('ds-theme');
+    if (saved === 'light' || saved === 'dark') document.documentElement.dataset.theme = saved;
+  } catch (e) {}
+</script>
+<style>
+/* Tokens: a copy of src/app/globals.css and src/components/tracker/tracker.css (17 Oct 2026). Keep them in sync. */
+:root {
+  --font-geist: 'Geist';
+  --font-geist-mono: 'Geist Mono';
+  --page: #f0f0f3; --panel: #ffffff; --surface: #ffffff; --sunk: #f9f9fb; --gray-bg: #f0f0f3;
+  --hover: rgb(28 32 36 / 0.045); --ink: #1c2024; --ink-2: #60646c; --ink-3: #696c74;
+  --rule: #e0e1e6; --rule-2: #f0f0f3; --trunk: #1c2024;
+  --route: #0090ff; --route-bg: #e6f4fe; --route-ink: #0c6bbe;
+  --proceed: #46a758; --proceed-bg: #e9f6e9; --proceed-ink: #287939;
+  --danger: #e5484d; --danger-bg: #feebec; --danger-ink: #c62a2f;
+  --caution: #ef5f00; --caution-bg: #ffefd6; --caution-ink: #b44500;
+  --teal: #0d9b8a; --teal-bg: #e0f8f3; --teal-ink: #007b6a;
+  --isolated: #8b8d98; --mark: #ffe770; --focus: #0d74ce; --stripe: #f9f9fb;
+  --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.05);
+  --shadow: 0 10px 30px -6px rgb(16 24 40 / 0.16);
+  --shadow-lg: 0 24px 60px -12px rgb(16 24 40 / 0.28);
+  --scrim: rgb(11 12 16 / 0.38);
+  color-scheme: light;
+  --r-ctl: 8px; --r-pop: 12px; --r-sheet: 14px;
+  --fs: 13.5px; --fs-s: 12.5px; --fs-xs: 11.5px;
+  --f-ui: var(--font-geist), 'Geist', system-ui, sans-serif;
+  --f-doc: var(--font-geist), 'Geist', system-ui, sans-serif;
+  --f-id: var(--font-geist-mono), 'Geist Mono', ui-monospace, monospace;
+  --change: #e0a800; --change-text: var(--ink); --change-bg: #ffe14d; --edit-bg: #fefce9;
+  --k-message: #0c67b6; --k-task: #6550b9; --k-handoff: #0e738c; --k-decision: #975800;
+  --k-meeting: #ba2784; --k-delivery: #54722b; --k-issue: #be282d; --k-done: #1e744e;
+}
+:root[data-theme='dark'] {
+  --page: #0d0d0f; --panel: #18191b; --surface: #18191b; --sunk: #111113; --gray-bg: #272a2d;
+  --hover: rgb(237 238 240 / 0.06); --ink: #edeef0; --ink-2: #b0b4ba; --ink-3: #90949d;
+  --rule: #2e3135; --rule-2: #212225; --trunk: #edeef0;
+  --route: #0090ff; --route-bg: #0d2847; --route-ink: #70b8ff;
+  --proceed: #46a758; --proceed-bg: #1b2a1e; --proceed-ink: #71d083;
+  --danger: #e5484d; --danger-bg: #3b1219; --danger-ink: #ff9592;
+  --caution: #ef5f00; --caution-bg: #331e0b; --caution-ink: #ffa057;
+  --teal: #12a594; --teal-bg: #0d2d2a; --teal-ink: #0bd8b6;
+  --isolated: #696e77; --mark: #524202; --focus: #70b8ff; --stripe: #111113;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow: 0 12px 32px -6px rgb(0 0 0 / 0.6);
+  --shadow-lg: 0 28px 70px -12px rgb(0 0 0 / 0.7);
+  --scrim: rgb(0 0 0 / 0.62);
+  color-scheme: dark;
+  --change: #ffe629; --change-text: var(--ink); --change-bg: #6e5a00; --edit-bg: #1b180f;
+  --k-message: #70b8ff; --k-task: #baa7ff; --k-handoff: #4ccce6; --k-decision: #ffca16;
+  --k-meeting: #ff8dcc; --k-delivery: #d4ff70; --k-issue: #ff9592; --k-done: #3dd68c;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --page: #0d0d0f; --panel: #18191b; --surface: #18191b; --sunk: #111113; --gray-bg: #272a2d;
+    --hover: rgb(237 238 240 / 0.06); --ink: #edeef0; --ink-2: #b0b4ba; --ink-3: #90949d;
+    --rule: #2e3135; --rule-2: #212225; --trunk: #edeef0;
+    --route: #0090ff; --route-bg: #0d2847; --route-ink: #70b8ff;
+    --proceed: #46a758; --proceed-bg: #1b2a1e; --proceed-ink: #71d083;
+    --danger: #e5484d; --danger-bg: #3b1219; --danger-ink: #ff9592;
+    --caution: #ef5f00; --caution-bg: #331e0b; --caution-ink: #ffa057;
+    --teal: #12a594; --teal-bg: #0d2d2a; --teal-ink: #0bd8b6;
+    --isolated: #696e77; --mark: #524202; --focus: #70b8ff; --stripe: #111113;
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+    --shadow: 0 12px 32px -6px rgb(0 0 0 / 0.6);
+    --shadow-lg: 0 28px 70px -12px rgb(0 0 0 / 0.7);
+    --scrim: rgb(0 0 0 / 0.62);
+    color-scheme: dark;
+    --change: #ffe629; --change-text: var(--ink); --change-bg: #6e5a00; --edit-bg: #1b180f;
+    --k-message: #70b8ff; --k-task: #baa7ff; --k-handoff: #4ccce6; --k-decision: #ffca16;
+    --k-meeting: #ff8dcc; --k-delivery: #d4ff70; --k-issue: #ff9592; --k-done: #3dd68c;
+  }
+}
+
+/* Page chrome. It uses the app tokens, so the page follows its own rules. */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--panel); color: var(--ink); font: 400 var(--fs)/1.5 var(--f-ui); letter-spacing: -0.005em; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+a { color: var(--route-ink); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code { font: 12px var(--f-id); background: var(--gray-bg); padding: 1px 5px; border-radius: 5px; }
+.top { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--panel) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--rule); }
+.top-in { max-width: 1180px; margin: 0 auto; padding: 10px 24px; display: flex; gap: 10px 18px; align-items: center; flex-wrap: wrap; }
+.top-in b { font-size: 14px; font-weight: 600; letter-spacing: -0.015em; }
+.top-in nav { display: flex; gap: 2px 12px; flex-wrap: wrap; flex: 1; min-width: 0; font-size: var(--fs-s); }
+.top-in nav a { color: var(--ink-2); font-weight: 500; }
+.top-in nav a:hover { color: var(--ink); text-decoration: none; }
+.doc { max-width: 1180px; margin: 0 auto; padding: 28px 24px 96px; }
+.eyebrow { font: 500 12px var(--f-id); color: var(--ink-3); }
+h1 { font-size: 28px; line-height: 1.2; letter-spacing: -0.02em; font-weight: 600; margin: 6px 0 10px; }
+h2 { font-size: 20px; letter-spacing: -0.015em; font-weight: 600; margin: 56px 0 6px; padding-top: 18px; border-top: 1px solid var(--rule); }
+h3 { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; margin: 28px 0 8px; }
+p { margin: 0 0 10px; max-width: 78ch; }
+.lede { color: var(--ink-2); font-size: 15px; max-width: 80ch; }
+.sub { color: var(--ink-2); }
+.small { font-size: var(--fs-s); color: var(--ink-2); }
+ul.rules { margin: 8px 0 0; padding-left: 20px; max-width: 86ch; }
+ul.rules li { margin: 4px 0; }
+ol.rules { margin: 8px 0 0; padding-left: 22px; max-width: 86ch; }
+ol.rules li { margin: 5px 0; }
+
+/* A specimen frame: flat, one hairline, no shadow. */
+.stage { border: 1px solid var(--rule); border-radius: var(--r-pop); background: var(--panel); padding: 18px; margin: 10px 0 6px; min-width: 0; }
+.stage.sunk { background: var(--sunk); }
+.stage.flush { padding: 0; overflow: hidden; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.cap { font-size: var(--fs-xs); color: var(--ink-3); margin-top: 6px; }
+.grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); align-items: start; }
+.scroll-x { overflow-x: auto; }
+
+table.t { border-collapse: collapse; width: 100%; font-size: var(--fs-s); }
+table.t th { text-align: left; font-weight: 500; color: var(--ink-3); font-size: var(--fs-xs); padding: 7px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+table.t td { padding: 7px 10px; border-bottom: 1px solid var(--rule-2); vertical-align: top; }
+table.t tr:last-child td { border-bottom: 0; }
+table.t td.mono { font: 12px var(--f-id); white-space: nowrap; }
+
+/* Swatches */
+.sw { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px 0; border-top: 1px solid var(--rule-2); }
+.sw i { width: 34px; height: 34px; border-radius: var(--r-ctl); border: 1px solid var(--rule); display: block; }
+.sw b { font: 600 12px var(--f-id); display: block; }
+.sw small { display: block; font: 11px var(--f-id); color: var(--ink-3); }
+.sw span { display: block; font-size: var(--fs-xs); color: var(--ink-2); line-height: 1.4; margin-top: 2px; }
+.swgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); column-gap: 28px; }
+
+.hue { display: grid; grid-template-columns: 110px repeat(3, minmax(0, 1fr)); gap: 0; align-items: stretch; border-top: 1px solid var(--rule-2); }
+.hue > div { padding: 10px 8px; min-width: 0; }
+.hue .nm { font-weight: 600; font-size: var(--fs-s); }
+.hue .ln { height: 3px; border-radius: 2px; margin-top: 9px; }
+.hue .tx { font-weight: 600; font-size: var(--fs-s); }
+.hue .bg { border-radius: 99px; padding: 1px 9px; font-size: var(--fs-xs); font-weight: 500; display: inline-block; }
+.hue small { display: block; font: 11px var(--f-id); color: var(--ink-3); margin-top: 4px; }
+
+.typo > div { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 14px; padding: 10px 0; border-top: 1px solid var(--rule-2); align-items: baseline; }
+.typo code { justify-self: start; }
+
+.radii { display: flex; gap: 22px; flex-wrap: wrap; }
+.radii div { width: 120px; }
+.radii i { display: block; height: 64px; border: 1.5px solid var(--ink-3); background: var(--sunk); }
+.shadows { display: flex; gap: 26px; flex-wrap: wrap; padding: 12px 4px; }
+.shadows div { width: 180px; height: 84px; background: var(--panel); border: 1px solid var(--rule); border-radius: var(--r-pop); display: grid; place-items: center; font: 12px var(--f-id); color: var(--ink-2); }
+.space { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
+.space div { text-align: center; font: 11px var(--f-id); color: var(--ink-3); }
+.space i { display: block; background: var(--route-bg); border: 1px solid var(--route); margin: 0 auto 4px; }
+
+.icons { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 0; }
+.icons div { display: grid; justify-items: center; gap: 6px; padding: 14px 4px 10px; border-top: 1px solid var(--rule-2); font: 11px var(--f-id); color: var(--ink-2); text-align: center; }
+.icons div > svg { color: var(--ink); }
+
+.never li { margin: 6px 0; }
+.never b { color: var(--danger-ink); }
+
+/* Components: copied from tracker.css, review.css, shell.css and globals.css under .tk, as the app does. */
+.tk { color: var(--ink); font: var(--fs)/1.5 var(--f-ui); letter-spacing: -0.005em; }
+.tk h4 { margin: 0; letter-spacing: 0; }
+.tk .muted { color: var(--ink-2); }
+.tk .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); border-radius: var(--r-ctl); padding: 6px 11px; font: 500 var(--fs-s)/1.2 var(--f-ui); cursor: pointer; min-height: 32px; white-space: nowrap; box-shadow: var(--shadow-sm); }
+.tk .btn:hover:not(:disabled) { background: var(--sunk); }
+.tk .btn.big { min-height: 40px; font-size: var(--fs); padding: 8px 16px; }
+.tk .btn.sm { min-height: 28px; font-size: var(--fs-xs); padding: 4px 9px; border-radius: 8px; }
+.tk .btn-ink, .tk .btn-ink:hover:not(:disabled) { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.tk .btn-ink:hover:not(:disabled) { opacity: 0.9; }
+.tk .btn-draft .cnt { background: var(--change-bg); color: var(--change-text); }
+.tk .btn-danger { color: var(--danger-ink); }
+.tk .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.tk .cnt { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--gray-bg); color: var(--ink); font-size: 11px; }
+.tk .btn-ink .cnt { background: color-mix(in srgb, var(--panel) 22%, transparent); color: inherit; }
+.tk .lnk { border: 0; background: none; padding: 0; color: var(--route-ink); cursor: pointer; font: 500 var(--fs-s) var(--f-ui); text-underline-offset: 2px; }
+.tk .lnk:hover { text-decoration: underline; }
+.tk .x { border: 0; background: none; cursor: pointer; color: var(--ink-3); font-size: 20px; line-height: 1; padding: 0 2px; }
+.tk .ib { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: var(--r-ctl); background: none; color: var(--ink-3); cursor: pointer; }
+.tk .ib:hover { background: var(--hover); color: var(--ink); }
+.tk .chipx { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); font-weight: 500; padding: 1px 9px; border-radius: 99px; background: var(--gray-bg); color: var(--ink-2); white-space: nowrap; line-height: 1.55; }
+.tk .chipx.warn { background: var(--caution-bg); color: var(--caution-ink); }
+.tk .chipx.ok { background: var(--proceed-bg); color: var(--proceed-ink); }
+.tk .chipx.pen { background: var(--change-bg); color: var(--change-text); }
+.tk .chipx.route { background: var(--route-bg); color: var(--route-ink); }
+.tk .badge { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); font-weight: 500; padding: 1px 9px; border-radius: 99px; }
+.tk .st-planned { background: var(--gray-bg); color: var(--ink-2); }
+.tk .st-early { background: var(--teal-bg); color: var(--teal-ink); }
+.tk .st-ontime { background: var(--proceed-bg); color: var(--proceed-ink); }
+.tk .st-late { background: var(--danger-bg); color: var(--danger-ink); }
+.tk .st-flate { background: var(--caution-bg); color: var(--caution-ink); }
+.tk .bot { display: inline-flex; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 500; padding: 0 6px; border-radius: 99px; background: var(--route-bg); color: var(--route-ink); }
+.tk .hid-pill { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 500; background: var(--gray-bg); color: var(--ink-2); border-radius: 99px; padding: 0 8px 0 10px; white-space: nowrap; cursor: pointer; min-height: 28px; border: 0; }
+.tk .hid-pill:hover { background: var(--rule); color: var(--ink); }
+.tk .fgroup { border: 0; margin: 0 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.tk .fgroup legend { padding: 0; margin-bottom: 6px; font-size: var(--fs-xs); font-weight: 600; color: var(--ink-3); }
+.tk .fchip { position: relative; display: inline-flex; font-size: var(--fs-s); }
+.tk .fchip input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.tk .fchip span { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid var(--rule); border-radius: 99px; color: var(--ink-2); white-space: nowrap; }
+.tk .fchip:hover span { border-color: var(--ink-3); background: var(--hover); }
+.tk .fchip input:checked + span { background: var(--gray-bg); border-color: var(--ink); color: var(--ink); font-weight: 600; }
+.tk .fchip input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 2px; }
+.tk .fdot { width: 8px; height: 8px; border-radius: 50%; }
+.tk .field { display: grid; gap: 6px; margin-top: 10px; font-size: var(--fs-xs); font-weight: 500; color: var(--ink-2); }
+.tk .field input, .tk .field select, .tk .field textarea { border: 1px solid var(--rule); background: var(--panel); color: var(--ink); border-radius: var(--r-ctl); padding: 6px 10px; font: 400 var(--fs-s) var(--f-ui); width: 100%; min-width: 0; min-height: 32px; }
+.tk .field textarea { min-height: 64px; resize: vertical; font-size: var(--fs); }
+.tk .field input:disabled { color: var(--ink-3); background: var(--sunk); }
+.tk .field input:focus-visible, .tk .field select:focus-visible, .tk .field textarea:focus-visible, .tk .field .ring, .tk .tsearch input:focus-visible { outline: none; border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 18%, transparent); }
+.tk .tsearch { position: relative; display: flex; align-items: center; width: 260px; max-width: 100%; }
+.tk .tsearch > svg { position: absolute; left: 10px; color: var(--ink-3); pointer-events: none; }
+.tk .tsearch > span:first-child { position: absolute; left: 10px; display: grid; color: var(--ink-3); pointer-events: none; }
+.tk .tsearch input { width: 100%; min-height: 32px; border: 1px solid var(--rule); border-radius: var(--r-ctl); background: var(--sunk); color: var(--ink); padding: 5px 38px 5px 30px; font: var(--fs-s) var(--f-ui); }
+.tk .tsearch input:hover { border-color: var(--ink-3); }
+.tk .tsearch input:focus { background: var(--panel); }
+.tk .tfilter-btn { position: absolute; right: 4px; top: 2px; display: inline-flex; align-items: center; gap: 3px; height: 28px; min-width: 28px; justify-content: center; padding: 0 6px; border-radius: var(--r-ctl); color: var(--ink); cursor: pointer; }
+.tk .tfilter-btn .cnt { min-width: 16px; height: 16px; padding: 0 4px; font-size: var(--fs-xs); font-weight: 700; background: var(--ink); color: var(--panel); }
+.tk .fpanel, .tk .spanel { width: 380px; max-width: 100%; background: var(--panel); border: 1px solid var(--rule); border-radius: var(--r-pop); box-shadow: var(--shadow); padding: 10px 12px; font-size: var(--fs-s); }
+.tk .spanel { padding: 6px; }
+.tk .spanel ul { list-style: none; margin: 0; padding: 0; }
+.tk .spanel li { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 8px; }
+.tk .spanel li.on { background: var(--gray-bg); }
+.tk .spanel .tt { flex: 1; min-width: 0; display: grid; line-height: 1.3; }
+.tk .spanel .tt b { font-size: var(--fs-s); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tk .spanel .tt small { font-size: var(--fs-xs); color: var(--ink-3); }
+.tk .tfilter-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 8px; border-top: 1px solid var(--rule); color: var(--ink-3); }
+.tk .seg, .tk .qseg { display: inline-flex; gap: 2px; padding: 2px; background: var(--gray-bg); border-radius: var(--r-ctl); flex-wrap: wrap; }
+.tk .seg button, .tk .qseg button { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 6px; background: none; color: var(--ink-2); padding: 4px 12px; font: 500 var(--fs-s) var(--f-ui); cursor: pointer; }
+.tk .seg button[aria-pressed='true'], .tk .qseg button[aria-pressed='true'] { background: var(--panel); color: var(--ink); box-shadow: var(--shadow-sm), 0 0 0 1px var(--rule); }
+.tk .seg button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.tk .qseg .n { font: 500 10.5px var(--f-id); color: var(--ink-3); }
+.tk .menu { width: 320px; max-width: 100%; background: var(--panel); border: 1px solid var(--rule); border-radius: var(--r-pop); box-shadow: var(--shadow); padding: 6px; }
+.tk .menu button { display: flex; width: 100%; gap: 9px; align-items: center; border: 0; background: none; padding: 7px 10px; border-radius: 8px; cursor: pointer; text-align: left; font: var(--fs)/1.4 var(--f-ui); color: var(--ink); }
+.tk .menu button:hover { background: var(--hover); }
+.tk .menu button.on { font-weight: 600; background: var(--gray-bg); }
+.tk .menu small { display: block; color: var(--ink-3); font-size: var(--fs-xs); font-weight: 400; }
+.tk .menu hr { border: 0; border-top: 1px solid var(--rule-2); margin: 4px 0; }
+.tk .gdot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.tk .pop { background: var(--panel); border: 1px solid var(--rule); border-radius: var(--r-pop); box-shadow: var(--shadow); padding: 12px 14px; width: 312px; max-width: 100%; font-size: var(--fs); }
+.tk .pop-h { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 8px; }
+.tk .pop-h > div { flex: 1; min-width: 0; line-height: 1.35; }
+.tk .pop-h small { display: block; color: var(--ink-3); font-size: var(--fs-xs); }
+.tk .pi { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none; background: color-mix(in srgb, currentColor 12%, var(--panel)); }
+.tk blockquote { margin: 0 0 10px; padding: 8px 12px; border-radius: var(--r-ctl); background: var(--sunk); border: 1px solid var(--rule-2); font-size: var(--fs-s); color: var(--ink-2); }
+.tk .pop-btns { display: grid; gap: 6px; }
+.tk .pop-btns .btn { justify-content: flex-start; }
+.tk .tip { font-size: var(--fs-xs); color: var(--ink-3); margin: 8px 0 0; }
+.tk .hand-tip { display: inline-block; max-width: 100%; background: var(--ink); color: var(--panel); font-size: var(--fs-xs); font-weight: 600; line-height: 1.35; padding: 5px 9px; border-radius: 7px; white-space: pre; box-shadow: var(--shadow); }
+.tk .drawer { width: 380px; max-width: 100%; background: var(--panel); border: 1px solid var(--rule); border-radius: var(--r-sheet); box-shadow: var(--shadow); padding: 14px 16px 0; font-size: var(--fs); }
+.tk .drawer h4 { margin: 0; font-size: 15px; font-weight: 600; }
+.tk .wi-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.tk .q-label { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-3); margin: 16px 0 6px; }
+.tk .facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 7px 16px; margin: 12px 0 0; font-size: var(--fs-s); }
+.tk .facts dt { color: var(--ink-3); }
+.tk .facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.tk .moves { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.tk .moves li { border-left: 2px solid var(--rule); padding: 2px 0 2px 10px; font-size: var(--fs-s); display: grid; gap: 1px; }
+.tk .moves li small { color: var(--ink-3); font-size: var(--fs-xs); }
+.tk .ev-list { list-style: none; padding: 0; margin: 0; }
+.tk .ev-list li + li { border-top: 1px solid var(--rule-2); }
+.tk .stack-ev { display: flex; gap: 10px; align-items: flex-start; padding: 8px 6px; border-radius: var(--r-ctl); color: var(--ink); }
+.tk .stack-ev .sk { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: color-mix(in srgb, currentColor 12%, var(--panel)); }
+.tk .stack-ev .st { min-width: 0; display: grid; font-size: var(--fs-s); line-height: 1.35; }
+.tk .stack-ev .st small { color: var(--ink-3); font-size: var(--fs-xs); }
+.tk .stack-ev .st > span { color: var(--ink-2); }
+.tk .drawer-foot { background: var(--panel); padding: 12px 0 14px; display: flex; gap: 8px; border-top: 1px solid var(--rule); margin-top: 14px; }
+.tk .drawer-foot .btn-ink { flex: 1; }
+.tk .scrim { background: var(--scrim); border-radius: var(--r-pop); padding: 36px 12px 28px; display: flex; justify-content: center; }
+.tk .m-card { width: 620px; max-width: 100%; background: var(--panel); border: 1px solid var(--rule); border-radius: var(--r-sheet); box-shadow: var(--shadow-lg); padding: 18px; font-size: var(--fs); }
+.tk .m-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.tk .m-top b { font-size: 15px; flex: 1; font-weight: 600; }
+.tk .m-foot { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.tk .m-foot .btn-ink { flex: 1; }
+.tk .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.tk .toast { display: inline-flex; gap: 12px; align-items: center; background: var(--ink); color: var(--panel); padding: 9px 14px; border-radius: var(--r-pop); font-size: var(--fs); box-shadow: var(--shadow-lg); max-width: 100%; }
+.tk .toast button { display: inline-flex; align-items: center; gap: 5px; border: 1px solid color-mix(in srgb, var(--panel) 40%, transparent); background: none; color: var(--panel); border-radius: 6px; padding: 4px 10px; font: 500 var(--fs-s) var(--f-ui); cursor: pointer; }
+.tk .p-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--rule); flex-wrap: wrap; min-height: 52px; background: var(--panel); }
+.tk .p-head .sp { flex: 1; }
+.tk .vsel { display: flex; gap: 7px; align-items: center; border: 0; background: none; color: var(--ink); border-radius: var(--r-ctl); padding: 0 8px; margin-left: -8px; cursor: pointer; font: 600 var(--fs) var(--f-ui); min-height: 32px; }
+.tk .vsel:hover { background: var(--hover); }
+.tk .crs-btn { position: relative; }
+.tk .nbadge { position: absolute; top: -7px; right: -7px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--danger); color: #fff; font: 600 10.5px/18px var(--f-ui); text-align: center; box-shadow: 0 0 0 2px var(--panel); }
+.tk .bnote { flex-basis: 100%; margin: 0; font-size: var(--fs-s); color: var(--ink-2); }
+.tk .demo { display: flex; align-items: center; gap: 8px; font-size: 10.5px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+.tk .demo select { min-height: 32px; border: 1px solid var(--rule); background: var(--panel); border-radius: var(--r-ctl); padding: 0 6px; font: 500 var(--fs-s) var(--f-ui); text-transform: none; letter-spacing: 0; color: var(--ink); box-shadow: var(--shadow-sm); }
+.tk .me { display: flex; align-items: center; gap: 8px; padding-left: 10px; border-left: 1px solid var(--rule); }
+.tk .me b { font-size: var(--fs-s); display: block; line-height: 1.2; }
+.tk .me small { font-size: var(--fs-xs); color: var(--ink-3); display: block; line-height: 1.2; }
+.tk .av { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 600; flex: none; }
+.tk .bbar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--rule); flex-wrap: wrap; font-size: var(--fs-s); min-height: 48px; }
+.tk .bbar.mine { background: var(--edit-bg); }
+.tk .bbar.main { background: var(--sunk); }
+.tk .bbar.other { background: var(--route-bg); }
+.tk .bbar .bt { font-weight: 600; display: flex; align-items: center; gap: 7px; }
+.tk .bbar .sp { flex: 1; }
+.tk .ask-row { flex-basis: 100%; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--caution-bg); border-radius: var(--r-ctl); padding: 6px 10px; font-size: var(--fs-s); }
+.tk .ro-note { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 12px; padding: 7px 10px 7px 12px; border-radius: var(--r-ctl); background: var(--route-bg); color: var(--route-ink); font-size: var(--fs-s); }
+.tk .ro-note p { margin: 0; flex: 1 1 220px; color: inherit; }
+.tk .ro-note .lnk, .tk .ro-note .x { color: inherit; }
+.tk .ro-note .lnk { text-decoration: underline; }
+.tk .qlist { border-top: 1px solid var(--rule); }
+.tk .qc { border-bottom: 1px solid var(--rule-2); padding: 10px 12px; font-size: var(--fs-xs); line-height: 1.4; }
+.tk .qc:hover { background: var(--hover); }
+.tk .qc .qk { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; color: var(--kc); }
+.tk .qc .qt { margin: 4px 0 6px; color: var(--ink); font-size: var(--fs-s); }
+.tk .qc .qf { display: flex; align-items: center; gap: 6px; color: var(--ink-3); flex-wrap: wrap; }
+.tk .qc .qf .who { color: var(--ink-2); font-weight: 500; }
+.tk .zoombar { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--rule); border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow); }
+.tk .zoombar button { display: grid; place-items: center; min-width: 26px; height: 24px; padding: 0 6px; border: 0; border-radius: 6px; background: none; color: var(--ink-2); font: 600 12px/1 var(--f-ui); cursor: pointer; }
+.tk .zoombar button:hover { background: var(--hover); color: var(--ink); }
+.tk .zoombar .full { margin-left: 2px; box-shadow: -1px 0 0 var(--rule); border-radius: 0 var(--r-ctl) var(--r-ctl) 0; }
+.tk .legend2 { display: flex; gap: 6px 16px; flex-wrap: wrap; padding: 9px 14px; font-size: var(--fs-xs); color: var(--ink-2); align-items: center; }
+.tk .legend2 span { display: inline-flex; align-items: center; gap: 6px; }
+.tk .legend2 i.ln { display: inline-block; width: 16px; height: 2.5px; border-radius: 2px; }
+.tk .legend2 .chg { padding: 0 5px; border-radius: 4px; background: var(--change-bg); color: var(--change-text); font-style: normal; font-weight: 600; }
+.tk .ms-sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; }
+.tk .ms-sw.fill { background: currentColor; }
+.tk .bin { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--danger); border-radius: var(--r-pop); background: var(--panel); color: var(--danger-ink); font-size: var(--fs-xs); font-weight: 600; box-shadow: var(--shadow); }
+
+/* Rail: shell.css plus the global .rail block. */
+.rail { width: 212px; background: var(--sunk); border-right: 1px solid var(--rule); padding: 14px 10px; display: flex; flex-direction: column; gap: 12px; min-height: 360px; }
+.rail-ic { width: 16px; height: 16px; flex: none; }
+.rail-nav, .rail-foot { display: flex; flex-direction: column; gap: 2px; }
+.rail-foot { margin-top: auto; }
+.rail-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 32px; padding: 6px 10px; border: 0; border-radius: var(--r-ctl); background: none; color: var(--ink-2); font: 500 var(--fs)/1.5 var(--f-ui); text-align: left; white-space: nowrap; cursor: pointer; }
+.rail-item:hover { background: var(--hover); color: var(--ink); }
+.rail-item[aria-current='page'] { background: var(--gray-bg); color: var(--ink); font-weight: 600; }
+.proj { display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: var(--r-ctl); }
+.proj-avatar { display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 6px; background: var(--ink); color: var(--panel); font-size: 12px; font-weight: 700; }
+.proj b { display: block; font-size: var(--fs-s); font-weight: 600; line-height: 1.25; }
+.proj small { display: block; color: var(--ink-3); font-size: var(--fs-xs); line-height: 1.25; }
+.rail-note { margin: 0; padding: 4px 10px 8px; color: var(--ink-3); font-size: var(--fs-xs); line-height: 1.45; }
+
+/* Graph: svg.tg rules copied from tracker.css. */
+svg.tg { font-family: var(--f-ui); user-select: none; display: block; }
+svg.tg .lane-band.alt { fill: var(--sunk); }
+svg.tg .lane-band { fill: transparent; }
+svg.tg .lane-name { font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; fill: var(--ink-2); }
+svg.tg .row-label { font-size: 12px; fill: var(--ink); }
+svg.tg .row-label.changed, svg.tg .ms-label.changed { fill: var(--change-text); paint-order: stroke; stroke: var(--change-bg); stroke-width: 11px; stroke-linejoin: round; }
+svg.tg .row-label.dim { opacity: 0.5; }
+svg.tg .tick { font-size: 11px; fill: var(--ink-3); text-anchor: middle; }
+svg.tg .grid { stroke: var(--rule-2); }
+svg.tg .divider { stroke: var(--rule); }
+svg.tg .guide { stroke: var(--rule); stroke-width: 1.5; }
+svg.tg .tline { stroke: var(--ink-3); stroke-width: 1; }
+svg.tg .tpill rect { fill: var(--ink); }
+svg.tg .tpill text { fill: var(--panel); font-size: 10.5px; font-weight: 600; text-anchor: middle; }
+svg.tg .trunk { stroke: var(--trunk); stroke-width: 4; stroke-linecap: round; }
+svg.tg .trunk-seg { stroke-width: 4; stroke-linecap: round; }
+svg.tg .seg { stroke-width: 3; stroke-linecap: round; fill: none; }
+svg.tg .wait-line { stroke: var(--ink-3); stroke-width: 2.5; opacity: 0.45; stroke-linecap: round; }
+svg.tg .wait-text { font-size: 10.5px; fill: var(--ink-3); font-style: italic; }
+svg.tg .hit { fill: transparent; }
+svg.tg .hit.sel { fill: color-mix(in srgb, var(--ink) 6%, transparent); }
+svg.tg .hit.flash { fill: color-mix(in srgb, var(--ink) 8%, transparent); }
+svg.tg .hit.glow { fill: color-mix(in srgb, var(--ink) 9%, transparent); stroke: var(--ink); stroke-width: 2; }
+svg.tg .hit.kfocus { stroke: var(--focus); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+svg.tg .act .bg { fill: var(--panel); stroke-width: 2; }
+svg.tg .act .layer { stroke-width: 1.5; }
+svg.tg .act .halo { fill: color-mix(in srgb, var(--change) 30%, transparent); stroke: var(--change); stroke-width: 3; }
+svg.tg .ms-c { stroke-width: 2; }
+svg.tg .ms.sel .ms-c { stroke-width: 3.5; }
+svg.tg .ms-i { fill: none; stroke: var(--panel); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+svg.tg .ms-dot { fill: var(--panel); }
+svg.tg .ms-label { font-size: 11px; font-weight: 600; }
+svg.tg .eye { color: var(--ink-3); }
+svg.tg .eye rect { fill: transparent; }
+svg.tg .focus-btn.on { color: var(--panel); }
+svg.tg .focus-btn.on rect { fill: var(--focus); }
+svg.tg .handoff rect { fill: var(--panel); stroke: var(--ink-3); }
+svg.tg .handoff.open rect { fill: var(--gray-bg); stroke: var(--ink); }
+svg.tg .hand-n { font-size: 9.5px; font-weight: 700; fill: var(--ink-2); }
+svg.tg .chip rect { fill: var(--panel); stroke: var(--ink-3); }
+svg.tg .chip > g { color: var(--ink-2); }
+svg.tg .plus circle { fill: var(--panel); stroke: var(--rule); stroke-width: 1; }
+svg.tg .plus path { stroke: var(--ink-2); stroke-width: 1.5; stroke-linecap: round; }
+svg.tg .deadline-mark { stroke-width: 1.5; stroke-linejoin: round; }
+svg.tg .deadline-name { font-size: 9.5px; font-weight: 600; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; paint-order: stroke; }
+svg.tg .note { font-size: 10px; fill: var(--ink-3); }
+
+.doc .hand-tip { white-space: pre-wrap; }
+.marks { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0 28px; }
+.marks > div { padding: 12px 0; border-top: 1px solid var(--rule-2); }
+.marks svg { width: 100%; max-width: 260px; height: auto; }
+.marks b { font-size: var(--fs-s); display: block; margin-top: 4px; }
+.marks p { font-size: var(--fs-xs); color: var(--ink-2); margin: 2px 0 0; }
+
+@media (max-width: 760px) {
+  .doc { padding: 20px 16px 72px; }
+  .top-in { padding: 8px 16px; }
+  .top-in nav { display: none; }
+  h1 { font-size: 24px; }
+  .typo > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .hue { grid-template-columns: 84px repeat(3, minmax(0, 1fr)); }
+  .tk .grid2 { grid-template-columns: minmax(0, 1fr); }
+  .stage { padding: 14px; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <b>Design system</b>
+    <nav aria-label="Sections">
+      <a href="#principles">Principles</a><a href="#colour">Colour</a><a href="#type">Type</a><a href="#shape">Shape</a><a href="#icons">Icons</a><a href="#components">Components</a><a href="#graph">Graph</a><a href="#a11y">Accessibility</a><a href="#never">Never</a>
+    </nav>
+    <div class="tk"><div class="seg" role="group" aria-label="Theme" id="theme">
+      <button type="button" data-t="system" aria-pressed="true">System</button>
+      <button type="button" data-t="light" aria-pressed="false">Light</button>
+      <button type="button" data-t="dark" aria-pressed="false">Dark</button>
+    </div></div>
+  </div>
+</header>
+
+<main class="doc">
+  <div class="eyebrow">docs/design/design-system.html · values from src/app/globals.css and src/components/tracker/*.css · 17 Oct 2026</div>
+  <h1>Event tracker design system</h1>
+  <p class="lede">Direction D2 Radix calm, drawn flat with few cards. Geist type, Radix colour steps, hairlines over boxes. Colour shows status or change; grey shows everything else. The text version with every rule is <a href="../design-system.md">docs/design-system.md</a>.</p>
+
+  <h2 id="principles">1. Principles</h2>
+  <ol class="rules">
+    <li><b>Modern, quiet, flat.</b> It must feel like Linear or Cursor: grey surfaces, one ink colour for text, colour only where it carries meaning.</li>
+    <li><b>Few cards.</b> The rail, the Queue, drawer lists, history and review lists use bold text and hairlines. No box, no radius, no shadow.</li>
+    <li><b>Only floating layers are surfaces.</b> Modal, pop, popover menu, drawer, toast and the event brief get a panel, a border, a radius and a shadow.</li>
+    <li><b>Colour means status or change.</b> Blue, green, red, amber and teal show status. Yellow shows a change in a change request. Grey shows selection.</li>
+    <li><b>Plain English UI words.</b> "Move the date", "Hand over", "Not now", "Show again".</li>
+    <li><b>Every drag has a click way</b>, and every SVG target is a labelled button.</li>
+  </ol>
+  <div class="stage flush tk" style="display:flex;min-width:0">
+    <div class="qlist" style="flex:1;min-width:0;border-top:0">
+      <div class="qc" style="--kc:var(--k-message)"><span class="qk" id="qk1"></span><div class="qt"><b>Where is the root cause report for the sync outage?</b></div><div class="qf"><span class="who">Tom Becker</span> · 8 Oct, 14:20 <span class="bot">Agent</span></div></div>
+      <div class="qc" style="--kc:var(--k-meeting)"><span class="qk" id="qk2"></span><div class="qt"><b>Scope call with the Dynamics CRM team</b></div><div class="qf"><span class="who">Khoa Lê</span> · 9 Oct, 10:00</div></div>
+      <div class="qc" style="--kc:var(--k-issue)"><span class="qk" id="qk3"></span><div class="qt"><b>PG-204 Tax ID format check fails on Cayman entities</b></div><div class="qf"><span class="who">Hà Đỗ</span> · 9 Oct, 16:45</div></div>
+    </div>
+  </div>
+  <p class="cap">A flat list: the Queue. Bold title, meta in ink-3, a rule-2 hairline between items, a hover wash. No card boxes.</p>
+
+  <h2 id="colour">2. Colour</h2>
+  <p class="sub">Swatches follow the theme toggle. Each tile shows the light value, then the dark value.</p>
+  <h3>Surfaces, ink and lines</h3>
+  <div class="swgrid" id="sw-base"></div>
+
+  <h3>Status hues: line, -ink text, -bg fill</h3>
+  <p class="small">Lines and marks use the line step. Text uses the -ink step. Badges and bars use the -bg step with -ink text on it.</p>
+  <div id="hues"></div>
+
+  <h3>Status set</h3>
+  <div class="stage tk">
+    <div class="row">
+      <span class="badge st-planned">Planned</span><span class="badge st-early">Finished early</span><span class="badge st-ontime">Finished on time</span><span class="badge st-late">Late</span><span class="badge st-flate">Finished late</span>
+    </div>
+    <div class="legend2" style="padding:12px 0 0">
+      <span><i class="ln" style="background:var(--route)"></i>Not finished</span>
+      <span><i class="ln" style="background:var(--proceed)"></i>Done</span>
+      <span><i class="ln" style="background:var(--danger)"></i>Not finished after its planned finish</span>
+      <span><i class="ln" style="background:var(--caution)"></i>Done after its planned finish</span>
+      <span><svg width="12" height="12" viewBox="-7 -7 14 14" aria-hidden="true"><path d="M0 -6 L6 0 L0 6 L-6 0 Z" fill="var(--ink-3)" stroke="var(--ink-3)" stroke-width="1.5"/></svg>Milestone deadline on its work items</span>
+      <span style="color:var(--ink-3)"><i class="ms-sw"></i><span style="color:var(--ink-2)">Planned</span></span>
+      <span style="color:var(--teal)"><i class="ms-sw fill"></i><span style="color:var(--ink-2)">Finished early</span></span>
+      <span style="color:var(--proceed)"><i class="ms-sw fill"></i><span style="color:var(--ink-2)">Finished on time</span></span>
+      <span style="color:var(--danger)"><i class="ms-sw fill"></i><span style="color:var(--ink-2)">Late</span></span>
+      <span style="color:var(--caution)"><i class="ms-sw fill"></i><span style="color:var(--ink-2)">Finished late</span></span>
+      <span><i class="chg">Name</i>Changed in this change request</span>
+    </div>
+  </div>
+  <p class="cap">The real legend below the graph (Legend in TrackerGraph.tsx).</p>
+
+  <h3>Change mark: C2 yellow highlighter</h3>
+  <div class="swgrid" id="sw-change"></div>
+  <div class="stage tk">
+    <svg class="tg" viewBox="0 0 560 70" width="560" style="max-width:100%;height:auto" role="img" aria-label="Change marks: a highlighted name, a ringed event, a milestone with a yellow stroke and a moved deadline diamond">
+      <text class="row-label changed" x="10" y="38">PG-203 Country list field type</text>
+      <g transform="translate(250 34)" class="act"><circle class="halo" r="15"/><circle class="bg" r="10" style="stroke:var(--route)"/><g data-kind="meeting" data-x="0" data-y="0" data-s="13" style="color:var(--route)"></g></g>
+      <g transform="translate(330 34)"><circle class="ms-c" r="8" style="stroke:var(--change);stroke-width:3;fill:var(--panel)"/></g>
+      <text class="ms-label changed" x="346" y="38">Go-live and first close</text>
+      <g transform="translate(520 34)"><path class="deadline-mark" d="M0 -6 L6 0 L0 6 L-6 0 Z" style="stroke:var(--change);stroke-width:3;fill:var(--route)"/></g>
+    </svg>
+    <div class="row" style="margin-top:12px">
+      <span class="chipx pen">Changed</span>
+      <button class="btn btn-draft" type="button">Your changes <span class="cnt">3</span></button>
+    </div>
+    <div class="bbar mine" style="margin-top:14px;border-radius:var(--r-ctl);border:0"><span class="bt">#5 PG-203 date and test plan</span><span class="chipx">Draft</span><span class="muted">You edit this change request.</span></div>
+  </div>
+  <p class="cap">Highlighter behind a changed name, a yellow ring around a changed event, a yellow stroke on a changed milestone or moved date, the edit tint on your own context bar.</p>
+
+  <h3>Event kinds</h3>
+  <p class="small">Kind colours appear on Queue cards, pops and event lists. On the graph, an event takes the colour of its row line.</p>
+  <div class="swgrid" id="sw-kind"></div>
+
+  <h3>Measured contrast</h3>
+  <div class="scroll-x"><table class="t">
+    <thead><tr><th>Pair</th><th>Light</th><th>Dark</th></tr></thead>
+    <tbody>
+      <tr><td><code>--ink</code> on <code>--panel</code></td><td>16.39</td><td>15.15</td></tr>
+      <tr><td><code>--ink-2</code> on <code>--panel</code></td><td>5.94</td><td>8.45</td></tr>
+      <tr><td><code>--ink-3</code> on panel / sunk / gray-bg</td><td>5.25 / 5.00 / 4.62</td><td>5.79 / 6.20 / 4.75</td></tr>
+      <tr><td>-ink on its -bg (route, proceed, danger, caution, teal)</td><td>4.85, 4.85, 4.85, 4.90, 4.67</td><td>7.08, 7.91, 7.75, 7.83, 8.07</td></tr>
+      <tr><td><code>--ink</code> on <code>--change-bg</code></td><td>12.59</td><td>5.79</td></tr>
+      <tr><td>Line step on panel (route, proceed, danger, caution, teal)</td><td>3.26, 3.03, 3.91, 3.33, 3.46</td><td>5.39, 5.80, 4.49, 5.28, 5.73</td></tr>
+      <tr><td><code>--focus</code> on <code>--panel</code></td><td>4.77</td><td>8.37</td></tr>
+    </tbody>
+  </table></div>
+  <p class="cap">Text needs 4.5:1, lines and marks need 3:1. Never put a line-step colour on small text.</p>
+
+  <h2 id="type">3. Typography</h2>
+  <p class="sub">Geist for all UI text, Geist Mono for ids and code. Base: 400 13.5px/1.5, letter spacing -0.005em.</p>
+  <div class="typo">
+    <div><code>h1 20px 600</code><span style="font-size:20px;font-weight:600;letter-spacing:-0.015em">Larkspur Capital, Fund III onboarding</span></div>
+    <div><code>h2 17px 600</code><span style="font-size:17px;font-weight:600;letter-spacing:-0.015em">Change requests</span></div>
+    <div><code>15px 600 title</code><span style="font-size:15px;font-weight:600">Go-live date</span></div>
+    <div><code>--fs 13.5px</code><span style="font-size:var(--fs)">The CRM integration went live 3 days after the planned date.</span></div>
+    <div><code>--fs-s 12.5px</code><span style="font-size:var(--fs-s)">Move the date · Hand over · Mark as ready</span></div>
+    <div><code>--fs-xs 11.5px</code><span style="font-size:var(--fs-xs);color:var(--ink-3)">Lan Phạm · 9 Oct, 18:00 · Digitization</span></div>
+    <div><code>12px row label</code><span style="font-size:12px">PG-201 CRS form logic</span></div>
+    <div><code>10.5px 600 caps</code><span style="font-size:10.5px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase;color:var(--ink-3)">Planned finish</span></div>
+    <div><code>--f-id 12px</code><span style="font:12px var(--f-id)">inv_7f3a… · ms:golive:date</span></div>
+  </div>
+  <p class="cap">Weights: 400 body, 500 controls and chips, 600 titles and the picked item, 700 only for small counts.</p>
+
+  <h2 id="shape">4. Radii, spacing and shadows</h2>
+  <h3>Radii</h3>
+  <div class="radii">
+    <div><i style="border-radius:var(--r-ctl)"></i><div class="cap"><code>--r-ctl</code> 8px · controls</div></div>
+    <div><i style="border-radius:var(--r-pop)"></i><div class="cap"><code>--r-pop</code> 12px · pops, menus</div></div>
+    <div><i style="border-radius:var(--r-sheet)"></i><div class="cap"><code>--r-sheet</code> 14px · drawer, modal</div></div>
+    <div><i style="border-radius:99px;height:28px;margin-top:18px"></i><div class="cap">99px · chips, badges</div></div>
+    <div><i style="border-radius:4px;width:28px;height:28px;margin:18px 0 18px"></i><div class="cap">4px · graph marks</div></div>
+  </div>
+  <h3>Spacing steps</h3>
+  <div class="space" id="space"></div>
+  <p class="cap">No spacing tokens. Controls are 32px (small 28px, big 40px). Bars: top bar 52px, context bar 48px. Widths: rail 212px (56px folded), Queue 252px, drawer 380px, pop 312px, modal 620px. Phone at 760px and less: 16px gutters.</p>
+  <h3>Shadows</h3>
+  <div class="shadows">
+    <div style="box-shadow:var(--shadow-sm)">--shadow-sm</div>
+    <div style="box-shadow:var(--shadow)">--shadow</div>
+    <div style="box-shadow:var(--shadow-lg)">--shadow-lg</div>
+  </div>
+  <p class="cap">sm: buttons and the pressed segment. Default: pops, menus, drawers, the zoom bar, tooltips. lg: modals and the toast. A modal sits on <code>--scrim</code>.</p>
+
+  <h2 id="icons">5. Icons</h2>
+  <p class="sub">Lucide shapes on a 24px grid, inline SVG, <code>currentColor</code>, stroke 2 with round caps and joins (2.4 for the small arrow, check and branch shapes). 16px by default, 14px in buttons.</p>
+  <h3>Event kinds</h3>
+  <div class="icons" id="ic-kind"></div>
+  <h3>Interface</h3>
+  <div class="icons" id="ic-ui"></div>
+
+  <h2 id="components">6. Components</h2>
+  <div class="tk">
+    <h3>Buttons</h3>
+    <div class="stage">
+      <div class="row">
+        <button class="btn" type="button">Share</button>
+        <button class="btn btn-ink" type="button">Merge into Main</button>
+        <button class="btn btn-ink" type="button">Change requests <span class="cnt">2</span></button>
+        <button class="btn btn-draft" type="button">Your changes <span class="cnt">3</span></button>
+        <button class="btn btn-danger" type="button">Close without merging</button>
+        <button class="btn" type="button" disabled>Mark as ready</button>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn sm" type="button">Show again</button>
+        <button class="btn big" type="button">Continue with Google</button>
+        <button class="lnk" type="button">View in work item</button>
+        <button class="ib" type="button" aria-label="Undo" title="Undo" id="ib-undo"></button>
+        <button class="x" type="button" aria-label="Close">×</button>
+      </div>
+    </div>
+    <p class="cap">One ink button per area. Disabled stays visible at 40 % opacity.</p>
+
+    <h3>Chips, badges and counts</h3>
+    <div class="stage">
+      <div class="row">
+        <span class="chipx">Draft</span><span class="chipx route">Ready</span><span class="chipx ok">Merged</span><span class="chipx warn">1 clash</span><span class="chipx pen">Changed</span>
+        <span class="badge st-late">Late</span><span class="cnt">12</span><span class="bot" id="bot-chip">Agent</span>
+        <button class="hid-pill" type="button" id="hid-pill">3 hidden</button>
+      </div>
+    </div>
+
+    <h3>Inputs</h3>
+    <div class="stage">
+      <div class="grid2" style="max-width:620px">
+        <label class="field">Title<input value="PG-203 Country list field type"></label>
+        <label class="field">Team<select><option>Engineering</option></select></label>
+        <label class="field">New date<input class="ring" value="2026-10-15"></label>
+        <label class="field">Done by<input value="Quang Nguyễn" disabled></label>
+      </div>
+      <label class="field" style="max-width:620px">Why does the date move?<textarea>The DealCloud mapping needs a second review after the CRS change.</textarea></label>
+    </div>
+    <p class="cap">The third input shows the focus style: the border turns <code>--focus</code> with a 3px ring at 18 %.</p>
+
+    <h3>Search with filter</h3>
+    <div class="stage">
+      <div class="tsearch"><span id="ic-search"></span><input value="PG-2" aria-label="Search work items"><span class="tfilter-btn" id="fbtn"></span></div>
+      <div class="grid" style="margin-top:12px">
+        <div class="spanel"><ul>
+          <li class="on"><span class="tt"><b>PG-201 CRS form logic</b><small>Engineering</small></span><span class="badge st-ontime">Finished on time</span></li>
+          <li><span class="tt"><b>PG-202 DealCloud mapping for CRS fields</b><small>Engineering</small></span><span class="badge st-late">Late</span></li>
+          <li><span class="tt"><b>PG-203 Country list field type</b><small>Engineering</small></span><span class="badge st-planned">Planned</span></li>
+        </ul></div>
+        <div class="fpanel">
+          <fieldset class="fgroup"><legend>Status</legend>
+            <label class="fchip"><input type="checkbox" checked><span><i class="fdot" style="background:var(--danger)"></i>Late</span></label>
+            <label class="fchip"><input type="checkbox"><span><i class="fdot" style="background:var(--ink-3)"></i>Planned</span></label>
+            <label class="fchip"><input type="checkbox"><span><i class="fdot" style="background:var(--proceed)"></i>Finished on time</span></label>
+          </fieldset>
+          <fieldset class="fgroup"><legend>Team</legend>
+            <label class="fchip"><input type="checkbox" checked><span>Engineering</span></label>
+            <label class="fchip"><input type="checkbox"><span>Digitization QA</span></label>
+          </fieldset>
+          <div class="tfilter-foot"><span>2 of 14 work items match</span><button class="lnk" type="button">Clear filters</button></div>
+        </div>
+      </div>
+    </div>
+
+    <h3>Segmented control</h3>
+    <div class="stage">
+      <div class="row">
+        <div class="seg" role="group" aria-label="Graph"><button type="button" aria-pressed="false">Before</button><button type="button" aria-pressed="true">After</button></div>
+        <div class="qseg" role="group" aria-label="Queue"><button type="button" aria-pressed="true">Events <span class="n">4</span></button><button type="button" aria-pressed="false">Work items <span class="n">2</span></button></div>
+      </div>
+    </div>
+    <p class="cap">The pressed button has <code>aria-pressed="true"</code>, a panel fill, a hairline ring and the small shadow.</p>
+
+    <h3>Menus, pops and tooltips</h3>
+    <div class="stage sunk">
+      <div class="grid">
+        <div class="menu" role="menu">
+          <button type="button" class="on"><span class="gdot" style="background:var(--ink)"></span><span>Main<small>Read-only · rev 3</small></span></button>
+          <hr>
+          <button type="button"><span class="gdot" style="background:#0d74ce"></span><span>#4 Test plan for the CRS section<small>Draft · Lan Phạm</small></span></button>
+          <button type="button"><span class="gdot" style="background:#2b9a66"></span><span>#5 PG-203 date and test plan<small>Ready · Khoa Lê</small></span></button>
+        </div>
+        <div class="pop">
+          <div class="pop-h"><span class="pi" style="color:var(--k-delivery)" id="pi-del"></span><div><b>Delivery</b><small>Quang Nguyễn · 2 Oct, 16:30 · PG-201 CRS form logic</small></div><button class="x" type="button" aria-label="Close">×</button></div>
+          <blockquote>CRS form logic is on staging. All 14 test cases pass.</blockquote>
+          <div class="pop-btns"><button class="btn" type="button">View in work item</button><button class="btn" type="button">Reset position</button></div>
+          <p class="tip">Drag sideways to move it inside its day.</p>
+        </div>
+        <div>
+          <span class="hand-tip">Handed over to Digitization QA · received in Test the CRS section end to end
+Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fields</span>
+          <p class="cap">Graph tooltip: ink fill, panel text, 7px radius. The app keeps each receiver on one line; this page wraps them at phone width.</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>Drawer</h3>
+    <div class="stage sunk">
+      <div class="drawer">
+        <div class="wi-top"><h4>Go-live date</h4><button class="x" type="button" aria-label="Close">×</button></div>
+        <div class="row" style="margin-top:6px"><span class="badge st-planned">Planned</span><span class="muted" style="font-size:var(--fs-s)">Implementation</span></div>
+        <dl class="facts">
+          <dt>Done by</dt><dd>Minh Trần</dd>
+          <dt>Milestone</dt><dd>Go-live and first close · 30 Sept · Late</dd>
+          <dt>Started</dt><dd>12 Sept</dd>
+          <dt>Planned finish</dt><dd>15 Oct</dd>
+          <dt>Finished</dt><dd>Not yet</dd>
+          <dt>Time spent</dt><dd>654 h (27.3 days)</dd>
+        </dl>
+        <div class="q-label">Planned finish moves</div>
+        <ul class="moves"><li>30 Sept → 15 Oct<small>Minh Trần · 28 Sept · The client asked for a second legal review.</small></li></ul>
+        <div class="q-label">Events</div>
+        <ul class="ev-list">
+          <li><div class="stack-ev"><span class="sk" style="color:var(--k-decision)" id="sk1"></span><span class="st"><small>Decision · Minh Trần · 28 Sept</small><span>Move go-live to 15 Oct.</span></span></div></li>
+          <li><div class="stack-ev"><span class="sk" style="color:var(--k-message)" id="sk2"></span><span class="st"><small>Message · Sarah Kim · 26 Sept</small><span>Legal needs one more week on the CRS wording.</span></span></div></li>
+        </ul>
+        <div class="drawer-foot"><button class="btn btn-ink" type="button">Move the date</button><button class="btn" type="button">Hide</button></div>
+      </div>
+    </div>
+    <p class="cap">A surface: panel, rule border, 14px radius, shadow. Inside, lists use hairlines and a section label, never cards.</p>
+
+    <h3>Modal</h3>
+    <div class="scrim">
+      <div class="m-card" role="dialog" aria-label="Move the date">
+        <div class="m-top"><b>Move the date</b><button class="x" type="button" aria-label="Close">×</button></div>
+        <p class="muted">PG-203 Country list field type · now 10 Oct</p>
+        <label class="field">New date<input value="2026-10-17"></label>
+        <label class="field">Why?<textarea>The country list needs the multi-select field from PG-203.</textarea></label>
+        <div class="m-foot"><button class="btn btn-ink" type="button">Move the date</button><button class="btn" type="button">Cancel</button></div>
+      </div>
+    </div>
+
+    <h3>Toast, zoom bar and bin</h3>
+    <div class="stage">
+      <div class="row" style="gap:18px">
+        <div class="toast">Event placed on Sync incident report <button type="button" id="toast-undo">Undo</button></div>
+        <div class="zoombar"><button type="button" aria-label="Zoom out">−</button><button type="button" aria-label="Zoom in">+</button><button type="button">Fit</button><button type="button" class="full" aria-pressed="false" aria-label="Full view" id="zb-full"></button></div>
+        <div class="bin" id="bin">Drop here to hide</div>
+      </div>
+    </div>
+
+    <h3>Rail, top bar and context bars</h3>
+    <div class="stage flush" style="display:flex;min-width:0;overflow-x:auto">
+      <aside class="rail">
+        <div class="proj"><span class="proj-avatar">L</span><span><b>Fund III onboarding</b><small>Larkspur Capital</small></span></div>
+        <nav class="rail-nav">
+          <a class="rail-item" aria-current="page" href="#components" id="rail-graph">Graph</a>
+          <a class="rail-item" href="#components" id="rail-settings">Settings</a>
+        </nav>
+        <p class="rail-note">Each change goes through a change request.</p>
+        <div class="rail-foot">
+          <button class="rail-item" type="button" id="rail-theme">Theme: system</button>
+          <button class="rail-item" type="button" id="rail-fold">Collapse sidebar</button>
+        </div>
+      </aside>
+      <div style="flex:1;min-width:560px">
+        <div class="p-head">
+          <div class="tsearch" style="flex:1"><span id="ic-search2"></span><input placeholder="Search work items" aria-label="Search work items"><span class="tfilter-btn" id="fbtn2"></span></div>
+          <button class="hid-pill" type="button">2 hidden</button>
+          <button class="btn" type="button">History</button>
+          <button class="btn crs-btn" type="button" aria-label="Change requests, 2 ready to merge">Change requests<span class="nbadge" aria-hidden="true">2</span></button>
+          <button class="btn btn-ink" type="button">New change request</button>
+          <label class="demo">Demo<select><option>Minh Trần</option></select></label>
+          <div class="me"><span class="av" style="background:#0d74ce">MT</span><span><b>Minh Trần</b><small>Project lead</small></span></div>
+        </div>
+        <div class="bbar main"><button class="vsel" type="button"><span class="gdot" style="background:var(--ink)"></span>Main ▾</button><span class="chipx">read-only</span><span class="muted">Owner: Minh Trần</span></div>
+        <div class="ro-note"><p>Main is read-only. To change it, create a change request.</p><button class="lnk" type="button">Don't show again</button><button class="x" type="button" aria-label="Close">×</button></div>
+        <div class="bbar other"><button class="vsel" type="button">#4 Test plan for the CRS section ▾</button><span class="chipx">Draft</span><span class="chipx pen">Hà is editing</span><span class="sp"></span><span class="muted">View only.</span><button class="btn btn-ink" type="button">Ask for edit access</button></div>
+        <div class="bbar mine"><button class="vsel" type="button">#5 PG-203 date and test plan ▾</button><span class="chipx">Draft</span><span class="chipx pen">You are editing</span><span class="sp"></span><button class="btn" type="button">Share</button><button class="btn" type="button">Cancel change request</button><button class="btn btn-ink" type="button">Mark as ready</button>
+          <div class="ask-row">Quang Nguyễn asks for edit access to #5. <button class="btn sm btn-ink" type="button">Grant Can edit</button><button class="btn sm" type="button">Not now</button></div>
+        </div>
+        <div class="bbar main"><button class="vsel" type="button">#2 Place PG-204 in Engineering ▾</button><span class="chipx">Closed</span><span class="muted">Cancelled by Lan Phạm, 9 Oct 17:00. Nothing went into Main.</span><p class="bnote"><b>Reason:</b> Main has these dates already.</p></div>
+      </div>
+    </div>
+    <p class="cap">The rail is flat on <code>--sunk</code>: bold current item on <code>--gray-bg</code>, no cards. The top bar: the search takes the free room; Change requests carries a red badge with the number of ready change requests. Context bars start with the view selector: Main on sunk, someone else's request on route-bg, your own on the edit tint, a cancelled one with its reason.</p>
+
+    <h3>People and teams tables (Members page)</h3>
+    <div class="stage">
+      <div style="display:grid;grid-template-columns:minmax(180px,2fr) minmax(140px,1.4fr) repeat(4,84px);gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--rule);color:var(--ink-3);font-size:var(--fs-xs)"><span>Person</span><span>Teams</span><span style="text-align:center">View Main</span><span style="text-align:center">View CRs</span><span style="text-align:center">Create CRs</span><span style="text-align:center">Merge</span></div>
+      <div style="display:grid;grid-template-columns:minmax(180px,2fr) minmax(140px,1.4fr) repeat(4,84px);gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--rule-2)"><span><b>Lan Phạm</b> <span class="chipx">You</span><br><small class="muted">Digitization lead</small></span><span>Digitization <small class="muted">LEAD</small></span><span style="text-align:center"><input type="checkbox" checked disabled aria-label="View Main"></span><span style="text-align:center"><input type="checkbox" checked disabled aria-label="View change requests"></span><span style="text-align:center"><input type="checkbox" checked disabled aria-label="Create change requests"></span><span style="text-align:center"><input type="checkbox" aria-label="Merge change requests"></span></div>
+    </div>
+    <p class="cap">Rows on one grid with hairlines, no card. A box that a rule holds (the project lead, a team lead, a bigger grant) is disabled and its tooltip says why.</p>
+  </div>
+
+  <h2 id="graph">7. Graph marks</h2>
+  <p class="sub">Larkspur names and milestone dates at the demo clock, 9 Oct 18:00; the row states are a sample. The view box is 1060 units wide; the label column is 228 units; rows are 32 units. No connectors: a child sits indented under its parent, and "leads from" shows only as a handoff mark.</p>
+  <div class="stage flush scroll-x">
+    <svg class="tg" id="g-main" viewBox="0 0 1060 354" width="1060" style="min-width:760px;width:100%;height:auto" role="img" aria-label="Sample graph with Larkspur rows, milestones, events, deadline diamonds and a handoff mark"></svg>
+  </div>
+  <p class="cap">Rows from the top: a selected row (grey band), an open row past its planned finish with a keyboard focus ring, a done row with a 2-receiver handoff mark, a changed row with a yellow highlighter, an indented child that waits, a row whose source is hidden (branch chip), and a row finished late.</p>
+
+  <h3>Each mark</h3>
+  <div class="marks" id="marks"></div>
+
+  <h3>Graph rules</h3>
+  <ol class="rules">
+    <li>No connector: no line from the milestone line to a row, no parent to child line, no "leads from" curve, no ghost line for a hidden source.</li>
+    <li>One handoff mark per source row lists every receiver. A click jumps to the receiver, or opens a short list when there are several.</li>
+    <li>The axis band (dates, T pill, milestone line) stays pinned while the rows scroll. Scrolls stop below it.</li>
+    <li>A hidden row or team leaves no row, no line and no link. A team without shown rows takes no room, except an empty team, which keeps its lane as a drop target.</li>
+    <li>An event sits at its time plus your own day offset, inside its day and in time order.</li>
+    <li>No chip column at the row end. The deadline diamond tells the milestone.</li>
+    <li>Main and any view you cannot edit show information only. The sideways move inside a day works everywhere.</li>
+    <li>Every SVG target is <code>role="button"</code> with <code>tabindex="0"</code>, an <code>aria-label</code>, and Enter or Space.</li>
+  </ol>
+
+  <h2 id="a11y">8. Accessibility</h2>
+  <ul class="rules">
+    <li><b>Contrast:</b> text 4.5:1 and lines 3:1 in both themes (see the contrast table). Status always has a word or an icon too.</li>
+    <li><b>Focus:</b> <code>:focus-visible</code> with a 2px <code>--focus</code> outline, offset 2px. Inputs use the border and ring style. Drawers, pops and modal cards take the focus without a ring; their controls keep theirs.</li>
+    <li><b>Toggles:</b> <code>aria-pressed</code> on buttons that stay on (segments, Full view, focus button). <code>aria-haspopup</code> and <code>aria-expanded</code> on buttons that open a list.</li>
+    <li><b>Esc order:</b> an open menu, the search list or the handoff list closes itself first. Then the modal, the move mode, the pop, the drawer, the focus, and last the full view. One Esc closes one layer.</li>
+    <li><b>Keyboard:</b> every drag has a click way; the search list works with arrows, Enter and Esc.</li>
+    <li><b>Phone:</b> no horizontal page scroll at 390px; the graph scrolls inside its canvas.</li>
+  </ul>
+  <div class="stage tk">
+    <div class="row">
+      <button class="btn" type="button" style="outline:2px solid var(--focus);outline-offset:2px">Focused button</button>
+      <div class="seg"><button type="button" aria-pressed="true" style="outline:2px solid var(--focus);outline-offset:-2px">Focused segment</button><button type="button" aria-pressed="false">Other</button></div>
+      <label class="fchip"><input type="checkbox" checked><span style="outline:2px solid var(--focus);outline-offset:2px">Focused chip</span></label>
+    </div>
+  </div>
+
+  <h2 id="never">9. Never</h2>
+  <ul class="rules never">
+    <li><b>No dashed or dotted lines</b>, anywhere: graph, borders, dividers, focus rings, option pages.</li>
+    <li><b>No pink, magenta or violet change marks.</b> Change is yellow.</li>
+    <li><b>No coloured edge stripes</b> on cards, rows or callouts.</li>
+    <li><b>No status colour for selection</b>, hover or focus. Selection is a grey ink band. Focus is <code>--focus</code>.</li>
+    <li><b>No cards for the rail, the Queue or drawer lists.</b> Bold text and hairlines.</li>
+    <li><b>No connector lines</b> on the graph.</li>
+    <li><b>No new colour, radius, shadow or font size</b> outside the tokens. Add a token in both themes first.</li>
+    <li><b>No jargon in UI text.</b> Plain English, one word for one action.</li>
+    <li><b>No hard-coded hex colours</b> in components, except <code>#fff</code> text on member avatars.</li>
+  </ul>
+</main>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var theme = document.getElementById('theme');
+  function mark() {
+    var t = root.dataset.theme || 'system';
+    theme.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.t === t)); });
+  }
+  theme.addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.t === 'system') delete root.dataset.theme; else root.dataset.theme = b.dataset.t;
+    try { if (b.dataset.t === 'system') localStorage.removeItem('ds-theme'); else localStorage.setItem('ds-theme', b.dataset.t); } catch (err) {}
+    mark();
+  });
+  mark();
+
+  var S = 'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+  var S24 = 'fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"';
+  var KIND = {
+    message: [S, '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'],
+    task: [S, '<rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>'],
+    handoff: [S, '<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>'],
+    decision: [S, '<path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/>'],
+    meeting: [S, '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'],
+    delivery: [S, '<path d="M12 22V12"/><path d="m16 17 2 2 4-4"/><path d="M21 11.127V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.729l7 4a2 2 0 0 0 2 .001l1.32-.753"/><path d="M3.29 7 12 12l8.71-5"/><path d="m7.5 4.27 8.997 5.148"/>'],
+    issue: [S, '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>'],
+    done: [S24, '<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>']
+  };
+  var UI = {
+    eye: [S, '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>'],
+    eyeoff: [S, '<path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/>'],
+    plus: [S, '<path d="M5 12h14"/><path d="M12 5v14"/>'],
+    pencil: [S, '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>'],
+    move: [S, '<path d="m8 18 4 4 4-4"/><path d="m8 6 4-4 4 4"/><path d="M12 2v20"/>'],
+    moveX: [S, '<path d="m18 8 4 4-4 4"/><path d="M2 12h20"/><path d="m6 8-4 4 4 4"/>'],
+    trash: [S, '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'],
+    undo: [S, '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>'],
+    check: [S24, '<path d="M20 6 9 17l-5-5"/>'],
+    x: [S, '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'],
+    tag: [S, '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>'],
+    diamond: [S, '<path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41L13.7 2.71a2.41 2.41 0 0 0-3.41 0z"/>'],
+    list: [S, '<path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/>'],
+    inbox: [S, '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>'],
+    sidebar: [S, '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/>'],
+    chev: [S, '<path d="m6 9 6 6 6-6"/>'],
+    branch: [S24, '<path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>'],
+    focus: [S, '<circle cx="12" cy="12" r="3"/><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>'],
+    cornerDown: [S24, '<path d="m15 10 5 5-5 5"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/>'],
+    cornerUp: [S24, '<path d="m15 14 5-5-5-5"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/>'],
+    upDown: [S24, '<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>'],
+    filter: [S, '<path d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"/>'],
+    maximize: [S, '<path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/><path d="M9 21H3v-6"/>'],
+    minimize: [S, '<path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/>'],
+    loop: [S, '<path d="M3 12h18"/><circle cx="7" cy="12" r="2.5"/><circle cx="17" cy="12" r="2.5"/>'],
+    grip: ['fill="currentColor"', '<circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/>'],
+    search: [S, '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>'],
+    bot: [S, '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/>'],
+    lock: [S, '<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'],
+    pr: [S, '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" x2="6" y1="9" y2="21"/>'],
+    merge: [S, '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/>'],
+    share: [S, '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>'],
+    history: [S, '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>'],
+    flag: [S, '<path d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528"/>'],
+    link: [S, '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>'],
+    cal: [S, '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>']
+  };
+  var RAIL = {
+    graph: 'M6 3v12M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM18 9a9 9 0 0 1-9 9',
+    settings: 'M20 7h-9M14 17H5M17 20a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM7 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
+    theme: 'M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z',
+    signOut: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
+    panel: 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM9 3v18',
+    chevron: 'm6 9 6 6 6-6'
+  };
+  var KIND_LABEL = { message: 'Message', task: 'Task', handoff: 'Handoff', decision: 'Decision', meeting: 'Meeting', delivery: 'Delivery', issue: 'Issue', done: 'Done' };
+  function svg(def, size) { return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" aria-hidden="true"><g ' + def[0] + '>' + def[1] + '</g></svg>'; }
+  function railSvg(name) { return '<svg class="rail-ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="' + RAIL[name] + '"/></svg>'; }
+  function inner(def, x, y, size) { return '<g transform="translate(' + (x - size / 2) + ' ' + (y - size / 2) + ') scale(' + size / 24 + ')"><g ' + def[0] + '>' + def[1] + '</g></g>'; }
+  function put(id, html) { var el = document.getElementById(id); if (el) el.innerHTML = html; }
+  function prepend(id, html) { var el = document.getElementById(id); if (el) el.insertAdjacentHTML('afterbegin', html); }
+
+  put('ic-kind', Object.keys(KIND).map(function (k) { return '<div><span style="color:var(--k-' + k + ')">' + svg(KIND[k], 24) + '</span>' + k + '</div>'; }).join(''));
+  put('ic-ui', Object.keys(UI).map(function (k) { return '<div>' + svg(UI[k], 20) + k + '</div>'; }).join('') +
+    Object.keys(RAIL).map(function (k) { return '<div><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="' + RAIL[k] + '"/></svg>rail: ' + k + '</div>'; }).join(''));
+  put('qk1', svg(KIND.message, 13) + 'Message');
+  put('qk2', svg(KIND.meeting, 13) + 'Meeting');
+  put('qk3', svg(KIND.issue, 13) + 'Issue');
+  put('ib-undo', svg(UI.undo, 16));
+  prepend('bot-chip', svg(UI.bot, 11));
+  prepend('hid-pill', svg(UI.eyeoff, 13));
+  put('ic-search', svg(UI.search, 14));
+  put('ic-search2', svg(UI.search, 14));
+  put('fbtn', svg(UI.filter, 14) + '<span class="cnt">2</span>');
+  put('fbtn2', svg(UI.filter, 14));
+  put('pi-del', svg(KIND.delivery, 16));
+  put('sk1', svg(KIND.decision, 13));
+  put('sk2', svg(KIND.message, 13));
+  prepend('toast-undo', svg(UI.undo, 13));
+  put('zb-full', svg(UI.maximize, 14));
+  prepend('bin', svg(UI.trash, 14));
+  prepend('rail-graph', railSvg('graph'));
+  prepend('rail-settings', railSvg('settings'));
+  prepend('rail-theme', railSvg('theme'));
+  prepend('rail-fold', railSvg('panel'));
+  document.querySelectorAll('svg.tg [data-kind]').forEach(function (g) {
+    g.innerHTML = inner(KIND[g.dataset.kind], +g.dataset.x, +g.dataset.y, +g.dataset.s);
+  });
+
+  function swatch(name, light, dark, role) {
+    return '<div class="sw"><i style="background:var(' + name + ')"></i><div><b>' + name + '</b><small>' + light + ' · ' + dark + '</small><span>' + role + '</span></div></div>';
+  }
+  var BASE = [
+    ['--panel', '#ffffff', '#18191b', 'App, board, pops, drawers, modals. Text on ink fills.'],
+    ['--surface', '#ffffff', '#18191b', 'Global .btn, .card, tables, menus. Same as panel.'],
+    ['--sunk', '#f9f9fb', '#111113', 'Rail, search input, Main bar, alternate lanes, hover.'],
+    ['--gray-bg', '#f0f0f3', '#272a2d', 'Segment track, chips, current rail item, picked item.'],
+    ['--hover', 'rgb(28 32 36 / .045)', 'rgb(237 238 240 / .06)', 'Hover wash on rows, menu items, icon buttons.'],
+    ['--ink', '#1c2024', '#edeef0', 'Main text, ink button, toast, selection outline.'],
+    ['--ink-2', '#60646c', '#b0b4ba', 'Secondary text, labels, idle controls, lane names.'],
+    ['--ink-3', '#696c74', '#90949d', 'Captions, timestamps, T line, Planned status.'],
+    ['--rule', '#e0e1e6', '#2e3135', 'Borders of controls and layers, region dividers.'],
+    ['--rule-2', '#f0f0f3', '#212225', 'Hairlines between list items, graph day grid.'],
+    ['--trunk', '#1c2024', '#edeef0', 'Milestone line, History timeline.'],
+    ['--focus', '#0d74ce', '#70b8ff', 'Keyboard focus ring only.'],
+    ['--scrim', 'rgb(11 12 16 / .38)', 'rgb(0 0 0 / .62)', 'Backdrop behind a modal.'],
+    ['--page', '#f0f0f3', '#0d0d0f', 'Defined, not used today.'],
+    ['--mark', '#ffe770', '#524202', 'Defined, not used. Use --change-bg.'],
+    ['--stripe', '#f9f9fb', '#111113', 'Defined, not used today.'],
+    ['--isolated', '#8b8d98', '#696e77', 'Tailwind colour; one use in old code.']
+  ];
+  put('sw-base', BASE.map(function (r) { return swatch.apply(null, r); }).join(''));
+  put('sw-change', [
+    ['--change', '#e0a800', '#ffe629', '3-unit ring around a changed event; 3-unit stroke of a changed milestone or moved date.'],
+    ['--change-bg', '#ffe14d', '#6e5a00', 'Highlighter behind a changed name; .chipx.pen; draft count.'],
+    ['--change-text', 'var(--ink)', 'var(--ink)', 'Text on --change-bg.'],
+    ['--edit-bg', '#fefce9', '#1b180f', 'Context bar of a change request that you edit.']
+  ].map(function (r) { return swatch.apply(null, r); }).join(''));
+  var KC = { message: ['#0c67b6', '#70b8ff'], task: ['#6550b9', '#baa7ff'], handoff: ['#0e738c', '#4ccce6'], decision: ['#975800', '#ffca16'], meeting: ['#ba2784', '#ff8dcc'], delivery: ['#54722b', '#d4ff70'], issue: ['#be282d', '#ff9592'], done: ['#1e744e', '#3dd68c'] };
+  put('sw-kind', Object.keys(KC).map(function (k) { return swatch('--k-' + k, KC[k][0], KC[k][1], KIND_LABEL[k] + ' icon in the Queue, pops and lists.'); }).join(''));
+
+  var HUES = [
+    ['route', 'Open line, links, read-only notice', ['#0090ff', '#0090ff'], ['#0c6bbe', '#70b8ff'], ['#e6f4fe', '#0d2847']],
+    ['proceed', 'Done, Finished on time', ['#46a758', '#46a758'], ['#287939', '#71d083'], ['#e9f6e9', '#1b2a1e']],
+    ['danger', 'Open overrun, Late, errors', ['#e5484d', '#e5484d'], ['#c62a2f', '#ff9592'], ['#feebec', '#3b1219']],
+    ['caution', 'Done overrun, Finished late', ['#ef5f00', '#ef5f00'], ['#b44500', '#ffa057'], ['#ffefd6', '#331e0b']],
+    ['teal', 'Finished early', ['#0d9b8a', '#12a594'], ['#007b6a', '#0bd8b6'], ['#e0f8f3', '#0d2d2a']]
+  ];
+  put('hues', '<div class="hue" style="border-top:0"><div class="small">Hue</div><div class="small">Line</div><div class="small">-ink text</div><div class="small">-bg fill</div></div>' + HUES.map(function (h) {
+    var n = h[0];
+    return '<div class="hue"><div><div class="nm">' + n + '</div><small style="font-family:var(--f-ui)">' + h[1] + '</small></div>' +
+      '<div><div class="ln" style="background:var(--' + n + ')"></div><small>--' + n + '<br>' + h[2].join(' · ') + '</small></div>' +
+      '<div><div class="tx" style="color:var(--' + n + '-ink)">Status text</div><small>--' + n + '-ink<br>' + h[3].join(' · ') + '</small></div>' +
+      '<div><span class="bg" style="background:var(--' + n + '-bg);color:var(--' + n + '-ink)">Badge</span><small>--' + n + '-bg<br>' + h[4].join(' · ') + '</small></div></div>';
+  }).join(''));
+
+  put('space', [2, 4, 6, 8, 10, 12, 14, 16, 18, 22].map(function (s) { return '<div><i style="width:' + s + 'px;height:' + s + 'px"></i>' + s + '</div>'; }).join(''));
+
+  // The sample graph uses the real geometry: SIDE 228, X0 236, TOP 64, ROW 32, HEAD 22, INDENT 12.
+  var X0 = 236, W = 1060, day = 22, d0 = new Date(Date.UTC(2026, 8, 18));
+  function X(dateStr, hour) { var d = new Date(dateStr + 'T00:00:00Z'); return X0 + 8 + ((d - d0) / 864e5 + (hour == null ? 12 : hour) / 24) * day; }
+  var tX = X('2026-10-09', 18);
+  var out = [];
+  function ev(kind, x, y, tone, opts) {
+    opts = opts || {};
+    var s = 'var(--' + tone + ')';
+    var g = '<g class="act" transform="translate(' + x + ' ' + y + ')">';
+    if (opts.changed) g += '<circle class="halo" r="15"/>';
+    for (var k = (opts.n || 1) - 1; k >= 1; k--) g += '<circle class="layer" cx="' + (-3.5 * k) + '" r="10" style="stroke:' + s + ';fill:color-mix(in srgb, ' + s + ' 18%, var(--panel))"/>';
+    g += '<circle class="bg" r="10" style="stroke:' + s + '"/><g style="color:' + s + '">' + inner(KIND[kind], 0, 0, 13) + '</g></g>';
+    out.push(g);
+  }
+  function seg(x1, x2, y, tone) { out.push('<line class="seg" x1="' + x1 + '" x2="' + x2 + '" y1="' + y + '" y2="' + y + '" style="stroke:var(--' + tone + ')"/>'); }
+  function diamond(x, y, tone, filled, changed, label) {
+    out.push('<g transform="translate(' + x + ' ' + y + ')"><path class="deadline-mark" d="M0 -6 L6 0 L0 6 L-6 0 Z" style="stroke:var(--' + (changed ? 'change' : tone) + ');fill:' + (filled ? 'var(--' + tone + ')' : 'var(--panel)') + '"/>' +
+      (label ? '<text class="deadline-name" x="10" y="-6" style="fill:var(--' + (tone === 'ink-3' ? 'ink-2' : tone + '-ink') + ')">' + label + '</text>' : '') + '</g>');
+  }
+  function eye(y) { out.push('<g class="eye" style="color:var(--ink-3)">' + inner(UI.eye, X0 - 24, y, 12) + '</g>'); }
+  function label(text, y, depth, cls) { out.push('<line class="guide" x1="16" x2="' + (24 + depth * 12) + '" y1="' + y + '" y2="' + y + '"/><text class="row-label ' + (cls || '') + '" x="' + (28 + depth * 12) + '" y="' + (y + 4) + '">' + text + '</text>'); eye(y); }
+
+  // Lanes: Implementation (rows 1-2), Engineering (rows 3-5), Digitization QA (rows 6-7).
+  var lanes = [[64, 150, 'IMPLEMENTATION', false], [150, 268, 'ENGINEERING', true], [268, 354, 'DIGITIZATION QA', false]];
+  lanes.forEach(function (l) { out.push('<rect class="lane-band' + (l[3] ? ' alt' : '') + '" x="0" y="' + l[0] + '" width="' + W + '" height="' + (l[1] - l[0]) + '"/><text class="lane-name" x="12" y="' + (l[0] + 15) + '">' + l[2] + '</text>'); out.push('<g class="eye">' + inner(UI.eye, X0 - 24, l[0] + 11, 13) + '</g>'); });
+  for (var t = 0; t < 30; t += 7) { var gx = X0 + 8 + t * day; out.push('<line class="grid" x1="' + gx + '" x2="' + gx + '" y1="0" y2="354"/>'); }
+  out.push('<line class="divider" x1="227.5" x2="227.5" y1="0" y2="354"/><line class="divider" x1="0" x2="' + W + '" y1="63.5" y2="63.5"/>');
+  ['18 Sept', '25 Sept', '2 Oct', '9 Oct', '16 Oct'].forEach(function (s, i) { var tx = X0 + 8 + i * 7 * day; if (Math.abs(tx - tX) > 56) out.push('<text class="tick" x="' + tx + '" y="15">' + s + '</text>'); });
+  out.push('<text class="lane-name" x="12" y="52">MILESTONES</text>');
+  out.push('<line class="tline" x1="' + tX + '" x2="' + tX + '" y1="20" y2="354"/>');
+  out.push('<g class="tpill"><rect x="' + (tX - 44) + '" y="3" width="88" height="17" rx="8.5"/><text x="' + tX + '" y="15">T 9 Oct 18:00</text></g>');
+  var msA = X('2026-09-18'), msB = X('2026-09-30');
+  out.push('<line class="trunk" x1="' + X0 + '" x2="' + (W - 14) + '" y1="48" y2="48"/>');
+  out.push('<line class="trunk-seg" x1="' + msA + '" x2="' + X('2026-09-24', 12) + '" y1="48" y2="48" style="stroke:var(--caution)"/>');
+  out.push('<line class="trunk-seg" x1="' + msB + '" x2="' + tX + '" y1="48" y2="48" style="stroke:var(--danger)"/>');
+  out.push('<g class="ms" transform="translate(' + msA + ' 48)"><circle class="ms-c" r="8" style="stroke:var(--caution);fill:var(--caution)"/><path class="ms-i" d="M0 -4 V1"/><circle class="ms-dot" cy="4" r="1.2"/><text class="ms-label" x="14" y="-15" style="fill:var(--caution-ink)">CRM integration live · 18 Sept · Finished late</text></g>');
+  out.push('<g class="ms sel" transform="translate(' + msB + ' 48)"><circle class="ms-c" r="8" style="stroke:var(--danger);fill:var(--danger)"/><path class="ms-i" d="M0 -4 V1"/><circle class="ms-dot" cy="4" r="1.2"/><text class="ms-label" x="14" y="13" style="fill:var(--danger-ink)">Go-live and first close · 30 Sept · Late</text></g>');
+
+  // Row 1: selected band (details open). Row 2: open past its planned finish, with a focus ring.
+  var y1 = 64 + 22 + 16, y2 = y1 + 32;
+  out.push('<rect class="hit sel" x="0" y="' + (y1 - 15) + '" width="' + W + '" height="30"/>');
+  label('First-close rehearsal', y1, 0);
+  seg(X('2026-09-22', 9), tX, y1, 'route'); ev('meeting', X('2026-09-22', 9), y1, 'route'); ev('task', X('2026-10-07', 15), y1, 'route');
+  diamond(msB, y1, 'danger', true, false, 'Go-live and first close');
+  label('Go-live date', y2, 0);
+  seg(X('2026-09-19', 10), X('2026-09-30'), y2, 'route'); seg(X('2026-09-30'), tX, y2, 'danger');
+  ev('decision', X('2026-09-28', 10), y2, 'route'); ev('message', X('2026-10-03', 9), y2, 'danger', { n: 3 });
+  diamond(msB, y2, 'danger', true, false);
+  out.push('<rect class="hit kfocus" x="228" y="' + (y2 - 15) + '" width="' + (W - 228) + '" height="30" rx="0"/>');
+
+  // Engineering: row 3 done + handoff (2 receivers), row 4 changed name, row 5 indented child waiting.
+  var y3 = 150 + 22 + 16, y4 = y3 + 32, y5 = y4 + 32;
+  label('PG-201 CRS form logic', y3, 0);
+  var f3 = X('2026-10-02', 16);
+  seg(X('2026-09-21', 9), f3, y3, 'proceed'); ev('task', X('2026-09-21', 9), y3, 'proceed'); ev('delivery', X('2026-09-30', 15), y3, 'proceed'); ev('done', f3, y3, 'proceed');
+  out.push('<g class="handoff" transform="translate(' + (f3 + 12) + ' ' + (y3 - 7) + ')"><rect width="24" height="14" rx="4"/>' + '<g style="color:var(--proceed)">' + inner(UI.upDown, 7, 7, 10) + '</g><text class="hand-n" x="19" y="10.5" text-anchor="end">2</text></g>');
+  diamond(msA, y3, 'caution', true, false);
+  label('PG-203 Country list field type', y4, 0, 'changed');
+  seg(X('2026-10-01', 11), tX, y4, 'route'); ev('message', X('2026-10-01', 11), y4, 'route'); ev('issue', X('2026-10-07', 15), y4, 'route', { changed: true });
+  diamond(msB, y4, 'danger', true, true);
+  out.push('<g class="plus" transform="translate(' + (tX + 20) + ' ' + y4 + ')"><circle r="9"/><path d="M-4 0h8M0 -4v8"/></g>');
+  label('PG-204 Tax ID format check', y5, 1);
+  out.push('<line class="wait-line" x1="' + X('2026-10-05') + '" x2="' + tX + '" y1="' + y5 + '" y2="' + y5 + '"/><text class="wait-text" x="' + (X('2026-10-05') + 8) + '" y="' + (y5 - 7) + '">Waiting for PG-203</text>');
+
+  // Digitization QA: row 6 hidden source chip, row 7 done late.
+  var y6 = 268 + 22 + 16, y7 = y6 + 32;
+  label('Test the CRS section end to end', y6, 0);
+  var s6 = X('2026-10-03', 10);
+  out.push('<g class="chip" transform="translate(' + (s6 - 22) + ' ' + (y6 - 7) + ')"><rect width="14" height="14" rx="4"/><g>' + inner(UI.branch, 7, 7, 10) + '</g></g>');
+  seg(s6, tX, y6, 'route'); ev('task', s6, y6, 'route'); ev('handoff', X('2026-10-08', 11), y6, 'route');
+  label('Sync incident report', y7, 0);
+  seg(X('2026-09-24', 9), X('2026-10-01'), y7, 'proceed'); seg(X('2026-10-01'), X('2026-10-05', 15), y7, 'caution');
+  ev('issue', X('2026-09-24', 9), y7, 'proceed'); ev('done', X('2026-10-05', 15), y7, 'caution');
+  document.getElementById('g-main').innerHTML = out.join('');
+
+  // Small specimens, one per mark.
+  function spec(w, h, body) { return '<svg class="tg" viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" aria-hidden="true">' + body + '</svg>'; }
+  function evg(kind, x, y, tone, opts) { out = []; ev(kind, x, y, tone, opts); return out.join(''); }
+  var M = [
+    ['Row lines', spec(260, 70, '<line class="seg" x1="10" x2="120" y1="16" y2="16" style="stroke:var(--route)"/><line class="seg" x1="120" x2="200" y1="16" y2="16" style="stroke:var(--danger)"/><line class="seg" x1="10" x2="150" y1="40" y2="40" style="stroke:var(--proceed)"/><line class="seg" x1="150" x2="200" y1="40" y2="40" style="stroke:var(--caution)"/><line class="wait-line" x1="10" x2="200" y1="62" y2="62"/><text class="wait-text" x="18" y="56">No events yet</text>'), 'Open blue, then red after the planned finish. Done green, then amber when late. A row with no events: a faint grey line.'],
+    ['Events and stacks', spec(260, 50, evg('message', 30, 25, 'route') + evg('meeting', 90, 25, 'route', { n: 3 }) + evg('issue', 150, 25, 'danger', { changed: true }) + evg('done', 210, 25, 'proceed')), 'A radius-10 circle in the row tone with the kind icon. A stack shows up to 2 circles behind. A changed event gets a yellow ring.'],
+    ['Milestone circles', spec(260, 40, '<g transform="translate(25 20)"><circle class="ms-c" r="8" style="stroke:var(--ink-3);fill:var(--panel)"/></g><g transform="translate(75 20)"><circle class="ms-c" r="8" style="stroke:var(--teal);fill:var(--teal)"/><path class="ms-i" d="M-3.5 0 l2.5 2.5 l4.5 -5"/></g><g transform="translate(125 20)"><circle class="ms-c" r="8" style="stroke:var(--proceed);fill:var(--proceed)"/><path class="ms-i" d="M-3.5 0 l2.5 2.5 l4.5 -5"/></g><g transform="translate(175 20)"><circle class="ms-c" r="8" style="stroke:var(--danger);fill:var(--danger)"/><path class="ms-i" d="M0 -4 V1"/><circle class="ms-dot" cy="4" r="1.2"/></g><g transform="translate(225 20)"><circle class="ms-c" r="8" style="stroke:var(--caution);fill:var(--caution)"/><path class="ms-i" d="M0 -4 V1"/><circle class="ms-dot" cy="4" r="1.2"/></g>'), 'Planned, Finished early, Finished on time, Late, Finished late. Radius 8; a tick or "!".'],
+    ['Milestone line slips', spec(260, 50, '<line class="trunk" x1="10" x2="250" y1="14" y2="14"/><line class="trunk-seg" x1="60" x2="140" y1="14" y2="14" style="stroke:var(--danger)"/><line class="trunk" x1="10" x2="250" y1="38" y2="38"/><line class="trunk-seg" x1="90" x2="160" y1="38" y2="38" style="stroke:var(--teal)"/>'), 'A 4-unit ink line. Red from the date to today while late, amber to the finish when finished late, teal from the finish to the date when early.'],
+    ['Deadline diamonds', spec(260, 40, (function () { out = []; diamond(30, 22, 'ink-3', false, false); diamond(80, 22, 'proceed', true, false); diamond(130, 22, 'danger', true, false); diamond(180, 22, 'route', true, true, ''); diamond(220, 22, 'caution', true, false); return out.join(''); })()), 'At noon of the milestone date on every member row. Planned is an outline. A moved date gets a yellow stroke.'],
+    ['Handoff marks', spec(260, 40, '<g class="handoff" transform="translate(20 13)"><rect width="14" height="14" rx="4"/><g style="color:var(--proceed)">' + inner(UI.cornerDown, 7, 7, 10) + '</g></g><g class="handoff" transform="translate(70 13)"><rect width="14" height="14" rx="4"/><g style="color:var(--proceed)">' + inner(UI.cornerUp, 7, 7, 10) + '</g></g><g class="handoff" transform="translate(120 13)"><rect width="24" height="14" rx="4"/><g style="color:var(--proceed)">' + inner(UI.upDown, 7, 7, 10) + '</g><text class="hand-n" x="19" y="10.5" text-anchor="end">3</text></g><g class="handoff open" transform="translate(180 13)"><rect width="14" height="14" rx="4"/><g style="color:var(--danger)">' + inner(UI.cornerDown, 7, 7, 10) + '</g></g>'), 'One per source row: down, up, both ways with a count. Green arrow for a done source, red while open. Hover or open: grey fill, ink stroke.'],
+    ['Hidden-source chip', spec(260, 40, '<g class="chip" transform="translate(20 13)"><rect width="14" height="14" rx="4"/><g>' + inner(UI.branch, 7, 7, 10) + '</g></g><line class="seg" x1="42" x2="200" y1="20" y2="20" style="stroke:var(--route)"/>'), 'Before the line of a direct child whose parent or source is hidden. A click shows the source again.'],
+    ['Selection, flash, drop, focus', spec(260, 132, '<rect class="hit sel" x="0" y="2" width="260" height="28"/><text class="note" x="8" y="20">Details open: ink 6 %</text><rect class="hit flash" x="0" y="35" width="260" height="28"/><text class="note" x="8" y="53">Reveal flash: ink 8 %</text><rect class="hit glow" x="1" y="68" width="258" height="28"/><text class="note" x="8" y="86">Drop target: ink 9 % + ink outline</text><rect class="hit kfocus" x="1" y="101" width="258" height="28"/><text class="note" x="8" y="119">Keyboard focus: --focus ring</text>'), 'Selection is grey, never a status colour. Focus is the focus blue.'],
+    ['T line and pill', spec(260, 50, '<line class="tline" x1="130" x2="130" y1="8" y2="50"/><g class="tpill"><rect x="86" y="3" width="88" height="17" rx="8.5"/><text x="130" y="15">T 9 Oct 18:00</text></g>'), 'A solid 1-unit ink-3 line and an ink capsule on the axis.'],
+    ['Changed name', spec(260, 34, '<text class="row-label changed" x="10" y="21">PG-203 Country list field type</text>'), 'A 9 px change-bg stroke painted under the text, like a highlighter.'],
+    ['Add button', spec(260, 34, '<g class="plus" transform="translate(30 17)"><circle r="9"/><path d="M-4 0h8M0 -4v8"/></g><g class="eye" style="color:var(--ink-3)">' + inner(UI.eye, 70, 17, 12) + '</g><g class="eye focus-btn on" transform="translate(95 8)"><rect width="18" height="18" rx="4"/><g>' + inner(UI.focus, 9, 9, 12) + '</g></g>'), 'Plus right of the T line in an editable view; eye; focus button pressed.']
+  ];
+  put('marks', M.map(function (m) { return '<div>' + m[1] + '<b>' + m[0] + '</b><p>' + m[2] + '</p></div>'; }).join(''));
+})();
+</script>
+</body>
+</html>

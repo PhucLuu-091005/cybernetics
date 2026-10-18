@@ -19,6 +19,7 @@ import type { Scope } from '../../contracts';
 import type {
   CrCommentKind,
   CrPermission,
+  MemberAccess,
   CrStatus,
   Op,
   QueueEventInput,
@@ -139,11 +140,24 @@ export const trackerMembers = pgTable(
     roleLabel: text('role_label').notNull(),
     color: text('color').notNull(),
     userId: uuid('user_id').references(() => users.id),
+    // Lower case. An invite waits with no user_id until a person signs in with this address.
+    email: text('email'),
+    // Round 6 roles; round 7 reads the grants below and the project lead instead.
+    access: text('access').$type<MemberAccess>().notNull().default('member'),
+    viewMain: boolean('view_main').notNull().default(true),
+    viewCrs: boolean('view_crs').notNull().default(true),
+    createCrs: boolean('create_crs').notNull().default(true),
+    mergeCrs: boolean('merge_crs').notNull().default(false),
+    // A removed member keeps its row, because change requests and history still name it.
+    removedAt: tz('removed_at'),
     createdAt: createdAt(),
   },
   (table) => [
     unique('tracker_members_project_id_unique').on(table.projectId, table.id),
     unique('tracker_members_project_user_unique').on(table.projectId, table.userId),
+    unique('tracker_members_project_email_unique').on(table.projectId, table.email),
+    index('tracker_members_user_idx').on(table.userId),
+    index('tracker_members_email_idx').on(table.email),
     inProject('tracker_members', table),
   ],
 );
@@ -152,6 +166,44 @@ const memberIn = (name: string, projectId: PgColumn, memberId: PgColumn) =>
     trackerMembers.projectId,
     trackerMembers.id,
   ]);
+// Teams are project settings, not versioned history: Main takes its team list from here.
+export const trackerTeams = pgTable(
+  'tracker_teams',
+  {
+    workspaceId: tenantWorkspaceId(),
+    projectId: tenantProjectId(),
+    id: text('id').notNull(),
+    seq: integer('seq').generatedAlwaysAsIdentity(),
+    name: text('name').notNull(),
+    leadMemberId: uuid('lead_member_id'),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.id] }),
+    inProject('tracker_teams', table),
+    memberIn('tracker_teams_lead_fk', table.projectId, table.leadMemberId),
+  ],
+);
+export const trackerTeamMembers = pgTable(
+  'tracker_team_members',
+  {
+    workspaceId: tenantWorkspaceId(),
+    projectId: tenantProjectId(),
+    teamId: text('team_id').notNull(),
+    memberId: uuid('member_id').notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.teamId, table.memberId] }),
+    inProject('tracker_team_members', table),
+    foreignKey({
+      name: 'tracker_team_members_team_fk',
+      columns: [table.projectId, table.teamId],
+      foreignColumns: [trackerTeams.projectId, trackerTeams.id],
+    }).onDelete('cascade'),
+    memberIn('tracker_team_members_member_fk', table.projectId, table.memberId),
+  ],
+);
 export const trackerProjects = pgTable(
   'tracker_projects',
   {

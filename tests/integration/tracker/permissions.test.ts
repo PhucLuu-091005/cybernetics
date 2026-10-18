@@ -59,21 +59,26 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker permissions', () => {
     );
   });
 
-  it('lets only a member with edit right ask to edit, and not the editor', async () => {
-    await expect(action('quang', 4, { action: 'ask' })).rejects.toMatchObject(forbidden);
+  it('lets a member without edit right ask for access, and not the editor', async () => {
+    const asked = await action('quang', 4, { action: 'ask' });
+    expect(asked.crs.find((cr) => cr.num === 4)?.asks.map((ask) => ask.memberId)).toContain(
+      demo.ids.quang,
+    );
+    await action('quang', 4, { action: 'cancel-ask' });
     await expect(action('ha', 4, { action: 'ask' })).rejects.toMatchObject({
       code: 'VALIDATION',
     });
   });
 
-  it('lets only the owner of Main merge, close or request changes', async () => {
-    for (const key of ['lan', 'quang', 'ha']) {
+  it('lets only a member who may merge merge or request changes, and no stranger close', async () => {
+    for (const key of ['lan', 'khoa', 'ha']) {
       await expect(
         action(key, 2, { action: 'merge', picks: {}, expectedRevision: 0 }),
       ).rejects.toMatchObject(forbidden);
-      await expect(action(key, 2, { action: 'close', expectedRevision: 0 })).rejects.toMatchObject(
-        forbidden,
-      );
+      if (key !== 'lan')
+        await expect(
+          action(key, 2, { action: 'close', reason: 'Not needed.', expectedRevision: 0 }),
+        ).rejects.toMatchObject(forbidden);
       await expect(
         action(key, 2, {
           action: 'request-changes',
@@ -89,7 +94,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker permissions', () => {
   it('needs expectedRevision to merge, close or request changes', async () => {
     for (const body of [
       { action: 'merge', picks: {} },
-      { action: 'close' },
+      { action: 'close', reason: 'Not needed.' },
       { action: 'request-changes', note: 'Please change it.' },
     ])
       await expect(action('minh', 2, body)).rejects.toMatchObject({ code: 'VALIDATION' });

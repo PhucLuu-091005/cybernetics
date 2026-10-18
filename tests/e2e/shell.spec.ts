@@ -9,16 +9,24 @@ test('the rail folds to icons, keeps the state after a reload, and opens again',
   await page.getByRole('button', { name: /continue/i }).click();
   await expect(page.getByText(PROJECT).first()).toBeVisible();
   const nav = page.getByRole('navigation', { name: 'Project' });
-  await expect(nav.getByRole('link', { name: 'Graph' })).toBeVisible();
+  await expect(nav.getByRole('link')).toHaveText(['Graph', 'Members', 'Settings']);
   for (const gone of [/^Review/, 'Escalations', 'Inbox', 'Proposals'])
     await expect(nav.getByRole('link', { name: gone })).toHaveCount(0);
   await expect(page.getByText('Nothing changes the graph until a person approves it.')).toHaveCount(
     0,
   );
+  const rail = page.locator('.rail');
+  await expect(rail.locator('.rail-foot').getByRole('button')).toHaveCount(1);
+  await expect(rail.getByRole('button', { name: /theme|sign out/i })).toHaveCount(0);
+  await expect(rail).not.toContainText('Main changes only when a person with the');
 
   const fold = page.getByRole('button', { name: 'Collapse sidebar' });
+  await expect(fold.locator('path')).toHaveAttribute('d', /M9 3v18M16 15l-3-3 3-3$/);
   await fold.click();
   await expect(page.locator('.rail')).toHaveAttribute('data-state', 'collapsed');
+  await expect(
+    page.getByRole('button', { name: 'Expand sidebar' }).locator('path'),
+  ).toHaveAttribute('d', /M9 3v18M14 9l3 3-3 3$/);
   await expect(nav.getByText('Graph', { exact: true })).toBeHidden();
   await page.reload();
   await expect(page.locator('.rail')).toHaveAttribute('data-state', 'collapsed');
@@ -39,6 +47,45 @@ test('the rail folds to icons, keeps the state after a reload, and opens again',
   await page.getByRole('button', { name: 'Expand sidebar' }).click();
   await expect(page.locator('.rail')).toHaveAttribute('data-state', 'open');
   await expect(nav.getByText('Graph', { exact: true })).toBeVisible();
+});
+
+test('the avatar menu switches the theme, keeps it after a reload, and signs out', async ({
+  page,
+}) => {
+  await page.goto('/signin?label=shell-account');
+  await page.getByRole('button', { name: /continue/i }).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Collapse sidebar' })).toBeEnabled();
+  const html = page.locator('html');
+  const menu = page.locator('.p-head details.acct');
+  await expect(menu.locator('summary b')).toHaveText('Minh Trần');
+
+  await menu.locator('summary').click();
+  await expect(menu).toHaveAttribute('open', '');
+  const theme = menu.getByRole('radiogroup', { name: 'Theme' });
+  await expect(theme.getByRole('radio', { name: 'System' })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  );
+  await theme.getByRole('radio', { name: 'Dark' }).click();
+  await expect(html).toHaveAttribute('data-theme', 'dark');
+  await page.keyboard.press('Escape');
+  await expect(menu).not.toHaveAttribute('open');
+
+  await page.reload();
+  await expect(html).toHaveAttribute('data-theme', 'dark');
+  await expect(page.getByRole('button', { name: 'Collapse sidebar' })).toBeEnabled();
+  await menu.locator('summary').click();
+  await expect(theme.getByRole('radio', { name: 'Dark' })).toHaveAttribute('aria-checked', 'true');
+  await theme.getByRole('radio', { name: 'Light' }).click();
+  await expect(html).toHaveAttribute('data-theme', 'light');
+  await theme.getByRole('radio', { name: 'System' }).click();
+  await expect(html).not.toHaveAttribute('data-theme');
+
+  await menu.getByRole('button', { name: 'Sign out' }).click();
+  await page.waitForURL(/\/signin$/);
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/signin$/);
 });
 
 test('the project switcher closes on Escape', async ({ page }) => {

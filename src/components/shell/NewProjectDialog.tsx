@@ -5,6 +5,7 @@ import type { Project } from '../../contracts';
 import { send, type ApiError } from './api';
 import { ConflictBanner } from './ConflictBanner';
 import {
+  addTeamName,
   CLIENT_MAX,
   DEFAULT_TEAMS,
   NAME_MAX,
@@ -12,6 +13,8 @@ import {
   newProjectProblem,
   type NewProjectForm,
 } from './new-project';
+import { Icon } from '../tracker/icons';
+import { TimeInput } from '../tracker/TimeInput';
 
 export function NewProjectDialog({ onClose }: { onClose: () => void }) {
   const router = useRouter();
@@ -24,14 +27,26 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
     milestoneName: '',
     milestoneDate: '',
   });
+  const [teamDraft, setTeamDraft] = useState('');
+  const [teamProblem, setTeamProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<ApiError | null>(null);
   const body = newProjectBody(form);
   const problem = newProjectProblem(form);
-  const edit = (field: keyof NewProjectForm) => (event: { target: { value: string } }) => {
-    const { value } = event.target;
-    setForm((current) => ({ ...current, [field]: value }));
+  const edit =
+    (field: Exclude<keyof NewProjectForm, 'teams'>) => (event: { target: { value: string } }) => {
+      const { value } = event.target;
+      setForm((current) => ({ ...current, [field]: value }));
+    };
+  const addTeam = () => {
+    const added = addTeamName(form.teams, teamDraft);
+    setTeamProblem(added.problem);
+    if (added.problem || added.teams === form.teams) return;
+    setForm((current) => ({ ...current, teams: added.teams }));
+    setTeamDraft('');
   };
+  const removeTeam = (team: string) =>
+    setForm((current) => ({ ...current, teams: current.teams.filter((t) => t !== team) }));
   useEffect(() => {
     dialog.current?.showModal();
     nameInput.current?.focus();
@@ -85,16 +100,53 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
             onChange={edit('client')}
           />
         </label>
-        <label className="field">
-          Teams, one per line
-          <textarea
-            value={form.teams}
-            rows={3}
-            required
-            autoComplete="off"
-            onChange={edit('teams')}
-          />
-        </label>
+        <fieldset className="np-teams">
+          <legend>Teams</legend>
+          {form.teams.length > 0 && (
+            <ul aria-label="Teams">
+              {form.teams.map((team) => (
+                <li key={team}>
+                  <span>{team}</span>
+                  <button
+                    className="np-remove"
+                    type="button"
+                    aria-label={`Remove ${team}`}
+                    title={`Remove ${team}`}
+                    onClick={() => removeTeam(team)}
+                  >
+                    <Icon name="x" size={14} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="np-add">
+            <input
+              value={teamDraft}
+              aria-label="Add a team"
+              placeholder="Add a team"
+              maxLength={200}
+              autoComplete="off"
+              onChange={(event) => {
+                setTeamDraft(event.target.value);
+                setTeamProblem(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                addTeam();
+              }}
+            />
+            <button className="btn" type="button" disabled={!teamDraft.trim()} onClick={addTeam}>
+              Add
+            </button>
+          </div>
+          {teamProblem && (
+            <p className="new-project-problem" role="status">
+              {teamProblem}
+            </p>
+          )}
+        </fieldset>
         <div className="grid2">
           <label className="field">
             First milestone (optional)
@@ -108,6 +160,13 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
           <label className="field">
             Milestone date
             <input type="date" value={form.milestoneDate} onChange={edit('milestoneDate')} />
+          </label>
+          <label className="field">
+            Time (optional)
+            <TimeInput
+              value={form.milestoneTime ?? ''}
+              onChange={(value) => setForm((current) => ({ ...current, milestoneTime: value }))}
+            />
           </label>
         </div>
         {problem && (

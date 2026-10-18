@@ -14,7 +14,7 @@ import { AppError, invalidInput } from '../errors';
 import { trackerCrs, trackerQueue } from '../db/schema';
 import { isId, withTransaction, type Db } from '../db/tx';
 import { requireScope } from '../http/scopes';
-import { OPEN, ProjectScopeSchema, requireMember, requireQueueWriter, writeScope } from './access';
+import { OPEN, ProjectScopeSchema, requireRight, requireQueueWriter, writeScope } from './access';
 import { buildPayload } from './read';
 import { loadCommits, loadQueue } from './store';
 
@@ -65,7 +65,7 @@ export async function addQueueCard(
   const entry = parsed.data;
   return withTransaction(db, async (tx) => {
     const scope = await writeScope(tx, ctx, entry.projectId, entry.actAs);
-    const me = requireQueueWriter(scope.me);
+    const me = requireQueueWriter(scope);
     const queue = await loadQueue(tx, scope.project.id);
     const commits = await loadCommits(tx, scope.project.id);
     const problems = unknownReferences(entry, mainState(scope.tracker.base, queue, commits));
@@ -112,7 +112,7 @@ export async function dismissQueueEntry(
   const { projectId, queueId, actAs } = parsed.data;
   return withTransaction(db, async (tx) => {
     const scope = await writeScope(tx, ctx, projectId, actAs);
-    requireMember(ctx, scope.me);
+    requireRight(ctx, scope, 'create');
     const notFound = () => new AppError('NOT_FOUND', 'Queue card not found');
     if (!isId(queueId)) throw notFound();
     const match = and(

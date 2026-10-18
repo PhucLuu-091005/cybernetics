@@ -22,7 +22,7 @@ export type OpInput = { [N in OpName]: { op: N; a: OpOf<N>['a'] } }[OpName];
 export type QueueEntry =
   { kind: 'event'; fields: QueueEventInput } | { kind: 'item'; fields: QueueItemInput };
 
-/** The owner decides on what the review showed, so merge, close and request-changes carry the CR revision. */
+/** A decision acts on what the person saw, so merge, close and request-changes carry the CR revision. */
 type Seen = { expectedRevision?: number };
 type Reviewed = { expectedRevision: number };
 export type CrAction =
@@ -33,7 +33,7 @@ export type CrAction =
   | (Seen & { action: 'comment'; body: string; opIndex?: number | null })
   | (Reviewed & { action: 'merge'; picks: Picks })
   | (Reviewed & { action: 'request-changes'; note: string })
-  | (Reviewed & { action: 'close' });
+  | (Reviewed & { action: 'close'; reason: string });
 
 const CODE_BY_STATUS: Record<number, string> = {
   400: 'VALIDATION',
@@ -107,11 +107,6 @@ export const addToQueue = (projectId: string, entry: QueueEntry) =>
 
 export const dismissQueueEntry = (projectId: string, queueId: string) =>
   send<TrackerPayload>(`${tracker(projectId)}/queue/${encodeURIComponent(queueId)}`, 'DELETE');
-
-export const putOffset = (projectId: string, eventId: string, minutes: number) =>
-  send<TrackerPayload>(`${tracker(projectId)}/offsets/${encodeURIComponent(eventId)}`, 'PUT', {
-    minutes,
-  });
 
 export const createCr = (projectId: string, input: { title: string; ops?: OpInput[] }) =>
   send<TrackerPayload & { num: number }>(`${tracker(projectId)}/crs`, 'POST', input);

@@ -8,6 +8,7 @@ import {
   listProjects,
 } from '../../../src/server/domain/projects';
 import { getTrackerPayload } from '../../../src/server/tracker';
+import { ALL_GRANTS } from '../../../src/tracker/permissions';
 import { createTestDatabase, testActor, type TestDb } from '../../support/db';
 
 describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker projects', () => {
@@ -36,15 +37,17 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker projects', () => {
       windowStart: null,
       asOf: null,
       demo: false,
-      ownerMemberId: payload.members[0].id,
+      leadMemberId: payload.members[0].id,
     });
     expect(payload.members).toEqual([
       {
         id: expect.any(String),
         name: 'Ngọc Anh',
-        roleLabel: 'Project owner, owns Main',
+        roleLabel: 'Project lead',
         color: '#0f766e',
         userId: ctx.userId,
+        active: true,
+        grants: ALL_GRANTS,
       },
     ]);
     expect(payload.me).toEqual(payload.members[0]);
@@ -125,6 +128,36 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker projects', () => {
         clientName: 'D',
         teams: ['QA'],
         milestone: { name: 'Go-live', date: '2 November' },
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+  });
+
+  it('keeps an optional time on the first milestone and refuses a time that is not HH:mm', async () => {
+    const ctx = await testActor(t.db);
+    const project = await createEmptyProject(t.db, ctx, {
+      title: 'Timed',
+      clientName: 'T',
+      teams: ['QA'],
+      milestone: { name: 'Client call', date: '2026-11-02', time: '17:00' },
+    });
+    const payload = await getTrackerPayload(t.db, ctx, { projectId: project.id });
+    expect(payload.base.milestones).toEqual([
+      {
+        id: expect.any(String),
+        name: 'Client call',
+        planned: '2026-11-02',
+        plannedTime: '17:00',
+        firstPlanned: '2026-11-02',
+        firstPlannedTime: '17:00',
+        moves: [],
+      },
+    ]);
+    await expect(
+      createEmptyProject(t.db, ctx, {
+        title: 'Late',
+        clientName: 'L',
+        teams: ['QA'],
+        milestone: { name: 'Client call', date: '2026-11-02', time: '5pm' },
       }),
     ).rejects.toMatchObject({ code: 'VALIDATION' });
   });

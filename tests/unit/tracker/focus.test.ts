@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { descendantsOf, focusTree, type FocusNode } from '../../../src/tracker/focus';
+import {
+  descendantsOf,
+  focusTree,
+  teamDescendants,
+  teamFocusTree,
+  type FocusNode,
+} from '../../../src/tracker/focus';
 import { buildState, larkspurState, workItem } from '../../support/tracker-fixture';
 
 const ids = (node: FocusNode): unknown => [node.id, node.children.map(ids)];
@@ -75,5 +81,51 @@ describe('focusTree', () => {
 
   it('gives null for an unknown id', () => {
     expect(focusTree(larkspurState(), 'nope')).toBeNull();
+  });
+});
+
+describe('teamFocusTree and teamDescendants', () => {
+  it('lists the rows of a team with the work that comes from them, each once', () => {
+    const tree = teamFocusTree(larkspurState(), 'digitization')!;
+    expect(tree.team.name).toBe('Digitization');
+    expect(tree.roots.map(ids)).toEqual([
+      [
+        'analyse',
+        [
+          ['pg201', [['test', []]]],
+          ['pg202', []],
+          ['pg203', []],
+        ],
+      ],
+      ['legal', []],
+    ]);
+    expect([...teamDescendants(larkspurState(), 'digitization')].sort()).toEqual(
+      ['analyse', 'legal', 'pg201', 'pg202', 'pg203', 'test'].sort(),
+    );
+  });
+
+  it('puts a team row that comes from another row of the team under that row', () => {
+    const s = buildState({
+      teams: [{ id: 't', name: 'T', leadId: null }],
+      workItems: [
+        workItem({ id: 'b', teamId: 't', after: ['x'] }),
+        workItem({ id: 'x', teamId: 'other', after: ['a'] }),
+        workItem({ id: 'a', teamId: 't' }),
+      ],
+    });
+    expect(teamFocusTree(s, 't')!.roots.map(ids)).toEqual([['a', [['x', [['b', []]]]]]]);
+  });
+
+  it('keeps the rows of a loop inside the team, and gives an unknown team nothing', () => {
+    const s = buildState({
+      teams: [{ id: 't', name: 'T', leadId: null }],
+      workItems: [
+        workItem({ id: 'a', teamId: 't', after: ['b'] }),
+        workItem({ id: 'b', teamId: 't', after: ['a'] }),
+      ],
+    });
+    expect(teamFocusTree(s, 't')!.roots.map(ids)).toEqual([['a', [['b', []]]]]);
+    expect(teamFocusTree(s, 'nope')).toBeNull();
+    expect(teamDescendants(s, 'nope').size).toBe(0);
   });
 });

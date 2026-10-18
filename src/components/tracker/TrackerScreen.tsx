@@ -1,6 +1,7 @@
 'use client';
 import './tracker.css';
-import { useSearchParams } from 'next/navigation';
+import './review.css';
+import { useRouter } from 'next/navigation';
 import {
   useCallback,
   useEffect,
@@ -13,18 +14,18 @@ import {
   type ReactNode,
 } from 'react';
 import {
-  clampDrag,
   descendantsOf,
-  drawnTimes,
   formatDay,
+  formatDeadline,
   KIND_LABEL,
   layoutTracker,
   matchRows,
   NO_FILTER,
   pruneFilter,
-  offsetFor,
+  teamDescendants,
   toInstant,
-  type Offsets,
+  windowStartFor,
+  type Picks,
   type RowFilter,
   type RowMatch,
   type Cr,
@@ -33,7 +34,10 @@ import {
   type TrackerLayout,
   type TrackerPayload,
   type TrackerState,
+  can,
+  mergerIds,
 } from '../../tracker';
+import { openedReview, reviewModel } from '../../tracker/review';
 import {
   actAs,
   addToQueue,
@@ -42,7 +46,6 @@ import {
   crAction,
   dismissQueueEntry,
   getTracker,
-  putOffset,
   removeOp,
   type ApiResult,
   type CrAction,
@@ -52,18 +55,21 @@ import {
 import { makeDirectory } from './avatar';
 import {
   byNumDesc,
-  canEditCr,
   ContextBar,
+  crHref,
   MainNotice,
+  mainHref,
   myDrafts,
   roleIn,
   trunc,
   type Session,
+  mergerNames,
 } from './ContextBar';
+import { CrSide, SIDE_ID, type SideTab } from './CrSide';
 import {
   dayAtX,
+  deadlineX,
   dropAction,
-  eventGesture,
   markTarget,
   noonX,
   retarget,
@@ -75,7 +81,6 @@ import {
   type PointerTrack,
 } from './drag';
 import {
-  ChangesDrawer,
   FocusDrawer,
   HistoryDrawer,
   MilestoneDrawer,
@@ -89,6 +94,7 @@ import { Pop, type PopTarget } from './Pops';
 import { QueuePanel, type QueueTab } from './QueuePanel';
 import { Toast, type ToastState } from './Toast';
 import { TopBar } from './TopBar';
+import type { Account } from '../shell/AccountMenu';
 import { Legend, TrackerGraph, type DatePreview, type Reveal } from './TrackerGraph';
 import {
   browserStore,
@@ -103,9 +109,10 @@ import {
   writeViewState,
   type ViewState,
 } from './view-state';
+import { useTimeScale } from './scale';
 
 export type TrackerView = 'main' | number;
-export type DrawerMode = 'ms' | 'item' | 'changes' | 'crs' | 'history';
+export type DrawerMode = 'ms' | 'item' | 'crs' | 'history';
 type Drawer = { mode: Exclude<DrawerMode, 'ms' | 'item'> } | { mode: 'ms' | 'item'; id: string };
 export type DateTarget = { kind: 'item' | 'ms'; id: string };
 
@@ -117,7 +124,11 @@ export type TrackerActions = {
   askToEdit: () => void;
   cancelAsk: () => void;
   handOver: (memberId: string) => void;
+  grant: (memberId: string) => void;
   notNow: (memberId: string) => void;
+  cancelCr: () => void;
+  requestChanges: () => void;
+  merge: () => void;
   undo: () => void;
   removeChange: (index: number) => void;
   addToQueue: (what: 'event' | 'item') => void;
@@ -127,14 +138,14 @@ export type TrackerActions = {
   markDone: (workItemId: string) => void;
   moveDate: (target: DateTarget) => void;
   saveRename: (workItemId: string, title: string) => void;
+  editItem: (ops: OpInput[]) => void;
   changeKind: (eventId: string) => void;
   setKind: (eventId: string, kind: EventKind) => void;
   moveEvent: (eventId: string) => void;
   hideEvent: (eventId: string) => void;
-  resetPosition: (eventId: string) => void;
   newMilestone: () => void;
   newTeam: () => void;
-  saveMilestone: (milestoneId: string, name: string, date: string) => void;
+  saveMilestone: (milestoneId: string, name: string, date: string, time: string | null) => void;
   removeFromMilestone: (workItemId: string) => void;
   addToMilestone: (workItemId: string, milestoneId: string) => void;
 };
@@ -148,7 +159,11 @@ export const NO_ACTIONS: TrackerActions = {
   askToEdit: noop,
   cancelAsk: noop,
   handOver: noop,
+  grant: noop,
   notNow: noop,
+  cancelCr: noop,
+  requestChanges: noop,
+  merge: noop,
   undo: noop,
   removeChange: noop,
   addToQueue: noop,
@@ -158,11 +173,11 @@ export const NO_ACTIONS: TrackerActions = {
   markDone: noop,
   moveDate: noop,
   saveRename: noop,
+  editItem: noop,
   changeKind: noop,
   setKind: noop,
   moveEvent: noop,
   hideEvent: noop,
-  resetPosition: noop,
   newMilestone: noop,
   newTeam: noop,
   saveMilestone: noop,
@@ -173,21 +188,16 @@ export const NO_ACTIONS: TrackerActions = {
 export const POLL_MS = 5000;
 // The prototype keeps a pop open for clicks in these areas; the graph closes it on its own background.
 const OUTSIDE_EXEMPT =
-  '.p-head, .bbar, .pop, .drawer, .p-side, .empty, .ro-note, svg.tg, .tk-modal, .tk-toast, .zoombar';
+  '.p-head, .bbar, .pop, .drawer, .p-side, .empty, .ro-note, svg.tg, .tk-modal, .tk-toast, .zoombar, .gtools';
 // These layers close themselves on Esc, so the screen leaves the rest open.
 const OWN_ESCAPE = '.tk details[open], .tk .tsearch-pop:not([hidden]), .tk .hand-menu';
 const MINUTE = 60_000;
 
-export function parseView(raw: string | null, crs: readonly Cr[]): TrackerView {
-  if (!raw || !/^\d{1,9}$/.test(raw)) return 'main';
-  const num = Number(raw);
-  return crs.some((c) => c.num === num) ? num : 'main';
-}
-
 const samePayload = (a: TrackerPayload, b: TrackerPayload) =>
   JSON.stringify(a) === JSON.stringify(b);
 
-export function useTracker(initial: TrackerPayload, projectId: string) {
+/** Main and each change request have their own page, so a view switch is a navigation. */
+export function useTracker(initial: TrackerPayload, projectId: string, num: number | null) {
   const [payload, setPayloadState] = useState(initial);
   // A poll that started before a write must not overwrite the payload the write returned.
   const writes = useRef(0);
@@ -195,14 +205,15 @@ export function useTracker(initial: TrackerPayload, projectId: string) {
     writes.current += 1;
     setPayloadState(next);
   }, []);
-  const search = useSearchParams();
-  const view = parseView(search?.get('cr') ?? null, payload.crs);
-  const setView = useCallback((next: TrackerView) => {
-    const url = new URL(window.location.href);
-    if (next === 'main') url.searchParams.delete('cr');
-    else url.searchParams.set('cr', String(next));
-    if (url.href !== window.location.href) window.history.pushState(null, '', url);
-  }, []);
+  const router = useRouter();
+  const view: TrackerView = num ?? 'main';
+  const setView = useCallback(
+    (next: TrackerView) => {
+      if (next === view) return;
+      router.push(next === 'main' ? mainHref(projectId) : crHref(projectId, next));
+    },
+    [router, projectId, view],
+  );
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -256,6 +267,7 @@ const withoutNum = (data: TrackerPayload & { num?: number }): TrackerPayload => 
 };
 
 type EditorAction = Exclude<CrAction, { action: 'merge' | 'request-changes' | 'close' }>;
+type Decision = Extract<CrAction, { action: 'merge' | 'request-changes' | 'close' }>;
 type DragView = {
   cls: string;
   items: boolean;
@@ -282,43 +294,86 @@ export function TrackerScreen({
   payload: initial,
   projectId,
   userId,
+  account,
   serverNow,
+  num = null,
 }: {
   payload: TrackerPayload;
   projectId: string;
+  num?: number | null;
   /** The signed-in user, so "Don't show again" on the Main notice holds for that person only. */
   userId: string;
+  account: Account;
   /** The server's time rounded down to the minute, for a project without a demo clock. */
   serverNow: number;
 }) {
-  const { payload, view, setPayload, setView } = useTracker(initial, projectId);
+  const { payload: latest, view, setPayload, setView } = useTracker(initial, projectId, num);
+  const latestCr = num === null ? null : (latest.crs.find((c) => c.num === num) ?? null);
+  const mayEdit = !!latestCr && can(latest, 'edit', latestCr);
+  // A merger decides on the version they opened; a newer revision waits behind Review again.
+  const [opened, setOpened] = useState<Cr | null>(latestCr);
+  const frozen = useMemo(
+    () => (mayEdit ? { payload: latest, changed: false } : openedReview(latest, opened)),
+    [mayEdit, latest, opened],
+  );
+  const payload = frozen.payload;
   const { project } = payload;
   const tz = project.timeZone;
   const now = useNow(serverNow);
   const asOf = project.asOf ?? toInstant(now, tz);
-  const cr = view === 'main' ? null : (payload.crs.find((c) => c.num === view) ?? null);
-  const current = useMemo(() => currentState(payload, cr), [payload, cr]);
+  const cr = num === null ? null : (payload.crs.find((c) => c.num === num) ?? null);
+  const [picks, setPicks] = useState<Picks>({});
+  const model = useMemo(
+    () => (num === null ? null : reviewModel(payload, num, picks)),
+    [payload, num, picks],
+  );
+  const [graphSide, setGraphSide] = useState<'before' | 'after'>('after');
+  const before = graphSide === 'before' && !!model;
+  const edit = mayEdit && !before;
+  const working = useMemo(() => currentState(payload, cr), [payload, cr]);
+  const current = useMemo(() => {
+    if (model && before) return { state: model.before };
+    if (model && !mayEdit) return { state: model.after, marks: model.marks };
+    return working;
+  }, [model, before, mayEdit, working]);
   // A view choice like hiding: never saved, and it leaves the hidden lists alone.
   // `grab` is true only in the action that opened the focus, so a panel that comes back after
   // another drawer closes does not take the keyboard focus from the row.
-  const [focus, setFocus] = useState<{ id: string; grab: boolean } | null>(null);
+  const [focus, setFocus] = useState<{ kind: 'item' | 'team'; id: string; grab: boolean } | null>(
+    null,
+  );
   const { state } = current;
-  const focused = focus && state.workItems.some((w) => w.id === focus.id) ? focus.id : null;
-  // A focus whose work item is gone from this view ends, so it does not come back by itself.
-  if (focus && !focused) setFocus(null);
-  const inFocus = useMemo(() => (focused ? descendantsOf(state, focused) : null), [state, focused]);
+  const focusLive =
+    !!focus &&
+    (focus.kind === 'item'
+      ? state.workItems.some((w) => w.id === focus.id)
+      : state.teams.some((t) => t.id === focus.id));
+  const focused = focusLive && focus.kind === 'item' ? focus.id : null;
+  const focusedTeam = focusLive && focus.kind === 'team' ? focus.id : null;
+  // A focus whose work item or team is gone from this view ends, so it does not come back by itself.
+  if (focus && !focusLive) setFocus(null);
+  const inFocus = useMemo(
+    () =>
+      focused
+        ? descendantsOf(state, focused)
+        : focusedTeam
+          ? teamDescendants(state, focusedTeam)
+          : null,
+    [state, focused, focusedTeam],
+  );
   const me = payload.me?.id ?? null;
-  const isOwner = !!me && me === project.ownerMemberId;
+  const canMerge = !!me && can(payload, 'merge');
+  const canCreate = !!me && can(payload, 'create');
+  const mergers = useMemo(() => mergerIds(payload), [payload]);
   const dir = useMemo(
     () => makeDirectory(payload.members, state.people),
     [payload.members, state.people],
   );
   const session: Session = useMemo(
-    () => ({ projectId, payload, me, isOwner, dir, tz }),
-    [projectId, payload, me, isOwner, dir, tz],
+    () => ({ projectId, payload, me, canMerge, canCreate, mergers, dir, tz }),
+    [projectId, payload, me, canMerge, canCreate, mergers, dir, tz],
   );
-  const edit = !!cr && canEditCr(cr, me);
-  const ownerName = dir.name(project.ownerMemberId);
+  const mergerName = mergerNames(session);
 
   const [hidden, setHidden] = useState<ViewState>(EMPTY_VIEW);
   useLayoutEffect(() => {
@@ -344,7 +399,11 @@ export function TrackerScreen({
     setNoticeClosed(false);
   }
   const showNotice = view === 'main' && noticeOff === false && !noticeClosed;
-  const [queueOpen, setQueueOpen] = useState(true);
+  const [sideOpen, setSideOpen] = useState(true);
+  const [sideTab, setSideTab] = useState<SideTab>(() =>
+    mayEdit && !latestCr?.ops.length ? 'queue' : 'changes',
+  );
+  const [sel, setSel] = useState<number | null>(null);
   const [chosenFilter, setRowFilter] = useState<RowFilter>(NO_FILTER);
   // Ids from another change request view stay chosen, but only the ids of this view filter it.
   const rowFilter = useMemo(() => pruneFilter(state, chosenFilter), [state, chosenFilter]);
@@ -361,7 +420,7 @@ export function TrackerScreen({
   const [drawer, setDrawer] = useState<Drawer | null>(null);
   const [pop, setPop] = useState<(PopTarget & { view: TrackerView }) | null>(null);
   const [inView, setInView] = useState<Reveal | null>(null);
-  const [zoom, setZoom] = useState(1);
+  const { scale, onSpan, onZoom } = useTimeScale();
   const [toast, setToast] = useState<ToastState | null>(null);
   const [modal, setModal] = useState<{ key: number; state: ModalState } | null>(null);
   // A counter, so the first of two writes in flight does not clear busy for the second.
@@ -369,9 +428,6 @@ export function TrackerScreen({
   const busy = writing > 0;
   const [drag, setDrag] = useState<DragView | null>(null);
   const [preview, setPreview] = useState<DatePreview | null>(null);
-  // Saved positions show before the server answers, and a dragged one follows the pointer.
-  const [unsaved, setUnsaved] = useState<Record<string, number>>({});
-  const [dayDrag, setDayDrag] = useState<{ eventId: string; minutes: number } | null>(null);
   const [moving, setMoving] = useState<{ eventId: string; from: string } | null>(null);
   const [popFor, setPopFor] = useState<{ kind: 'act' | 'added'; id: string } | null>(null);
   const [queueTab, setQueueTab] = useState<QueueTab>('events');
@@ -419,13 +475,13 @@ export function TrackerScreen({
       else if (moving) setMoving(null);
       else if (shownPop) closePop(true);
       else if (drawer) setDrawer(null);
-      else if (focused) setFocus(null);
+      else if (focus) setFocus(null);
       else if (full) leaveFull();
     };
     // Capture runs before the view menu's own Escape handler closes it, so one Esc closes one layer.
     document.addEventListener('keydown', onKey, { capture: true });
     return () => document.removeEventListener('keydown', onKey, { capture: true });
-  }, [modal, moving, shownPop, drawer, focused, full, closePop, closeModal, leaveFull]);
+  }, [modal, moving, shownPop, drawer, focus, full, closePop, closeModal, leaveFull]);
   useEffect(() => {
     // The browser leaves full screen on its own Esc too, and the board follows it.
     const onChange = () => {
@@ -444,13 +500,9 @@ export function TrackerScreen({
     return () => document.removeEventListener('click', onClick);
   }, [shownPop]);
 
-  const saved: Offsets = useMemo(
-    () => ({ ...payload.offsets, ...unsaved }),
-    [payload.offsets, unsaved],
-  );
-  const offsets: Offsets = useMemo(
-    () => (dayDrag ? { ...saved, [dayDrag.eventId]: dayDrag.minutes } : saved),
-    [saved, dayDrag],
+  const windowStart = useMemo(
+    () => windowStartFor(state, project.windowStart, asOf, tz),
+    [state, project.windowStart, asOf, tz],
   );
   const layout = useMemo(
     () =>
@@ -461,26 +513,25 @@ export function TrackerScreen({
           hiddenTeams: new Set(hidden.hiddenTeams),
           asOf,
           timeZone: tz,
-          zoom,
-          offsets,
+          ...scale,
           focus: focused,
+          focusTeam: focusedTeam,
           filter: rowMatch,
           focusButtons: true,
-          ...(project.windowStart ? { windowStart: project.windowStart } : {}),
+          ...(windowStart ? { windowStart } : {}),
         },
         current.marks,
       ),
-    [state, hidden, asOf, tz, zoom, offsets, focused, rowMatch, project.windowStart, current.marks],
+    [state, hidden, asOf, tz, scale, focused, focusedTeam, rowMatch, windowStart, current.marks],
   );
   // Pointer handlers outlive the render that started a drag, and a poll can land in between.
   const live = useRef<{
     payload: TrackerPayload;
     state: TrackerState;
     layout: TrackerLayout;
-    saved: Offsets;
-  }>({ payload, state, layout, saved });
+  }>({ payload: latest, state, layout });
   useLayoutEffect(() => {
-    live.current = { payload, state, layout, saved };
+    live.current = { payload: latest, state, layout };
   });
 
   // An attached event, or an event picked in the detail drawer on a hidden row, gets its pop once it renders.
@@ -503,8 +554,7 @@ export function TrackerScreen({
   const openView = (next: TrackerView) => {
     setPop(null);
     setMoving(null);
-    if (drawer && (drawer.mode === 'ms' || drawer.mode === 'item' || drawer.mode === 'changes'))
-      setDrawer(null);
+    if (drawer && (drawer.mode === 'ms' || drawer.mode === 'item')) setDrawer(null);
     setView(next);
   };
   const toggleDrawer = (mode: Exclude<DrawerMode, 'ms' | 'item'>) => {
@@ -516,6 +566,7 @@ export function TrackerScreen({
     setPop(null);
     changeHidden(next);
     if (focused && !keepFocus(focused, next, teamOf)) setFocus(null);
+    if (focusedTeam && next.hiddenTeams.includes(focusedTeam)) setFocus(null);
   };
   const toggleRow = (id: string) =>
     hide({ ...hidden, hiddenRows: toggleId(hidden.hiddenRows, id) });
@@ -554,8 +605,15 @@ export function TrackerScreen({
     setMoving(null);
     if (focused === workItemId) return setFocus(null);
     if (isHidden(workItemId)) reveal([workItemId]);
-    setFocus({ id: workItemId, grab: true });
+    setFocus({ kind: 'item', id: workItemId, grab: true });
     // The focus panel takes the drawer's place.
+    setDrawer(null);
+  };
+  const toggleTeamFocus = (teamId: string) => {
+    setPop(null);
+    setMoving(null);
+    if (focusedTeam === teamId) return setFocus(null);
+    setFocus({ kind: 'team', id: teamId, grab: true });
     setDrawer(null);
   };
   /** A pick clears the typed text; the other filters stay unless they would hide the picked row. */
@@ -605,6 +663,8 @@ export function TrackerScreen({
       const next = withoutNum(result.data);
       setPayload(next);
       live.current = { ...live.current, payload: next };
+      // The person acted on the latest version, so it becomes the one they review.
+      if (num !== null) setOpened(next.crs.find((c) => c.num === num) ?? null);
       return result.data;
     } finally {
       setWriting((n) => n - 1);
@@ -658,7 +718,7 @@ export function TrackerScreen({
     if (!created) return;
     setDrawer(null);
     setView(created.num);
-    showToast(`#${created.num} is open. Main stays the same until ${ownerName} merges it.`);
+    showToast(`#${created.num} is open. Main stays the same until ${mergerName} merges it.`);
   };
 
   const onEditAgain = async () => {
@@ -693,12 +753,66 @@ export function TrackerScreen({
       showToast(`${dir.name(memberId)} can ${permission} #${cr.num}. Send them the link.`);
   };
 
+  /** A decision names the revision on screen, so it never acts on changes the person did not see. */
+  const decide = (body: Decision) => (cr ? write(() => crAction(projectId, cr.num, body)) : null);
+
+  const onGrant = async (memberId: string) => {
+    if (!cr) return;
+    if (await action(cr.num, { action: 'share', memberId, permission: 'edit' }))
+      showToast(`${dir.name(memberId)} can edit #${cr.num} now.`);
+  };
+
+  const onCancelCr = async (reason: string) => {
+    if (!cr) return;
+    closeModal();
+    if (await decide({ action: 'close', reason, expectedRevision: cr.revision }))
+      showToast(`#${cr.num} is cancelled. Nothing went into Main.`);
+  };
+
+  const onRequestChanges = async (note: string) => {
+    if (!cr) return;
+    closeModal();
+    const next = await decide({ action: 'request-changes', note, expectedRevision: cr.revision });
+    if (!next) return;
+    const editor = next.crs.find((c) => c.num === cr.num)?.editor ?? cr.editor;
+    showToast(`#${cr.num} is a draft again. ${dir.name(editor)} sees your note.`);
+  };
+
+  const onMerge = async () => {
+    if (!cr || !model?.canMerge) return;
+    const merged = await decide({
+      action: 'merge',
+      picks: model.picks,
+      expectedRevision: cr.revision,
+    });
+    if (!merged) return;
+    setPicks({});
+    showToast(`#${cr.num} is in Main now.`);
+  };
+
+  const reviewAgain = () => {
+    setOpened(latestCr);
+    setPicks({});
+  };
+
+  const selectChange = (index: number) => {
+    setSel(index);
+    setGraphSide('after');
+    const change = model?.changes[index];
+    if (!change) return;
+    setPop(null);
+    if (change.workItemId && state.workItems.some((w) => w.id === change.workItemId)) {
+      bringIn(change.workItemId);
+      find(change.workItemId);
+    }
+  };
+
   const onMarkReady = async () => {
     if (!cr || !edit) return;
     const num = cr.num;
     if (!(await action(num, { action: 'ready' }, true))) return;
     setDrawer(null);
-    showToast(`#${num} is ready. ${ownerName} can merge it now.`, () => {
+    showToast(`#${num} is ready. ${mergerName} can merge it now.`, () => {
       void action(num, { action: 'unready' }, true);
     });
   };
@@ -718,22 +832,6 @@ export function TrackerScreen({
 
   const anchorOf = (selector: string) => gwrap.current?.querySelector(`svg.pg ${selector}`) ?? null;
 
-  /** A position is a display choice of the signed-in person, so it needs no change request and works in every view. */
-  const saveOffset = async (eventId: string, minutes: number) => {
-    if ((live.current.saved[eventId] ?? 0) === minutes) return;
-    setUnsaved((o) => ({ ...o, [eventId]: minutes }));
-    const result = await putOffset(projectId, eventId, minutes);
-    setUnsaved((o) => {
-      if (o[eventId] !== minutes) return o;
-      const rest = { ...o };
-      delete rest[eventId];
-      return rest;
-    });
-    if (!result.ok) return showToast(result.error.message);
-    setPayload(result.data);
-    live.current = { ...live.current, payload: result.data };
-  };
-
   const actions: TrackerActions = {
     newCr: () => openModal({ mode: 'newcr' }),
     share: () => openModal({ mode: 'share' }),
@@ -745,6 +843,10 @@ export function TrackerScreen({
         void action(cr.num, { action: 'cancel-ask' }).then((p) => p && showToast('Ask cancelled.'));
     },
     handOver: (to) => void onHandOver(to),
+    grant: (who) => void onGrant(who),
+    cancelCr: () => openModal({ mode: 'cancelCr' }),
+    requestChanges: () => openModal({ mode: 'requestChanges' }),
+    merge: () => void onMerge(),
     notNow: (who) => {
       if (cr)
         void action(cr.num, { action: 'decline', who }).then(
@@ -778,6 +880,7 @@ export function TrackerScreen({
       if (!title || !item || title === item.title) return setPop(null);
       commitOps([{ op: 'rename', a: { workItemId, title } }]);
     },
+    editItem: (ops) => commitOps(ops),
     changeKind: (eventId) => {
       const anchor = anchorOf(`[data-act="${eventId}"]`) ?? pop?.anchor;
       if (anchor) setPop({ kind: 'kind', id: eventId, anchor, view });
@@ -792,17 +895,14 @@ export function TrackerScreen({
       if (ev) setMoving({ eventId, from: ev.workItemId });
     },
     hideEvent: (eventId) => commitOps([{ op: 'hide', a: { eventId } }]),
-    resetPosition: (eventId) => {
-      setPop(null);
-      void saveOffset(eventId, 0);
-    },
     newMilestone: () => edit && openModal({ mode: 'ms' }),
     newTeam: () => edit && openModal({ mode: 'team' }),
-    saveMilestone: (milestoneId, name, date) => {
+    saveMilestone: (milestoneId, name, date, time) => {
       const m = state.milestones.find((x) => x.id === milestoneId);
       if (!m) return;
       if (name && name !== m.name) commitOps([{ op: 'msName', a: { milestoneId, name } }]);
-      if (date !== m.planned) openModal({ mode: 'due', kind: 'ms', id: milestoneId, date });
+      if (date !== m.planned || time !== (m.plannedTime ?? null))
+        openModal({ mode: 'due', kind: 'ms', id: milestoneId, date, time });
     },
     removeFromMilestone: (workItemId) => commitOps([{ op: 'msRemove', a: { workItemId } }]),
     addToMilestone: (workItemId, milestoneId) =>
@@ -818,6 +918,8 @@ export function TrackerScreen({
     createCr: (title) => void onCreateCr(title),
     share: (memberId, permission) => void onShare(memberId, permission),
     handOver: (to) => void onHandOver(to),
+    cancelCr: (reason) => void onCancelCr(reason),
+    requestChanges: (note) => void onRequestChanges(note),
   };
 
   const onActAs = async (memberId: string) => {
@@ -834,13 +936,20 @@ export function TrackerScreen({
       next.crs
         .filter((c) => c.status === 'draft' && roleIn(c, nextMe) !== 'view')
         .sort(byNumDesc)[0];
-    const owner = nextMe === next.project.ownerMemberId;
+    const merger = !!nextMe && can(next, 'merge');
     setPayload(next);
     setPop(null);
     setMoving(null);
     closeModal();
+    // A change request page stays on its change request, seen by the next person.
+    if (num !== null) {
+      setOpened(next.crs.find((c) => c.num === num) ?? null);
+      setPicks({});
+      setDrawer(null);
+      return;
+    }
     setDrawer(
-      owner && !drafts.length && next.crs.some((c) => c.status === 'ready')
+      merger && !drafts.length && next.crs.some((c) => c.status === 'ready')
         ? { mode: 'crs' }
         : null,
     );
@@ -934,58 +1043,32 @@ export function TrackerScreen({
     });
   };
 
-  const dragEvent = (event: ReactPointerEvent, eventId: string, from: string, el: Element) => {
-    const svg = el.closest('svg.pg');
+  /** Events sit at their own time, so a drag only moves an event to another work item. */
+  const dragEvent = (event: ReactPointerEvent, eventId: string, from: string) => {
     const ev = state.events.find((x) => x.id === eventId);
-    if (!(svg instanceof SVGSVGElement) || !ev) return;
+    if (!ev) return;
     event.preventDefault();
     const start = { clientX: event.clientX, clientY: event.clientY, pointerId: event.pointerId };
-    const L0 = live.current.layout;
-    const x0 = svgPoint(svg, start.clientX, start.clientY).x;
-    const row = live.current.state.events.filter((e) => e.workItemId === from && !e.hidden);
-    const saved0 = live.current.saved;
-    const drawn0 = drawnTimes(row, saved0, tz).get(eventId) ?? Date.parse(ev.at);
-    let gesture: 'day' | 'move' | null = null;
-    let minutes = live.current.saved[eventId] ?? 0;
     let target: DropTarget | null = null;
     track(start, {
       threshold: 6,
       axis: 'any',
-      onStart: (e) => {
-        gesture = eventGesture(e.clientX - start.clientX, e.clientY - start.clientY, edit);
+      onStart: () => {
         setPop(null);
-        if (gesture === 'day')
-          setDrag({ cls: 'drag-day', items: false, ghost: null, x: 0, y: 0, lifted: null });
-        else if (gesture === 'move')
-          setDrag({
-            cls: 'drag-act',
-            items: true,
-            ghost: (
-              <div className="gact">
-                <KindIcon kind={ev.kind} size={15} />
-              </div>
-            ),
-            x: start.clientX,
-            y: start.clientY,
-            lifted: eventId,
-          });
+        setDrag({
+          cls: 'drag-act',
+          items: true,
+          ghost: (
+            <div className="gact">
+              <KindIcon kind={ev.kind} size={15} />
+            </div>
+          ),
+          x: start.clientX,
+          y: start.clientY,
+          lifted: eventId,
+        });
       },
       onMove: (e) => {
-        if (gesture === 'day') {
-          const x = svgPoint(svg, e.clientX, e.clientY).x;
-          const next = clampDrag(
-            ev,
-            offsetFor(ev.at, drawn0 + L0.t(x) - L0.t(x0), tz),
-            row,
-            saved0,
-            tz,
-          );
-          if (next === minutes) return;
-          minutes = next;
-          setDayDrag({ eventId, minutes });
-          return;
-        }
-        if (gesture !== 'move') return;
         if (ghost.current) {
           ghost.current.style.left = `${e.clientX}px`;
           ghost.current.style.top = `${e.clientY}px`;
@@ -996,15 +1079,9 @@ export function TrackerScreen({
       },
       onDrop: () => {
         endDrag();
-        if (gesture === 'move') onDrop.current({ kind: 'event', id: eventId, from }, target);
-        if (gesture !== 'day') return;
-        setDayDrag(null);
-        void saveOffset(eventId, minutes);
+        onDrop.current({ kind: 'event', id: eventId, from }, target);
       },
-      onCancel: () => {
-        endDrag();
-        setDayDrag(null);
-      },
+      onCancel: endDrag,
     });
   };
 
@@ -1016,6 +1093,7 @@ export function TrackerScreen({
     if (!(svg instanceof SVGSVGElement) || !cur) return;
     event.preventDefault();
     let day = cur;
+    const time = kind === 'ms' ? ms?.plannedTime : undefined;
     track(event, {
       threshold: 4,
       axis: 'x',
@@ -1025,14 +1103,20 @@ export function TrackerScreen({
       },
       onMove: (ev) => {
         const L = live.current.layout;
-        const next = dayAtX(L, svgPoint(svg, ev.clientX, ev.clientY).x, tz);
+        const x = svgPoint(svg, ev.clientX, ev.clientY).x;
+        const next = dayAtX(L, x, tz, kind === 'ms' ? (time ?? 'end') : 'noon');
         if (next === day) return;
         day = next;
         const label =
           kind === 'ms' && ms
-            ? `${ms.name} · ${formatDay(next)}${next !== cur ? ` (was ${formatDay(cur)})` : ''}`
+            ? `${ms.name} · ${formatDeadline(next, time)}${next !== cur ? ` (was ${formatDeadline(cur, time)})` : ''}`
             : formatDay(next);
-        setPreview({ kind, id, x: noonX(L, next, tz), label });
+        setPreview({
+          kind,
+          id,
+          x: kind === 'ms' ? deadlineX(L, next, time, tz) : noonX(L, next, tz),
+          label,
+        });
       },
       onDrop: () => {
         endDrag();
@@ -1048,11 +1132,11 @@ export function TrackerScreen({
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || modal) return;
+    if (!edit) return;
     const t = event.target as Element;
     const act = t.closest('svg.pg') && t.closest<SVGElement>('[data-act]');
     if (act?.dataset.act && act.dataset.in)
-      return dragEvent(event, act.dataset.act, act.dataset.in, act);
-    if (!edit) return;
+      return dragEvent(event, act.dataset.act, act.dataset.in);
     const qe = t.closest<HTMLElement>('[data-qevent]');
     const qi = t.closest<HTMLElement>('[data-qitem]');
     const graph = t.closest('svg.tg');
@@ -1133,14 +1217,13 @@ export function TrackerScreen({
     >
       <TopBar
         session={session}
-        view={view}
-        cr={cr}
+        account={account}
+        userId={userId}
         state={state}
         asOf={asOf}
         hidden={hiddenNow}
         drawer={drawer?.mode ?? null}
         actions={actions}
-        onView={openView}
         onDrawer={(mode) => mode !== 'ms' && mode !== 'item' && toggleDrawer(mode)}
         onUnhideTeam={(id) =>
           changeHidden({ ...hidden, hiddenTeams: hidden.hiddenTeams.filter((t) => t !== id) })
@@ -1158,8 +1241,16 @@ export function TrackerScreen({
         actions={actions}
         busy={busy}
         onView={openView}
-        onChanges={() => toggleDrawer('changes')}
-        onRequests={() => toggleDrawer('crs')}
+        onDrawer={toggleDrawer}
+        {...(model
+          ? {
+              review: {
+                canMerge: model.canMerge,
+                changed: frozen.changed,
+                onReviewAgain: reviewAgain,
+              },
+            }
+          : {})}
       />
       {showNotice && (
         <MainNotice
@@ -1171,31 +1262,79 @@ export function TrackerScreen({
         />
       )}
       <div className="p-body">
-        {edit && queueOpen && (
-          <QueuePanel
-            state={state}
-            dir={dir}
-            tz={tz}
-            tab={queueTab}
-            onTab={setQueueTab}
-            onAdd={(tab) => actions.addToQueue(tab === 'items' ? 'item' : 'event')}
-            onEvent={actions.openQueueEvent}
-            onItem={actions.openQueueItem}
-            onHide={() => setQueueOpen(false)}
+        {model && sideOpen && (
+          <CrSide
+            session={session}
+            model={model}
+            edit={edit}
+            tab={sideTab}
+            sel={sel}
+            canPick={model.cr.status === 'ready' && can(payload, 'merge') && !frozen.changed}
+            busy={busy}
+            actions={actions}
+            queueCount={working.state.queue.events.length + working.state.queue.items.length}
+            queue={
+              <QueuePanel
+                state={working.state}
+                dir={dir}
+                tz={tz}
+                tab={queueTab}
+                onTab={setQueueTab}
+                onAdd={(tab) => actions.addToQueue(tab === 'items' ? 'item' : 'event')}
+                onEvent={actions.openQueueEvent}
+                onItem={actions.openQueueItem}
+              />
+            }
+            onTab={setSideTab}
+            onSelect={selectChange}
+            onPick={(key, value) => setPicks((p) => ({ ...p, [key]: value }))}
+            onHide={() => setSideOpen(false)}
           />
         )}
         <div className="gwrap" ref={gwrap}>
-          {edit && !queueOpen && (
-            <button
-              className="btn sm qshow"
-              type="button"
-              aria-expanded="false"
-              title="Show the Queue"
-              onClick={() => setQueueOpen(true)}
-            >
-              <Icon name="sidebar" size={14} /> Queue{' '}
-              <span className="cnt">{state.queue.events.length + state.queue.items.length}</span>
-            </button>
+          {model && (
+            <div className="gtools">
+              {!sideOpen && (
+                <button
+                  className="btn sm"
+                  type="button"
+                  aria-expanded="false"
+                  aria-controls={SIDE_ID}
+                  title="Show the side panel"
+                  onClick={() => setSideOpen(true)}
+                >
+                  <Icon name="sidebar" size={14} /> {mayEdit ? 'Changes and Queue' : 'Changes'}{' '}
+                  <span className="cnt">{model.changes.length}</span>
+                </button>
+              )}
+              <span className="seg" role="group" aria-label="Graph state">
+                <button
+                  type="button"
+                  aria-pressed={graphSide === 'before'}
+                  onClick={() => {
+                    setPop(null);
+                    setMoving(null);
+                    setGraphSide('before');
+                  }}
+                >
+                  Before
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={graphSide === 'after'}
+                  onClick={() => setGraphSide('after')}
+                >
+                  After
+                </button>
+              </span>
+              <span className="muted small">
+                {before
+                  ? 'Main before this change request. Switch to After to edit.'
+                  : mayEdit
+                    ? 'Yellow marks show your changes. Drag from the Queue onto the graph.'
+                    : 'Yellow marks show the changes.'}
+              </span>
+            </div>
           )}
           <div className="gcanvas" ref={canvas}>
             <div className="move-hint-slot">
@@ -1206,6 +1345,8 @@ export function TrackerScreen({
             <TrackerGraph
               layout={layout}
               edit={edit}
+              focusRow={!before && sel !== null ? (model?.changes[sel]?.workItemId ?? null) : null}
+              focusMs={!before && sel !== null ? (model?.changes[sel]?.milestoneId ?? null) : null}
               selectedMs={drawer?.mode === 'ms' ? drawer.id : null}
               selectedRow={drawer?.mode === 'item' ? drawer.id : null}
               flash={null}
@@ -1213,12 +1354,15 @@ export function TrackerScreen({
               preview={preview}
               moving={!!moving}
               reveal={inView}
-              onZoom={setZoom}
+              onZoom={onZoom}
+              onSpan={onSpan}
+              opening={scale.span !== undefined && scale.dayWidth === undefined}
               onMoveTo={onMoveTo}
               onToggleRow={toggleRow}
               onToggleTeam={toggleTeam}
               onReveal={reveal}
               onFocusItem={toggleFocus}
+              onFocusTeam={toggleTeamFocus}
               onHandoff={showRow}
               onRow={(id) => openItem(id, { find: false })}
               onPop={(kind, id, anchor) => setPop({ kind, id, anchor, view })}
@@ -1248,7 +1392,6 @@ export function TrackerScreen({
                 tz={tz}
                 asOf={asOf}
                 edit={edit}
-                offsets={saved}
                 actions={actions}
                 onClose={() => closePop(true)}
                 // The pop sits on the row, so the row is in view already.
@@ -1263,7 +1406,7 @@ export function TrackerScreen({
                     <ol>
                       <li>Add work items and events. They wait in the Queue on the left.</li>
                       <li>Drag a work item onto a team, then drag events onto the work item.</li>
-                      <li>Mark the change request as ready, and the owner merges it.</li>
+                      <li>Mark the change request as ready, and {mergerName} merges it.</li>
                     </ol>
                     <div className="row-btns">
                       <button
@@ -1293,9 +1436,9 @@ export function TrackerScreen({
                         In the change request, add work items and events, then drag them onto the
                         graph.
                       </li>
-                      <li>Mark the change request as ready, and the owner merges it.</li>
+                      <li>Mark the change request as ready, and {mergerName} merges it.</li>
                     </ol>
-                    {!cr && (
+                    {!cr && canCreate && (
                       <div className="row-btns">
                         <button className="btn btn-ink big" type="button" onClick={actions.newCr}>
                           <Icon name="plus" /> New change request
@@ -1333,18 +1476,15 @@ export function TrackerScreen({
               actions={actions}
             />
           )}
-          {drawer?.mode === 'changes' && cr && (
-            <ChangesDrawer {...base} cr={cr} actions={actions} />
-          )}
           {drawer?.mode === 'crs' && (
             <RequestsDrawer {...base} actions={actions} onView={openView} />
           )}
           {drawer?.mode === 'history' && <HistoryDrawer {...base} onView={openView} />}
-          {!drawer && focused && (
+          {!drawer && focus && focusLive && (
             <FocusDrawer
-              key={focused}
+              key={`${focus.kind}-${focus.id}`}
               {...base}
-              focusId={focused}
+              focus={focus}
               isHidden={isHidden}
               grab={focus?.grab ?? false}
               onGrabbed={() => setFocus((f) => f && { ...f, grab: false })}

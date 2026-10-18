@@ -42,15 +42,15 @@ const payload: TrackerPayload = {
     windowStart: null,
     asOf: null,
     demo: true,
-    ownerMemberId: 'minh',
+    leadMemberId: 'minh',
   },
   members: [],
   me: null,
+  canActAs: true,
   base: larkspurBase(),
   queue: queueFromRows(larkspurQueueRows()),
   commits: [],
   crs: [draft],
-  offsets: {},
 };
 
 const attachQe4 = { op: 'attach', a: { eventId: 'qe4', workItemId: 'pg203' } } as const;

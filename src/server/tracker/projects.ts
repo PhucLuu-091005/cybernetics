@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { and, eq } from 'drizzle-orm';
 import {
+  ALL_GRANTS,
   DEFAULT_TIME_ZONE,
   mainState,
   replayOps,
@@ -16,6 +18,8 @@ import {
   trackerMembers,
   trackerProjects,
   trackerQueue,
+  trackerTeamMembers,
+  trackerTeams,
 } from '../db/schema';
 import type { Tx } from '../db/tx';
 import {
@@ -23,14 +27,16 @@ import {
   LARKSPUR_MEMBERS,
   LARKSPUR_OWNER,
   LARKSPUR_PROJECT,
+  LARKSPUR_TEAM_PEOPLE,
   LARKSPUR_WINDOW_START,
   larkspurBase,
   larkspurCrs,
   larkspurQueueRows,
 } from './seed/larkspur';
-import { addComment } from './store';
+import { addComment, insertTeams } from './store';
 
-const OWNER = { roleLabel: 'Project owner, owns Main', color: '#0f766e' };
+export const LEAD_ROLE_LABEL = 'Project lead';
+const LEAD = { roleLabel: LEAD_ROLE_LABEL, color: '#0f766e', ...ALL_GRANTS };
 
 export type CreateTrackerProjectInput = {
   workspaceId: string;
@@ -38,7 +44,7 @@ export type CreateTrackerProjectInput = {
   userId: string;
   userName: string;
   teams: readonly string[];
-  milestone?: { name: string; date: string } | null;
+  milestone?: { name: string; date: string; time?: string } | null;
   demo: boolean;
   asOf?: string | null;
   windowStart?: string | null;
@@ -57,7 +63,9 @@ function startingBase(input: CreateTrackerProjectInput, ownerMemberId: string): 
             id: randomUUID(),
             name: input.milestone.name,
             planned: input.milestone.date,
+            ...(input.milestone.time ? { plannedTime: input.milestone.time } : {}),
             firstPlanned: input.milestone.date,
+            ...(input.milestone.time ? { firstPlannedTime: input.milestone.time } : {}),
             moves: [],
           },
         ]
@@ -78,7 +86,7 @@ export async function createTrackerProject(
     ...tenant,
     id: ownerMemberId,
     name: input.userName,
-    ...OWNER,
+    ...LEAD,
     userId: input.userId,
   });
   await tx.insert(trackerProjects).values({
@@ -90,10 +98,15 @@ export async function createTrackerProject(
     demo: input.demo,
     ownerMemberId,
   });
+  await insertTeams(
+    tx,
+    tenant,
+    base.teams.map(({ id, name }) => ({ id, name, leadId: null, memberIds: [] })),
+  );
   return { ownerMemberId };
 }
 
-/** The owner member keeps the story name Minh Trần (spec 2.19), so it needs no user name. */
+/** The project lead keeps the story name Minh Trần (spec 2.19), so it needs no user name. */
 export async function seedTrackerDemo(
   tx: Tx,
   input: { workspaceId: string; userId: string },
@@ -130,8 +143,20 @@ export async function seedTrackerDemo(
       name: member.name,
       roleLabel: member.roleLabel,
       color: member.color,
+      ...member.grants,
     })),
   );
+  for (const [teamId, people] of Object.entries(LARKSPUR_TEAM_PEOPLE)) {
+    const key = and(eq(trackerTeams.projectId, project.id), eq(trackerTeams.id, teamId));
+    if (people.lead)
+      await tx
+        .update(trackerTeams)
+        .set({ leadMemberId: id(people.lead) })
+        .where(key);
+    await tx
+      .insert(trackerTeamMembers)
+      .values(people.members.map((key) => ({ ...tenant, teamId, memberId: id(key) })));
+  }
   const rows = larkspurQueueRows(id);
   await tx.insert(trackerQueue).values(
     rows.map((row) => ({

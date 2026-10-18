@@ -76,7 +76,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     'get_tracker',
     'project:read',
     TrackerInputSchema,
-    'Read Main of the event tracker: people (id and name), teams, work items with status and planned finish, milestones with status, and the open change requests. Statuses use asOf in the project time zone.',
+    'Read Main of the event tracker: people (id and name), teams, work items with status and planned finish (plannedFinish, and plannedFinishTime as HH:mm or null for the end of that day; firstPlannedFinish and firstPlannedFinishTime the same for the first plan), milestones with status and deadline (planned date, and plannedTime as HH:mm or null for the end of that day; firstPlanned and firstPlannedTime the same for the first plan), and the open change requests. Statuses and times use the project time zone.',
     getTrackerSummary,
   ),
   tool(
@@ -97,7 +97,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     'add_queue_item',
     'queue:add',
     AddQueueItemInputSchema,
-    `Add a work item (title, optional note, doneBy, requestedBy, optional milestoneId and after, plannedFinish as YYYY-MM-DD) to the Queue. Main does not change until a person places it through a change request. ${PEOPLE}`,
+    `Add a work item (title, optional note, doneBy, requestedBy, optional milestoneId and after, plannedFinish as YYYY-MM-DD, optional plannedFinishTime as HH:mm in the project time zone) to the Queue. Main does not change until a person places it through a change request. ${PEOPLE}`,
     addQueueItem,
   ),
   tool(

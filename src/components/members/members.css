@@ -1,0 +1,357 @@
+/* Members page: full width and flat, rows with hairlines (design system 1.2). */
+.tk .pg-body.mb-body {
+  max-width: none;
+  padding: 20px 28px 56px;
+}
+.tk .mb-sec + .mb-sec {
+  margin-top: 36px;
+}
+.tk .mb-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-bottom: 6px;
+}
+.tk .mb-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--fs);
+  font-weight: 600;
+}
+.tk .mb-count {
+  color: var(--ink-3);
+  font-size: var(--fs-s);
+  font-weight: 500;
+}
+.tk .mb-lede {
+  max-width: 760px;
+  margin: 0 0 14px;
+  color: var(--ink-2);
+  font-size: var(--fs-s);
+}
+.tk .mb-inline {
+  display: flex;
+  gap: 8px;
+}
+.tk .mb-inline input {
+  box-sizing: border-box;
+  width: 280px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-ctl);
+  background: var(--panel);
+  color: var(--ink);
+  font: var(--fs-s) var(--f-ui);
+}
+
+.tk .mb-table {
+  border-top: 1px solid var(--rule);
+}
+.tk .mb-row {
+  display: grid;
+  grid-template-columns:
+    minmax(240px, 2fr) minmax(180px, 1.6fr) repeat(4, 92px)
+    232px;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule-2);
+}
+.tk .mb-row.mb-cols {
+  min-height: 0;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
+.tk .mb-c {
+  justify-self: center;
+  text-align: center;
+}
+.tk .mb-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.tk .mb-names {
+  min-width: 0;
+}
+.tk .mb-names b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--fs);
+  font-weight: 600;
+}
+.tk .mb-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tk .mb-names small {
+  display: block;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tk .mb-teams {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  min-width: 0;
+  font-size: var(--fs-s);
+}
+.tk .mb-team {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.tk .mb-lead {
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tk .mb-none {
+  color: var(--ink-3);
+  font-size: var(--fs-s);
+}
+.tk .mb-grant {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.tk .mb-grant input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--ink);
+  cursor: pointer;
+}
+.tk .mb-grant input:disabled {
+  cursor: default;
+}
+.tk .mb-grant-name {
+  display: none;
+  font-size: var(--fs-s);
+}
+.tk .mb-acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.tk .acct-av.mb-sm {
+  width: 22px;
+  height: 22px;
+  font-size: 9px;
+}
+
+.tk .mb-list {
+  border-top: 1px solid var(--rule);
+}
+.tk .mb-trow {
+  display: grid;
+  grid-template-columns: minmax(200px, 1.2fr) minmax(200px, 1fr) minmax(200px, 2fr) 96px;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule-2);
+}
+.tk .mb-trow.mb-cols {
+  min-height: 0;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
+.tk .mb-tname b {
+  display: block;
+  font-size: var(--fs);
+  font-weight: 600;
+}
+.tk .mb-tname small {
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+}
+.tk .mb-tlead,
+.tk .mb-tpeople {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--fs-s);
+}
+
+.tk .mb-cap {
+  display: none;
+  flex: none;
+  width: 52px;
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+}
+.tk .mb-editor {
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+}
+.tk .mb-editor .field input {
+  box-sizing: border-box;
+  width: 100%;
+}
+.tk .mb-pick {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.tk .mb-pick legend {
+  margin-bottom: 6px;
+  padding: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-s);
+  font-weight: 500;
+}
+.tk .mb-pick ul {
+  max-height: 300px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border-top: 1px solid var(--rule-2);
+}
+.tk .mb-pick li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--rule-2);
+}
+.tk .mb-pick-who {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 4px;
+  font-size: var(--fs-s);
+  cursor: pointer;
+}
+.tk .mb-pick-who > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tk .mb-pick-who small {
+  margin-left: 8px;
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+}
+.tk .mb-pick-lead,
+.tk .mb-pick-none {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px;
+  color: var(--ink-2);
+  font-size: var(--fs-s);
+  cursor: pointer;
+}
+.tk .mb-pick input {
+  margin: 0;
+  accent-color: var(--ink);
+}
+.tk .mb-editor .tip {
+  margin: 0;
+}
+.tk .mb-editor-foot .sp {
+  flex: 1;
+}
+
+@media (max-width: 1180px) {
+  .tk .mb-row {
+    grid-template-columns: minmax(200px, 1.6fr) minmax(140px, 1fr) repeat(4, 76px);
+  }
+  .tk .mb-row .mb-acts {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    padding-left: 38px;
+  }
+  .tk .mb-row .mb-acts:empty,
+  .tk .mb-cols .mb-acts-h {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .tk .pg-body.mb-body {
+    padding: 16px 16px 40px;
+  }
+  .tk .mb-inline {
+    flex: 1 1 100%;
+  }
+  .tk .mb-inline input {
+    flex: 1;
+    width: auto;
+  }
+  .tk .mb-row.mb-cols,
+  .tk .mb-trow.mb-cols {
+    display: none;
+  }
+  .tk .mb-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+    padding: 12px 0;
+  }
+  .tk .mb-who,
+  .tk .mb-teams,
+  .tk .mb-row .mb-acts {
+    grid-column: 1 / -1;
+  }
+  .tk .mb-teams,
+  .tk .mb-row .mb-acts {
+    padding-left: 38px;
+  }
+  .tk .mb-c {
+    justify-self: start;
+  }
+  .tk .mb-grant {
+    padding-left: 38px;
+  }
+  .tk .mb-grant:nth-of-type(even) {
+    padding-left: 0;
+  }
+  .tk .mb-grant-name {
+    display: inline;
+  }
+  .tk .mb-trow {
+    grid-template-columns: 1fr auto;
+    gap: 6px 12px;
+  }
+  .tk .mb-tlead,
+  .tk .mb-tpeople {
+    grid-column: 1 / -1;
+  }
+  .tk .mb-cap {
+    display: inline;
+  }
+  .tk .mb-trow .mb-acts {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}

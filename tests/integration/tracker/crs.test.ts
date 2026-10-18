@@ -9,6 +9,7 @@ import {
   removeOp,
 } from '../../../src/server/tracker';
 import { clashesOf, mainState, type TrackerPayload } from '../../../src/tracker';
+import { reviewModel } from '../../../src/tracker/review';
 import { createTestDatabase, testActor, type TestDb } from '../../support/db';
 import { seedDemo, type Demo } from '../../support/tracker-db';
 
@@ -179,6 +180,19 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       ).rejects.toMatchObject({ code: 'VALIDATION' });
       const payload = await getTrackerPayload(t.db, demo.owner, as('lan'));
       expect(crOf(payload, num)).toMatchObject({ ops: [], revision: 0 });
+    });
+
+    it('rejects a parent or a source that would make a loop of links', async () => {
+      await fresh();
+      const { num } = await createCr(t.db, demo.owner, { ...as('lan'), title: 'Loop' });
+      const append = (op: unknown) =>
+        appendOp(t.db, demo.owner, { ...as('lan'), num, expectedRevision: 0, op } as never);
+      await expect(
+        append({ op: 'parent', a: { workItemId: 'crs', parentId: 'pg203' } }),
+      ).rejects.toMatchObject({ code: 'VALIDATION', message: expect.stringMatching(/loop/) });
+      await expect(
+        append({ op: 'after', a: { workItemId: 'analyse', after: ['pg203'] } }),
+      ).rejects.toMatchObject({ code: 'VALIDATION', message: expect.stringMatching(/loop/) });
     });
 
     it('records the acting member and the server time for a date move', async () => {
@@ -388,6 +402,46 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
         code: 'VALIDATION',
       });
     });
+
+    it('records an ask for edit access from a member without edit right, and Grant clears it', async () => {
+      await fresh();
+      const asked = await action('quang', 4, { action: 'ask' });
+      expect(crOf(asked, 4).asks.map((ask) => ask.memberId)).toEqual([demo.ids.quang]);
+      expect(lastComment(asked, 4)).toMatchObject({ kind: 'ask', memberId: demo.ids.quang });
+      await expect(
+        action('ha', 4, { action: 'handover', to: demo.ids.quang }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      const granted = await action('ha', 4, {
+        action: 'share',
+        memberId: demo.ids.quang,
+        permission: 'edit',
+      });
+      expect(crOf(granted, 4).shares).toContainEqual({
+        memberId: demo.ids.quang,
+        permission: 'edit',
+      });
+      expect(crOf(granted, 4).asks).toEqual([]);
+
+      await action('ha', 4, { action: 'share', memberId: demo.ids.lan, permission: 'view' });
+      await action('lan', 4, { action: 'ask' });
+      const declined = await action('ha', 4, { action: 'decline', who: demo.ids.lan });
+      expect(crOf(declined, 4).asks).toEqual([]);
+      expect(crOf(declined, 4).shares).toContainEqual({
+        memberId: demo.ids.lan,
+        permission: 'view',
+      });
+    });
+
+    it('keeps an ask to edit from a member who has edit right when the share stays Can edit', async () => {
+      await fresh();
+      await action('khoa', 4, { action: 'ask' });
+      const same = await action('ha', 4, {
+        action: 'share',
+        memberId: demo.ids.khoa,
+        permission: 'edit',
+      });
+      expect(crOf(same, 4).asks.map((ask) => ask.memberId)).toEqual([demo.ids.khoa]);
+    });
   });
 
   describe('share', () => {
@@ -408,9 +462,6 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
         kind: 'shared',
         memberId: demo.ids.ha,
         body: 'Lan Phạm can view.',
-      });
-      await expect(action('lan', 4, { action: 'ask' })).rejects.toMatchObject({
-        code: 'FORBIDDEN',
       });
       await action('ha', 4, { action: 'share', memberId: demo.ids.lan, permission: 'edit' });
       const asked = await action('lan', 4, { action: 'ask' });
@@ -634,6 +685,30 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       expect(crOf(payload, x.num).status).toBe('ready');
     });
 
+    it('refuses a merge whose link makes a loop with a link that Main took later', async () => {
+      await fresh();
+      const link = async (title: string, workItemId: string, parentId: string) => {
+        const { num } = await createCr(t.db, demo.owner, {
+          ...as('lan'),
+          title,
+          ops: [{ op: 'parent', a: { workItemId, parentId } }],
+        });
+        await action('lan', num, { action: 'ready' });
+        return num;
+      };
+      const first = await link('Go-live under CRS', 'golive', 'crs');
+      const second = await link('CRS under go-live', 'crs', 'golive');
+      await review(second, { action: 'merge', picks: {} });
+      await expect(review(first, { action: 'merge', picks: {} })).rejects.toMatchObject({
+        code: 'CONFLICT',
+        message: expect.stringMatching(/loop/),
+      });
+      const payload = await getTrackerPayload(t.db, demo.owner, as('minh'));
+      expect(crOf(payload, first).status).toBe('ready');
+      expect(reviewModel(payload, first)?.changes[0].skipReason).toBe('loop');
+      expect(reviewModel(payload, first)?.canMerge).toBe(false);
+    });
+
     it('merges only a ready change request', async () => {
       await fresh();
       await expect(review(4, { action: 'merge', picks: {} })).rejects.toMatchObject({
@@ -663,23 +738,61 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       });
     });
 
-    it('closes a ready change request without merging', async () => {
+    it('closes a ready change request without merging, with the reason', async () => {
       await fresh();
-      const closed = await review(3, { action: 'close' });
+      await expect(review(3, { action: 'close' })).rejects.toMatchObject({ code: 'VALIDATION' });
+      await expect(review(3, { action: 'close', reason: '   ' })).rejects.toMatchObject({
+        code: 'VALIDATION',
+      });
+      const closed = await review(3, { action: 'close', reason: 'Main has the name already.' });
       expect(crOf(closed, 3)).toMatchObject({
         status: 'closed',
         closedBy: demo.ids.minh,
         closedRev: 1,
         closedAt: expect.any(String),
       });
-      expect(lastComment(closed, 3)).toMatchObject({ kind: 'closed', memberId: demo.ids.minh });
+      expect(lastComment(closed, 3)).toMatchObject({
+        kind: 'closed',
+        memberId: demo.ids.minh,
+        body: 'Main has the name already.',
+      });
       expect(closed.commits).toHaveLength(1);
-      await expect(review(3, { action: 'close' })).rejects.toMatchObject({
+      await expect(review(3, { action: 'close', reason: 'Again' })).rejects.toMatchObject({
         code: 'CONFLICT',
       });
       await expect(
         action('khoa', 3, { action: 'comment', body: 'Too late' }),
       ).rejects.toMatchObject({ code: 'CONFLICT' });
+    });
+
+    it('lets the author, the editor or a person who may merge cancel a draft, and no one else', async () => {
+      await fresh();
+      const cancel = async (key: string) =>
+        action(key, 4, {
+          action: 'close',
+          reason: `${key} cancels it.`,
+          expectedRevision: await revisionOf(4),
+        });
+      for (const key of ['khoa', 'lan'])
+        await expect(cancel(key)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      const byAuthor = await cancel('ha');
+      expect(crOf(byAuthor, 4)).toMatchObject({ status: 'closed', closedBy: demo.ids.ha });
+      expect(lastComment(byAuthor, 4)).toMatchObject({ kind: 'closed', body: 'ha cancels it.' });
+
+      await fresh();
+      await action('khoa', 4, { action: 'ask' });
+      await action('ha', 4, { action: 'handover', to: demo.ids.khoa });
+      const byEditor = await cancel('khoa');
+      expect(crOf(byEditor, 4)).toMatchObject({ status: 'closed', closedBy: demo.ids.khoa });
+
+      await fresh();
+      const byOwner = await cancel('minh');
+      expect(crOf(byOwner, 4)).toMatchObject({ status: 'closed', closedBy: demo.ids.minh });
+      expect(crOf(byOwner, 4).asks).toEqual([]);
+
+      await fresh();
+      const byMerger = await cancel('quang');
+      expect(crOf(byMerger, 4)).toMatchObject({ status: 'closed', closedBy: demo.ids.quang });
     });
   });
 
@@ -717,7 +830,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       for (const body of [
         { action: 'merge', picks: {} },
         { action: 'request-changes', note: 'Wait' },
-        { action: 'close' },
+        { action: 'close', reason: 'Wait' },
       ])
         await expect(action('minh', 2, { ...body, expectedRevision: seen })).rejects.toMatchObject({
           code: 'CONFLICT',

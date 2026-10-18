@@ -119,13 +119,6 @@ const SHAPES = {
       <path d="M12 2v20" />
     </g>
   ),
-  moveX: (
-    <g {...S}>
-      <path d="m18 8 4 4-4 4" />
-      <path d="M2 12h20" />
-      <path d="m6 8-4 4 4 4" />
-    </g>
-  ),
   trash: (
     <g {...S}>
       <path d="M3 6h18" />

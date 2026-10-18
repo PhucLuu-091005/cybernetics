@@ -9,13 +9,14 @@ import {
 } from './model';
 import type { QueueRow } from './payload';
 import type { OpDescriptionSchema, OpSchema } from './schemas';
-import { DEFAULT_TIME_ZONE, formatDay, formatStamp } from './time';
+import { formatDeadline } from './deadline';
+import { DEFAULT_TIME_ZONE, formatStamp } from './time';
 
 export type Op = z.infer<typeof OpSchema>;
 export type OpName = Op['op'];
 export type OpOf<N extends OpName> = Extract<Op, { op: N }>;
 export type OpDescription = z.infer<typeof OpDescriptionSchema>;
-export type OpEntry = OpDescription & { i: number; skipped?: boolean };
+export type OpEntry = OpDescription & { i: number; skipped?: boolean; loop?: boolean };
 export type Marks = {
   workItems: Set<string>;
   events: Set<string>;
@@ -30,6 +31,8 @@ export class OpError extends Error {
     this.name = 'OpError';
   }
 }
+
+export class LoopError extends OpError {}
 
 type Ctx = { by: string; timeZone: string };
 
@@ -53,6 +56,21 @@ function assertReason(why: string) {
   if (!why.trim()) throw new OpError('Write why the date moves.');
 }
 
+/** Parents and sources together form one tree for focus and layout, so a link must not close a loop. */
+function assertNoLoop(s: TrackerState, item: { id: string; title: string }, start: string[]) {
+  const seen = new Set<string>();
+  const todo = [...start];
+  while (todo.length) {
+    const id = todo.pop()!;
+    if (id === item.id)
+      throw new LoopError(`${item.title}: this link would make a loop of parents and sources.`);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const next = s.workItems.find((w) => w.id === id);
+    if (next) todo.push(...(next.parentId ? [next.parentId] : []), ...next.after);
+  }
+}
+
 function visibleEvent(s: TrackerState, id: string): TrackerEvent {
   const ev = find(s.events, id, 'event');
   if (ev.hidden) throw new OpError(`The event ${id} is hidden`);
@@ -67,8 +85,17 @@ const eventLabel = (s: TrackerState, ev: Pick<TrackerEvent, 'kind' | 'by'>) =>
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-function newItem(fields: Omit<WorkItem, 'firstPlannedFinish' | 'moves'>): WorkItem {
-  return { ...fields, firstPlannedFinish: fields.plannedFinish, moves: [] };
+function newItem(
+  fields: Omit<WorkItem, 'firstPlannedFinish' | 'firstPlannedFinishTime' | 'moves'>,
+): WorkItem {
+  const { plannedFinishTime: time, ...rest } = fields;
+  return {
+    ...rest,
+    ...(time ? { plannedFinishTime: time } : {}),
+    firstPlannedFinish: fields.plannedFinish,
+    ...(time ? { firstPlannedFinishTime: time } : {}),
+    moves: [],
+  };
 }
 
 function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
@@ -114,6 +141,7 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
           parentId: null,
           after: after ? [after.id] : [],
           plannedFinish: a.plannedFinish ?? q.plannedFinish,
+          plannedFinishTime: a.plannedFinish ? a.plannedFinishTime : q.plannedFinishTime,
           since: q.createdAt,
         }),
       );
@@ -153,6 +181,7 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
           parentId: null,
           after: a.after ? [a.after] : [],
           plannedFinish: a.plannedFinish,
+          plannedFinishTime: a.plannedFinishTime,
           since: null,
         }),
       );
@@ -225,17 +254,28 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
       };
     }
     case 'msDate': {
-      const { milestoneId, date, why, by, at } = op.a;
+      const { milestoneId, date, time, why, by, at } = op.a;
       assertReason(why);
       const m = find(s.milestones, milestoneId, 'milestone');
       const old = m.planned;
-      m.moves.push({ from: old, to: date, why, by, at });
+      const oldTime = m.plannedTime;
+      m.moves.push({
+        from: old,
+        ...(oldTime ? { fromTime: oldTime } : {}),
+        to: date,
+        ...(time ? { toTime: time } : {}),
+        why,
+        by,
+        at,
+      });
       m.planned = date;
+      if (time) m.plannedTime = time;
+      else delete m.plannedTime;
       return {
         item: m.name,
         change: 'planned date moved',
-        before: `planned ${formatDay(old)}`,
-        after: `planned ${formatDay(date)}`,
+        before: `planned ${formatDeadline(old, oldTime)}`,
+        after: `planned ${formatDeadline(date, time)}`,
         why,
       };
     }
@@ -272,15 +312,23 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
       };
     }
     case 'newMs': {
-      const { id, name, planned, members } = op.a;
+      const { id, name, planned, time, members } = op.a;
       assertNew(s.milestones, id, 'milestone');
-      s.milestones.push({ id, name, planned, firstPlanned: planned, moves: [] });
+      s.milestones.push({
+        id,
+        name,
+        planned,
+        ...(time ? { plannedTime: time } : {}),
+        firstPlanned: planned,
+        ...(time ? { firstPlannedTime: time } : {}),
+        moves: [],
+      });
       for (const item of s.workItems) if (members.includes(item.id)) item.milestoneId = id;
       return {
         item: name,
         change: 'added',
         before: '',
-        after: `planned ${formatDay(planned)}, ${plural(members.length, 'work item')}`,
+        after: `planned ${formatDeadline(planned, time)}, ${plural(members.length, 'work item')}`,
       };
     }
     case 'rename': {
@@ -290,24 +338,90 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
       return { item: item.title, change: 'renamed', before: old, after: item.title };
     }
     case 'due': {
-      const { workItemId, date, why, by, at } = op.a;
+      const { workItemId, date, time, why, by, at } = op.a;
       assertReason(why);
       const item = find(s.workItems, workItemId, 'work item');
       const old = item.plannedFinish;
-      item.moves.push({ from: old, to: date, why, by, at });
+      const oldTime = item.plannedFinishTime;
+      item.moves.push({
+        from: old,
+        ...(oldTime ? { fromTime: oldTime } : {}),
+        to: date,
+        ...(time ? { toTime: time } : {}),
+        why,
+        by,
+        at,
+      });
       item.plannedFinish = date;
+      if (time) item.plannedFinishTime = time;
+      else delete item.plannedFinishTime;
       return {
         item: item.title,
         change: 'planned finish moved',
-        before: formatDay(old),
-        after: formatDay(date),
+        before: formatDeadline(old, oldTime),
+        after: formatDeadline(date, time),
         why,
       };
     }
+    case 'doneBy':
+    case 'requestedBy': {
+      const item = find(s.workItems, op.a.workItemId, 'work item');
+      const person = find(s.people, op.a.personId, 'person');
+      const old = item[op.op];
+      item[op.op] = person.id;
+      return {
+        item: item.title,
+        change: op.op === 'doneBy' ? 'done by changed' : 'requested by changed',
+        before: personName(s, old),
+        after: person.name,
+      };
+    }
+    case 'team': {
+      const item = find(s.workItems, op.a.workItemId, 'work item');
+      const team = find(s.teams, op.a.teamId, 'team');
+      const old = s.teams.find((t) => t.id === item.teamId);
+      item.teamId = team.id;
+      return {
+        item: item.title,
+        change: 'team changed',
+        before: old?.name ?? '',
+        after: team.name,
+      };
+    }
+    case 'parent': {
+      const item = find(s.workItems, op.a.workItemId, 'work item');
+      const parent = op.a.parentId ? find(s.workItems, op.a.parentId, 'work item') : null;
+      if (parent?.id === item.id) throw new OpError('A work item cannot be its own parent');
+      if (parent) assertNoLoop(s, item, [parent.id]);
+      const old = s.workItems.find((w) => w.id === item.parentId);
+      item.parentId = parent?.id ?? null;
+      return {
+        item: item.title,
+        change: 'parent changed',
+        before: old?.title ?? 'No parent',
+        after: parent?.title ?? 'No parent',
+      };
+    }
+    case 'after': {
+      const item = find(s.workItems, op.a.workItemId, 'work item');
+      const sources = [...new Set(op.a.after)].map((id) => find(s.workItems, id, 'work item'));
+      if (sources.some((w) => w.id === item.id))
+        throw new OpError('A work item cannot lead from itself');
+      assertNoLoop(
+        s,
+        item,
+        sources.map((w) => w.id),
+      );
+      const titles = (ids: string[]) =>
+        ids.map((id) => s.workItems.find((w) => w.id === id)?.title ?? id).join(', ') || 'Nothing';
+      const before = titles(item.after);
+      item.after = sources.map((w) => w.id);
+      return { item: item.title, change: 'leads from changed', before, after: titles(item.after) };
+    }
     case 'addTeam': {
       const { id, name, leadId } = op.a;
-      assertNew(s.teams, id, 'team');
-      s.teams.push({ id, name, leadId });
+      // A merge also writes the team into the project's team list, which Main replays from.
+      if (!s.teams.some((team) => team.id === id)) s.teams.push({ id, name, leadId });
       return {
         item: name,
         change: 'added',
@@ -364,6 +478,11 @@ function mark(marks: Marks, op: Op, state: TrackerState) {
     case 'msRemove':
     case 'msAdd':
     case 'rename':
+    case 'doneBy':
+    case 'requestedBy':
+    case 'team':
+    case 'parent':
+    case 'after':
       marks.workItems.add(op.a.workItemId);
       break;
     case 'due':
@@ -404,6 +523,7 @@ export function replayOps(
         before: '',
         after: '',
         skipped: true,
+        ...(err instanceof LoopError ? { loop: true } : {}),
       });
     }
   });
@@ -433,6 +553,12 @@ export function keysOf(op: Op): string[] {
       return [`loop:${op.a.workItemId}:title`];
     case 'due':
       return [`loop:${op.a.workItemId}:due`];
+    case 'doneBy':
+    case 'requestedBy':
+    case 'team':
+    case 'parent':
+    case 'after':
+      return [`loop:${op.a.workItemId}:${op.op}`];
     default:
       return [];
   }
@@ -453,8 +579,8 @@ function canonical(value: unknown): unknown {
 // The server stamps every date move with its own by and at, so two moves to one date never match in full.
 function compared(x: Pick<Op, 'op' | 'a'>): unknown {
   const op = x as Op;
-  if (op.op === 'due') return [op.op, op.a.workItemId, op.a.date];
-  if (op.op === 'msDate') return [op.op, op.a.milestoneId, op.a.date];
+  if (op.op === 'due') return [op.op, op.a.workItemId, op.a.date, op.a.time ?? null];
+  if (op.op === 'msDate') return [op.op, op.a.milestoneId, op.a.date, op.a.time ?? null];
   return [op.op, op.a];
 }
 

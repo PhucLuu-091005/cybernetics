@@ -8,6 +8,7 @@ import {
   LARKSPUR_PROJECT,
   larkspurBase,
   larkspurQueueRows,
+  LARKSPUR_TEAM_PEOPLE,
 } from '../../../src/server/tracker/seed/larkspur';
 import { browserScopes } from '../../../src/server/http/identity-store';
 import {
@@ -43,13 +44,23 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker demo seed', () => {
       demo: true,
       timeZone: 'Asia/Ho_Chi_Minh',
       windowStart: '2026-09-10',
-      ownerMemberId: demo.ids.minh,
+      leadMemberId: demo.ids.minh,
     });
     expect(sameInstant(payload.project.asOf, LARKSPUR_AS_OF)).toBe(true);
     expect(payload.base.teams).toHaveLength(7);
     expect(payload.base.workItems).toHaveLength(14);
     expect(payload.base.milestones).toHaveLength(2);
-    expect(payload.base).toEqual(larkspurBase(id));
+    // The project's team list replaces the story leads with the members who lead each team.
+    const base = larkspurBase(id);
+    expect(payload.base).toEqual({
+      ...base,
+      teams: base.teams.map((team) => ({
+        ...team,
+        leadId: LARKSPUR_TEAM_PEOPLE[team.id]?.lead
+          ? id(LARKSPUR_TEAM_PEOPLE[team.id].lead!)
+          : null,
+      })),
+    });
     expect(payload.queue.events).toHaveLength(4);
     expect(payload.queue.items).toHaveLength(2);
     const expected = queueFromRows(larkspurQueueRows(id));
@@ -61,11 +72,11 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker demo seed', () => {
     expect(byId(payload.queue.items)).toEqual(byId(expected.items));
   });
 
-  it('has the five demo members, with Minh as the owner linked to the user', () => {
+  it('has the five demo members, with Minh as the project lead linked to the user', () => {
     expect(
       payload.members.map(({ name, roleLabel, color }) => ({ name, roleLabel, color })),
     ).toEqual([
-      { name: 'Minh Trần', roleLabel: 'Project owner, owns Main', color: '#0f766e' },
+      { name: 'Minh Trần', roleLabel: 'Project lead', color: '#0f766e' },
       { name: 'Lan Phạm', roleLabel: 'Digitization lead', color: '#7c3aed' },
       { name: 'Quang Nguyễn', roleLabel: 'Engineering lead', color: '#2563eb' },
       { name: 'Hà Đỗ', roleLabel: 'QA analyst', color: '#db2777' },

@@ -94,7 +94,8 @@ export async function startLocalSession(
   const label = await localLabel(request);
   const { userId } = await store.provisionUser({
     subject: `local:${label ?? 'dev'}`,
-    email: null,
+    // A local address lets an invite by email reach a local user, as a Google sign-in does.
+    email: `${label ?? 'dev'}@local.test`,
     name: label ? `Local developer (${label})` : 'Local developer',
   });
   return sessionCookie(

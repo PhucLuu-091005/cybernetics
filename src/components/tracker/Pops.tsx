@@ -1,11 +1,10 @@
 'use client';
 import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
-  formatDay,
+  formatDeadline,
   formatStamp,
   KIND_LABEL,
   type DateMove,
-  type Offsets,
   type TrackerState,
 } from '../../tracker';
 import type { Directory } from './avatar';
@@ -27,7 +26,6 @@ type Common = {
   asOf: string;
   /** Only a draft that the acting member edits shows the actions that change the graph. */
   edit?: boolean;
-  offsets?: Offsets;
   actions: TrackerActions;
   onClose: () => void;
   onDetails: (workItemId: string) => void;
@@ -48,13 +46,13 @@ export function Moves({
   return (
     <>
       <p className="q-label">
-        First planned {formatDay(first)} · moved {moves.length}×
+        First planned {first} · moved {moves.length}×
       </p>
       <ol className="moves">
         {[...moves].reverse().map((mv, i) => (
           <li key={`${mv.at}-${i}`}>
             <b>
-              {formatDay(mv.from)} → {formatDay(mv.to)}
+              {formatDeadline(mv.from, mv.fromTime)} → {formatDeadline(mv.to, mv.toTime)}
             </b>
             <span>{mv.why}</span>
             <small>
@@ -198,14 +196,6 @@ function ActPop({
           <Btn icon="loop" label="View in work item" onClick={() => c.onDetails(item.id)} />
         </div>
       )}
-      {!!c.offsets && Object.hasOwn(c.offsets, ev.id) && c.offsets[ev.id] !== 0 && (
-        <p className="moved">
-          <Icon name="moveX" size={13} /> Moved inside its day in your view.
-          <button className="lnk" type="button" onClick={() => c.actions.resetPosition(ev.id)}>
-            Reset position
-          </button>
-        </p>
-      )}
       {c.edit && (
         <>
           <div className="pop-btns">
@@ -223,13 +213,9 @@ function ActPop({
             />
           </div>
           <p className="tip">
-            Tip: drag an event left or right inside its day, up or down to another work item, or to
-            the bin to hide it.
+            Tip: drag an event onto another work item, or to the bin to hide it.
           </p>
         </>
-      )}
-      {!c.edit && (
-        <p className="tip">Tip: drag an event left or right to move it inside its day.</p>
       )}
     </PopFrame>
   );

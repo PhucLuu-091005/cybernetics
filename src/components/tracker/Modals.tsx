@@ -9,25 +9,28 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  can,
   addDays,
   dayOf,
   EVENT_KINDS,
-  formatDay,
+  formatDeadline,
   formatStamp,
   itemInfo,
   KIND_LABEL,
   toInstant,
   wallTimeInstant,
   type Cr,
+  type Member,
   type CrPermission,
   type EventKind,
   type TrackerState,
 } from '../../tracker';
 import type { OpInput, QueueEntry } from './api';
 import { Avatar } from './avatar';
-import { trunc, type Session } from './ContextBar';
+import { mergerNames, trunc, type Session } from './ContextBar';
 import { Icon, KindIcon } from './icons';
 import { newTeamOp } from './team';
+import { TimeInput } from './TimeInput';
 
 export type ModalState =
   | { mode: 'add'; what: 'event' | 'item' }
@@ -37,9 +40,12 @@ export type ModalState =
   | { mode: 'fromEvent'; eventId: string; teamId: string }
   | { mode: 'ms' }
   | { mode: 'team' }
-  | { mode: 'due'; kind: 'item' | 'ms'; id: string; date: string }
+  /** Absent `time` keeps the current time of the milestone or the planned finish. */
+  | { mode: 'due'; kind: 'item' | 'ms'; id: string; date: string; time?: string | null }
   | { mode: 'newcr' }
-  | { mode: 'share' };
+  | { mode: 'share' }
+  | { mode: 'cancelCr' }
+  | { mode: 'requestChanges' };
 
 export type ModalHandlers = {
   toast: (text: string) => void;
@@ -50,6 +56,8 @@ export type ModalHandlers = {
   createCr: (title: string) => void;
   share: (memberId: string, permission: CrPermission | 'remove') => void;
   handOver: (memberId: string) => void;
+  cancelCr: (reason: string) => void;
+  requestChanges: (note: string) => void;
 };
 
 type Props = {
@@ -79,7 +87,7 @@ export function fromLocalInput(value: string, tz: string): string | null {
 const hourBefore = (asOf: string, tz: string) => toInstant(Date.parse(asOf) - HOUR, tz);
 const weekAfter = (asOf: string, tz: string) => addDays(dayOf(asOf, tz), 7);
 
-function ModalFrame({
+export function ModalFrame({
   title,
   onClose,
   children,
@@ -299,6 +307,7 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
   const [requestedBy, setRequestedBy] = useState(me);
   const [after, setAfter] = useState('');
   const [planned, setPlanned] = useState(weekAfter(asOf, tz));
+  const [plannedTime, setPlannedTime] = useState('');
   const create = () => {
     if (what === 'event') {
       const at = fromLocalInput(when, tz);
@@ -316,6 +325,7 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
         milestoneId: null,
         after: after || null,
         plannedFinish: planned,
+        ...(plannedTime ? { plannedFinishTime: plannedTime } : {}),
       },
     });
   };
@@ -401,6 +411,13 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
               <DateInput value={planned} onChange={setPlanned} />
             </label>
           </div>
+          <div className="grid2">
+            <label className="field">
+              Time (optional)
+              <TimeInput value={plannedTime} onChange={setPlannedTime} />
+            </label>
+            <p className="tip">Without a time, the planned finish is the end of the day.</p>
+          </div>
           <p className="tip">The work item waits in the Queue. Drag it onto a team to place it.</p>
           <Foot label="Add work item" busy={busy} onCancel={onClose} onCreate={create} />
         </>
@@ -477,17 +494,20 @@ function PlaceModal({ modal, state, busy, on, onClose }: PropsOf<'placeItem'>) {
   const [teamId, setTeamId] = useState(state.teams[0]?.id ?? '');
   const [ms, setMs] = useState(item?.milestoneId ?? '');
   const [planned, setPlanned] = useState(item?.plannedFinish ?? '');
+  const [plannedTime, setPlannedTime] = useState(item?.plannedFinishTime ?? '');
   if (!item) return <Gone onClose={onClose} />;
   const create = () => {
     const ops: OpInput[] = [];
     if (ms && ms !== item.milestoneId)
       ops.push({ op: 'qms', a: { itemId: item.id, milestoneId: ms } });
+    const moved = planned !== item.plannedFinish || plannedTime !== (item.plannedFinishTime ?? '');
     ops.push({
       op: 'place',
       a: {
         itemId: item.id,
         teamId,
-        ...(planned !== item.plannedFinish ? { plannedFinish: planned } : {}),
+        ...(moved ? { plannedFinish: planned } : {}),
+        ...(moved && plannedTime ? { plannedFinishTime: plannedTime } : {}),
       },
     });
     on.commit(ops);
@@ -524,6 +544,10 @@ function PlaceModal({ modal, state, busy, on, onClose }: PropsOf<'placeItem'>) {
         <label className="field">
           Planned finish
           <DateInput value={planned} onChange={setPlanned} />
+        </label>
+        <label className="field">
+          Time (optional)
+          <TimeInput value={plannedTime} onChange={setPlannedTime} />
         </label>
       </div>
       <Foot
@@ -598,6 +622,7 @@ function FromEventModal({ modal, session, state, asOf, busy, on, onClose }: Prop
   const [requestedBy, setRequestedBy] = useState(personOr(state, ev?.by));
   const [after, setAfter] = useState('');
   const [planned, setPlanned] = useState(weekAfter(asOf, tz));
+  const [plannedTime, setPlannedTime] = useState('');
   const team = state.teams.find((t) => t.id === teamId);
   if (!ev || !team) return <Gone onClose={onClose} />;
   const create = () => {
@@ -614,6 +639,7 @@ function FromEventModal({ modal, session, state, asOf, busy, on, onClose }: Prop
           requestedBy,
           after: after || null,
           plannedFinish: planned,
+          ...(plannedTime ? { plannedFinishTime: plannedTime } : {}),
         },
       },
     ]);
@@ -657,6 +683,13 @@ function FromEventModal({ modal, session, state, asOf, busy, on, onClose }: Prop
           <DateInput value={planned} onChange={setPlanned} />
         </label>
       </div>
+      <div className="grid2">
+        <label className="field">
+          Time (optional)
+          <TimeInput value={plannedTime} onChange={setPlannedTime} />
+        </label>
+        <p className="tip">Without a time, the planned finish is the end of the day.</p>
+      </div>
       <Foot label="Create work item" busy={busy} onCancel={onClose} onCreate={create} />
     </ModalFrame>
   );
@@ -665,12 +698,18 @@ function FromEventModal({ modal, session, state, asOf, busy, on, onClose }: Prop
 function MilestoneModal({ session, state, asOf, busy, on, onClose }: PropsOf<'ms'>) {
   const [name, setName] = useState('');
   const [planned, setPlanned] = useState(weekAfter(asOf, session.tz));
+  const [time, setTime] = useState('');
   const [members, setMembers] = useState<string[]>([]);
   const toggle = (id: string, checked: boolean) =>
     setMembers((list) => (checked ? [...list, id] : list.filter((x) => x !== id)));
   const create = () => {
     if (!name.trim()) return on.toast('Give the milestone a name.');
-    on.commit([{ op: 'newMs', a: { id: newId(), name: name.trim(), planned, members } }]);
+    on.commit([
+      {
+        op: 'newMs',
+        a: { id: newId(), name: name.trim(), planned, ...(time ? { time } : {}), members },
+      },
+    ]);
   };
   return (
     <ModalFrame title="New milestone" onClose={onClose}>
@@ -687,6 +726,13 @@ function MilestoneModal({ session, state, asOf, busy, on, onClose }: PropsOf<'ms
           Planned date
           <DateInput value={planned} onChange={setPlanned} />
         </label>
+      </div>
+      <div className="grid2">
+        <label className="field">
+          Time (optional)
+          <TimeInput value={time} onChange={setTime} />
+        </label>
+        <p className="tip">Without a time, the deadline is the end of the day.</p>
       </div>
       <p className="q-label">Work items in it</p>
       <div className="pick">
@@ -712,39 +758,26 @@ function MilestoneModal({ session, state, asOf, busy, on, onClose }: PropsOf<'ms
 
 function TeamModal({ state, busy, on, onClose }: PropsOf<'team'>) {
   const [name, setName] = useState('');
-  const [leadId, setLeadId] = useState('');
   const create = () => {
-    const made = newTeamOp(state, { id: newId(), name, leadId });
+    const made = newTeamOp(state, { id: newId(), name });
     if (made.ok) on.commit([made.op]);
     else on.toast(made.message);
   };
   return (
     <ModalFrame title="New team" onClose={onClose}>
-      <div className="grid2">
-        <label className="field">
-          Name
-          <input
-            value={name}
-            maxLength={200}
-            placeholder="For example: Design"
-            onChange={(event) => setName(event.target.value)}
-            onKeyDown={(event) => event.key === 'Enter' && create()}
-          />
-        </label>
-        <label className="field">
-          Lead (optional)
-          <select value={leadId} onChange={(event) => setLeadId(event.target.value)}>
-            <option value="">No lead</option>
-            {state.people.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <label className="field">
+        Name
+        <input
+          value={name}
+          maxLength={200}
+          placeholder="For example: Design"
+          onChange={(event) => setName(event.target.value)}
+          onKeyDown={(event) => event.key === 'Enter' && create()}
+        />
+      </label>
       <p className="tip">
-        The team gets its own lane. Its lead is the first choice for Done by on new work items.
+        The team gets its own lane. After the merge, the project lead picks its lead and people on
+        the Members page.
       </p>
       <Foot label="Add team" busy={busy} onCancel={onClose} onCreate={create} />
     </ModalFrame>
@@ -752,22 +785,38 @@ function TeamModal({ state, busy, on, onClose }: PropsOf<'team'>) {
 }
 
 function DueModal({ modal, session, state, busy, on, onClose }: PropsOf<'due'>) {
-  const [date, setDate] = useState(modal.date);
-  const [why, setWhy] = useState('');
   const isMs = modal.kind === 'ms';
   const ms = isMs ? state.milestones.find((m) => m.id === modal.id) : undefined;
   const item = isMs ? undefined : state.workItems.find((w) => w.id === modal.id);
+  const [date, setDate] = useState(modal.date);
+  const [time, setTime] = useState(
+    modal.time === undefined
+      ? ((ms ? ms.plannedTime : item?.plannedFinishTime) ?? '')
+      : (modal.time ?? ''),
+  );
+  const [why, setWhy] = useState('');
   const target = ms
-    ? { name: ms.name, cur: ms.planned, first: ms.firstPlanned }
+    ? {
+        name: ms.name,
+        cur: formatDeadline(ms.planned, ms.plannedTime),
+        first: formatDeadline(ms.firstPlanned, ms.firstPlannedTime),
+        same: date === ms.planned && time === (ms.plannedTime ?? ''),
+      }
     : item
-      ? { name: item.title, cur: item.plannedFinish, first: item.firstPlannedFinish }
+      ? {
+          name: item.title,
+          cur: formatDeadline(item.plannedFinish, item.plannedFinishTime),
+          first: formatDeadline(item.firstPlannedFinish, item.firstPlannedFinishTime),
+          same: date === item.plannedFinish && time === (item.plannedFinishTime ?? ''),
+        }
       : null;
   if (!target) return <Gone onClose={onClose} />;
   const create = () => {
     if (!why.trim()) return on.toast('Write why the date moves.');
-    if (date === target.cur) return on.toast('Pick a new date.');
+    if (target.same) return on.toast('Pick a new date or time.');
     const move = {
       date,
+      ...(time ? { time } : {}),
       why: why.trim(),
       by: session.me ?? 'nobody',
       at: toInstant(Date.now(), session.tz),
@@ -786,15 +835,18 @@ function DueModal({ modal, session, state, busy, on, onClose }: PropsOf<'due'>) 
       <blockquote>
         <b>{target.name}</b>
         <br />
-        Planned {formatDay(target.cur)}
-        {target.first !== target.cur && ` · first planned ${formatDay(target.first)}`}
+        Planned {target.cur}
+        {target.first !== target.cur && ` · first planned ${target.first}`}
       </blockquote>
       <div className="grid2">
         <label className="field">
           New date
           <DateInput value={date} onChange={setDate} />
         </label>
-        <span />
+        <label className="field">
+          Time (optional)
+          <TimeInput value={time} onChange={setTime} />
+        </label>
       </div>
       <label className="field">
         Why does the date move? (required)
@@ -807,7 +859,7 @@ function DueModal({ modal, session, state, busy, on, onClose }: PropsOf<'due'>) 
       </label>
       <p className="tip">
         Everyone sees this reason in the history of this {isMs ? 'milestone' : 'work item'}, and the
-        owner of Main sees it in the review.
+        person who merges sees it in the review.
       </p>
       <Foot
         label="Move the date"
@@ -822,7 +874,7 @@ function DueModal({ modal, session, state, busy, on, onClose }: PropsOf<'due'>) 
 }
 
 function NewCrModal({ session, busy, on, onClose }: PropsOf<'newcr'>) {
-  const { dir, me, payload } = session;
+  const { dir, me } = session;
   const [title, setTitle] = useState(() => `${(me ? dir.name(me) : 'My').split(' ')[0]}'s changes`);
   const create = () => {
     if (!title.trim()) return on.toast('Give the change request a name.');
@@ -841,7 +893,7 @@ function NewCrModal({ session, busy, on, onClose }: PropsOf<'newcr'>) {
       </label>
       <p className="tip">
         It starts from the latest Main. Only you can edit it until you share it. When you finish,
-        mark it as ready, and {dir.name(payload.project.ownerMemberId)} merges it into Main.
+        mark it as ready, and {mergerNames(session)} merges it into Main.
       </p>
       <Foot label="Create" busy={busy} onCancel={onClose} onCreate={create} />
     </ModalFrame>
@@ -849,7 +901,106 @@ function NewCrModal({ session, busy, on, onClose }: PropsOf<'newcr'>) {
 }
 
 export const shareLink = (origin: string, projectId: string, num: number) =>
-  `${origin}/projects/${projectId}/graph?cr=${num}`;
+  `${origin}/projects/${projectId}/changes/${num}`;
+
+function NoteModal({
+  title,
+  label,
+  placeholder,
+  tip,
+  action,
+  keep,
+  danger,
+  busy,
+  onClose,
+  onSend,
+}: {
+  title: string;
+  label: string;
+  placeholder: string;
+  tip: string;
+  action: string;
+  keep: string;
+  danger?: boolean;
+  busy: boolean;
+  onClose: () => void;
+  onSend: (text: string) => void;
+}) {
+  const [text, setText] = useState('');
+  const value = text.trim();
+  return (
+    <ModalFrame title={title} onClose={onClose}>
+      <label className="field">
+        {label}
+        <textarea
+          value={text}
+          maxLength={1000}
+          required
+          placeholder={placeholder}
+          onChange={(event) => setText(event.target.value)}
+        />
+      </label>
+      <p className="tip">{tip}</p>
+      <div className="m-foot">
+        <button className="btn big" type="button" onClick={onClose}>
+          {keep}
+        </button>
+        <button
+          className={`btn big ${danger ? 'btn-stop' : 'btn-ink'}`}
+          type="button"
+          disabled={busy || !value}
+          onClick={() => onSend(value)}
+        >
+          {action}
+        </button>
+      </div>
+    </ModalFrame>
+  );
+}
+
+function CancelCrModal({ cr, busy, on, onClose }: PropsOf<'cancelCr'>) {
+  if (!cr) return <Gone onClose={onClose} />;
+  return (
+    <NoteModal
+      title={`Cancel #${cr.num}?`}
+      label="Reason"
+      placeholder="For example: Main has these dates already."
+      tip="Nothing from it goes into Main. Everyone sees the reason in its header and in History."
+      action="Cancel change request"
+      keep="Keep it"
+      danger
+      busy={busy}
+      onClose={onClose}
+      onSend={on.cancelCr}
+    />
+  );
+}
+
+function RequestChangesModal({ cr, session, busy, on, onClose }: PropsOf<'requestChanges'>) {
+  if (!cr) return <Gone onClose={onClose} />;
+  return (
+    <NoteModal
+      title={`Request changes on #${cr.num}`}
+      label="What should change?"
+      placeholder="For example: add the date Daniel promised for the report."
+      tip={`#${cr.num} goes back to draft, and ${session.dir.name(cr.editor)} sees your note in its header.`}
+      action="Send back to draft"
+      keep="Cancel"
+      busy={busy}
+      onClose={onClose}
+      onSend={on.requestChanges}
+    />
+  );
+}
+
+export const shareCandidates = (members: readonly Member[], cr: Cr) =>
+  members.filter(
+    (m) =>
+      m.active &&
+      m.id !== cr.author &&
+      m.id !== cr.editor &&
+      !cr.shares.some((s) => s.memberId === m.id),
+  );
 
 function ShareModal({ session, cr, busy, on, onClose }: PropsOf<'share'>) {
   const { dir, payload, projectId } = session;
@@ -858,10 +1009,13 @@ function ShareModal({ session, cr, busy, on, onClose }: PropsOf<'share'>) {
   const linkRef = useRef<HTMLInputElement>(null);
   if (!cr) return <Gone onClose={onClose} />;
   const link = shareLink(window.location.origin, projectId, cr.num);
-  const others = payload.members.filter(
-    (m) => m.id !== cr.author && !cr.shares.some((s) => s.memberId === m.id),
-  );
+  const others = shareCandidates(payload.members, cr);
   const pick = who && others.some((m) => m.id === who) ? who : (others[0]?.id ?? '');
+  const creates = (id: string) => {
+    const member = payload.members.find((m) => m.id === id);
+    return !!member && can({ ...payload, me: member }, 'create');
+  };
+  const access: CrPermission = perm === 'edit' && creates(pick) ? 'edit' : 'view';
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(link);
@@ -918,7 +1072,9 @@ function ShareModal({ session, cr, busy, on, onClose }: PropsOf<'share'>) {
                 on.share(s.memberId, event.target.value as CrPermission | 'remove')
               }
             >
-              <option value="edit">Can edit</option>
+              {(s.permission === 'edit' || creates(s.memberId)) && (
+                <option value="edit">Can edit</option>
+              )}
               <option value="view">Can view</option>
               <option value="remove">Remove</option>
             </select>
@@ -952,17 +1108,17 @@ function ShareModal({ session, cr, busy, on, onClose }: PropsOf<'share'>) {
             </select>
             <select
               aria-label="Access"
-              value={perm}
+              value={access}
               onChange={(event) => setPerm(event.target.value as CrPermission)}
             >
-              <option value="edit">Can edit</option>
+              {creates(pick) && <option value="edit">Can edit</option>}
               <option value="view">Can view</option>
             </select>
             <button
               className="btn btn-ink"
               type="button"
               disabled={busy || !pick}
-              onClick={() => on.share(pick, perm)}
+              onClick={() => on.share(pick, access)}
             >
               Add
             </button>
@@ -1001,5 +1157,9 @@ export function Modal(props: Props) {
       return <NewCrModal {...props} modal={modal} />;
     case 'share':
       return <ShareModal {...props} modal={modal} />;
+    case 'cancelCr':
+      return <CancelCrModal {...props} modal={modal} />;
+    case 'requestChanges':
+      return <RequestChangesModal {...props} modal={modal} />;
   }
 }

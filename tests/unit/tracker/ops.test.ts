@@ -233,6 +233,56 @@ const CASES: Array<[string, Op, OpDescription]> = [
     makeOp('addTeam', { id: 'legal-team', name: 'Legal', leadId: 'priya' }),
     { item: 'Legal', change: 'added', before: '', after: 'lead Priya Shah' },
   ],
+  [
+    'doneBy',
+    makeOp('doneBy', { workItemId: 'pg203', personId: 'lan' }),
+    {
+      item: 'PG-203 Country list field type',
+      change: 'done by changed',
+      before: 'Quang Nguyễn',
+      after: 'Lan Phạm',
+    },
+  ],
+  [
+    'requestedBy',
+    makeOp('requestedBy', { workItemId: 'pg203', personId: 'sarah' }),
+    {
+      item: 'PG-203 Country list field type',
+      change: 'requested by changed',
+      before: 'Lan Phạm',
+      after: 'Sarah Kim',
+    },
+  ],
+  [
+    'team',
+    makeOp('team', { workItemId: 'pg203', teamId: 'it' }),
+    {
+      item: 'PG-203 Country list field type',
+      change: 'team changed',
+      before: 'Engineering',
+      after: 'IT',
+    },
+  ],
+  [
+    'parent',
+    makeOp('parent', { workItemId: 'pg203', parentId: null }),
+    {
+      item: 'PG-203 Country list field type',
+      change: 'parent changed',
+      before: 'CRS tax residency section with DealCloud sync',
+      after: 'No parent',
+    },
+  ],
+  [
+    'after',
+    makeOp('after', { workItemId: 'pg203', after: [] }),
+    {
+      item: 'PG-203 Country list field type',
+      change: 'leads from changed',
+      before: 'Analyse the CRS and FATCA rules',
+      after: 'Nothing',
+    },
+  ],
 ];
 
 describe('the Larkspur fixture', () => {
@@ -495,6 +545,12 @@ describe('applyOp', () => {
     expect(state.teams.at(-1)).toEqual({ id: 'legal-team', name: 'Legal', leadId: 'priya' });
   });
 
+  it('addTeam keeps a team that the project already has, so a merged one replays', () => {
+    const s = larkspurState();
+    const { state } = applyOp(s, makeOp('addTeam', { id: 'it', name: 'X', leadId: null }));
+    expect(state.teams).toEqual(s.teams);
+  });
+
   it.each<[string, Op]>([
     ['msRemove without a milestone', makeOp('msRemove', { workItemId: 'pg203' })],
     ['msAdd to an unknown milestone', makeOp('msAdd', { workItemId: 'pg203', milestoneId: 'x' })],
@@ -507,7 +563,6 @@ describe('applyOp', () => {
       'newMs with a taken id',
       makeOp('newMs', { id: 'crm', name: 'X', planned: '2026-10-20', members: [] }),
     ],
-    ['addTeam with a taken id', makeOp('addTeam', { id: 'it', name: 'X', leadId: null })],
     [
       'addEvent with a taken id',
       makeOp('addEvent', {
@@ -518,6 +573,38 @@ describe('applyOp', () => {
     ['an unknown op', { op: 'teleport', a: {}, rev: 0, by: 'minh' } as unknown as Op],
   ])('%s throws OpError', (_, op) => {
     expect(() => applyOp(larkspurState(), op)).toThrow(OpError);
+  });
+});
+
+describe('links without loops', () => {
+  const loop = /would make a loop/;
+
+  it('refuses a parent whose own parents or sources reach the work item', () => {
+    expect(() =>
+      applyOp(larkspurState(), makeOp('parent', { workItemId: 'crs', parentId: 'pg203' })),
+    ).toThrow(loop);
+    expect(() =>
+      applyOp(larkspurState(), makeOp('parent', { workItemId: 'crs', parentId: 'pg203' })),
+    ).toThrow(OpError);
+  });
+
+  it('refuses a source whose own sources or parents reach the work item', () => {
+    expect(() =>
+      applyOp(larkspurState(), makeOp('after', { workItemId: 'analyse', after: ['pg203'] })),
+    ).toThrow(loop);
+    expect(() =>
+      applyOp(larkspurState(), makeOp('after', { workItemId: 'crs', after: ['pg201'] })),
+    ).toThrow(loop);
+  });
+
+  it('accepts links that make no loop', () => {
+    const s = applyOp(
+      larkspurState(),
+      makeOp('after', { workItemId: 'pg203', after: ['analyse', 'pg201'] }),
+    ).state;
+    expect(s.workItems.find((w) => w.id === 'pg203')?.after).toEqual(['analyse', 'pg201']);
+    const p = applyOp(larkspurState(), makeOp('parent', { workItemId: 'golive', parentId: 'crs' }));
+    expect(p.state.workItems.find((w) => w.id === 'golive')?.parentId).toBe('crs');
   });
 });
 
@@ -596,6 +683,11 @@ describe('keysOf', () => {
     ['rename', ['loop:pg203:title']],
     ['due', ['loop:pg203:due']],
     ['addTeam', []],
+    ['doneBy', ['loop:pg203:doneBy']],
+    ['requestedBy', ['loop:pg203:requestedBy']],
+    ['team', ['loop:pg203:team']],
+    ['parent', ['loop:pg203:parent']],
+    ['after', ['loop:pg203:after']],
   ])('%s', (name, keys) => {
     const op = CASES.find(([n]) => n === name)?.[1] as Op;
     expect(keysOf(op)).toEqual(keys);

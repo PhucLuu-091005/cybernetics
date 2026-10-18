@@ -14,6 +14,7 @@ import {
   findProjectForActor,
   isId,
   joinTransaction,
+  projectOpenTo,
   withTransaction,
   type Db,
   type ProjectRow,
@@ -123,16 +124,14 @@ export async function getProject(
 export async function listProjects(db: Db, ctx: ActorContext): Promise<Project[]> {
   if (!isId(ctx.userId)) return [];
   const rows = await db
-    .select({ project: projects })
+    .select()
     .from(projects)
-    .innerJoin(
-      workspaceMembers,
+    .where(
       and(
-        eq(workspaceMembers.workspaceId, projects.workspaceId),
-        eq(workspaceMembers.userId, ctx.userId),
+        projectOpenTo(ctx.userId),
+        ctx.kind === 'agent' ? eq(projects.id, ctx.projectId) : undefined,
       ),
     )
-    .where(ctx.kind === 'agent' ? eq(projects.id, ctx.projectId) : undefined)
     .orderBy(asc(projects.createdAt), asc(projects.id));
-  return rows.map((row) => toProject(row.project));
+  return rows.map(toProject);
 }

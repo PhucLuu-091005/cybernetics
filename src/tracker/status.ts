@@ -1,4 +1,5 @@
 import type { Milestone, Status, TrackerEvent, WorkItem } from './model';
+import { itemDeadline, milestoneDeadline } from './deadline';
 import { compareDay, dayOf } from './time';
 
 export type ItemInfo = {
@@ -31,9 +32,6 @@ function byFinish(finishDay: string, planned: string): Status {
   return order < 0 ? 'early' : order === 0 ? 'ontime' : 'flate';
 }
 
-const lateOrPlanned = (asOf: string, planned: string, timeZone: string): Status =>
-  compareDay(dayOf(asOf, timeZone), planned) > 0 ? 'late' : 'planned';
-
 export function itemStatus(
   item: WorkItem,
   events: readonly TrackerEvent[],
@@ -41,8 +39,12 @@ export function itemStatus(
   timeZone: string,
 ): Status {
   const info = itemInfo(item, events);
-  if (info.finishedAt) return byFinish(dayOf(info.finishedAt, timeZone), item.plannedFinish);
-  return lateOrPlanned(asOf, item.plannedFinish, timeZone);
+  const deadline = itemDeadline(item, timeZone);
+  if (info.finishedAt)
+    return time(info.finishedAt) > deadline
+      ? 'flate'
+      : byFinish(dayOf(info.finishedAt, timeZone), item.plannedFinish);
+  return time(asOf) > deadline ? 'late' : 'planned';
 }
 
 export function milestoneStatus(
@@ -54,11 +56,14 @@ export function milestoneStatus(
 ): { status: Status; finishedAt: string | null; members: WorkItem[] } {
   const members = items.filter((item) => item.milestoneId === m.id);
   const finishes = members.map((item) => itemInfo(item, events).finishedAt);
+  const deadline = milestoneDeadline(m, timeZone);
   if (members.length && finishes.every((f) => f !== null)) {
     const finishedAt = finishes.reduce((a, b) => (time(b) > time(a) ? b : a));
-    return { status: byFinish(dayOf(finishedAt, timeZone), m.planned), finishedAt, members };
+    const status =
+      time(finishedAt) > deadline ? 'flate' : byFinish(dayOf(finishedAt, timeZone), m.planned);
+    return { status, finishedAt, members };
   }
-  return { status: lateOrPlanned(asOf, m.planned, timeZone), finishedAt: null, members };
+  return { status: time(asOf) > deadline ? 'late' : 'planned', finishedAt: null, members };
 }
 
 const HOUR = 3_600_000;

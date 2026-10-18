@@ -5,33 +5,59 @@ export const NAME_MAX = ProjectSchema.shape.title.maxLength ?? undefined;
 export const CLIENT_MAX = ProjectSchema.shape.clientName.maxLength ?? undefined;
 const TitleSchema = noNul(ProjectSchema.shape.title);
 const ClientSchema = noNul(ProjectSchema.shape.clientName);
-export const DEFAULT_TEAMS = 'Implementation\nEngineering\nQA';
-const MILESTONE_PROBLEM = 'Give the first milestone a name and a date, or leave both empty.';
+/** The functions that most delivery projects hand work between; each one goes with one click. */
+export const DEFAULT_TEAMS: readonly string[] = [
+  'Product',
+  'Design',
+  'Engineering',
+  'QA',
+  'Operations',
+];
+const MILESTONE_PROBLEM = 'Give the first milestone a name and a date, or leave its fields empty.';
 
 export type NewProjectForm = {
   name: string;
   client: string;
-  /** One team per line. */
-  teams: string;
+  teams: readonly string[];
   milestoneName: string;
   milestoneDate: string;
+  /** HH:mm, or empty for the end of the day. */
+  milestoneTime?: string;
 };
 export type NewProjectBody = {
   title: string;
   clientName: string;
   teams: string[];
-  milestone?: { name: string; date: string };
+  milestone?: { name: string; date: string; time?: string };
 };
 
-const teamsOf = (form: NewProjectForm) => ProjectTeamsSchema.safeParse(form.teams.split(/\r?\n/));
+const teamsOf = (form: NewProjectForm) => ProjectTeamsSchema.safeParse(form.teams);
+
+export function addTeamName(
+  teams: readonly string[],
+  raw: string,
+): { teams: readonly string[]; problem: string | null } {
+  const name = raw.trim();
+  if (!name) return { teams, problem: null };
+  const taken = teams.find((team) => team.toLocaleLowerCase() === name.toLocaleLowerCase());
+  if (taken) return { teams, problem: `${taken} is already in the list.` };
+  const next = [...teams, name];
+  const parsed = ProjectTeamsSchema.safeParse(next);
+  return parsed.success
+    ? { teams: next, problem: null }
+    : { teams, problem: `${parsed.error.issues[0].message}.` };
+}
 
 /** null: no first milestone; a string: why the server would refuse it. */
-function milestoneOf(form: NewProjectForm): { name: string; date: string } | null | string {
+function milestoneOf(
+  form: NewProjectForm,
+): NonNullable<NewProjectBody['milestone']> | null | string {
   const name = form.milestoneName.trim(),
-    date = form.milestoneDate;
-  if (!name && !date) return null;
+    date = form.milestoneDate,
+    time = form.milestoneTime ?? '';
+  if (!name && !date) return time ? MILESTONE_PROBLEM : null;
   if (!name || !date) return MILESTONE_PROBLEM;
-  const parsed = FirstMilestoneSchema.safeParse({ name, date });
+  const parsed = FirstMilestoneSchema.safeParse({ name, date, ...(time ? { time } : {}) });
   return parsed.success ? (parsed.data ?? null) : parsed.error.issues[0].message;
 }
 

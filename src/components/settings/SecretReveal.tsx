@@ -16,12 +16,14 @@ export function SecretReveal({
 }) {
   const [status, setStatus] = useState('');
   return (
-    <div className="stack" role="region" aria-label="New token secret">
-      <p style={{ fontWeight: 700 }}>Copy the secret for “{label}” now. It is shown once.</p>
+    <div className="pg-secret" role="region" aria-label="New token secret">
+      <p>
+        <b>Copy the secret for “{label}” now. It is shown once.</b>
+      </p>
       <div className="secret" data-testid="token-secret">
         {secret}
       </div>
-      <div className="row">
+      <div className="pg-acts">
         <button
           className="btn"
           type="button"
@@ -40,21 +42,19 @@ export function SecretReveal({
         >
           Copy config with this secret
         </button>
-        <span className="faint" role="status" style={{ fontSize: 12 }}>
+        <span className="pg-status" role="status">
           {status}
         </span>
       </div>
-      <p className="faint">
+      <p className="pg-hint">
         Ask your agent to list its tools. Then press Check again: Last call shows the time of that
         call.
       </p>
-      <div className="row">
+      <div className="pg-acts">
         <button className="btn btn-ink" type="button" onClick={onClose}>
           I copied it, hide the secret
         </button>
-        <span className="faint" style={{ fontSize: 12 }}>
-          If you lose it, revoke the token and create a new one.
-        </span>
+        <span className="pg-status">If you lose it, revoke the token and create a new one.</span>
       </div>
     </div>
   );
