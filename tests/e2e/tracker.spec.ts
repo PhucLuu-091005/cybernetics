@@ -392,9 +392,14 @@ test.describe('the tracker walkthrough', () => {
 test.describe('a drag right after a change', () => {
   test.use({ viewport: { width: 1440, height: 900 }, colorScheme: 'light' });
 
-  test('hides the toast while a Queue card moves, so the bin shows in full', async ({ page }) => {
+  test('hides the toast while a Queue card moves, keeps it announced, and holds its timer', async ({
+    page,
+  }) => {
+    await page.clock.install();
     await signIn(page, 'tracker-toast-drag');
     const toast = page.locator('.tk-toast');
+    const status = page.getByRole('status').filter({ hasText: 'Message by Sarah Kim: added' });
+    const opacity = () => toast.evaluate((el) => getComputedStyle(el).opacity);
     const bin = page.locator('.bin');
     await actAs(page, 'Lan Phạm');
     await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
@@ -406,7 +411,7 @@ test.describe('a drag right after a change', () => {
       card('Where is the root cause report'),
       page.locator('svg.pg [data-loop="incident"]'),
     );
-    await expect(toast).toContainText('Message by Sarah Kim: added');
+    await expect(status).toHaveCount(1);
 
     const from = await centerOf(card('Scope call'));
     await page.mouse.move(from.x, from.y);
@@ -414,17 +419,25 @@ test.describe('a drag right after a change', () => {
     await page.mouse.move(from.x + 8, from.y + 8, { steps: 3 });
     await page.mouse.move(from.x + 300, from.y, { steps: 6 });
     await expect(bin).toBeVisible();
-    // The toast times out on its own, so a retrying toBeHidden would pass without the fix.
-    expect(await toast.isVisible()).toBe(false);
+    await expect.poll(opacity).toBe('0');
     const box = (await bin.boundingBox())!;
     const top = await page.evaluate(
       ([x, y]) => document.elementFromPoint(x, y)?.closest('.bin, .tk-toast')?.className ?? '',
       [box.x + box.width / 2, box.y + box.height / 2],
     );
     expect(top).toContain('bin');
+    // A drag longer than the toast time keeps the toast and its Undo.
+    await page.clock.fastForward(10_000);
+    await expect(status).toHaveCount(1);
     await page.mouse.move(from.x, from.y, { steps: 6 });
     await page.mouse.up();
-    await expect(toast).toContainText('Message by Sarah Kim: added');
+    await expect.poll(opacity).toBe('1');
+    await expect(toast.getByRole('button', { name: 'Undo' })).toBeVisible();
+    // After the drop the toast gets its full time again.
+    await page.clock.fastForward(4_000);
+    await expect(status).toHaveCount(1);
+    await page.clock.fastForward(1_000);
+    await expect(status).toHaveCount(0);
   });
 });
 
