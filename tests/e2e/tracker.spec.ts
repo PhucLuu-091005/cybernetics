@@ -440,8 +440,14 @@ test.describe('the top bar', () => {
       await expect(bar.getByRole('button', { name })).toBeVisible();
     await expect(head.getByRole('button', { name: 'New change request' })).toHaveCount(1);
 
+    // Main has no Open draft button; the Change requests list reaches the draft.
     await visit(page, graph);
-    await bar.getByRole('button', { name: 'Open #4 (draft)' }).click();
+    await expect(bar.getByRole('button', { name: /^Open #/ })).toHaveCount(0);
+    await head.getByRole('button', { name: /^Change requests/ }).click();
+    await page
+      .locator('.drawer .req', { hasText: '#4 Test plan for the CRS section' })
+      .getByRole('button', { name: 'Open' })
+      .click();
     await page.waitForURL(/\/changes\/4$/);
     await visit(page, graph);
     await actAs(page, 'Minh Trần');
@@ -1141,7 +1147,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await page.locator('.hid-menu > summary').click();
       await page.getByRole('button', { name: 'Unhide Digitization' }).click();
       await expect(rows).toHaveCount(14);
-      await expect(searchBox).toBeFocused();
+      // The badge goes away with the last hidden row, so the focus moves to the control before it.
+      await expect(page.locator('.bbar .gpick > summary')).toBeFocused();
 
       await side.locator('[data-eyerow="crs"]').click();
       await expect(row('crs')).toHaveCount(0);
@@ -1167,10 +1174,13 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await expect(side.locator('[data-eyeteam="engineering"]')).toHaveCount(0);
       await expect(side.locator('[data-eyeteam="solutions-engineering"]')).toHaveCount(0);
       await expect(side.getByText(/hidden/)).toHaveCount(0);
-      expect(await height()).toBe(full - 6 * 32 - 2 * (40 + 6));
+      expect(await height()).toBe(full - 6 * 32 - 2 * (28 + 6));
 
       const badge = page.locator('.hid-menu > summary');
       await expect(badge).toContainText('3 hidden');
+      // The badge is the last control at the right end of the context bar.
+      await expect(page.locator('.bbar > :last-child')).toHaveClass('hid-menu');
+      await expect(page.locator('.p-head .hid-menu')).toHaveCount(0);
       const list = page.getByRole('dialog', { name: 'Hidden teams and work items' });
       await badge.click();
       await expect(list).toBeVisible();
@@ -1184,7 +1194,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await list.getByRole('button', { name: 'Unhide all' }).click();
       await expect(rows).toHaveCount(14);
       await expect(page.locator('.hid-menu')).toHaveCount(0);
-      await expect(page.getByRole('combobox', { name: 'Search work items' })).toBeFocused();
+      await expect(page.locator('.bbar .gpick > summary')).toBeFocused();
     });
   });
 });

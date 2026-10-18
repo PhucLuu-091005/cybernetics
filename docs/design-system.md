@@ -196,7 +196,7 @@ Stacking order (`z-index`), low to high: pinned axis, zoom bar and bin 3; move h
 - `.badge` with `.st-*`: the status badge. Always pair the hue with its word.
 - `.cnt`: an 18px round count on `--gray-bg`. On an ink button it uses 22 % of `--panel`.
 - `.fchip`: filter chips in the filter panel. Idle: 1px `--rule` border, `--ink-2`. Checked: `--gray-bg`, `--ink` border and text, weight 600. Status chips start with an 8px status dot.
-- `.hid-pill`: the "N hidden" badge in the top bar, 28px, `--gray-bg`. Hover or open: `--rule` fill.
+- `.hid-pill`: the "N hidden" badge at the right end of the context bar, 28px, `--gray-bg`. Hover or open: `--rule` fill.
 - `.nbadge`: the app icon badge on the Change requests button: an 18px pill in `--danger` with white 10.5px weight 600 text and a 2px `--panel` ring, at the top right corner of the button. It counts the Ready change requests and is absent at 0. It is the only solid red count in the app.
 - `.bot`: the Agent chip on a Queue card, on `--route-bg`.
 
@@ -249,8 +249,8 @@ The rail is flat: `--sunk` fill and a 1px `--rule` right border. Items (`.rail-i
 
 ### 8.11 Top bar and context bar
 
-- `.p-head` (top bar): `--panel`, a `--rule` bottom hairline. It holds Search work items (all the free room), the "N hidden" badge, History, Change requests with its `.nbadge`, New change request, the demo select (upper-case 10.5px label) and the acting member (28px avatar, name, role) after a `--rule` divider.
-- `.bbar` (context bar): says what the view is and what you can do. It starts with the view selector (`.gpick > .vsel`): the title of the view in `--fs` weight 600 with a pull-request icon (a 10px ink dot for Main) and a chevron, no box; hover or open: `--hover`. A long title ends with an ellipsis at 56 characters. `.bbar.main` on `--sunk`, `.bbar.mine` on `--edit-bg` (you edit), `.bbar.other` on `--route-bg` (someone else's change request). The ask row (`.ask-row`) is a full-width line on `--caution-bg`; a note (`.bnote`, the cancel reason or the "asked for changes" note) is a full-width `--fs-s` line in `--ink-2`.
+- `.p-head` (top bar): `--panel`, a `--rule` bottom hairline. It holds Search work items (all the free room), History, Change requests with its `.nbadge`, New change request, the demo select (upper-case 10.5px label) and the acting member (28px avatar, name, role) after a `--rule` divider.
+- `.bbar` (context bar): says what the view is and what you can do. It starts with the view selector (`.gpick > .vsel`): the title of the view in `--fs` weight 600 with a pull-request icon (a 10px ink dot for Main) and a chevron, no box; hover or open: `--hover`. A long title ends with an ellipsis at 56 characters. The last control of its first line is the "N hidden" badge (`.hid-menu`), only while something is hidden; on a phone its popup spans the bar. `.bbar.main` on `--sunk`, `.bbar.mine` on `--edit-bg` (you edit), `.bbar.other` on `--route-bg` (someone else's change request). The ask row (`.ask-row`) is a full-width line on `--caution-bg`; a note (`.bnote`, the cancel reason or the "asked for changes" note) is a full-width `--fs-s` line in `--ink-2`.
 - `.cr-side` (side panel of the change request page): 320px, the Changes and Queue tabs as a `.qseg`, a list of changes as rows with hairlines (`.chg-row`; the picked one on `--gray-bg`), the clash picks (`.res-box`) at the top. `.gtools` above the graph holds the Before / After `.seg`.
 - `.btn-stop`: a solid `--danger` button with white text, only for the confirm button of Cancel change request.
 - `.ro-note` (Main is read-only): `--route-bg` with `--route-ink` text, `--r-ctl`, a close button and Don't show again.
