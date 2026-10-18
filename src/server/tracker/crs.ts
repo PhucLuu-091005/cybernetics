@@ -4,8 +4,10 @@ import { z } from 'zod';
 import { RevisionSchema, type ActorContext } from '../../contracts';
 import {
   applyOp,
+  applyingCount,
   clashesOf,
   clashLabel,
+  crState,
   crVersionApplies,
   liveOps,
   mainState,
@@ -340,12 +342,7 @@ async function ready(run: Run) {
   if (!cr.ops.length)
     throw new AppError('VALIDATION', 'Add at least one change before you mark it as ready');
   const main = await loadMain(tx, scope);
-  const { entries } = replayOps(
-    mainState(main.base, main.queue, main.commits),
-    liveOps(cr.ops, main.commits),
-    scope.tracker.timeZone,
-  );
-  if (!entries.some((entry) => !entry.skipped))
+  if (!applyingCount(crState(main.base, main.queue, main.commits, cr, scope.tracker.timeZone)))
     throw new AppError(
       'VALIDATION',
       'Add at least one change that applies before you mark it as ready',
