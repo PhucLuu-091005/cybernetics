@@ -58,6 +58,17 @@ test('the project lead invites, sets grants, edits a team, removes a member and 
     await expect(page.locator('.pg-error')).toHaveText('Invalid email address.');
   });
 
+  await test.step('the invite is a person of the graph at once, in the Person filter', async () => {
+    await page.goto(`/projects/${projectId}/graph`);
+    await hydrated(page);
+    await page.locator('.tfilter-btn').click();
+    const panel = page.getByRole('group', { name: 'Filter the graph' });
+    await expect(panel.locator('.fchip', { hasText: 'members-guest@local.test' })).toHaveCount(1);
+    await expect(panel.locator('.fchip', { hasText: 'Sarah Kim' })).toHaveCount(1);
+    await page.goto(`/projects/${projectId}/members`);
+    await hydrated(page);
+  });
+
   await test.step('grants follow their rule: a team lead keeps Create, Merge turns on its needs', async () => {
     const create = page.getByLabel('Create change requests: Lan Phạm');
     await expect(create).toBeChecked();
