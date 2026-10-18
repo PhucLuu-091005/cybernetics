@@ -1459,7 +1459,7 @@ export function TrackerScreen({
                   onClick={() => setSideOpen(true)}
                 >
                   <Icon name="sidebar" size={14} /> {mayEdit ? 'Changes and Queue' : 'Changes'}{' '}
-                  <span className="cnt">{model.changes.length}</span>
+                  <span className="cnt">{model.applying}</span>
                 </button>
               )}
               <span className="seg" role="group" aria-label="Graph state">
