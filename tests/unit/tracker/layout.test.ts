@@ -904,6 +904,39 @@ describe('layoutTracker: milestone names keep off the T line', () => {
   });
 });
 
+describe('layoutTracker: the narrow label column of a phone', () => {
+  const { NARROW_SIDE } = GEOMETRY;
+
+  it('keeps the wide column without a width and reports the narrow one with it', () => {
+    expect(layoutTracker(larkspurState(), view()).side).toBe(SIDE);
+    expect(layoutTracker(larkspurState(), view({ side: NARROW_SIDE })).side).toBe(NARROW_SIDE);
+    expect(NARROW_SIDE).toBeLessThanOrEqual(140);
+  });
+
+  it('cuts the row and team names to the narrow column, with an ellipsis', () => {
+    for (const density of ['comfortable', 'compact', 'dense'] as Density[]) {
+      const L = layoutTracker(larkspurState(), view({ side: NARROW_SIDE, density }));
+      const char = (6.6 * L.level.font) / ROW_LEVELS.comfortable.font;
+      for (const r of L.rows) {
+        expect(28 + r.depth * INDENT + r.label.length * char).toBeLessThanOrEqual(NARROW_SIDE - 4);
+        if (r.label !== r.title) expect(r.label.endsWith('…')).toBe(true);
+      }
+      expect(L.rows.some((r) => r.label !== r.title)).toBe(true);
+      for (const lane of L.lanes) {
+        const count = laneNameWidth(` · ${lane.summary.count}`, true);
+        expect(24 + laneNameWidth(lane.label) + count).toBeLessThanOrEqual(NARROW_SIDE - 4);
+      }
+    }
+  });
+
+  it('leaves the time line where it was', () => {
+    const wide = layoutTracker(larkspurState(), view({ span: 262 }));
+    const narrow = layoutTracker(larkspurState(), view({ span: 262, side: NARROW_SIDE }));
+    expect(narrow.tLine.x).toBe(wide.tLine.x);
+    expect(narrow.width).toBe(wide.width);
+  });
+});
+
 describe('layoutTracker: a milestone deadline with a time', () => {
   const busyDay = (plannedTime?: string) =>
     buildState({

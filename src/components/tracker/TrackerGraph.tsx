@@ -264,7 +264,7 @@ export function TrackerGraph(props: Props) {
     anchor.current = null;
     const scale = svg.getBoundingClientRect().width / (L.width - SIDE);
     el.scrollLeft = (L.x(a.t) - SIDE) * scale - (a.clientX - el.getBoundingClientRect().left);
-    // On a phone the whole graph is wider than the screen and scrolls as well, so T needs both.
+    // A frame wider than its box (a narrow window, not a phone) scrolls too, so T needs both.
     if (a.open && body.current) body.current.scrollLeft = body.current.scrollWidth;
   }, [L]);
 
@@ -320,7 +320,7 @@ export function TrackerGraph(props: Props) {
   // The pinned axis sits outside the scrolling graph, so it copies the sideways scroll of the rows.
   const syncHead = useCallback(() => {
     if (head.current && body.current) head.current.scrollLeft = body.current.scrollLeft;
-    // On a phone the whole graph scrolls too, so the lane counts also move past the hidden labels.
+    // When the whole graph scrolls too, the lane counts also move past the hidden labels.
     if (body.current && scroller.current)
       scroller.current.style.setProperty(
         '--lane-shift',
@@ -564,7 +564,11 @@ export function TrackerGraph(props: Props) {
   };
   // Label text measures differ by glyph, so a clip keeps a long label off the buttons.
   const clipId = `labels-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
-  const labelEnd = X0 - (props.onFocusItem ? 54 : 36);
+  const sideW = L.side;
+  const narrow = sideW < SIDE;
+  const labelEnd = narrow ? sideW - 4 : X0 - (props.onFocusItem ? 54 : 36);
+  const focusItem = narrow ? undefined : props.onFocusItem;
+  const focusTeam = narrow ? undefined : props.onFocusTeam;
 
   const run = (target: Element) => {
     const el = target.closest<SVGElement>(TARGETS);
@@ -628,20 +632,20 @@ export function TrackerGraph(props: Props) {
   const sideHead = (
     <svg
       className="tg pg-top pg-top-side"
-      viewBox={`0 0 ${SIDE} ${TOP}`}
-      style={{ width: SIDE }}
+      viewBox={`0 0 ${sideW} ${TOP}`}
+      width={sideW}
       role="group"
       aria-label="Milestones"
       {...svgProps}
     >
-      <text className="lane-name" x={12} y={TRUNK_Y + 4}>
+      <text className="lane-name" x={12} y={narrow && edit ? AXIS_Y + 4 : TRUNK_Y + 4}>
         MILESTONES
       </text>
       {edit && (
         <g
           className="pill"
           data-newms="1"
-          transform={`translate(112 ${TRUNK_Y - 8})`}
+          transform={`translate(${narrow ? 12 : 112} ${TRUNK_Y - 8})`}
           {...button('New milestone')}
         >
           <rect width={104} height={16} rx={8} />
@@ -650,20 +654,20 @@ export function TrackerGraph(props: Props) {
           </text>
         </g>
       )}
-      <line className="divider" x1={SIDE - 0.5} x2={SIDE - 0.5} y1={0} y2={TOP} />
+      <line className="divider" x1={sideW - 0.5} x2={sideW - 0.5} y1={0} y2={TOP} />
     </svg>
   );
 
   const side = (
     <svg
       className="tg pg-side"
-      viewBox={`0 ${TOP} ${SIDE} ${BODY}`}
-      style={{ width: SIDE }}
+      viewBox={`0 ${TOP} ${sideW} ${BODY}`}
+      width={sideW}
       role="group"
       aria-label="Teams and work items"
       {...svgProps}
     >
-      {bands(0, SIDE)}
+      {bands(0, sideW)}
       <clipPath id={clipId}>
         <rect x={0} y={0} width={labelEnd} height={H} />
       </clipPath>
@@ -685,7 +689,7 @@ export function TrackerGraph(props: Props) {
                 data-teamsum={lane.teamId}
                 x={0.5}
                 y={top + 0.5}
-                width={SIDE - 1}
+                width={sideW - 1}
                 height={head - 1}
                 aria-expanded={!lane.collapsed}
                 {...button(summary.ariaLabel)}
@@ -716,7 +720,7 @@ export function TrackerGraph(props: Props) {
                 <title>{lane.name}</title>
               )}
             </text>
-            {props.onFocusTeam && (
+            {focusTeam && (
               <g
                 className={cls('eye', 'focus-btn', lane.focused && 'on')}
                 data-focusteam={lane.teamId}
@@ -730,10 +734,12 @@ export function TrackerGraph(props: Props) {
                 </title>
               </g>
             )}
-            <g className="eye" data-eyeteam={lane.teamId} {...button(lane.eyeLabel)}>
-              <rect x={X0 - 24 - btn / 2} y={by} width={btn} height={btn} />
-              <SvgIcon name="eye" x={X0 - 24} y={by + btn / 2} size={icon} />
-            </g>
+            {!narrow && (
+              <g className="eye" data-eyeteam={lane.teamId} {...button(lane.eyeLabel)}>
+                <rect x={X0 - 24 - btn / 2} y={by} width={btn} height={btn} />
+                <SvgIcon name="eye" x={X0 - 24} y={by + btn / 2} size={icon} />
+              </g>
+            )}
             {lane.guide && (
               <line className="guide" x1={16} x2={16} y1={lane.guide.y1} y2={lane.guide.y2} />
             )}
@@ -762,7 +768,7 @@ export function TrackerGraph(props: Props) {
               data-rowlabel={r.id}
               x={22}
               y={r.y - lv.hit / 2}
-              width={SIDE - 22}
+              width={sideW - 22}
               height={lv.hit}
             />
             <line className="guide" x1={16} x2={24 + indent} y1={r.y} y2={r.y} />
@@ -786,14 +792,14 @@ export function TrackerGraph(props: Props) {
               data-rowlabel={r.id}
               x={26}
               y={r.y - Math.min(10, lv.hit / 2)}
-              width={X0 - (props.onFocusItem ? 82 : 64)}
+              width={narrow ? sideW - 30 : X0 - (props.onFocusItem ? 82 : 64)}
               height={Math.min(20, lv.hit)}
             >
               <title>
                 {edit ? 'Open the details, or drag onto a milestone to add it' : 'Open the details'}
               </title>
             </rect>
-            {props.onFocusItem && (
+            {focusItem && (
               <g
                 className={cls('eye', 'focus-btn', r.focused && 'on')}
                 data-focusitem={r.id}
@@ -813,14 +819,21 @@ export function TrackerGraph(props: Props) {
                 </title>
               </g>
             )}
-            <g className="eye" data-eyerow={r.id} {...button(r.eyeLabel)}>
-              <rect x={X0 - 24 - lv.btn / 2} y={r.y - lv.btn / 2} width={lv.btn} height={lv.btn} />
-              <SvgIcon name="eye" x={X0 - 24} y={r.y} size={lv.btnIcon} />
-            </g>
+            {!narrow && (
+              <g className="eye" data-eyerow={r.id} {...button(r.eyeLabel)}>
+                <rect
+                  x={X0 - 24 - lv.btn / 2}
+                  y={r.y - lv.btn / 2}
+                  width={lv.btn}
+                  height={lv.btn}
+                />
+                <SvgIcon name="eye" x={X0 - 24} y={r.y} size={lv.btnIcon} />
+              </g>
+            )}
           </Fragment>
         );
       })}
-      <line className="divider" x1={SIDE - 0.5} x2={SIDE - 0.5} y1={TOP} y2={H} />
+      <line className="divider" x1={sideW - 0.5} x2={sideW - 0.5} y1={TOP} y2={H} />
     </svg>
   );
 

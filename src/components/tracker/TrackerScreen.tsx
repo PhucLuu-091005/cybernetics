@@ -22,6 +22,7 @@ import {
   formatDay,
   formatDeadline,
   KIND_LABEL,
+  GEOMETRY,
   layoutTracker,
   matchRows,
   NO_FILTER,
@@ -276,6 +277,15 @@ const minuteNow = () => Math.floor(Date.now() / MINUTE) * MINUTE;
 // Hydration renders with the server's minute, so the T line matches the server HTML; the client clock takes over after.
 export const useNow = (serverNow: number) =>
   useSyncExternalStore(everyHalfMinute, minuteNow, () => serverNow);
+
+const watchPhone = (onChange: () => void) => {
+  const query = window.matchMedia(PHONE_QUERY);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+};
+const isPhone = () => window.matchMedia(PHONE_QUERY).matches;
+// CSS sets the phone column width before this flag arrives, so the first measured span is already right.
+const usePhone = () => useSyncExternalStore(watchPhone, isPhone, () => false);
 
 const crByNum = (p: TrackerPayload, num: number) => p.crs.find((c) => c.num === num);
 const withoutNum = (data: TrackerPayload & { num?: number }): TrackerPayload => {
@@ -573,6 +583,7 @@ export function TrackerScreen({
     () => windowStartFor(state, project.windowStart, asOf, tz),
     [state, project.windowStart, asOf, tz],
   );
+  const phone = usePhone();
   const layout = useMemo(
     () =>
       layoutTracker(
@@ -590,6 +601,7 @@ export function TrackerScreen({
           density,
           collapsedTeams: collapsed,
           plusButtons: edit,
+          ...(phone ? { side: GEOMETRY.NARROW_SIDE } : {}),
           ...(windowStart ? { windowStart } : {}),
         },
         current.marks,
@@ -608,6 +620,7 @@ export function TrackerScreen({
       density,
       collapsed,
       edit,
+      phone,
     ],
   );
   // Pointer handlers outlive the render that started a drag, and a poll can land in between.
