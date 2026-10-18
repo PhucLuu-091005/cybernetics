@@ -1,6 +1,22 @@
 .app {
   grid-template-columns: auto minmax(0, 1fr);
 }
+/* The rail is sticky and one screen high; this column paints its fill and line down a long page. */
+@media (min-width: 761px) {
+  .app::before {
+    content: '';
+    grid-area: 1 / 1;
+    background: var(--sunk);
+    border-right: 1px solid var(--rule);
+  }
+  .app > .rail {
+    grid-area: 1 / 1;
+    align-self: start;
+  }
+  .app > .main {
+    grid-area: 1 / 2;
+  }
+}
 .rail {
   box-sizing: border-box;
   width: 212px;
@@ -478,8 +494,8 @@
 .tk.pg {
   min-height: 100vh;
 }
-/* One page frame for every page: the top bar is the graph's bar (52 px, --page-x sides), and the body
-   fills the width beside the rail with the same side padding. */
+/* One page frame for every page: the same 52 px top bar and the same side padding (--page-x) on the
+   graph, a change request, Members and Settings; the body fills the width beside the rail. */
 .tk {
   --page-x: 24px;
 }
@@ -722,6 +738,12 @@
   color: var(--ink-3);
   font-size: var(--fs-xs);
   font-weight: 500;
+}
+.tk .pg-warn {
+  margin: 0;
+  padding-bottom: 4px;
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
 }
 .tk .pg-scope {
   align-items: flex-start;
