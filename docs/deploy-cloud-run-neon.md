@@ -50,14 +50,14 @@ The app needs the two URLs for these reasons:
    gcloud config set project <GCP_PROJECT_ID>
    ```
 
-3. Enable the four services that the deploy uses:
+3. Enable the five services that the deploy uses:
 
    ```sh
    gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
-     artifactregistry.googleapis.com secretmanager.googleapis.com
+     artifactregistry.googleapis.com secretmanager.googleapis.com iam.googleapis.com
    ```
 
-4. Read the project number. The deploy script uses it too.
+4. Read the project number. You need it for the service URL in step 4.
 
    ```sh
    gcloud projects describe <GCP_PROJECT_ID> --format='value(projectNumber)'
@@ -88,32 +88,45 @@ This URL is `NEXT_PUBLIC_APP_URL`. Write it without a `/` at the end. The deploy
    openssl rand -hex 32
    ```
 
-2. Put the values in the environment of your terminal. A leading space keeps a line out of the zsh and bash history when `HISTCONTROL` or `HIST_IGNORE_SPACE` is on; you can also put the lines in a file outside the repository and `source` it.
+2. Put the values in a file outside the repository that only you can read. Do not type them on the command line: zsh and bash save each command in a history file (`~/.zsh_history`), so a secret typed there stays on the disk.
 
    ```sh
-    export GCP_PROJECT_ID=promise-graph-demo
-    export NEXT_PUBLIC_APP_URL=https://promise-graph-<PROJECT_NUMBER>.asia-southeast1.run.app
-    export SESSION_SECRET=<the output of openssl rand -hex 32>
-    export GOOGLE_CLIENT_ID=<client id>
-    export GOOGLE_CLIENT_SECRET=<client secret>
-    export DATABASE_URL='<the -pooler URL from Neon>'
-    export MIGRATE_DATABASE_URL='<the direct URL from Neon>'
+   mkdir -p ~/.config/promise-graph
+   touch ~/.config/promise-graph/deploy.env
+   chmod 600 ~/.config/promise-graph/deploy.env
+   open -e ~/.config/promise-graph/deploy.env   # or any text editor
    ```
 
-3. From the repository root, run:
+   Write these lines in the file and save it:
 
    ```sh
-   scripts/deploy-cloud-run.sh
+   export GCP_PROJECT_ID=promise-graph-demo
+   export NEXT_PUBLIC_APP_URL=https://promise-graph-<PROJECT_NUMBER>.asia-southeast1.run.app
+   export SESSION_SECRET=<the output of openssl rand -hex 32>
+   export GOOGLE_CLIENT_ID=<client id>
+   export GOOGLE_CLIENT_SECRET=<client secret>
+   export DATABASE_URL='<the -pooler URL from Neon>'
+   export MIGRATE_DATABASE_URL='<the direct URL from Neon>'
+   ```
+
+   The file is outside the repository, so `git` and the Cloud Build upload never see it. `chmod 600` lets only your user read it. After the deploy works, you can delete it: the values live in Secret Manager.
+
+3. From the repository root, load the file and run the script in one subshell, so the values do not stay in your terminal:
+
+   ```sh
+   (source ~/.config/promise-graph/deploy.env && scripts/deploy-cloud-run.sh)
    ```
 
 The script does these things:
 
 1. It stops before it calls gcloud when a value is missing or wrong: an origin without `https://`, a session secret under 32 bytes, a `DATABASE_URL` without `-pooler`, or a `MIGRATE_DATABASE_URL` with `-pooler`.
-2. It stores `SESSION_SECRET`, `GOOGLE_CLIENT_SECRET`, `DATABASE_URL` and `MIGRATE_DATABASE_URL` in Secret Manager as `promise-graph-session-secret`, `promise-graph-google-client-secret`, `promise-graph-database-url` and `promise-graph-migrate-database-url`. It sends each value on stdin and never prints it. It lets the runtime service account (`<PROJECT_NUMBER>-compute@developer.gserviceaccount.com`) read them.
-3. It runs one `gcloud run deploy`. Cloud Build builds the `Dockerfile`, and Cloud Run starts it in `asia-southeast1`:
+2. It creates the service account `promise-graph-runtime@<GCP_PROJECT_ID>.iam.gserviceaccount.com` once. The service runs as this account. The account gets no project role: it can only read the four secrets below. Cloud Run writes the logs of the service without a role on the account.
+3. It stores `SESSION_SECRET`, `GOOGLE_CLIENT_SECRET`, `DATABASE_URL` and `MIGRATE_DATABASE_URL` in Secret Manager as `promise-graph-session-secret`, `promise-graph-google-client-secret`, `promise-graph-database-url` and `promise-graph-migrate-database-url`. It sends each value on stdin and never prints it. It lets the runtime account read each one.
+4. It runs one `gcloud run deploy`. Cloud Build builds the `Dockerfile`, and Cloud Run starts it in `asia-southeast1`:
 
    ```sh
    gcloud run deploy promise-graph --project "$GCP_PROJECT_ID" --region asia-southeast1 --source . \
+     --service-account "promise-graph-runtime@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
      --allow-unauthenticated --min-instances 0 --max-instances 1 --cpu 1 --memory 512Mi \
      --concurrency 80 --timeout 300 \
      --startup-probe "httpGet.path=/api/health,periodSeconds=5,timeoutSeconds=3,failureThreshold=24" \
@@ -121,7 +134,8 @@ The script does these things:
      --set-secrets "SESSION_SECRET=promise-graph-session-secret:latest,GOOGLE_CLIENT_SECRET=promise-graph-google-client-secret:latest,DATABASE_URL=promise-graph-database-url:latest,MIGRATE_DATABASE_URL=promise-graph-migrate-database-url:latest"
    ```
 
-4. It prints the service URL and the OAuth redirect URI. If `NEXT_PUBLIC_APP_URL` is not a URL of the service, it prints a `gcloud run services update … --update-env-vars NEXT_PUBLIC_APP_URL=…` command and exits with status 3. Run that command, and add the printed redirect URI to the OAuth client (step 5). The update makes a new revision without a new build.
+5. With `UPDATE_SECRETS=1`, it destroys the old secret versions, only after the deploy works (see step 8).
+6. It prints the service URL and the OAuth redirect URI. If `NEXT_PUBLIC_APP_URL` is not a URL of the service, it prints a `gcloud run services update … --update-env-vars NEXT_PUBLIC_APP_URL=…` command and exits with status 3. Run that command, and add the printed redirect URI to the OAuth client (step 5). The update makes a new revision without a new build.
 
 The first build takes about 5 minutes. The first time, gcloud asks to create an Artifact Registry repository named `cloud-run-source-deploy`; the script answers yes.
 
@@ -139,16 +153,16 @@ Why these settings:
 
    ```sh
    gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="promise-graph"' \
-     --project "$GCP_PROJECT_ID" --freshness 1h --limit 50 --format 'value(jsonPayload, textPayload)'
+     --project "$GCP_PROJECT_ID" --freshness 1h --limit 50 --format json | grep '"event"'
    ```
 
-   Look for `{"event":"migrations_applied",…}`. A line `{"event":"migrations_waiting"}` means another container held the migration lock; the start goes on when that container is done. A line `{"event":"migrations_failed",…}` means the container stopped, and Cloud Run keeps the previous revision.
+   Cloud Run reads each JSON line of the container into `jsonPayload`, so look for `"event": "migrations_applied"`. `"event": "migrations_waiting"` means that another container held the migration lock; the start goes on when that container is done. `"event": "migrations_failed"` means that the container stopped, and Cloud Run keeps the previous revision. Its `message` says why.
 3. Open `NEXT_PUBLIC_APP_URL`, select **Continue with Google** and sign in. The first sign-in of each account builds its Larkspur sandbox, so it takes longer than later sign-ins.
 
 ## 8. Deploy again
 
 - After a code change, run `scripts/deploy-cloud-run.sh` again with the same values. It keeps the stored secrets.
-- To change a secret, run it with `UPDATE_SECRETS=1`. It adds a new version of each secret and destroys the older versions, so the project keeps 4 active versions, under the free 6.
+- To change a secret, run it with `UPDATE_SECRETS=1`. It adds a new version of each secret. After the deploy works, it destroys the older versions, so the project keeps 4 active versions, under the free 6. When the deploy fails, it destroys nothing. When it cannot list the versions, it stops with status 4; then destroy the old versions in the console (**Security → Secret Manager**).
 - To change only `NEXT_PUBLIC_APP_URL` or `GOOGLE_CLIENT_ID`, use `gcloud run services update promise-graph --region asia-southeast1 --update-env-vars KEY=value`. No build is needed.
 
 ## 9. Stay inside the free tier
@@ -162,7 +176,7 @@ Why these settings:
 
 ## Troubleshooting
 
-- **The build fails with a permission error on the service account.** Some new projects do not give the default compute service account the build role. Run:
+- **The build fails with a permission error on the service account.** Cloud Build builds the image as the default compute service account. Some new projects do not give that account the build role. Run:
 
   ```sh
   gcloud projects add-iam-policy-binding "$GCP_PROJECT_ID" \
@@ -170,7 +184,7 @@ Why these settings:
     --role roles/run.builder
   ```
 
-- **`migrations_failed` with `MIGRATE_DATABASE_URL`.** The migration URL is the pooled one. Copy the URL with **Connection pooling** off, then run the script with `UPDATE_SECRETS=1`.
+- **`migrations_failed` with code `28P01` (password authentication failed).** The password in a Neon URL is old, for example after a password reset in Neon. Copy both URLs again (step 1), put them in the env file, then run the script with `UPDATE_SECRETS=1`.
 - **Google says `redirect_uri_mismatch`.** The redirect URI in the OAuth client must equal `NEXT_PUBLIC_APP_URL` followed by `/api/auth/google/callback`.
 - **The page says "Production requires HTTPS".** `NEXT_PUBLIC_APP_URL` starts with `http://`. Set it to the `https://` service URL.
 - **A request fails once after a long idle time.** Neon closes idle connections when it stops. The app drops a closed connection and opens a new one, so a reload works.

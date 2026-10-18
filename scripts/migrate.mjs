@@ -20,13 +20,13 @@ const isPooled = (connectionString) => {
   }
 };
 
-const connectionString = process.env.MIGRATE_DATABASE_URL || process.env.DATABASE_URL;
+const source = process.env.MIGRATE_DATABASE_URL ? 'MIGRATE_DATABASE_URL' : 'DATABASE_URL';
+const connectionString = process.env[source];
 if (!connectionString) fail({ message: 'DATABASE_URL is required' });
 // A session lock over PgBouncer in transaction mode can land on another server connection, so it would lock nothing.
 else if (isPooled(connectionString))
   fail({
-    message:
-      'DATABASE_URL is a pooled (-pooler) host: set MIGRATE_DATABASE_URL to the direct host of the same database',
+    message: `${source} is a pooled (-pooler) host: set MIGRATE_DATABASE_URL to the direct host of the same database`,
   });
 else {
   const migrationsFolder = path.join(process.cwd(), 'src/server/db/migrations');

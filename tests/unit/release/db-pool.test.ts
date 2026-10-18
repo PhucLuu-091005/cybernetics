@@ -8,7 +8,7 @@ const NEON_DIRECT =
   'postgresql://neondb_owner:secret@ep-quiet-lake-a1b2c3d4.ap-southeast-1.aws.neon.tech/neondb?sslmode=verify-full';
 
 describe('poolConfig', () => {
-  it('keeps the pool small, so two Cloud Run instances stay far under the Neon connection limit', () => {
+  it('keeps the pool small, so the one Cloud Run instance (and a second one during a rollout) stays far under the Neon connection limit', () => {
     expect(poolConfig(LOCAL).max).toBe(5);
   });
   it('waits long enough for a Neon compute that wakes from scale to zero', () => {
