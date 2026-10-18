@@ -715,6 +715,12 @@ function linesOf(c: Ctx, shown: LayoutRow[]): LayoutSegment[] {
         ...(gone.length ? [`${short(gone)} ${gone.length > 1 ? 'were' : 'was'} cancelled`] : []),
       ];
       const text = parts.length ? parts.join(' · ') : 'No events yet';
+      const plus = c.xt + PLUS_GAP;
+      const afterPlus = plus + c.level.plus + 4;
+      const onPlus =
+        !!c.view.plusButtons &&
+        sx + 8 < afterPlus &&
+        sx + 8 + text.length * WAIT_CHAR > plus - c.level.plus - 2;
       segments.push({
         kind: 'wait',
         workItemId: w.id,
@@ -723,7 +729,8 @@ function linesOf(c: Ctx, shown: LayoutRow[]): LayoutSegment[] {
         y: r.y,
         tone: 'ink-3',
         text,
-        textX: sx + 8,
+        // The + buttons of this row and the row above sit at the same x, so the text starts after them.
+        textX: onPlus ? afterPlus : sx + 8,
         textY: r.y - c.level.waitRise,
       });
       continue;
