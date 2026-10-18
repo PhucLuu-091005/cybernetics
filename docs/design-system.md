@@ -42,7 +42,7 @@ The theme toggle in the rail cycles system, light and dark. It sets `data-theme`
 | `--scrim` | `rgb(11 12 16 / 0.38)` | `rgb(0 0 0 / 0.62)` | Backdrop behind a modal. |
 | `--mark` | `#ffe770` | `#524202` | Not used today. Use `--change-bg` for a change mark. |
 | `--stripe` | `#f9f9fb` | `#111113` | Not used today. |
-| `--isolated` | `#8b8d98` | `#696e77` | Mapped to the Tailwind colour `isolated`. One use in old code. |
+| `--isolated` | `#8b8d98` | `#696e77` | The neutral line of a cancelled work item and its status dot (round 10B). Mapped to the Tailwind colour `isolated`. |
 
 ### 2.2 Status colours
 
@@ -60,7 +60,7 @@ Each status hue has 3 steps. Use the right step for the job:
 | caution (amber) | `#ef5f00` / `#ef5f00` | `#b44500` / `#ffa057` | `#ffefd6` / `#331e0b` | The part of a done line after its own Planned finish. Status Finished late. The ask row and resolved clashes. |
 | teal | `#0d9b8a` / `#12a594` | `#007b6a` / `#0bd8b6` | `#e0f8f3` / `#0d2d2a` | Status Finished early. |
 
-The 5 statuses map to tones in `STATUS_TONE` (`src/tracker/layout.ts`):
+The 6 statuses map to tones in `STATUS_TONE` (`src/tracker/layout.ts`). Cancelled is for work items only: a milestone is never cancelled (spec decision 6).
 
 | Status | Tone | Badge class | Milestone circle | Deadline diamond |
 |---|---|---|---|---|
@@ -69,6 +69,9 @@ The 5 statuses map to tones in `STATUS_TONE` (`src/tracker/layout.ts`):
 | Finished on time | `--proceed` | `.st-ontime` | Filled, tick | Filled |
 | Late | `--danger` | `.st-late` | Filled, "!" | Filled |
 | Finished late | `--caution` | `.st-flate` | Filled, "!" | Filled |
+| Cancelled | `--isolated` | `.st-cancelled` (no fill, 1px `--rule` ring, `--ink-2`) | Not used | Not used |
+
+A cancelled row draws one `--isolated` line from its start to the Cancelled event and nothing after it. It is never red and never amber, whatever its planned finish.
 
 ### 2.3 Change mark (C2 yellow highlighter)
 
@@ -83,7 +86,7 @@ The owner chose C2 on 17 October 2026. Yellow marks what a change request change
 
 ### 2.4 Event kind colours
 
-The `--k-*` tokens colour the kind icon in the Queue cards, the event pops, the stack list, the event list of the details drawer, the legend and the graph. On the graph, kinds colour the events (the circle, its icon, the Dense dot and the tint of the circles behind a stack), and status colours the row lines (owner ruling 18 Oct, K1: "the status of a work item already shows in the colour of its line"). Task is grey and Meeting is brown, so no kind looks like the yellow change mark or a pink or violet mark.
+The `--k-*` tokens colour the kind icon in the Queue cards, the event pops, the stack list, the event list of the details drawer, the legend and the graph. On the graph, kinds colour the events (the circle, its icon, the Dense dot and the tint of the circles behind a stack), and status colours the row lines (owner ruling 18 Oct, K1: "the status of a work item already shows in the colour of its line"). Task is grey and Meeting is brown, so no kind looks like the yellow change mark or a pink or violet mark. Cancelled shares the grey of Task, and its circle-slash icon tells the two apart (owner ruling 18 Oct, T1).
 
 | Kind | Token | Light | Dark |
 |---|---|---|---|
@@ -95,6 +98,10 @@ The `--k-*` tokens colour the kind icon in the Queue cards, the event pops, the 
 | Delivery | `--k-delivery` | `#54722b` | `#d4ff70` |
 | Issue | `--k-issue` | `#be282d` | `#ff9592` |
 | Done | `--k-done` | `#1e744e` | `#3dd68c` |
+| Idea | `--k-idea` | `#3a5bc7` | `#9eb1ff` |
+| Cancelled | `--k-cancelled` | `#60646c` | `#b0b4ba` |
+
+The kind picker (`KindGrid`, in the event modals and the kind pop) groups the kinds under small uppercase labels (`.kg-label`, 10.5px weight 600, `--ink-3`): Start (Idea, Message, Issue), Progress (Task, Meeting, Decision, Delivery) and Finish (Handoff, Done, Cancelled). The groups are guidance only. Each group is a 4-column grid of `.kind` buttons, also on a phone. For a Handoff the picker adds the check box "This finishes the work item" (`.check`).
 
 ### 2.5 Measured contrast
 
@@ -170,8 +177,8 @@ Stacking order (`z-index`), low to high: pinned axis, zoom bar and bin 3; move h
 - Set: Lucide shapes (ISC licence) on a 24px grid, copied as inline SVG paths into `src/components/tracker/icons.tsx` (`Icon`, `KindIcon`, `SvgIcon`) and `src/components/shell/icons.tsx` (`RailIcon`). Do not add an icon font or an icon package.
 - Stroke: `currentColor`, width 2, round caps and joins. The Done kind and the `check`, `branch`, `cornerUp`, `cornerDown` and `upDown` shapes use width 2.4, so they stay clear at 10px. `grip` is the only filled shape.
 - Sizes: 16px by default, 14px in buttons and the zoom bar, 12px to 13px for the eye and focus buttons on the graph, 13 units inside an event circle, 10 units inside a graph mark.
-- Kinds: `message` (mail), `task` (clipboard check), `handoff` (two arrows), `decision` (scales), `meeting` (people), `delivery` (package check), `issue` (triangle alert), `done` (double check).
-- UI shapes: `eye`, `eyeoff`, `plus`, `pencil`, `move`, `trash`, `undo`, `check`, `x`, `tag`, `diamond`, `list`, `inbox`, `sidebar`, `chev`, `branch`, `focus`, `cornerDown`, `cornerUp`, `upDown`, `filter`, `maximize`, `minimize`, `loop`, `grip`, `search`, `bot`, `lock`, `pr`, `merge`, `share`, `history`, `flag`, `link`, `cal`. Rail shapes: `graph`, `settings`, `theme`, `signOut`, `panel`, `chevron`.
+- Kinds: `idea` (lightbulb), `message` (mail), `issue` (triangle alert), `task` (clipboard check), `meeting` (people), `decision` (scales), `delivery` (package check), `handoff` (two arrows), `done` (double check), `cancelled` (circle slash).
+- UI shapes: `eye`, `eyeoff`, `plus`, `pencil`, `move`, `trash`, `undo`, `check`, `x`, `tag`, `diamond`, `list`, `inbox`, `sidebar`, `chev`, `branch`, `focus`, `cornerDown`, `cornerUp`, `upDown`, `filter`, `maximize`, `minimize`, `loop`, `grip`, `search`, `bot`, `lock`, `pr`, `merge`, `share`, `history`, `flag`, `link`, `info`, `cal`. Rail shapes: `graph`, `settings`, `theme`, `signOut`, `panel`, `chevron`.
 - An icon next to text is decorative (`aria-hidden="true"`). An icon-only button needs an `aria-label` and a `title`.
 
 ## 8. Components
@@ -194,6 +201,7 @@ Stacking order (`z-index`), low to high: pinned axis, zoom bar and bin 3; move h
 
 - `.chipx`: a pill on `--gray-bg` with `--ink-2` text, `--fs-xs` weight 500. Variants: `.warn` (caution), `.ok` (proceed), `.route` (blue), `.pen` (change yellow, for "changed" labels only).
 - `.badge` with `.st-*`: the status badge. Always pair the hue with its word.
+- `.wi-hint`: a quiet note in the work item details, under the status row: an `info` icon in `--ink-3` and `--fs-s` text in `--ink-2` on `--sunk`, `--r-ctl`, no border. Only the start hint uses it (spec decision 1).
 - `.cnt`: an 18px round count on `--gray-bg`. On an ink button it uses 22 % of `--panel`.
 - `.fchip`: filter chips in the filter panel. Idle: 1px `--rule` border, `--ink-2`. Checked: `--gray-bg`, `--ink` border and text, weight 600. Status chips start with an 8px status dot.
 - `.hid-pill`: the "N hidden" badge in the top bar, 28px, `--gray-bg`. Hover or open: `--rule` fill.
@@ -254,7 +262,7 @@ The rail is flat: `--sunk` fill and a 1px `--rule` right border. Items (`.rail-i
 - `.cr-side` (side panel of the change request page): 320px, the Changes and Queue tabs as a `.qseg`, a list of changes as rows with hairlines (`.chg-row`; the picked one on `--gray-bg`), the clash picks (`.res-box`) at the top. `.gtools` above the graph holds the Before / After `.seg`.
 - `.btn-stop`: a solid `--danger` button with white text, only for the confirm button of Cancel change request.
 - `.ro-note` (Main is read-only): `--route-bg` with `--route-ink` text, `--r-ctl`, a close button and Don't show again.
-- `.legend2`: a `--fs-xs` legend below the graph with the 4 line colours, the deadline diamond, the 5 milestone statuses and the yellow "Name" sample.
+- `.legend2`: a `--fs-xs` legend below the graph with the 5 line colours (Cancelled included), the deadline diamond, the 5 milestone statuses and the yellow "Name" sample.
 
 ### 8.12 Tables of people and teams (Members page)
 
@@ -286,7 +294,7 @@ Geometry in view-box units (`GEOMETRY` in `src/tracker/layout.ts`): width 1060, 
 | Focus button | On each row and each team summary row, left of the eye: an 18-unit square (smaller with the row height), radius 4, the `focus` icon. Pressed: a `--focus` fill with a `--panel` icon. |
 | Bin | Shows only while you drag: a sticky box at the bottom left with a `--danger` border and `--danger-ink` text; `--danger-bg` and scale 1.06 when the pointer is over it. |
 | Zoom bar | Floats at the bottom right of the graph: the view menu (Row height and teams), Zoom out, Zoom in, Fit and Full view in a `--panel` box with `--r-ctl` and `--shadow`. The view menu opens above the bar, from its right end, as a `--r-pop` popover; Esc and a press outside close it. It moves left of an open drawer. |
-| Legend | Below the graph: the line colours, the deadline diamond, the 5 statuses, the change mark, then the 8 kinds (icon in its kind colour, name in `--ink-2`). |
+| Legend | Below the graph: the line colours, the deadline diamond, the 5 milestone statuses, the change mark, then the 10 kinds (icon in its kind colour, name in `--ink-2`). |
 
 ## 10. Graph rules
 
