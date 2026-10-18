@@ -2169,6 +2169,11 @@ test.describe('changes that no longer apply', () => {
       '2 changes no longer apply.Clear',
     );
 
+    await side.getByRole('button', { name: 'Hide the side panel' }).click();
+    const show = page.getByRole('button', { name: /^Changes and Queue/ });
+    await expect(show.locator('.cnt')).toHaveText('0');
+    await show.click();
+
     await clear.click();
     await expect(rows).toHaveCount(0);
     await expect(clear).toHaveCount(0);
