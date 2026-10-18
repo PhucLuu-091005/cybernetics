@@ -713,12 +713,6 @@ function linesOf(c: Ctx, shown: LayoutRow[]): LayoutSegment[] {
         ...(gone.length ? [`${short(gone)} ${gone.length > 1 ? 'were' : 'was'} cancelled`] : []),
       ];
       const text = parts.length ? parts.join(' · ') : 'No events yet';
-      const plus = c.xt + PLUS_GAP;
-      const afterPlus = plus + c.level.plus + 4;
-      const onPlus =
-        !!c.view.plusButtons &&
-        sx + 8 < afterPlus &&
-        sx + 8 + text.length * WAIT_CHAR > plus - c.level.plus - 2;
       segments.push({
         kind: 'wait',
         workItemId: w.id,
@@ -727,8 +721,7 @@ function linesOf(c: Ctx, shown: LayoutRow[]): LayoutSegment[] {
         y: r.y,
         tone: 'ink-3',
         text,
-        // The + buttons of this row and the row above sit at the same x, so the text starts after them.
-        textX: onPlus ? afterPlus : sx + 8,
+        textX: sx + 8,
         textY: r.y - c.level.waitRise,
       });
       continue;
@@ -887,8 +880,9 @@ function busyOf(
 }
 
 /**
- * A handoff mark or a chip of the row sits on the waiting text, so the text starts after it. Near the
- * right edge the text ends with an ellipsis, before or after the mark, on the side with more room.
+ * A handoff mark, a chip or the + button of the row sits on the waiting text, so the text starts
+ * after it. Near the right edge the text ends with an ellipsis, before or after the marks, on the
+ * side with more room.
  */
 function waitsClearOfMarks(
   c: Ctx,
@@ -896,14 +890,16 @@ function waitsClearOfMarks(
   handoffs: LayoutHandoff[],
   chips: LayoutChip[],
 ): LayoutSegment[] {
-  if (!c.level.waitText) return segments;
   const marks = new Map<string, Span[]>();
   const add = (id: string, span: Span) => marks.set(id, [...(marks.get(id) ?? []), span]);
   for (const h of handoffs) add(h.fromId, [h.x - 4, h.x + h.width + 4]);
   for (const ch of chips) add(ch.workItemId, [ch.x - 4, ch.x + ch.size + 4]);
+  // The + buttons of this row and the row above sit at the same x, so they count as a mark.
+  const plus = c.xt + PLUS_GAP;
+  const plusSpan: Span = [plus - c.level.plus - 2, plus + c.level.plus + 4];
   return segments.map((s) => {
-    const spans = s.kind === 'wait' ? marks.get(s.workItemId) : undefined;
-    if (s.kind !== 'wait' || !spans) return s;
+    if (s.kind !== 'wait') return s;
+    const spans = [...(marks.get(s.workItemId) ?? []), ...(c.view.plusButtons ? [plusSpan] : [])];
     const width = s.text.length * WAIT_CHAR;
     let x = s.textX;
     let first: Span | null = null;
@@ -917,9 +913,16 @@ function waitsClearOfMarks(
     if (width <= after) return { ...s, textX: x };
     const before = first[0] - s.textX;
     const [room, textX] = before >= after ? [before, s.textX] : [after, x];
-    const fits = Math.floor(room / WAIT_CHAR);
-    if (fits < MIN_CUT) return { ...s, textX: x };
-    return { ...s, textX, text: `${s.text.slice(0, fits - 1).trimEnd()}…` };
+    const cut = (from: number, space: number) => ({
+      ...s,
+      textX: from,
+      text: `${s.text.slice(0, Math.floor(space / WAIT_CHAR) - 1).trimEnd()}…`,
+    });
+    if (room >= MIN_CUT * WAIT_CHAR) return cut(textX, room);
+    // No room beside the marks: the text moves left over the empty time line and ends before them.
+    const floor = Math.max(X0 + 2, ...spans.filter(([, b]) => b <= first[0]).map(([, b]) => b));
+    const from = Math.max(floor, first[0] - width);
+    return first[0] - from >= width ? { ...s, textX: from } : cut(from, first[0] - from);
   });
 }
 
