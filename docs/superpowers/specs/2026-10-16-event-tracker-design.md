@@ -161,6 +161,7 @@ Every write locks the project row (existing `lockProject`) or the CR row, checks
   - act as: only in demo projects, only for a person of the project's workspace, and only as an active seeded member (no user) or as their own member, never as an invited person.
   - list the members and teams: anyone who opens the project. Invite, grants, hand over the lead, remove, add/rename/delete a team, team people and lead: `manage` (the project lead, `src/server/tracker/members.ts`).
   - sign-in: an invite whose email matches the signed-in email becomes that person's member. If the person has a removed member in that project, that member comes back with the grants, teams and team leads of the invite, and the invite goes away.
+  - return link (QA 18 Oct, L7): a signed-out person who opens a page of the app goes to `/signin?next=<path>` and lands on that path after the sign-in (local or Google; Google keeps it in the `pg_oauth_next` flow cookie). The proxy hands every request its own path in the `x-pg-return-path` header, because a layout cannot see the page path. `returnPath` (`src/server/http/return-path.ts`) accepts only a same-origin relative path of a page: it refuses a scheme, `//`, a backslash, white space or control characters, the home page, `/signin`, `/api`, `/mcp` and `/_next`; anything else lands on the home page. Sign out goes to plain `/signin`.
 
 ### 3.7 API (`src/app/api/v1/projects/[projectId]/tracker/...`)
 

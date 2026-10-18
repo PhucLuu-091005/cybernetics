@@ -21,8 +21,9 @@ export function AccountMenu({ name, detail, color }: Account) {
   const themeLabel = useId();
   const signOut = async () => {
     await fetch('/api/auth/session', { method: 'DELETE' });
-    // A full reload drops every cached page; the server then sends the signed-out person to sign in.
-    window.location.reload();
+    // A full load drops every cached page, and replace keeps Back off the signed-in page. Plain /signin,
+    // so the next person who signs in does not land on this page.
+    window.location.replace('/signin');
   };
   return (
     <details ref={ref} className="acct me">

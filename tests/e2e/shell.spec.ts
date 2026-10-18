@@ -250,3 +250,32 @@ test('a missing page keeps the stored theme and logs no console error', async ({
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   expect(problems).toEqual([]);
 });
+
+test('a signed-out person who opens a change request link lands on it after sign-in', async ({
+  page,
+  context,
+}) => {
+  await page.goto('/signin?label=shell-return');
+  await page.getByRole('button', { name: /continue/i }).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  const projectId = new URL(page.url()).pathname.split('/')[2];
+  const link = `/projects/${projectId}/changes/2`;
+  await context.clearCookies();
+
+  await page.goto(link);
+  await page.waitForURL(/\/signin\?/);
+  expect(new URL(page.url()).searchParams.get('next')).toBe(link);
+  await page.goto(`/signin?label=shell-return&next=${encodeURIComponent(link)}`);
+  await page.getByRole('button', { name: /continue/i }).click();
+  await page.waitForURL((url) => url.pathname === link);
+  await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+
+  await page.goto(`/signin?next=${encodeURIComponent(`/projects/${projectId}/members`)}`);
+  await page.waitForURL((url) => url.pathname === `/projects/${projectId}/members`);
+
+  await context.clearCookies();
+  await page.goto('/signin?label=shell-return&next=%2F%2Fevil.example%2Fx');
+  await page.getByRole('button', { name: /continue/i }).click();
+  await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+  expect(new URL(page.url()).host).toBe(new URL(link, page.url()).host);
+});
