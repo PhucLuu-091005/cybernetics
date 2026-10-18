@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { drag, hydrated } from './helpers';
+import { choose, drag, hydrated } from './helpers';
 
 type TrackerRead = {
   crs: Array<{
@@ -45,7 +45,7 @@ async function signIn(page: Page, label: string, { classic = true } = {}) {
 }
 
 async function actAs(page: Page, name: string) {
-  await page.getByLabel('Demo: act as').selectOption({ label: name });
+  await choose(page.getByLabel('Demo: act as'), name);
   await expect(page.locator('.me b')).toHaveText(name);
 }
 
@@ -133,7 +133,7 @@ test.describe('the tracker walkthrough', () => {
       await expect(page.locator('.pop')).toHaveCount(0);
       for (const name of ['Add an event', 'Move the date', 'Rename', 'Mark done'])
         await expect(drawer.getByRole('button', { name })).toHaveCount(0);
-      await expect(drawer.locator('select, input, textarea')).toHaveCount(0);
+      await expect(drawer.locator('select, input, textarea, .sel-btn')).toHaveCount(0);
       await expect(drawer.locator('.facts')).toContainText('Not yet');
       await page.keyboard.press('Escape');
       await expect(drawer).toHaveCount(0);
@@ -169,9 +169,7 @@ test.describe('the tracker walkthrough', () => {
 
     await test.step('3. Lan finds PG-203 with the search and moves its date in place, with a reason', async () => {
       await find('PG-203', 'PG-203 Country list field type');
-      await expect(drawer.getByLabel('Done by').locator('option:checked')).toHaveText(
-        'Quang Nguyễn',
-      );
+      await expect(drawer.getByLabel('Done by')).toHaveText('Quang Nguyễn');
       await expect(drawer).toContainText(/Events \(\d+\)/);
       await expect(drawer.getByRole('button', { name: 'Move the date' })).toHaveCount(0);
       const planned = drawer.getByLabel('Planned finish');
@@ -208,8 +206,8 @@ test.describe('the tracker walkthrough', () => {
     await test.step('4. Lan shares #5 with Khoa, Can edit', async () => {
       await bar.getByRole('button', { name: 'Share' }).click();
       await expect(dialog.getByLabel('Link')).toHaveValue(/\/projects\/[0-9a-f-]{36}\/changes\/5$/);
-      await dialog.getByLabel('Person').selectOption({ label: 'Khoa Lê' });
-      await dialog.getByLabel('Access', { exact: true }).selectOption('edit');
+      await choose(dialog.getByLabel('Person'), 'Khoa Lê');
+      await choose(dialog.getByLabel('Access', { exact: true }), 'Can edit');
       await dialog.getByRole('button', { name: 'Add', exact: true }).click();
       await expect(toast).toContainText('Khoa Lê can edit #5. Send them the link.');
       await expect(dialog.getByLabel('Access for Khoa Lê')).toHaveValue('edit');
@@ -1303,7 +1301,7 @@ test.describe('the tracker at phone width', () => {
 
     // The phone rail hides the fold button, so the first picks may land before hydration.
     await expect(async () => {
-      await page.getByLabel('Demo: act as').selectOption({ label: 'Hà Đỗ' }, { timeout: 2_000 });
+      await choose(page.getByLabel('Demo: act as'), 'Hà Đỗ', 2_000);
       await expect(page).toHaveURL(/\/changes\/4$/, { timeout: 2_000 });
     }).toPass();
     await expect(page.locator('.bbar').first()).toContainText('#4');
@@ -1587,7 +1585,7 @@ test.describe('row height and collapsible teams', () => {
     const eventId = await card.getAttribute('data-qevent');
     await card.click();
     const dialog = page.getByRole('dialog', { name: 'Add this event to a work item' });
-    await dialog.getByLabel('Work item').selectOption({ label: 'Go-live date' });
+    await choose(dialog.getByLabel('Work item'), 'Go-live date');
     await dialog.getByRole('button', { name: 'Add to work item' }).click();
 
     await expect(implementation).toHaveAttribute('aria-expanded', 'true');

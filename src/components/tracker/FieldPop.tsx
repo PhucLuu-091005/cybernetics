@@ -5,8 +5,9 @@ import './fields.css';
 const GAP = 4;
 const EDGE = 8;
 
-function place(pop: HTMLElement, anchor: HTMLElement) {
+function place(pop: HTMLElement, anchor: HTMLElement, matchWidth: boolean) {
   const a = anchor.getBoundingClientRect();
+  if (matchWidth) pop.style.minWidth = `${a.width}px`;
   const width = pop.offsetWidth;
   const height = pop.offsetHeight;
   const room = document.documentElement.clientWidth;
@@ -26,12 +27,15 @@ export function FieldPop({
   onClose,
   className,
   children,
+  matchWidth = false,
   ...aria
 }: {
   anchor: RefObject<HTMLElement | null>;
   onClose: () => void;
   className: string;
   children: ReactNode;
+  /** A list pop is at least as wide as its box. */
+  matchWidth?: boolean;
   id?: string;
   role?: string;
   'aria-label'?: string;
@@ -46,7 +50,7 @@ export function FieldPop({
     const box = anchor.current;
     if (!pop || !box) return;
     pop.showPopover?.();
-    const follow = () => place(pop, box);
+    const follow = () => place(pop, box, matchWidth);
     follow();
     const outside = (event: PointerEvent) => {
       if (!box.contains(event.target as Node)) close.current();
@@ -59,7 +63,7 @@ export function FieldPop({
       window.removeEventListener('scroll', follow, true);
       document.removeEventListener('pointerdown', outside);
     };
-  }, [anchor]);
+  }, [anchor, matchWidth]);
   return (
     <div
       ref={ref}

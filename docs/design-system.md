@@ -162,7 +162,7 @@ The CSS has no spacing tokens. Use the values below and match the code around yo
 - Control height: 32px (`.btn`, inputs, selects, the search). Small: 28px (`.btn.sm`, icon buttons, the hidden badge). Big: 40px (`.btn.big`, sign-in).
 - Bars: the top bar (`.p-head`) has a minimum height of 52px and padding `10px 12px`. The context bar (`.bbar`) has a minimum height of 48px and padding `8px 12px`.
 - Lists: rows have `10px 0` or `10px 12px` padding and a `--rule-2` top border.
-- Widths: rail 212px (56px folded), change request side panel 320px, drawer 380px, pop 312px, modal 620px, search from 160px to all the free room, filter and search panels 380px. Secondary pages (Members, Settings): one centred column of up to 1200px with 24px gutters (16px on a phone) for the head and the body; Settings splits into the tokens and a 340px to 420px Connect your agent column from 1180px.
+- Widths: rail 212px (56px folded), change request side panel 320px, drawer 380px, pop 312px, modal 620px, search from 160px to all the free room, filter and search panels 380px. Page frame (round 14): every page beside the rail fills the full width; nothing is centred with empty sides. `--page-x` (24px, 16px on a phone) is the side padding of the head and the body of Members and Settings; the head is the 52px `.p-head`. Graph and the change request page keep 12px, because their bars line up with the edge of the graph canvas. Inside the frame a text block keeps a readable width (640px for a paragraph, 760px for the create form), left-aligned. Settings adds a 320px to 400px Connect your agent column from 1180px, below the sections on a narrower screen. Notice pages (Page not found, an error, no projects, no access, no tracker) use `Notice` (`src/components/shell/Notice.tsx`): plain text, a 20px heading, `--fs-s` text in `--ink-2`, actions as `.btn`; no card.
 - Graph density: three row heights, `ROW_LEVELS` in `src/tracker/layout.ts`. Comfortable is a 32-unit row, Compact (the default) a 20-unit row, Dense a 12-unit row. The team summary row is 40 units (32 at Dense). Indent 12 units per level (3 levels at most). Marks scale with the row (see section 9), and every click target stays at least 12 units. Each person's choice stays in the browser.
 - Phone (760px and less): 16px side gutters, the rail becomes a sticky top bar, the top bar puts History, Change requests and the account on the first line and the search on the last, the side panel stacks above the graph and its cards scroll sideways, a drawer covers the full height below the rail. The page has no horizontal scroll at 390px.
 
@@ -189,6 +189,8 @@ Stacking order (`z-index`), low to high: pinned axis, zoom bar and bin 3; move h
 
 ### 8.1 Buttons
 
+One definition: `.btn`, `.btn-ink`, `.btn.sm`, `.btn.big` and `.btn-block` live in `src/app/globals.css` and serve every page (sign-in and Page not found included); the tracker adds only tones. No page copies them.
+
 | Class | Look | Use |
 |---|---|---|
 | `.btn` | `--panel` fill, 1px `--rule` border, `--r-ctl`, `--shadow-sm`, 32px, `--fs-s` weight 500. Hover: `--sunk`. | Default action. |
@@ -196,7 +198,8 @@ Stacking order (`z-index`), low to high: pinned axis, zoom bar and bin 3; move h
 | `.btn-draft` | Default look with a `.cnt` count on `--change-bg`. | The change request button that counts your changes. |
 | `.btn-danger` | Default look, `--danger-ink` text. | Remove. |
 | `.btn.sm`, `.btn.big` | 28px and `--fs-xs`; 40px and `--fs`. | Dense rows; sign-in. |
-| `:disabled` | Opacity 0.4 (0.45 for the global `.btn`), `not-allowed` cursor. | Keep the button visible and say why in a tooltip or a line of text. |
+| `:disabled` | Opacity 0.4, `not-allowed` cursor. | Keep the button visible and say why in a tooltip or a line of text. |
+| `.btn-quiet` | No border, no fill, `--ink-2`; hover `--hover`. | A quiet text button in a heading line (Check again). |
 | `.lnk` | No box, `--route-ink`, weight 500, underline on hover. | Inline links in text and lists. |
 | `.x` | No box, a 20px `×` in `--ink-3`. | Close a pop, a drawer, a modal or a notice. |
 | `.ib` | No box, 28px, `--ink-3`. Hover: `--hover` and `--ink`. | Icon-only buttons. |
@@ -215,6 +218,8 @@ Stacking order (`z-index`), low to high: pinned axis, zoom bar and bin 3; move h
 ### 8.3 Inputs
 
 - `.field`: a label (`--fs-xs` weight 500, `--ink-2`) above the control. Inputs and selects are 32px with a 1px `--rule` border, `--r-ctl` and `--panel` fill. A textarea has a minimum height of 64px and `--fs` text.
+- Select (round 14): the app never shows a native `<select>`. `Select` (`src/components/tracker/Select.tsx`) is a button (`role="combobox"`, the label as its name) that reads like a text box: the value with an ellipsis and a 14px chevron in `--ink-3`; hover `--sunk`; open or focused: the `--focus` border and ring. Its list opens in the same `.field-pop` as the time list (`.sel-pop`): at least as wide as the box, up to 420px, rows with `--r-ctl`, the active row `--hover`, the current value weight 600 on `--gray-bg`, a disabled row `--ink-3`. Keys: the arrows open and move, Home and End, Enter or Space picks, Esc closes. `.sel-in.quiet` is the inline look of the work item facts (no border until hover).
+- Checkbox (round 14): `Checkbox` (`src/components/tracker/Checkbox.tsx`) keeps the native input for keys, labels and tests and draws a 16px box on it: 1px `--ink-3` border, half of `--r-ctl`; checked or mixed: `--ink` fill with a `--panel` check or dash; disabled: 50 % with `--sunk`, a held check on `--ink-3`; focus: a 2px `--focus` outline. With children it is a `.cbx-row` label. Radios stay native with `accent-color: var(--ink)`. The filter chips (`.fchip`) are chips, not checkboxes.
 - Focus: the border turns `--focus` and a 3px ring of `--focus` at 18 % shows around it. No outline.
 - Disabled input: `--sunk` fill, `--ink-3` text.
 - Dates and times use the app's own boxes, never the browser's date or time controls (no `type="date"`, `type="time"` or `type="datetime-local"`, not even hidden). Code: `src/components/tracker/DateInput.tsx`, `TimeInput.tsx`, `DateTimeInput.tsx`, `FieldPop.tsx`, `fields.css`; parsing in `src/tracker/time.ts`.
@@ -271,7 +276,7 @@ The rail is flat: `--sunk` fill and a 1px `--rule` right border. Items (`.rail-i
 ### 8.12 Tables of people and teams (Members page)
 
 - `src/components/members/members.css`. The page is full width: no narrow column. Each table is rows on one CSS grid template, a `--rule` line under the column heads (`--fs-xs`, `--ink-3`) and `--rule-2` hairlines between rows; no card.
-- People: avatar 28px, name weight 600, email and role label in `--fs-xs` `--ink-3`, `.chipx` for Project lead / You / Invited, teams with a small upper-case "LEAD" in `--ink-3`, four centred native checkboxes with `accent-color: var(--ink)`, row actions as `.btn.sm` (Remove is `.btn-danger`). A box that a rule holds is disabled and its tooltip says why.
+- People: avatar 28px, name weight 600, email and role label in `--fs-xs` `--ink-3`, `.chipx` for Project lead / You / Invited, teams with a small upper-case "LEAD" in `--ink-3`, four centred `Checkbox` boxes, row actions as `.btn.sm` (Remove is `.btn-danger`). A box that a rule holds is disabled and its tooltip says why.
 - Below 1180px the row actions go under the person; at a phone width each row stacks (person, teams, the four boxes in two columns with their names, actions), and the team rows show Lead and People captions.
 - The New project dialog lists its teams the same way: rows with hairlines and an `×` icon button (26px, `--ink-3`, hover `--hover`), then an input with Add.
 

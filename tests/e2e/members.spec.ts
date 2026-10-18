@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { hydrated } from './helpers';
+import { choose, hydrated } from './helpers';
 
 test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
 
@@ -141,14 +141,16 @@ test('the project lead invites, sets grants, edits a team, removes a member and 
       .click();
     await page.locator('.qpanel').getByRole('button', { name: 'Add' }).click();
     const dialog = page.getByRole('dialog', { name: 'Add to the queue' });
-    await expect(dialog.getByLabel('Who').locator('option', { hasText: 'Hà Đỗ' })).toHaveCount(0);
-    await expect(dialog.getByLabel('Who').locator('option', { hasText: 'Lan Phạm' })).toHaveCount(
-      1,
-    );
+    const who = dialog.getByLabel('Who');
+    await who.click();
+    await expect(page.getByRole('option', { name: 'Hà Đỗ' })).toHaveCount(0);
+    await expect(page.getByRole('option', { name: 'Lan Phạm' })).toHaveCount(1);
+    await who.press('Escape');
     await dialog.getByRole('button', { name: 'Work item' }).click();
-    await expect(dialog.getByLabel('Done by').locator('option', { hasText: 'Hà Đỗ' })).toHaveCount(
-      0,
-    );
+    const doneBy = dialog.getByLabel('Done by');
+    await doneBy.click();
+    await expect(page.getByRole('option', { name: 'Hà Đỗ' })).toHaveCount(0);
+    await doneBy.press('Escape');
     await page.keyboard.press('Escape');
     await page.goto(`/projects/${projectId}/members`);
     await hydrated(page);
@@ -202,7 +204,7 @@ test('the project lead invites, sets grants, edits a team, removes a member and 
     await page.goto(`/projects/${projectId}/graph`);
     await hydrated(page);
     await expect(page.locator('.bbar .gowner')).toContainText('Lead: Quang Nguyễn');
-    await page.getByLabel('Demo: act as').selectOption({ label: 'Quang Nguyễn' });
+    await choose(page.getByLabel('Demo: act as'), 'Quang Nguyễn');
     await expect(page.locator('.p-head details.acct summary b')).toHaveText('Quang Nguyễn');
     await page.goto(`/projects/${projectId}/members`);
     await hydrated(page);
