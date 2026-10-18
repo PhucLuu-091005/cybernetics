@@ -16,7 +16,7 @@ import {
   type ListKeysInput,
   type ListTokensInput,
 } from '../domain/tokens/service';
-import { createIdentityServices, type BrowserSession } from './actors';
+import { createIdentityServices, type BrowserSession, type LimitBucket } from './actors';
 import type { HttpIdentityStore } from './identity-store';
 import { MemoryRateLimiter } from './rate-limit';
 const state = globalThis as typeof globalThis & {
@@ -40,8 +40,11 @@ function identities() {
     limiter: state.promiseRateLimiter,
   });
 }
-export async function getBrowserActor(request: Request): Promise<ActorContext> {
-  return identities().getBrowserActor(request);
+export async function getBrowserActor(
+  request: Request,
+  bucket?: LimitBucket,
+): Promise<ActorContext> {
+  return identities().getBrowserActor(request, bucket);
 }
 export async function getBrowserSession(request: Request): Promise<BrowserSession> {
   return identities().resolveBrowserSession(request);

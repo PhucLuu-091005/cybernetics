@@ -88,7 +88,7 @@ This URL is `NEXT_PUBLIC_APP_URL`. Write it without a `/` at the end. The deploy
 
 Profile photos live in a private Cloud Storage bucket. The script uses the bucket that `AVATAR_BUCKET` names, `promise-graph-avatars` by default.
 
-- If the bucket exists, the script keeps it as it is. The owner's bucket `gs://promise-graph-avatars` (project `promise-graph`, `us-central1`, uniform access, public access prevention enforced, soft delete off) is such a bucket.
+- If the bucket exists, the script keeps it, but only with uniform bucket-level access on and public access prevention enforced. Otherwise it stops with status 5 before the deploy and prints the `gcloud storage buckets update … --uniform-bucket-level-access --public-access-prevention` command. The owner's bucket `gs://promise-graph-avatars` (project `promise-graph`, `us-central1`, uniform access, public access prevention enforced, soft delete off) is such a bucket.
 - If the bucket does not exist, the script creates it in `us-central1` with Standard storage, uniform bucket-level access, enforced public access prevention and no soft delete. To create it yourself first, run the same command:
 
   ```sh

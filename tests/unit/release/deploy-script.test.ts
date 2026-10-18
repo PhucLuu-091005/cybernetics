@@ -34,7 +34,9 @@ esac
 case "$*" in
   "secrets describe "*) [ "$FAKE_SECRETS_EXIST" = 1 ] || exit 1 ;;
   "iam service-accounts describe "*) [ "$FAKE_ACCOUNT_EXISTS" = 1 ] || exit 1 ;;
-  "storage buckets describe "*) [ "$FAKE_BUCKET_EXISTS" = 1 ] || exit 1 ;;
+  "storage buckets describe "*) [ "$FAKE_BUCKET_EXISTS" = 1 ] || exit 1
+    good='{"uniform_bucket_level_access": true, "public_access_prevention": "enforced"}'
+    printf '%s' "\${FAKE_BUCKET_JSON:-$good}" ;;
   "secrets versions list "*) [ "$FAKE_LIST_FAIL" = 1 ] && exit 1; printf '3\\n2\\n1\\n' ;;
   "run deploy "*) [ "$FAKE_DEPLOY_FAIL" = 1 ] && exit 1 ;;
   "run services describe "*) cat "$FAKE_DIR/service.json" ;;
@@ -202,6 +204,30 @@ describe('scripts/deploy-cloud-run.sh', () => {
     expect(other.status).toBe(0);
     expect(other.lines[other.at('run deploy')]).toContain('AVATAR_BUCKET=acme-photos');
     expect(other.at('storage buckets create gs://acme-photos ')).toBeGreaterThan(-1);
+  });
+
+  it('stops before the deploy when an existing bucket lacks uniform access or public access prevention', () => {
+    for (const json of [
+      '{"uniform_bucket_level_access": false, "public_access_prevention": "enforced"}',
+      '{"uniform_bucket_level_access": true, "public_access_prevention": "inherited"}',
+      '{}',
+    ]) {
+      const run = deploy(VALUES, { flags: { FAKE_BUCKET_EXISTS: '1', FAKE_BUCKET_JSON: json } });
+      expect(run.status).toBe(5);
+      expect(run.stderr).toContain('gs://promise-graph-avatars');
+      expect(run.calls).not.toContain('run deploy');
+      expect(run.calls).not.toContain('storage buckets add-iam-policy-binding');
+    }
+    const lax = deploy(VALUES, {
+      flags: {
+        FAKE_BUCKET_EXISTS: '1',
+        FAKE_BUCKET_JSON:
+          '{"uniform_bucket_level_access": false, "public_access_prevention": "inherited"}',
+      },
+    });
+    expect(lax.stderr).toContain('uniform bucket-level access is off');
+    expect(lax.stderr).toContain('public access prevention is not enforced');
+    expect(lax.stderr).toContain('--uniform-bucket-level-access --public-access-prevention');
   });
 
   it('refuses a bucket name that Cloud Storage would refuse, before any gcloud call', () => {

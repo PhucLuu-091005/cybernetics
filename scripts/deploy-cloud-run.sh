@@ -108,7 +108,28 @@ put_secret "$SERVICE-migrate-database-url" "$MIGRATE_DATABASE_URL"
 # Profile photos live in a private bucket. An existing bucket stays as it is; a missing one gets
 # uniform access, enforced public access prevention and no soft delete, so a removed photo is gone.
 gcloud services enable storage.googleapis.com --project "$GCP_PROJECT_ID" > /dev/null
-if gcloud storage buckets describe "gs://$AVATAR_BUCKET" --project "$GCP_PROJECT_ID" > /dev/null 2>&1; then
+if bucket_json="$(gcloud storage buckets describe "gs://$AVATAR_BUCKET" --project "$GCP_PROJECT_ID" \
+  --format=json 2> /dev/null)"; then
+  # An existing bucket is kept, but only when no photo in it can ever be public.
+  if ! bucket_problems="$(printf '%s' "$bucket_json" | node -e '
+    let text = "";
+    process.stdin.on("data", (chunk) => (text += chunk)).on("end", () => {
+      const bucket = JSON.parse(text || "{}");
+      const problems = [];
+      if (bucket.uniform_bucket_level_access !== true) problems.push("uniform bucket-level access is off");
+      if (bucket.public_access_prevention !== "enforced") problems.push("public access prevention is not enforced");
+      console.log(problems.join("; "));
+    });
+  ')"; then
+    echo "Could not read the settings of gs://$AVATAR_BUCKET" >&2
+    exit 5
+  fi
+  if [ -n "$bucket_problems" ]; then
+    echo "The bucket gs://$AVATAR_BUCKET is not private enough: $bucket_problems." >&2
+    echo "Fix it, then run this script again:" >&2
+    echo "  gcloud storage buckets update gs://$AVATAR_BUCKET --project $GCP_PROJECT_ID --uniform-bucket-level-access --public-access-prevention" >&2
+    exit 5
+  fi
   echo "Kept bucket gs://$AVATAR_BUCKET"
 else
   gcloud storage buckets create "gs://$AVATAR_BUCKET" --project "$GCP_PROJECT_ID" \
