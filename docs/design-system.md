@@ -83,15 +83,15 @@ The owner chose C2 on 17 October 2026. Yellow marks what a change request change
 
 ### 2.4 Event kind colours
 
-The `--k-*` tokens colour the kind icon in the Queue cards, the event pops, the stack list and the event list of the details drawer. On the graph, an event icon takes the tone of its row line instead, so the graph keeps one meaning per colour.
+The `--k-*` tokens colour the kind icon in the Queue cards, the event pops, the stack list, the event list of the details drawer, the legend and the graph. On the graph, kinds colour the events (the circle, its icon, the Dense dot and the tint of the circles behind a stack), and status colours the row lines (owner ruling 18 Oct, K1: "the status of a work item already shows in the colour of its line"). Task is grey and Meeting is brown, so no kind looks like the yellow change mark or a pink or violet mark.
 
 | Kind | Token | Light | Dark |
 |---|---|---|---|
 | Message | `--k-message` | `#0c67b6` | `#70b8ff` |
-| Task | `--k-task` | `#6550b9` | `#baa7ff` |
+| Task | `--k-task` | `#60646c` | `#b0b4ba` |
 | Handoff | `--k-handoff` | `#0e738c` | `#4ccce6` |
 | Decision | `--k-decision` | `#975800` | `#ffca16` |
-| Meeting | `--k-meeting` | `#ba2784` | `#ff8dcc` |
+| Meeting | `--k-meeting` | `#9e5426` | `#dbb594` |
 | Delivery | `--k-delivery` | `#54722b` | `#d4ff70` |
 | Issue | `--k-issue` | `#be282d` | `#ff9592` |
 | Done | `--k-done` | `#1e744e` | `#3dd68c` |
@@ -109,6 +109,10 @@ WCAG contrast ratios of the current values (text needs 4.5, lines and marks need
 | `--ink` on `--change-bg` | 12.59 | 5.79 |
 | Line step on `--panel` (route, proceed, danger, caution, teal) | 3.26, 3.03, 3.91, 3.33, 3.46 | 5.39, 5.80, 4.49, 5.28, 5.73 |
 | `--focus` on `--panel` | 4.77 | 8.37 |
+| `--k-task` on `--panel` / its 12 % tint | 5.94 / 5.03 | 8.45 / 6.73 |
+| `--k-meeting` on `--panel` / its 12 % tint | 5.60 / 4.72 | 9.26 / 7.30 |
+
+The owner picked `#a35829` for Meeting in light. On its 12 % tint (the round icon of a pop or the stack list) it measured 4.47, so the token is one small step darker, `#9e5426`, with the same hue.
 
 Measure again when you change a colour. Do not put line-step colours on small text.
 
@@ -148,7 +152,7 @@ The CSS has no spacing tokens. Use the values below and match the code around yo
 - Bars: the top bar (`.p-head`) has a minimum height of 52px and padding `10px 12px`. The context bar (`.bbar`) has a minimum height of 48px and padding `8px 12px`.
 - Lists: rows have `10px 0` or `10px 12px` padding and a `--rule-2` top border.
 - Widths: rail 212px (56px folded), change request side panel 320px, drawer 380px, pop 312px, modal 620px, search from 160px to all the free room, filter and search panels 380px. Secondary pages (Members, Settings): one centred column of up to 1200px with 24px gutters (16px on a phone) for the head and the body; Settings splits into the tokens and a 340px to 420px Connect your agent column from 1180px.
-- Graph density: row 32 units, team head 22 units, indent 12 units per level (3 levels at most). The graph scales the 1060-unit view box to the canvas width.
+- Graph density: three row heights, `ROW_LEVELS` in `src/tracker/layout.ts`. Comfortable is a 32-unit row, Compact (the default) a 20-unit row, Dense a 12-unit row. The team summary row is 40 units (32 at Dense). Indent 12 units per level (3 levels at most). Marks scale with the row (see section 9), and every click target stays at least 12 units. Each person's choice stays in the browser.
 - Phone (760px and less): 16px side gutters, the rail becomes a sticky top bar, the top bar puts History, Change requests and the account on the first line and the search on the last, the side panel stacks above the graph and its cards scroll sideways, a drawer covers the full height below the rail. The page has no horizontal scroll at 390px.
 
 ## 6. Shadows and layers
@@ -265,10 +269,11 @@ Geometry in view-box units (`GEOMETRY` in `src/tracker/layout.ts`): width 1060, 
 
 | Mark | Drawing |
 |---|---|
-| Team lane | Alternate lanes get a `--sunk` band. The team name is 10.5px weight 600 upper case in `--ink-2`. An eye button hides the team. A neutral `--rule` guide joins the rows of the team in the label column. |
+| Team summary row | Alternate lanes get a `--sunk` band. The first row of each lane is a button (`aria-expanded`): a chevron (right when collapsed), the team name in 10.5px weight 600 upper case `--ink` with " · N" items in `--ink-3`, and under it "N late · N not yet · N done" in 10.5px `--ink-3`, the late part in `--danger-ink` weight 600 (only when not zero) and the done part in `--proceed-ink`. The focus and eye buttons sit right on that second line. On the time line: a 6-unit bar (a 22 % `--ink-3` tint, radius 3) from the earliest start to the latest finish, or to T or the planned finish while open, and a 1.6 × 10 tick in the status tone for each event. Hover: `--hover`. A collapsed team shows this row only. A neutral `--rule` guide joins the rows of an open team in the label column. |
+| Row height | Comfortable / Compact / Dense (`ROW_LEVELS`): row 32 / 20 / 12, label 12 / 11 / 9.5px, event radius 10 / 7 / 3 with a 13 / 9 / no icon, line 3 / 2.5 / 2, diamond half 6 / 4.5 / 3.5, handoff box 14 / 12 / 10, chip 14 / 12 / 10, eye and focus buttons 18 / 16 / 12, + radius 9 / 7 / 5, milestone name 9.5 / 9 / 8px, stack distance 16 / 12 / 7 units. At Dense an event is a filled dot in its kind colour, the waiting text moves to the tooltip, the receiver count leaves the Handoff icon, and the milestone name sits on the row centre only where the row has no line. Every target keeps a hit area of at least 12 units. The view menu (rows icon) at the left of the zoom bar holds Row height (a segmented control) and Expand all / Collapse all. |
 | Row label | 12px `--ink`, indented 12 units per level. A changed name gets the yellow highlighter. A row in the picked milestone is weight 600. A filter context row shows at 50 % opacity. |
 | Row line | 3 units, round caps. `--route` while open, `--proceed` when done. The part after the row's own Planned finish is `--danger` while open and `--caution` when done. A row with no events shows a `--ink-3` line at 45 % opacity and an italic "Waiting for ..." or "No events yet". |
-| Event | A circle of radius 10 with a `--panel` fill and a 2-unit stroke in the row tone, and the Lucide kind icon (13 units) in the same tone. Events closer than 16 units form a stack: up to 2 offset circles behind, filled with an 18 % tint. A changed event gets a yellow ring of radius 15 (a 3-unit `--change` stroke, 30 % fill). Events sit at their own time; nothing drags them inside the day. |
+| Event | A circle of radius 10 (Comfortable) with a `--panel` fill and a 2-unit stroke in its kind colour (`--k-*`), and the Lucide kind icon (13 units) in the same colour. The row line keeps the status colour. Events closer than the stack distance form a stack: up to 2 offset circles behind, filled with an 18 % tint of the kind colour of the top (latest) event. A changed event gets a yellow ring 5 units wider (a 3-unit `--change` stroke, 30 % fill). Events sit at their own time; nothing drags them inside the day. |
 | T line and pill | A solid 1-unit `--ink-3` line at the demo clock or now. The pill on the axis is an `--ink` capsule (88 × 17) with `--panel` text. |
 | Milestone line | A 4-unit `--trunk` line with round caps. A coloured segment shows a slip: `--danger` from the date to the T line while late, `--caution` from the date to the finish when finished late, `--teal` from the finish to the date when finished early. |
 | Milestone circle | Radius 8, stroke 2 (3.5 when picked). Filled with the status tone; Planned is an outline. A tick for finished early or on time, "!" for late or finished late, both in `--panel`. A changed milestone gets a 3-unit `--change` stroke. The label "name · date · status" is 11px weight 600 in the `-ink` step, on 2 levels when labels collide. |
@@ -278,9 +283,10 @@ Geometry in view-box units (`GEOMETRY` in `src/tracker/layout.ts`): width 1060, 
 | Add button | In an editable view, a radius-9 circle with a `+` at 20 units right of the T line on each open row. |
 | Selection band | The row with open details: a band of 6 % `--ink` and nothing else. The reveal flash and the picked review row: 8 % `--ink`. A drop target while you drag: 9 % `--ink` with a 2-unit `--ink` outline. |
 | Focus ring | A thin 1px `--focus` stroke with `vector-effect: non-scaling-stroke` on the row hit area (it reads as a line above and below the row); a `--focus` outline on milestone circles. |
-| Focus button | On each row and each team head, left of the eye: an 18-unit square, radius 4, the `focus` icon. Pressed: a `--focus` fill with a `--panel` icon. |
+| Focus button | On each row and each team summary row, left of the eye: an 18-unit square (smaller with the row height), radius 4, the `focus` icon. Pressed: a `--focus` fill with a `--panel` icon. |
 | Bin | Shows only while you drag: a sticky box at the bottom left with a `--danger` border and `--danger-ink` text; `--danger-bg` and scale 1.06 when the pointer is over it. |
-| Zoom bar | Floats at the bottom right of the graph: Zoom out, Zoom in, Fit and Full view in a `--panel` box with `--r-ctl` and `--shadow`. It moves left of an open drawer. |
+| Zoom bar | Floats at the bottom right of the graph: the view menu (Row height and teams), Zoom out, Zoom in, Fit and Full view in a `--panel` box with `--r-ctl` and `--shadow`. The view menu opens above the bar, from its right end, as a `--r-pop` popover; Esc and a press outside close it. It moves left of an open drawer. |
+| Legend | Below the graph: the line colours, the deadline diamond, the 5 statuses, the change mark, then the 8 kinds (icon in its kind colour, name in `--ink-2`). |
 
 ## 10. Graph rules
 
