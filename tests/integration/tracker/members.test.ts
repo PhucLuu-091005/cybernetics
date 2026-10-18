@@ -97,6 +97,52 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
     );
   });
 
+  it('puts every member, pending invites included, into the people of Main after the story people', async () => {
+    await fresh();
+    const seeded = (await getTrackerPayload(t.db, demo.owner, own())).base.people;
+    expect(seeded).toHaveLength(9);
+    const pending = email();
+    const joined = email();
+    await inviteMember(t.db, demo.owner, { ...own(), email: pending });
+    await signIn(joined, 'Mai Vũ');
+    const list = await inviteMember(t.db, demo.owner, { ...own(), email: joined });
+    const idOf = (address: string) => list.members.find((m) => m.email === address)!.id;
+
+    const payload = await getTrackerPayload(t.db, demo.owner, own());
+    expect(payload.base.people).toEqual([
+      ...seeded,
+      { id: idOf(pending), name: pending },
+      { id: idOf(joined), name: 'Mai Vũ' },
+    ]);
+    const card = {
+      ...own(),
+      kind: 'item' as const,
+      fields: {
+        title: 'Check the invoice batch',
+        doneBy: idOf(joined),
+        requestedBy: idOf(pending),
+        plannedFinish: '2026-10-20',
+      },
+    };
+    const added = await addQueueEntry(t.db, demo.owner, card);
+    expect(added.queue.items.some((item) => item.title === 'Check the invoice batch')).toBe(true);
+
+    await removeMember(t.db, demo.owner, { ...own(), memberId: idOf(joined) });
+    const after = await getTrackerPayload(t.db, demo.owner, own());
+    expect(after.base.people.find((p) => p.id === idOf(joined))?.name).toBe('Mai Vũ');
+  });
+
+  it('starts a new project with its creator as the one person, with no copy', async () => {
+    await fresh();
+    const { id } = await createEmptyProject(t.db, demo.owner, {
+      title: 'Fresh project',
+      clientName: 'Client',
+      teams: ['Engineering'],
+    });
+    const payload = await getTrackerPayload(t.db, demo.owner, { projectId: id });
+    expect(payload.base.people).toEqual([{ id: payload.me!.id, name: payload.me!.name }]);
+  });
+
   it('keeps an invite pending until that address signs in, then opens only this project', async () => {
     await fresh();
     const address = email();

@@ -55,6 +55,7 @@ Promise Graph becomes an event tracker for a whole project. It shows what happen
     - Whoever loses the create right (grant change, team lead change, removal) stops editing: each open change request they edit goes back to its author when the author may create, else to the project lead, and their asks go.
     - **Members page**: full width and flat. People: avatar, name, email or "Waits for the first sign-in", role label, chips Project lead / You / Invited, teams (with LEAD after a team the person leads), the four grant boxes (editable by the project lead only), and for the lead Make project lead and Remove (confirm modals). Invite by email: the invite waits as a member row with the email until a person signs in with Google using that email; the sign-in links it. Teams: Team (with its work item count), Lead, People, and for the lead Edit, which opens the team editor (name; people as checkboxes with a Lead radio each, plus No lead; Delete team). A team that has work items in Main, or that a commit or an open change request names, cannot be deleted; the editor says why ("<Team> has N work items, so it stays. Rename it instead."). The last team stays. "Add a team" (Enter) adds a team. Others see the page read-only with "Only the project lead, <name>, can change access and teams."
     - Removal keeps the round 6 side effects: the member row stays for history, the person leaves every team and team lead, their shares and asks go, their agent tokens for the project are revoked, and the project closes to them. A project opens to the people of its workspace and to its own members that are not removed, so an invite opens one project, not the workspace.
+    - People of the story (QA 18 Oct, H1): the people that Done by, Requested by, Who, the Person filter and the MCP `by` take are the people of the stored base (the Larkspur story people, or the creator of a new project) and then every member of the project in member order, pending invites (named by their email until the sign-in) and removed members included, so the work of a removed person keeps the name. A person's id is the member id, and a member's current name replaces the stored name. The server builds the list on every read (`findTracker` in `src/server/tracker/store.ts`), so an invite shows at once.
 
 ## 3. Architecture
 
@@ -74,7 +75,7 @@ Dates are `YYYY-MM-DD` strings in the project time zone. A milestone time and a 
 
 ```ts
 type EventKind = 'message'|'task'|'handoff'|'decision'|'meeting'|'delivery'|'issue'|'done'|'idea'|'cancelled';
-type Person = { id: string; name: string };                       // people in the story (event authors, Done by, For)
+type Person = { id: string; name: string };                       // people in the story (event authors, Done by, For) and every project member
 type Team = { id: string; name: string; leadId: string | null };   // lead = default Done by for a new item
 type DateMove = { from: string; fromTime?: string; to: string; toTime?: string; why: string; by: string /* member id */; at: string };
 type Milestone = { id: string; name: string; planned: string; plannedTime?: string; firstPlanned: string; firstPlannedTime?: string; moves: DateMove[] };
