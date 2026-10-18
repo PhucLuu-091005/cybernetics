@@ -375,7 +375,6 @@ export type LayoutLaneDrop = {
 
 export type TrackerLayout = {
   level: RowLevel;
-  /** The width of the label column. */
   side: number;
   /** The day width over the fit to the current `span`: 1 at fit, less when the view widened since. */
   zoom: number;
