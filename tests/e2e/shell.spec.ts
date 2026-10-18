@@ -192,6 +192,7 @@ test('Settings shows plain permission names, and Last call changes from Never af
 
   await expect(page.getByTestId('mcp-endpoint')).toHaveText(/\/mcp$/);
   await expect(page.getByText("Paste this into your agent's MCP settings.")).toBeVisible();
+  await expect(page.getByText('Replace inv_... with the secret of your token.')).toBeVisible();
   await expect(page.getByText('Streamable HTTP')).toHaveCount(0);
 
   const form = page.getByRole('form', { name: 'Create a token' });
