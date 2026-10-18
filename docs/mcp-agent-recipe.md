@@ -27,7 +27,7 @@ Replace `<host>` with the application host. The server rejects a request with a 
 | Tool | Scope | Result |
 |---|---|---|
 | `get_project` | `project:read` | The project title, client name and time zone. |
-| `get_tracker` | `project:read` | Main: people (id and name), teams, work items with status and planned finish (`plannedFinish`, and `plannedFinishTime` as `HH:mm` or `null` for the end of that day; `firstPlannedFinish` and `firstPlannedFinishTime` the same for the first plan), milestones with status and deadline (`planned`, and `plannedTime` as `HH:mm` in the project time zone, or `null` when the deadline is the end of that day; `firstPlanned` and `firstPlannedTime` give the first plan the same way), the open change requests, `asOf` and the Main `revision`. |
+| `get_tracker` | `project:read` | Main: people (id and name), teams, work items with status (`planned`, `early`, `ontime`, `late`, `flate` or `cancelled`) and planned finish (`plannedFinish`, and `plannedFinishTime` as `HH:mm` or `null` for the end of that day; `firstPlannedFinish` and `firstPlannedFinishTime` the same for the first plan), milestones with status and deadline (`planned`, and `plannedTime` as `HH:mm` in the project time zone, or `null` when the deadline is the end of that day; `firstPlanned` and `firstPlannedTime` give the first plan the same way), the open change requests, `asOf` and the Main `revision`. |
 | `list_queue` | `project:read` | The events and work items that wait in the Queue, newest first. `agent` is true on a card that an agent added. Pages (section 5). |
 | `add_queue_event` | `queue:add` | Adds one event to the Queue and returns it. |
 | `add_queue_item` | `queue:add` | Adds one work item to the Queue and returns it. |
@@ -41,7 +41,8 @@ An add tool returns only the new card, so a token with `queue:add` alone reads n
 1. Read the project (`get_project`), then Main (`get_tracker`). Keep the ids of the people, milestones and work items.
 2. Read the Queue (`list_queue`), so that you do not add a card twice.
 3. Add what you learn from your own sources:
-   - An event: `add_queue_event` with `kind` (`message`, `task`, `handoff`, `decision`, `meeting`, `delivery`, `issue` or `done`), `at` (ISO 8601 with an offset), `by` (a person id) and `text`.
+   - An event: `add_queue_event` with `kind` (`idea`, `message`, `issue`, `task`, `meeting`, `decision`, `delivery`, `handoff`, `done` or `cancelled`), `at` (ISO 8601 with an offset), `by` (a person id), `text` and an optional `finishes` (true or false, read for a Handoff only).
+   - A work item finishes at its last finishing event: a `done`, a `cancelled`, or a `handoff` with `finishes: true`. A `cancelled` event ends the work item as Cancelled, and its `text` is the reason, so it must not be empty.
    - A work item: `add_queue_item` with `title`, an optional `note`, `doneBy` and `requestedBy` (person ids), an optional `milestoneId` and `after` (a work item id), `plannedFinish` (`YYYY-MM-DD`) and an optional `plannedFinishTime` (`HH:mm` in the project time zone; without it the planned finish is the end of that day).
 4. Tell your user what you added. A person places each card through a change request, and a person with the Merge right merges it.
 5. Follow the change requests with `list_change_requests` and `get_change_request`.
