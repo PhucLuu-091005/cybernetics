@@ -1416,31 +1416,63 @@ test.describe('the tracker at phone width', () => {
     await expect(page.locator('svg.pg .deadline-stuck:not(:empty)')).toHaveCount(0);
   });
 
-  test('the zoom bar sits in its own band under the graph, so it covers no row on the first view', async ({
+  test('the zoom bar stays on the screen and covers no change, no last row and no full view exit', async ({
     page,
   }) => {
     await page.goto('/signin?label=tracker-phone-zoombar');
     await page.getByRole('button', { name: /continue/i }).click();
     await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
     const graph = new URL(page.url()).pathname;
-    for (const path of [crPath(graph, 4), graph]) {
-      await page.goto(path);
-      await expect(page.locator('svg.pg')).toBeVisible();
-      const bar = (await page.getByRole('group', { name: 'View controls' }).boundingBox())!;
-      const plot = (await page.locator('.gcanvas svg.pg').boundingBox())!;
-      expect(bar.y).toBeGreaterThanOrEqual(plot.y + plot.height);
-    }
+    const bar = page.getByRole('group', { name: 'View controls' });
+    const barBox = async () => (await bar.boundingBox())!;
+    const onScreen = async () => {
+      const b = await barBox();
+      return b.y >= 0 && b.y + b.height <= 844;
+    };
+    const lastRowBottom = () =>
+      page.evaluate(() =>
+        Math.max(
+          ...Array.from(document.querySelectorAll('svg.pg rect.hit')).map(
+            (r) => r.getBoundingClientRect().bottom,
+          ),
+        ),
+      );
+
     await page.goto(crPath(graph, 4));
     const changed = page.locator('svg.pg .halo').first();
     await expect(changed).toBeVisible();
-    const box = (await changed.boundingBox())!;
-    if (box.y + box.height <= 844) {
-      const top = await page.evaluate(
-        ([x, y]) => !!document.elementFromPoint(x, y)?.closest('svg.pg'),
-        [box.x + box.width / 2, box.y + box.height / 2],
-      );
-      expect(top).toBe(true);
+    await expect
+      .poll(async () => {
+        const c = (await changed.boundingBox())!;
+        return c.y >= 0 && c.y + c.height <= (await barBox()).y;
+      })
+      .toBe(true);
+    expect(await onScreen()).toBe(true);
+    const item = (await page.getByRole('list', { name: 'Changes' }).boundingBox())!;
+    const b = await barBox();
+    expect(item.y + item.height <= b.y || item.y >= b.y + b.height).toBe(true);
+
+    for (const path of [crPath(graph, 4), graph]) {
+      await page.goto(path);
+      await expect(page.locator('svg.pg')).toBeVisible();
+      await page.evaluate(() => window.scrollTo(0, 0));
+      expect(await onScreen()).toBe(true);
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await expect.poll(onScreen).toBe(true);
+      expect(await lastRowBottom()).toBeLessThanOrEqual((await barBox()).y);
     }
+
+    const full = page.locator('.zoombar .full');
+    await full.click();
+    const board = page.locator('.tk.fullview');
+    await expect(board).toHaveCount(1);
+    for (const to of ['end', 'start'] as const) {
+      await board.evaluate((el, at) => (el.scrollTop = at === 'end' ? el.scrollHeight : 0), to);
+      await expect.poll(onScreen).toBe(true);
+      expect(await lastRowBottom()).toBeLessThanOrEqual(to === 'end' ? (await barBox()).y : 1e6);
+    }
+    await full.click();
+    await expect(board).toHaveCount(0);
   });
 
   test('keeps the names level with their rows while the column still has the wide view box', async ({
