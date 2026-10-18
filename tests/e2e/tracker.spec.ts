@@ -1388,10 +1388,21 @@ test.describe('the tracker at phone width', () => {
     await expect(side.locator('.row-label').first()).toBeInViewport();
     await expect(page.locator('svg.pg-top-time .tpill')).toBeInViewport();
     await expect(side.locator('[data-eyerow], [data-eyeteam], [data-focusitem]')).toHaveCount(0);
-    const names = await side
-      .locator('.row-label')
-      .evaluateAll((els) => els.map((el) => el.firstChild?.textContent ?? ''));
-    expect(names).toContain('Dynamics CRM s…');
+    const names = await side.locator('.row-label').evaluateAll((els) =>
+      els.map((el) => {
+        const column = el.closest('svg')!.getBoundingClientRect();
+        const text = el.firstChild!;
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        return {
+          text: text.textContent ?? '',
+          room: column.right - range.getBoundingClientRect().right,
+        };
+      }),
+    );
+    const cut = names.filter((n) => n.text.endsWith('…'));
+    expect(cut.length).toBeGreaterThan(0);
+    for (const n of names) expect(n.room).toBeGreaterThanOrEqual(2);
 
     await time.evaluate((el) => (el.scrollLeft = 0));
     expect((await side.boundingBox())!.x).toBe(box.x);
@@ -2173,6 +2184,56 @@ test.describe('the legend popover on a phone', () => {
 
 test.describe('changes that no longer apply', () => {
   test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
+
+  test('when Clear fails part way, the rows left keep their Clear button', async ({ page }) => {
+    const { projectId, graph } = await signIn(page, 'tracker-clear-409', { classic: false });
+    const num = await page.evaluate(async (pid) => {
+      const read = await (await fetch(`/api/v1/projects/${pid}/tracker`)).json();
+      const item = read.queue.items.find(
+        (q: { title: string }) => q.title === 'PG-204 Tax ID format check',
+      );
+      const created = await fetch(`/api/v1/projects/${pid}/tracker/crs`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Tax ID check',
+          ops: [
+            { op: 'place', a: { itemId: item.id, teamId: 'engineering' } },
+            { op: 'rename', a: { workItemId: item.id, title: 'PG-204 Tax ID check' } },
+            { op: 'rename', a: { workItemId: item.id, title: 'PG-204 Tax ID rules' } },
+          ],
+        }),
+      });
+      return ((await created.json()) as { num: number }).num;
+    }, projectId);
+    await visit(page, crPath(graph, num));
+    const side = page.locator('.cr-side');
+    const rows = side.locator('.chg-row');
+    const clear = side.getByRole('button', { name: 'Clear the changes that no longer apply' });
+    const note = side.getByRole('note', { name: 'Changes that no longer apply' });
+    await rows
+      .first()
+      .getByRole('button', { name: /^Undo this change/ })
+      .click();
+    await expect(note).toHaveText('2 changes no longer apply.Clear');
+
+    let removals = 0;
+    await page.route(/\/ops\/\d+$/, async (route) => {
+      if (route.request().method() !== 'DELETE' || ++removals < 2) return route.continue();
+      await route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: { code: 'CONFLICT', message: 'The change request changed.' },
+        }),
+      });
+    });
+    await clear.click();
+    await expect(note).toHaveText('1 change no longer applies.Clear');
+    await expect(rows).toHaveCount(1);
+    await expect(clear).toBeEnabled();
+    expect(removals).toBe(2);
+  });
 
   test('a draft whose every change is already in Main says so and can be cancelled', async ({
     page,
