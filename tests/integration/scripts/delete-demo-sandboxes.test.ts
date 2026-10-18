@@ -17,7 +17,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('scripts/delete-demo-sandboxes.m
   const run = (...args: string[]) =>
     spawnSync(process.execPath, [script, ...args], {
       encoding: 'utf8',
-      env: { PATH: process.env.PATH, DATABASE_URL: t.url },
+      env: { PATH: process.env.PATH ?? '', NODE_ENV: 'test', DATABASE_URL: t.url },
     });
   const tenantRows = async (ws: string) => {
     const { rows } = await t.db.execute<{ table_name: string }>(
