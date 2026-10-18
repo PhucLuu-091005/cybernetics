@@ -1,4 +1,5 @@
 import {
+  applyingCount,
   clashesOf,
   crVersionApplies,
   liveOps,
@@ -295,7 +296,7 @@ export function reviewModel(
     after,
     marks: shape.after.marks,
     changes,
-    applying: changes.filter((change) => !change.skipReason).length,
+    applying: applyingCount(shape.described),
     stale: changes
       .flatMap((change) => (change.skipReason && change.opIndex !== null ? [change.opIndex] : []))
       .sort((a, b) => b - a),
