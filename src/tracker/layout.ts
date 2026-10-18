@@ -77,7 +77,7 @@ export const ROW_LEVELS: Record<Density, RowLevel> = {
   comfortable: {
     row: 32,
     hit: 30,
-    head: 40,
+    head: 28,
     r: 10,
     icon: 13,
     gap: 16,
@@ -102,7 +102,7 @@ export const ROW_LEVELS: Record<Density, RowLevel> = {
   compact: {
     row: 20,
     hit: 18,
-    head: 40,
+    head: 28,
     r: 7,
     icon: 9,
     gap: 12,
@@ -127,7 +127,7 @@ export const ROW_LEVELS: Record<Density, RowLevel> = {
   dense: {
     row: 12,
     hit: 12,
-    head: 32,
+    head: 24,
     r: 3,
     icon: 0,
     gap: 7,
@@ -220,8 +220,6 @@ export type LayoutTeamSummary = {
   notYet: number;
   done: number;
   cancelled: number;
-  bar: { x1: number; x2: number; y: number } | null;
-  ticks: Array<{ x: number; tone: Tone }>;
   /** The team holds a change of the change request on screen. */
   changed: boolean;
   ariaLabel: string;
@@ -489,10 +487,56 @@ export function windowStartFor(
   return addDays(dayOf(new Date(earliest).toISOString(), timeZone), -START_MARGIN_DAYS);
 }
 
-// The lane name is 10.5 px bold capitals with letter spacing; the item count follows it.
-const LANE_CHAR = 7.6;
-const COUNT_CHAR = 6;
+// Advance widths of Geist 10.5px weight 600 capitals with 0.07em letter spacing, as the browser
+// measured them, so the pure layout can cut a team name before the buttons of its summary row.
+const CAPS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+const CAP_W = [
+  8.2, 8, 8.4, 8.3, 7.2, 6.9, 8.4, 8.2, 3.7, 7.1, 7.7, 6.7, 10.1, 8.5, 8.8, 7.6, 8.7, 8, 7.8, 7,
+  8.2, 8.1, 11.1, 7.7, 7.4, 6.8, 8.1, 4.9, 7.5, 7.5, 7.5, 7.7, 7.2, 6.6, 7.5, 7.3,
+];
+const PUNCT_W: Record<string, number> = { ' ': 3, '·': 3.1, '.': 3.1, ',': 3.1, "'": 2.8, '…': 8 };
+const WIDE = 8.8;
+// The " · N" count after the name is weight 500 with no letter spacing.
+const COUNT_SEP = 7.5;
+const digitWidth = (d: string) => (d === '1' ? 4.1 : 6.8);
+// The name ends 6 units before the focus button (16 wide, centred 43 left of X0), or before the eye.
+const NAME_ROOM = X0 - 43 - 8 - 6 - 24;
+const FOCUS_BUTTON_ROOM = 19;
 const MAX_DEPTH = 3;
+
+const segmenter =
+  typeof Intl !== 'undefined' && 'Segmenter' in Intl
+    ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+    : null;
+
+/** User-perceived characters in NFC, so a cut never splits a surrogate pair or drops a mark. */
+function graphemes(text: string): string[] {
+  const nfc = text.normalize('NFC');
+  return segmenter ? Array.from(segmenter.segment(nfc), (g) => g.segment) : Array.from(nfc);
+}
+
+function glyphWidth(g: string): number {
+  const base = g.normalize('NFD')[0];
+  const i = CAPS.indexOf(base);
+  return i >= 0 ? CAP_W[i] : (PUNCT_W[base] ?? (/[-/()]/.test(base) ? 5.1 : WIDE));
+}
+
+/** The width of a lane name in capitals, or with `count` of its " · N" part. */
+export function laneNameWidth(text: string, count = false): number {
+  if (count)
+    return [...text].reduce((w, ch) => w + (/\d/.test(ch) ? digitWidth(ch) : 0), COUNT_SEP);
+  return graphemes(text).reduce((w, g) => w + glyphWidth(g), 0);
+}
+
+/** Cuts a lane name by grapheme to `room` units, ending with an ellipsis when it is cut. */
+export function cutToWidth(text: string, room: number): string {
+  const parts = graphemes(text);
+  if (laneNameWidth(text) <= room) return parts.join('');
+  let w = PUNCT_W['…'];
+  let n = 0;
+  while (n < parts.length && w + glyphWidth(parts[n]) <= room) w += glyphWidth(parts[n++]);
+  return `${parts.slice(0, n).join('').trimEnd()}…`;
+}
 
 /** Children follow their parent inside a team, so the indent of the labels reads as a tree. */
 function treeOrder(shown: WorkItem[]): Array<{ w: WorkItem; depth: number }> {
@@ -515,14 +559,11 @@ function treeOrder(shown: WorkItem[]): Array<{ w: WorkItem; depth: number }> {
   return out;
 }
 
-function summaryOf(c: Ctx, name: string, shown: WorkItem[], top: number): LayoutTeamSummary {
+function summaryOf(c: Ctx, name: string, shown: WorkItem[]): LayoutTeamSummary {
   let late = 0;
   let done = 0;
   let cancelled = 0;
   let changed = false;
-  let x1 = Infinity;
-  let x2 = -Infinity;
-  const ticks: LayoutTeamSummary['ticks'] = [];
   for (const w of shown) {
     const info = c.infos.get(w.id)!;
     changed ||=
@@ -532,17 +573,6 @@ function summaryOf(c: Ctx, name: string, shown: WorkItem[], top: number): Layout
     if (info.cancelled) cancelled += 1;
     else if (info.done) done += 1;
     else if (itemStatus(w, c.eventsOf(w.id), c.view.asOf, c.tz) === 'late') late += 1;
-    x1 = Math.min(x1, c.x(startOf(c, w)));
-    x2 = Math.max(
-      x2,
-      info.finishedAt ? c.x(Date.parse(info.finishedAt)) : Math.max(c.xt, c.x(c.lateFrom(w))),
-    );
-    const lateFrom = c.lateFrom(w);
-    for (const e of info.events) {
-      const at = Date.parse(e.at);
-      if (at < c.startMs) continue;
-      ticks.push({ x: c.x(at), tone: at > lateFrom ? lateTone(info) : baseTone(info) });
-    }
   }
   const notYet = shown.length - late - done - cancelled;
   const count = shown.length;
@@ -559,10 +589,6 @@ function summaryOf(c: Ctx, name: string, shown: WorkItem[], top: number): Layout
     notYet,
     done,
     cancelled,
-    bar: count
-      ? { x1: Math.max(X0, x1), x2: Math.min(c.x1, Math.max(x1, x2)), y: top + c.level.head / 2 }
-      : null,
-    ticks,
     changed,
     ariaLabel: `${name}, ${count} work item${count === 1 ? '' : 's'}${parts.length ? `: ${parts.join(', ')}` : ''}`,
   };
@@ -610,17 +636,19 @@ function placeRows(c: Ctx): { lanes: LayoutLane[]; height: number } {
     y += collapsed ? 2 : 6;
     const lastY = collapsed ? 0 : Math.max(0, ...shown.map((w) => c.rows.get(w.id)!.y));
     const index = lanes.length;
-    const countRoom = ` · ${shown.length}`.length * COUNT_CHAR;
+    const summary = summaryOf(c, team.name, shown);
+    const countRoom = laneNameWidth(` · ${shown.length}`, true);
+    const room = (view.focusButtons ? NAME_ROOM : NAME_ROOM + FOCUS_BUTTON_ROOM) - countRoom;
     lanes.push({
       teamId: team.id,
       name: team.name,
-      label: trunc(team.name.toUpperCase(), Math.floor((X0 - 14 - 26 - countRoom) / LANE_CHAR)),
+      label: cutToWidth(team.name.toUpperCase(), room),
       index,
       top,
       bottom: y,
       head: level.head,
       collapsed,
-      summary: summaryOf(c, team.name, shown, top),
+      summary,
       alt: index % 2 === 1,
       guide: lastY ? { y1: top + level.head - 4, y2: lastY } : null,
       eyeLabel: `Hide ${team.name}`,

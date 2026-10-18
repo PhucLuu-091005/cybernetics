@@ -12,6 +12,7 @@ import {
 } from '../../tracker';
 import { useDismissibleDetails } from '../shell/Popover';
 import { Avatar, Avatars, type Directory } from './avatar';
+import { HiddenMenu, type HiddenMenuProps } from './HiddenMenu';
 import { Icon } from './icons';
 import type { TrackerActions, TrackerView } from './TrackerScreen';
 
@@ -74,6 +75,8 @@ type Props = {
   onView: (view: TrackerView) => void;
   onDrawer: (mode: 'crs') => void;
   review?: { canMerge: boolean; changed: boolean; onReviewAgain: () => void };
+  /** Without it, the bar has no hidden badge. */
+  hidden?: HiddenMenuProps;
 };
 
 export const crHref = (projectId: string, num: number) => `/projects/${projectId}/changes/${num}`;
@@ -163,7 +166,6 @@ function MainBar(props: Props) {
   const { session, onView } = props;
   const { payload, me, dir } = session;
   const lead = payload.project.leadMemberId;
-  const draft = myDrafts(payload.crs, me)[0];
   const asks = asksForMe(payload.crs, me);
   return (
     <div className="bbar main" role="region" aria-label="Main">
@@ -187,11 +189,7 @@ function MainBar(props: Props) {
           </button>
         )),
       )}
-      {draft && (
-        <button className="btn" type="button" onClick={() => onView(draft.num)}>
-          <Icon name="pr" /> Open #{draft.num} (draft)
-        </button>
-      )}
+      {props.hidden && <HiddenMenu {...props.hidden} />}
     </div>
   );
 }
@@ -240,6 +238,7 @@ function AskRow({
 
 export function ContextBar(props: Props) {
   const { session, cr: c, actions, busy = false, review } = props;
+  const hiddenBadge = !!props.hidden?.hidden.count && <HiddenMenu {...props.hidden} />;
   if (!c) return <MainBar {...props} />;
   const { payload, me, dir, tz } = session;
   const n = c.ops.length;
@@ -268,6 +267,8 @@ export function ContextBar(props: Props) {
             ? `Merged into Main by ${dir.name(c.mergedBy ?? '')}${c.mergedAt ? `, ${formatStamp(c.mergedAt, tz)}` : ''}. Read-only history.`
             : `Cancelled by ${dir.name(c.closedBy ?? '')}${c.closedAt ? `, ${formatStamp(c.closedAt, tz)}` : ''}. Nothing went into Main.`}
         </span>
+        {hiddenBadge && <span className="sp" />}
+        {hiddenBadge}
         {c.status === 'closed' && reason && (
           <p className="bnote">
             <b>Reason:</b> <span className="multi">{reason}</span>
@@ -405,6 +406,7 @@ export function ContextBar(props: Props) {
       )}
       <span className="sp" />
       {buttons}
+      {hiddenBadge}
       {review?.changed && (
         <div className="ask-row" role="status">
           <span>This change request changed since you opened it.</span>

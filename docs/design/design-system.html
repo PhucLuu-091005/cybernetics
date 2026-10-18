@@ -42,6 +42,7 @@
   --k-message: #0c67b6; --k-task: #60646c; --k-handoff: #0e738c; --k-decision: #975800;
   --k-meeting: #9e5426; --k-delivery: #54722b; --k-issue: #be282d; --k-done: #1e744e;
   --k-idea: #3a5bc7; --k-cancelled: #60646c;
+  --k-tint: 12%; --k-tint-back: 26%;
 }
 :root[data-theme='dark'] {
   --page: #0d0d0f; --panel: #18191b; --surface: #18191b; --sunk: #111113; --gray-bg: #272a2d;
@@ -62,6 +63,7 @@
   --k-message: #70b8ff; --k-task: #b0b4ba; --k-handoff: #4ccce6; --k-decision: #ffca16;
   --k-meeting: #dbb594; --k-delivery: #d4ff70; --k-issue: #ff9592; --k-done: #3dd68c;
   --k-idea: #9eb1ff; --k-cancelled: #b0b4ba;
+  --k-tint: 16%; --k-tint-back: 30%;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
@@ -83,6 +85,7 @@
     --k-message: #70b8ff; --k-task: #b0b4ba; --k-handoff: #4ccce6; --k-decision: #ffca16;
     --k-meeting: #dbb594; --k-delivery: #d4ff70; --k-issue: #ff9592; --k-done: #3dd68c;
     --k-idea: #9eb1ff; --k-cancelled: #b0b4ba;
+    --k-tint: 16%; --k-tint-back: 30%;
   }
 }
 
@@ -361,8 +364,8 @@ svg.tg .hit.sel { fill: color-mix(in srgb, var(--ink) 6%, transparent); }
 svg.tg .hit.flash { fill: color-mix(in srgb, var(--ink) 8%, transparent); }
 svg.tg .hit.glow { fill: color-mix(in srgb, var(--ink) 9%, transparent); stroke: var(--ink); stroke-width: 2; }
 svg.tg .hit.kfocus { stroke: var(--focus); stroke-width: 1px; vector-effect: non-scaling-stroke; }
-svg.tg .act .bg { fill: var(--panel); stroke-width: 2; }
-svg.tg .act .layer { stroke-width: 1.5; }
+svg.tg .act .bg { fill: color-mix(in srgb, var(--kc) var(--k-tint), var(--panel)); stroke-width: 2; }
+svg.tg .act .layer { fill: color-mix(in srgb, var(--kc) var(--k-tint-back), var(--panel)); stroke-width: 1.5; }
 svg.tg .act .halo { fill: color-mix(in srgb, var(--change) 30%, transparent); stroke: var(--change); stroke-width: 3; }
 svg.tg .ms-c { stroke-width: 2; }
 svg.tg .ms.sel .ms-c { stroke-width: 3.5; }
@@ -958,9 +961,9 @@ Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fiel
   function ev(kind, x, y, tone, opts) {
     opts = opts || {};
     var s = 'var(--k-' + kind + ')';
-    var g = '<g class="act" transform="translate(' + x + ' ' + y + ')">';
+    var g = '<g class="act" transform="translate(' + x + ' ' + y + ')" style="--kc:' + s + '">';
     if (opts.changed) g += '<circle class="halo" r="15"/>';
-    for (var k = (opts.n || 1) - 1; k >= 1; k--) g += '<circle class="layer" cx="' + (-3.5 * k) + '" r="10" style="stroke:' + s + ';fill:color-mix(in srgb, ' + s + ' 18%, var(--panel))"/>';
+    for (var k = (opts.n || 1) - 1; k >= 1; k--) g += '<circle class="layer" cx="' + (-3.5 * k) + '" r="10" style="stroke:' + s + '"/>';
     g += '<circle class="bg" r="10" style="stroke:' + s + '"/><g style="color:' + s + '">' + inner(KIND[kind], 0, 0, 13) + '</g></g>';
     out.push(g);
   }
@@ -1030,9 +1033,9 @@ Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fiel
   function evg(kind, x, y, tone, opts) { out = []; ev(kind, x, y, tone, opts); return out.join(''); }
   var M = [
     ['Row lines', spec(260, 70, '<line class="seg" x1="10" x2="120" y1="16" y2="16" style="stroke:var(--route)"/><line class="seg" x1="120" x2="200" y1="16" y2="16" style="stroke:var(--danger)"/><line class="seg" x1="10" x2="150" y1="40" y2="40" style="stroke:var(--proceed)"/><line class="seg" x1="150" x2="200" y1="40" y2="40" style="stroke:var(--caution)"/><line class="wait-line" x1="10" x2="200" y1="62" y2="62"/><text class="wait-text" x="18" y="56">No events yet</text>'), 'Open blue, then red after the planned finish. Done green, then amber when late. A row with no events: a faint grey line.'],
-    ['Events and stacks', spec(260, 50, evg('message', 30, 25, 'route') + evg('meeting', 90, 25, 'route', { n: 3 }) + evg('issue', 150, 25, 'danger', { changed: true }) + evg('done', 210, 25, 'proceed')), 'A radius-10 circle in the kind colour with the kind icon; the row line keeps the status colour. A stack shows up to 2 circles behind in an 18 % tint of the top kind. A changed event gets a yellow ring.'],
-    ['Row height', spec(260, 92, (function () { var h = ''; [[14, 10, 13], [44, 7, 9], [70, 3, 0]].forEach(function (r) { h += '<line class="seg" x1="10" x2="240" y1="' + r[0] + '" y2="' + r[0] + '" style="stroke:var(--route);stroke-width:' + (r[1] > 5 ? (r[1] > 8 ? 3 : 2.5) : 2) + '"/>'; ['task', 'meeting', 'done'].forEach(function (k, i) { var x = 50 + i * 70, c = 'var(--k-' + k + ')'; h += r[2] ? '<g class="act" transform="translate(' + x + ' ' + r[0] + ')"><circle class="bg" r="' + r[1] + '" style="stroke:' + c + '"/><g style="color:' + c + '">' + inner(KIND[k], 0, 0, r[2]) + '</g></g>' : '<circle cx="' + x + '" cy="' + r[0] + '" r="3" style="fill:' + c + '"/>'; }); }); return h + '<text class="note" x="10" y="88">Comfortable 32 · Compact 20 · Dense 12</text>'; })()), 'Three row heights in the view menu. Compact is the default. At Dense an event is a dot in its kind colour.'],
-    ['Team summary row', spec(260, 44, '<rect x="0" y="0" width="260" height="40" style="fill:var(--sunk)"/><path d="M10 9 l4 4 l-4 4" style="fill:none;stroke:var(--ink-3);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round"/><text class="lane-name" x="22" y="16" style="fill:var(--ink)">ENGINEERING<tspan style="fill:var(--ink-3);letter-spacing:0"> · 4</tspan></text><text x="22" y="31" style="font-size:10.5px;fill:var(--ink-3)"><tspan style="fill:var(--danger-ink);font-weight:600">2 late</tspan> · <tspan style="fill:var(--proceed-ink)">2 done</tspan></text><rect x="150" y="17" width="100" height="6" rx="3" style="fill:color-mix(in srgb, var(--ink-3) 22%, var(--panel))"/><rect x="170" y="15" width="1.6" height="10" style="fill:var(--proceed)"/><rect x="236" y="15" width="1.6" height="10" style="fill:var(--danger)"/>'), 'Chevron, name and count, the counts above zero of late, not yet and done, a bar over the time of the shown work and a tick per event. A click, Enter or Space collapses or opens the team. A collapsed team with a change gets the highlighter on its name.'],
+    ['Events and stacks', spec(260, 50, evg('message', 30, 25, 'route') + evg('meeting', 90, 25, 'route', { n: 3 }) + evg('issue', 150, 25, 'danger', { changed: true }) + evg('done', 210, 25, 'proceed')), 'A radius-10 circle with a 2-unit ring in the full kind colour, a 12 % tint of the kind inside (16 % in dark) and the kind icon; the row line keeps the status colour. A stack shows up to 2 circles behind in a 26 % tint (30 % in dark) of the top kind. A changed event gets a yellow ring.'],
+    ['Row height', spec(260, 92, (function () { var h = ''; [[14, 10, 13], [44, 7, 9], [70, 3, 0]].forEach(function (r) { h += '<line class="seg" x1="10" x2="240" y1="' + r[0] + '" y2="' + r[0] + '" style="stroke:var(--route);stroke-width:' + (r[1] > 5 ? (r[1] > 8 ? 3 : 2.5) : 2) + '"/>'; ['task', 'meeting', 'done'].forEach(function (k, i) { var x = 50 + i * 70, c = 'var(--k-' + k + ')'; h += r[2] ? '<g class="act" transform="translate(' + x + ' ' + r[0] + ')" style="--kc:' + c + '"><circle class="bg" r="' + r[1] + '" style="stroke:' + c + '"/><g style="color:' + c + '">' + inner(KIND[k], 0, 0, r[2]) + '</g></g>' : '<circle cx="' + x + '" cy="' + r[0] + '" r="3" style="fill:' + c + '"/>'; }); }); return h + '<text class="note" x="10" y="88">Comfortable 32 · Compact 20 · Dense 12</text>'; })()), 'Three row heights in the view menu. Compact is the default. At Dense an event is a dot in its kind colour.'],
+    ['Team summary row', spec(260, 60, '<rect x="0" y="0" width="260" height="28" style="fill:var(--sunk)"/><path d="M10 10 l4 4 l-4 4" style="fill:none;stroke:var(--ink-3);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round"/><text class="lane-name" x="22" y="17.8" style="fill:var(--ink)">DIGITIZATION<tspan style="fill:var(--ink-3);letter-spacing:0"> · 2</tspan></text><line x1="150.5" x2="150.5" y1="0" y2="60" style="stroke:var(--rule)"/><text x="160" y="18" style="font-size:11.5px;fill:var(--proceed-ink)">2 done</text><path d="M10 37.5 l4 4 l4 -4" style="fill:none;stroke:var(--ink-3);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round"/><text class="lane-name" x="22" y="45.8" style="fill:var(--ink)">SOLUTIONS ENGI…<tspan style="fill:var(--ink-3);letter-spacing:0"> · 2</tspan></text><text x="160" y="46" style="font-size:11.5px;fill:var(--ink-3)"><tspan style="fill:var(--danger-ink);font-weight:600">1 late</tspan> · <tspan style="fill:var(--proceed-ink)">1 done</tspan></text>'), 'One 28-unit line: chevron, name and count (a long name ends with an ellipsis before the buttons). The counts above zero sit in the lane, at the left edge of the visible time line, and stay there while it scrolls. A click, Enter or Space collapses or opens the team; only keyboard focus shows a thin --ink-3 ring.'],
     ['Milestone circles', spec(260, 40, '<g transform="translate(25 20)"><circle class="ms-c" r="8" style="stroke:var(--ink-3);fill:var(--panel)"/></g><g transform="translate(75 20)"><circle class="ms-c" r="8" style="stroke:var(--teal);fill:var(--teal)"/><path class="ms-i" d="M-3.5 0 l2.5 2.5 l4.5 -5"/></g><g transform="translate(125 20)"><circle class="ms-c" r="8" style="stroke:var(--proceed);fill:var(--proceed)"/><path class="ms-i" d="M-3.5 0 l2.5 2.5 l4.5 -5"/></g><g transform="translate(175 20)"><circle class="ms-c" r="8" style="stroke:var(--danger);fill:var(--danger)"/><path class="ms-i" d="M0 -4 V1"/><circle class="ms-dot" cy="4" r="1.2"/></g><g transform="translate(225 20)"><circle class="ms-c" r="8" style="stroke:var(--caution);fill:var(--caution)"/><path class="ms-i" d="M0 -4 V1"/><circle class="ms-dot" cy="4" r="1.2"/></g>'), 'Planned, Finished early, Finished on time, Late, Finished late. Radius 8; a tick or "!".'],
     ['Milestone line slips', spec(260, 50, '<line class="trunk" x1="10" x2="250" y1="14" y2="14"/><line class="trunk-seg" x1="60" x2="140" y1="14" y2="14" style="stroke:var(--danger)"/><line class="trunk" x1="10" x2="250" y1="38" y2="38"/><line class="trunk-seg" x1="90" x2="160" y1="38" y2="38" style="stroke:var(--teal)"/>'), 'A 4-unit ink line. Red from the date to today while late, amber to the finish when finished late, teal from the finish to the date when early.'],
     ['Deadline diamonds', spec(260, 40, (function () { out = []; diamond(30, 22, 'ink-3', false, false); diamond(80, 22, 'proceed', true, false); diamond(130, 22, 'danger', true, false); diamond(180, 22, 'route', true, true, ''); diamond(220, 22, 'caution', true, false); return out.join(''); })()), 'At noon of the milestone date on every member row. Planned is an outline. A moved date gets a yellow stroke.'],
