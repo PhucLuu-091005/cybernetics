@@ -210,7 +210,7 @@ test.describe('the tracker walkthrough', () => {
       await choose(dialog.getByLabel('Access', { exact: true }), 'Can edit');
       await dialog.getByRole('button', { name: 'Add', exact: true }).click();
       await expect(toast).toContainText('Khoa Lê can edit #5. Send them the link.');
-      await expect(dialog.getByLabel('Access for Khoa Lê')).toHaveValue('edit');
+      await expect(dialog.getByLabel('Access for Khoa Lê')).toHaveText('Can edit');
       await dialog.getByRole('button', { name: 'Done' }).click();
       await expect(dialog).toHaveCount(0);
     });
