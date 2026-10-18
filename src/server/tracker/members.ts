@@ -28,6 +28,7 @@ import { isUniqueViolation, withTransaction, type Db, type Tx } from '../db/tx';
 import { AppError, invalidInput } from '../errors';
 import { requireScope } from '../http/scopes';
 import {
+  mayManage,
   ProjectScopeSchema,
   readScope,
   requireRight,
@@ -76,6 +77,7 @@ export type ProjectTeam = {
 
 export type MembersPayload = {
   canManage: boolean;
+  canManageTeams: boolean;
   leadId: string;
   members: ProjectMember[];
   teams: ProjectTeam[];
@@ -174,7 +176,8 @@ async function toPayload(db: Reader, ctx: ActorContext, scope: Scope): Promise<M
   const use = await teamUse(db, scope, teams);
   const live = rows.filter((row) => row.removedAt === null);
   return {
-    canManage: ctx.kind === 'user' && !!scope.me && scope.me.id === lead,
+    canManage: mayManage(ctx, scope, 'members:manage'),
+    canManageTeams: mayManage(ctx, scope, 'teams:manage'),
     leadId: lead,
     members: live.map((row) => {
       const grants = grantsOf(row);

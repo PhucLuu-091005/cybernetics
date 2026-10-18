@@ -169,7 +169,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     'list_members',
     'project:read',
     {},
-    'List the members (id, name, email, project lead, grants, rights, teams) and the teams (id, name, lead, people). Use it for the member ids that share, hand over, decline and the member and team tools take.',
+    'List the members (id, name, email, project lead, grants, rights, teams) and the teams (id, name, lead, people). canManage and canManageTeams say whether this token may manage members and teams. Use it for the member ids that share, hand over, decline and the member and team tools take.',
     (db, ctx, input) => listProjectMembers(db, ctx, typed(input)),
   ),
   tool(
