@@ -435,6 +435,19 @@ describe('reviewModel', () => {
     expect(reviewModel(p, 7, { 'event:qe1': 'main' })?.canMerge).toBe(false);
   });
 
+  it('counts only the changes that still apply, and lists the others for Clear, last first', () => {
+    const { crs, commits } = mainTookTheSpots();
+    const p = payload(crs, commits);
+    expect(reviewModel(p, 5, {})).toMatchObject({ applying: 1, stale: [1, 0] });
+    const { cr1, commits: first } = seed();
+    const gone = makeOp('attach', { eventId: 'nope', workItemId: 'pg203' }, 1, 'lan');
+    const cr = makeCr(5, { author: 'lan', status: 'draft', ops: [gone] });
+    expect(reviewModel(payload([cr1, cr], first), 5, {})).toMatchObject({
+      applying: 0,
+      stale: [0],
+    });
+  });
+
   it('blames Main, not the queue, for a closed change whose card or spot Main used before the close', () => {
     const { crs, commits } = mainTookTheSpots();
     const [, cr5] = crs;

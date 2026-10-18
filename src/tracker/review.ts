@@ -55,6 +55,10 @@ export type ReviewModel = {
   after: TrackerState;
   marks: Marks;
   changes: ReviewChange[];
+  /** The changes that still apply: the count that the bar shows and Mark as ready needs. */
+  applying: number;
+  /** The positions of the changes that no longer apply, last first, so removing them one by one keeps the rest in place. */
+  stale: number[];
   clashes: ReviewClash[];
   /** The picks that match a clash now; the server rejects a merge that sends any other key. */
   picks: Picks;
@@ -291,6 +295,10 @@ export function reviewModel(
     after,
     marks: shape.after.marks,
     changes,
+    applying: changes.filter((change) => !change.skipReason).length,
+    stale: changes
+      .flatMap((change) => (change.skipReason && change.opIndex !== null ? [change.opIndex] : []))
+      .sort((a, b) => b - a),
     clashes,
     picks: current,
     canMerge:

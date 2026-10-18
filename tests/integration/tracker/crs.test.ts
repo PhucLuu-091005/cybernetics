@@ -375,6 +375,31 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
     });
   });
 
+  describe('ready with changes that no longer apply', () => {
+    it('refuses Ready when no change applies after the placement is undone', async () => {
+      await fresh();
+      const { num } = await createCr(t.db, demo.owner, { ...as('lan'), title: 'Placed' });
+      const ops = [
+        { op: 'place', a: { itemId: demo.ids.q2, teamId: 'engineering' } },
+        { op: 'rename', a: { workItemId: demo.ids.q2, title: 'Investor template v2' } },
+      ];
+      for (const [i, op] of ops.entries())
+        await appendOp(t.db, demo.owner, { ...as('lan'), num, expectedRevision: i, op });
+      const undone = await removeOp(t.db, demo.owner, {
+        ...as('lan'),
+        num,
+        index: 0,
+        expectedRevision: 2,
+      });
+      expect(crOf(undone, num).ops).toHaveLength(1);
+      expect(reviewModel(undone, num)).toMatchObject({ applying: 0, stale: [0] });
+      await expect(action('lan', num, { action: 'ready' })).rejects.toMatchObject({
+        code: 'VALIDATION',
+        message: 'Add at least one change that applies before you mark it as ready',
+      });
+    });
+  });
+
   describe('editing hand-over', () => {
     it('asks to edit and cancels the ask', async () => {
       await fresh();

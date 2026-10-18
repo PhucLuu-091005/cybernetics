@@ -201,7 +201,7 @@ export function CrSide({
   onPick: (key: string, side: 'main' | 'cr') => void;
   onHide: () => void;
 }) {
-  const { cr, changes, clashes } = model;
+  const { cr, changes, clashes, applying, stale } = model;
   const shown = edit ? tab : 'changes';
   const tabButton = (value: SideTab, label: string, count: number) => (
     <button type="button" aria-pressed={shown === value} onClick={() => onTab(value)}>
@@ -213,12 +213,12 @@ export function CrSide({
       <div className="side-top">
         {edit ? (
           <div className="qseg" role="group" aria-label="Show in the side panel">
-            {tabButton('changes', 'Changes', changes.length)}
+            {tabButton('changes', 'Changes', applying)}
             {tabButton('queue', 'Queue', queueCount)}
           </div>
         ) : (
           <h4>
-            Changes <span className="n">{changes.length}</span>
+            Changes <span className="n">{applying}</span>
           </h4>
         )}
         <button
@@ -239,6 +239,24 @@ export function CrSide({
         <div className="side-list">
           {isOpen(cr) && clashes.length > 0 && (
             <ClashBox session={session} model={model} canPick={canPick} onPick={onPick} />
+          )}
+          {stale.length > 0 && (
+            <p className="chg-stale" role="note" aria-label="Changes that no longer apply">
+              {stale.length === 1
+                ? '1 change no longer applies.'
+                : `${stale.length} changes no longer apply.`}
+              {edit && (
+                <button
+                  className="btn sm btn-quiet"
+                  type="button"
+                  aria-label="Clear the changes that no longer apply"
+                  disabled={busy}
+                  onClick={actions.clearStale}
+                >
+                  Clear
+                </button>
+              )}
+            </p>
           )}
           {changes.length > 0 ? (
             <ol className="chg-list" aria-label="Changes">

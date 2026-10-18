@@ -339,6 +339,17 @@ async function ready(run: Run) {
   requireSeen(run);
   if (!cr.ops.length)
     throw new AppError('VALIDATION', 'Add at least one change before you mark it as ready');
+  const main = await loadMain(tx, scope);
+  const { entries } = replayOps(
+    mainState(main.base, main.queue, main.commits),
+    liveOps(cr.ops, main.commits),
+    scope.tracker.timeZone,
+  );
+  if (!entries.some((entry) => !entry.skipped))
+    throw new AppError(
+      'VALIDATION',
+      'Add at least one change that applies before you mark it as ready',
+    );
   await updateCr(tx, cr, { status: 'ready' });
   await addComment(tx, scope.tenant, { crId: cr.id, memberId: me.id, kind: 'ready' });
 }

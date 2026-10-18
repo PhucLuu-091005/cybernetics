@@ -2054,3 +2054,59 @@ test.describe('the legend popover on a phone', () => {
       .toBeGreaterThanOrEqual(0);
   });
 });
+
+test.describe('changes that no longer apply', () => {
+  test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
+
+  test('an undone placement leaves its later changes out of the count and of Mark as ready, and Clear removes them', async ({
+    page,
+  }) => {
+    const { projectId, graph } = await signIn(page, 'tracker-stale', { classic: false });
+    const num = await page.evaluate(async (pid) => {
+      const read = await (await fetch(`/api/v1/projects/${pid}/tracker`)).json();
+      const item = read.queue.items.find(
+        (q: { title: string }) => q.title === 'PG-204 Tax ID format check',
+      );
+      const created = await fetch(`/api/v1/projects/${pid}/tracker/crs`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Tax ID check',
+          ops: [
+            { op: 'place', a: { itemId: item.id, teamId: 'engineering' } },
+            { op: 'rename', a: { workItemId: item.id, title: 'PG-204 Tax ID check' } },
+            { op: 'rename', a: { workItemId: item.id, title: 'PG-204 Tax ID rules' } },
+          ],
+        }),
+      });
+      return ((await created.json()) as { num: number }).num;
+    }, projectId);
+    await visit(page, crPath(graph, num));
+    const bar = page.locator('.bbar').first();
+    const side = page.locator('.cr-side');
+    const rows = side.locator('.chg-row');
+    const ready = bar.getByRole('button', { name: 'Mark as ready' });
+    const clear = side.getByRole('button', { name: 'Clear the changes that no longer apply' });
+    await expect(bar).toContainText('3 changes');
+    await expect(ready).toBeEnabled();
+    await expect(clear).toHaveCount(0);
+
+    await rows
+      .first()
+      .getByRole('button', { name: /^Undo this change/ })
+      .click();
+    await expect(rows).toHaveCount(2);
+    await expect(rows.first()).toContainText('no longer applies');
+    await expect(bar).toContainText('0 changes');
+    await expect(side.getByRole('button', { name: /^Changes/ })).toHaveText('Changes 0');
+    await expect(ready).toBeDisabled();
+    await expect(side.getByRole('note', { name: 'Changes that no longer apply' })).toHaveText(
+      '2 changes no longer apply.Clear',
+    );
+
+    await clear.click();
+    await expect(rows).toHaveCount(0);
+    await expect(clear).toHaveCount(0);
+    await expect(side).toContainText('No changes yet.');
+  });
+});

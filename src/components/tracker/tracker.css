@@ -654,6 +654,18 @@
   border-top: 1px solid var(--rule);
   gap: 0;
 }
+.tk .chg-stale {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 -12px;
+  padding: 6px 12px;
+  min-height: 36px;
+  font-size: var(--fs-s);
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--rule-2);
+}
 .tk .chg-list {
   list-style: none;
   margin: 0;
