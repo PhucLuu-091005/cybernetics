@@ -202,6 +202,62 @@ Each visitor's copy is a full Larkspur project in its own workspace, owned by an
 
   A smaller `--days` also deletes copies whose cookie still works: their visitor then gets a new copy on the next visit.
 
+## Deploy from a tag
+
+After the first deploy by hand (steps 1 to 7), GitHub Actions can deploy each tag that starts with `v`. The workflow `.github/workflows/deploy.yml` runs the same checks as CI. When they pass, it builds the `Dockerfile`, pushes the image to Artifact Registry and deploys it. It changes only the image: the service keeps its env vars, secrets, service account and limits. GitHub signs in to Google through Workload Identity Federation, so no service account key exists anywhere.
+
+Set it up once:
+
+1. Sign in to gcloud as the project owner (step 3) and to the GitHub CLI (`gh auth login`). Then run the setup script from the repository root:
+
+   ```sh
+   GCP_PROJECT_ID=promise-graph GITHUB_REPOSITORY=PhucLuu-091005/cybernetics scripts/setup-github-cd.sh
+   ```
+
+   The script does these things. A second run creates nothing new.
+   - It creates the Docker repository `promise-graph` in `asia-southeast1`, with a cleanup policy that keeps the 3 newest images.
+   - It creates the account `promise-graph-deployer`. The account gets `roles/run.developer` on the service, `roles/artifactregistry.writer` on the repository and `roles/iam.serviceAccountUser` on the runtime account. It gets no other role.
+   - It reads the ids of the repository and of its owner with `gh api repos/PhucLuu-091005/cybernetics --jq '.id,.owner.id'` (today `1415634185` and `187116949`). Without `gh`, set them yourself in `GITHUB_REPOSITORY_ID` and `GITHUB_OWNER_ID`.
+   - It creates a Workload Identity pool and an OIDC provider for GitHub. The provider accepts only a job of that repository id and owner id, on a tag that starts with `v`, in the environment `production`. Google checks the ids and not the name, so after a rename, a new repository with the old name gets no access.
+
+2. The script prints two `gh variable set` commands. Run them. They set the repository variables `GCP_WIF_PROVIDER` and `GCP_DEPLOYER_SA`. Neither value is secret, so they are variables, not secrets.
+
+Deploy:
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+Watch the run in the **Actions** tab or with `gh run watch`. The job summary shows the service URL after `/api/health` returns `ok`. A failed check stops the run before the deploy.
+
+One run waits for the run before it, so an older tag never deploys after a newer one.
+
+To roll back, deploy an earlier tag again. Start the workflow from that tag:
+
+```sh
+gh workflow run deploy.yml --ref v0.1.0 -f tag=v0.1.0
+```
+
+Do not roll back to an old revision in the Cloud Run console. The cleanup policy keeps only the 3 newest images, so the image of an old revision can be gone. The workflow builds the image of the tag again.
+
+Protect the tags. Anyone who can push a `v*` tag can deploy. In **Settings → Rules → Rulesets**, add a tag ruleset:
+
+1. Target the tags that match `v*`.
+2. Select **Restrict creations**, **Restrict updates** and **Restrict deletions**.
+3. Add only the repository admin (the owner) to the bypass list.
+
+The deploy job runs in the GitHub environment `production`, and Google gives a token only to a job in that environment. In **Settings → Environments → production**, you can also:
+
+- set **Deployment branches and tags** to **Selected branches and tags** with the tag rule `v*`;
+- add a required reviewer, so that each deploy waits for an approval.
+
+GitHub makes the environment at the first run. To change a secret or an env var, use `scripts/deploy-cloud-run.sh` or `gcloud run services update` as in step 8.
+
+The free limits that matter here:
+
+- GitHub Actions: a public repository gets free minutes with no limit. A private repository on the Free plan gets 2,000 minutes a month. This repository is public. One tag uses about 20 to 30 minutes, because the checks, the end-to-end tests and the image build each take a runner.
+- Artifact Registry: 0.5 GB of storage for the whole project. The cleanup policy keeps the 3 newest images in `promise-graph` and deletes the others. Artifact Registry runs the policy about once a day. The images of the deploys by hand stay in `cloud-run-source-deploy`, so delete them there (step 9).
+
 ## Troubleshooting
 
 - **The build fails with a permission error on the service account.** Cloud Build builds the image as the default compute service account. Some new projects do not give that account the build role. Run:
