@@ -552,6 +552,94 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     expect(at).toBeLessThan(after);
   });
 
+  test('date and time boxes use the app format and their own calendar and time list', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-pickers');
+    const dialog = page.locator('.m-card');
+    const drawer = page.locator('.drawer');
+    const native = page.locator(
+      'input[type="date"], input[type="time"], input[type="datetime-local"]',
+    );
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/changes\/\d+$/);
+
+    await page.locator('svg.tg [data-ms="crm"] .ms-hit').click();
+    await expect(drawer.locator('h4')).toHaveText('CRM integration live');
+    await expect(native).toHaveCount(0);
+    const date = drawer.getByLabel('Planned date', { exact: true });
+    await expect(date).toHaveValue('18 Sept 2026');
+
+    await drawer.getByRole('button', { name: 'Open the calendar' }).click();
+    const calendar = page.getByRole('dialog', { name: 'Pick a day: Planned date' });
+    await expect(calendar.getByRole('grid', { name: 'September 2026' })).toBeVisible();
+    await expect(calendar.getByRole('button', { name: '18 Sept 2026' })).toBeFocused();
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('Enter');
+    await expect(calendar).toHaveCount(0);
+    await expect(date).toHaveValue('20 Sept 2026');
+
+    const time = drawer.getByLabel('Time (optional)');
+    await expect(time).toHaveValue('');
+    await expect(time).toHaveAttribute('placeholder', 'Time');
+    await time.click();
+    await page
+      .getByRole('listbox', { name: 'Time (optional)' })
+      .getByRole('option', { name: '12:30' })
+      .click();
+    await expect(time).toHaveValue('12:30');
+
+    await date.fill('soon');
+    await expect(date).toHaveAttribute('aria-invalid', 'true');
+    await time.focus();
+    await expect(date).toHaveValue('20 Sept 2026');
+    await expect(date).not.toHaveAttribute('aria-invalid');
+
+    await drawer.getByRole('button', { name: 'Save milestone' }).click();
+    await expect(dialog).toContainText('Move the milestone date');
+    const newDate = dialog.getByLabel('New date');
+    const newTime = dialog.getByLabel('Time (optional)');
+    await expect(newDate).toHaveValue('20 Sept 2026');
+    await expect(newTime).toHaveValue('12:30');
+
+    await dialog.getByRole('button', { name: 'Open the calendar' }).click();
+    const moveCalendar = page.getByRole('dialog', { name: 'Pick a day: New date' });
+    await page.keyboard.press('Escape');
+    await expect(moveCalendar).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Open the calendar' }).click();
+    await moveCalendar.getByRole('button', { name: 'Next month' }).click();
+    await expect(moveCalendar.getByRole('grid', { name: 'October 2026' })).toBeVisible();
+    await moveCalendar.getByRole('button', { name: '2 Oct 2026', exact: true }).click();
+    await expect(newDate).toHaveValue('2 Oct 2026');
+    await newTime.fill('1430');
+    await newTime.press('Tab');
+    await expect(newTime).toHaveValue('14:30');
+    await expect(native).toHaveCount(0);
+    await dialog.getByLabel(/Why does the date move/).fill('The vendor call moved to the 2nd.');
+    await dialog.getByRole('button', { name: 'Move the date' }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(
+      page.locator('svg.pg .deadline[aria-label^="CRM integration live · deadline 2 Oct 14:30"]'),
+    ).toHaveCount(4);
+
+    await page
+      .locator('.cr-side')
+      .getByRole('button', { name: /^Queue/ })
+      .click();
+    await page.locator('.qpanel').getByRole('button', { name: 'Add' }).click();
+    await expect(page.getByRole('dialog', { name: 'Add to the queue' })).toBeVisible();
+    const when = dialog.getByRole('group', { name: 'When' });
+    await expect(when.getByLabel('Date')).toHaveValue(/^\d{1,2} \w+ 2026$/);
+    await expect(when.getByLabel('Time')).toHaveValue(/^\d{2}:\d{2}$/);
+    await when.getByLabel('Time').fill('9');
+    await when.getByLabel('Time').press('Tab');
+    await expect(when.getByLabel('Time')).toHaveValue('09:00');
+    await expect(native).toHaveCount(0);
+  });
+
   test('the first view opens at a readable scale with T and the latest events in view, and labels never touch', async ({
     page,
   }) => {

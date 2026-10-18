@@ -162,6 +162,48 @@ export function parseDayText(text: string, year: number): string | null {
   return dayOf(`${date}T12:00:00Z`, 'UTC') === date ? date : null;
 }
 
+/** Reads "14:30", "1430", "930", "9" (09:00) or "9:5" (09:05) as a 24-hour `HH:mm`. */
+export function parseTimeText(text: string): string | null {
+  const t = text.trim();
+  const split = /^(\d{1,2})[:.](\d{0,2})$/.exec(t);
+  const digits = /^\d{1,4}$/.test(t) ? t : null;
+  let hour: number, minute: number;
+  if (split) [hour, minute] = [Number(split[1]), Number(split[2] || 0)];
+  else if (digits && digits.length <= 2) [hour, minute] = [Number(digits), 0];
+  else if (digits) [hour, minute] = [Number(digits.slice(0, -2)), Number(digits.slice(-2))];
+  else return null;
+  return hour < 24 && minute < 60 ? `${pad(hour)}:${pad(minute)}` : null;
+}
+
+export function timeSteps(stepMinutes = 30): string[] {
+  const steps: string[] = [];
+  for (let m = 0; m < 24 * 60; m += stepMinutes) steps.push(`${pad((m / 60) | 0)}:${pad(m % 60)}`);
+  return steps;
+}
+
+export function formatMonth(date: string): string {
+  const [year, month] = parseDay(date);
+  const name = MONTH_NAMES[month - 1];
+  return `${name[0].toUpperCase()}${name.slice(1)} ${year}`;
+}
+
+export function addMonths(date: string, n: number): string {
+  const [year, month, day] = parseDay(date);
+  const last = new Date(Date.UTC(year, month - 1 + n + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, month - 1 + n, Math.min(day, last))).toISOString().slice(0, 10);
+}
+
+/** Six weeks from Monday, so the calendar keeps one height from month to month. */
+export function monthGrid(date: string): string[][] {
+  const [year, month] = parseDay(date);
+  const first = `${pad(year, 4)}-${pad(month)}-01`;
+  const weekday = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7;
+  const start = addDays(first, -weekday);
+  return Array.from({ length: 6 }, (_, w) =>
+    Array.from({ length: 7 }, (_, d) => addDays(start, w * 7 + d)),
+  );
+}
+
 export function formatStamp(instant: string, timeZone: string): string {
   const p = zoned(Date.parse(instant), timeZone);
   return `${p.day} ${MONTHS[p.month - 1]} ${pad(p.hour)}:${pad(p.minute)}`;

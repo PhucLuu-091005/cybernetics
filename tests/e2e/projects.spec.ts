@@ -42,7 +42,16 @@ test('a new project starts with its teams and an empty graph, and its first chan
   await addTeam.fill('');
   await expect(teams.getByRole('listitem')).toHaveText(['Onboarding', 'Engineering', 'QA']);
   await create.getByLabel('First milestone (optional)').fill('Portal live');
-  await create.getByLabel('Milestone date').fill('2026-11-20');
+  const milestoneDate = create.getByLabel('Milestone date');
+  await expect(milestoneDate).toHaveAttribute('placeholder', 'Date');
+  await expect(create.locator('input[type="date"], input[type="time"]')).toHaveCount(0);
+  await create.getByRole('button', { name: 'Open the calendar' }).click();
+  const calendar = page.getByRole('dialog', { name: 'Pick a day: Milestone date' });
+  await expect(calendar.getByRole('button', { name: 'Today' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(calendar).toHaveCount(0);
+  await expect(create).toBeVisible();
+  await milestoneDate.fill('20 Nov 2026');
   await create.getByRole('button', { name: 'Create project' }).click();
   await page.waitForURL(
     (url) => url.pathname !== larkspur && /^\/projects\/[0-9a-f-]{36}\/graph$/.test(url.pathname),

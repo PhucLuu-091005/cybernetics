@@ -164,12 +164,11 @@ export function MilestoneDrawer({
           </label>
           <label className="field">
             Planned date
-            <input
-              type="date"
+            <DateInput
+              label="Planned date"
+              today={dayOf(asOf, tz)}
               value={date}
-              onChange={(event) =>
-                event.target.value && setDraft({ name, date: event.target.value, time })
-              }
+              onChange={(next) => setDraft({ name, date: next, time })}
             />
           </label>
           <label className="field">
@@ -577,6 +576,7 @@ export function WorkItemDrawer({
               <span className="wi-date">
                 <DateInput
                   label="Planned finish"
+                  today={dayOf(asOf, tz)}
                   value={plan.date}
                   onChange={(date) => setDates({ ...plan, date })}
                 />
