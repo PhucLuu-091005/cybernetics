@@ -112,7 +112,7 @@ This URL is `NEXT_PUBLIC_APP_URL`. Write it without a `/` at the end. The deploy
 
 The script does these things:
 
-1. It stops before it calls gcloud when a value is missing or wrong: an origin without `https://`, a session secret under 32 bytes, a `DATABASE_URL` without `-pooler`, or a `MIGRATE_DATABASE_URL` with `-pooler`.
+1. It stops before it calls gcloud when a value is missing or wrong: an origin without `https://`, a session secret under 32 bytes, a `DATABASE_URL` without `-pooler`, or a `MIGRATE_DATABASE_URL` with `-pooler`. It also stops when the running service has another `AUTH_MODE` and you did not set `AUTH_MODE`, so a deploy never switches the mode by default.
 2. It creates the service account `promise-graph-runtime@<GCP_PROJECT_ID>.iam.gserviceaccount.com` once. The service runs as this account. The account gets no project role: it can only read the secrets below. Cloud Run writes the logs of the service without a role on the account.
 3. It stores `SESSION_SECRET`, `DATABASE_URL` and `MIGRATE_DATABASE_URL` in Secret Manager as `promise-graph-session-secret`, `promise-graph-database-url` and `promise-graph-migrate-database-url`. With `AUTH_MODE=google`, it also stores `GOOGLE_CLIENT_SECRET` as `promise-graph-google-client-secret`. It sends each value on stdin and never prints it. It lets the runtime account read each one.
 4. It runs one `gcloud run deploy`. Cloud Build builds the `Dockerfile`, and Cloud Run starts it in `asia-southeast1`:
@@ -190,8 +190,17 @@ Do this only when people must sign in with Google instead of the demo copy.
 Each visitor's copy is a full Larkspur project in its own workspace, owned by an anonymous person named Demo visitor.
 
 - **Size.** One new copy writes 43 rows (person, workspace, project, 5 members, 7 teams, 5 team places, 6 Queue items, 4 change requests, 9 comments, 1 commit, 1 share) and takes about 28 KB on PostgreSQL, indexes included (measured: 100 copies grew the database by 2.9 MB). The empty schema takes about 9 MB. So 1 GB (the Neon Free storage) holds about 35,000 copies before visitors add their own changes.
-- **When a copy is made.** Only when a browser opens a page with no session: a `GET` that asks for HTML. `HEAD`, `/api/health`, `/mcp`, files and prefetches make nothing. A user agent that names a bot, crawler, spider, preview, Slackbot, facebookexternalhit, WhatsApp, TelegramBot, Discordbot or curl gets a read-only welcome page that links to the app, so link previews make nothing.
-- **Limits.** One address (the first `X-Forwarded-For` value) gets at most 20 new copies an hour; the whole service gets at most 300 an hour. Past a limit, the visitor sees a plain page that says to try again later. The limits live in process memory, which is one more reason for `--max-instances 1`.
+- **When a copy is made.** Only when a browser opens a page with no session: a `GET` that asks for HTML. `HEAD`, `/api/health`, `/mcp`, files and prefetches make nothing. After it sets the cookie, the app checks on the next request that the cookie came back. If it did not (cookies off, the app inside another site's frame, a link scanner), the visitor sees a page about cookies, and no more copies are made. A user agent that names a bot, crawler, spider, preview, Slackbot, facebookexternalhit, WhatsApp, TelegramBot, Discordbot or curl gets a read-only welcome page that links to the app, so link previews make nothing.
+- **Limits.** One address gets at most 20 new copies an hour; the whole service gets at most 300 an hour. A request that a limit refuses counts toward neither limit. Past a limit, the visitor sees a plain page that says to try again later. The limits live in process memory, which is one more reason for `--max-instances 1`.
+- **The address.** Cloud Run's front end appends the real client address as the last `X-Forwarded-For` value; the values before it come from the client. The app takes the last value, so a client cannot fake its address. An IPv6 `/64` counts as one address. If you put another proxy of your own in front of Cloud Run (for example a load balancer), set `TRUSTED_PROXY_HOPS` to the number of such proxies (default 0). To check it after a deploy, open a new copy with a fake first value, then read the log line `demo_sandbox`:
+
+  ```sh
+  curl -s -o /dev/null -A 'Mozilla/5.0' -H 'Accept: text/html' -H 'X-Forwarded-For: 192.0.2.1' "$NEXT_PUBLIC_APP_URL/api/auth/demo"
+  gcloud logging read 'resource.type="cloud_run_revision" AND jsonPayload.event="demo_sandbox"' \
+    --project "$GCP_PROJECT_ID" --freshness 10m --limit 1 --format 'value(jsonPayload.address)'
+  ```
+
+  The address must be your own public address, not `192.0.2.1`.
 - **Cookie.** The session cookie lasts 30 days (`HttpOnly`, `Secure`, `SameSite=Lax`) and is not renewed. After 30 days nobody can open that copy again. **Start over** in the account menu makes a new person and a fresh copy; the old copy stays until the cleanup.
 - **Cleanup.** `scripts/delete-demo-sandboxes.mjs` deletes the copies made more than N days ago (default 30, the cookie lifetime, so it never deletes a copy that a visitor can still open). It is a script that you run, not a cron job. Without `--apply` it only counts:
 
