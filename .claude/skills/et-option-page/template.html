@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TOPIC options</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Copy the current values from src/app/globals.css and src/components/tracker/tracker.css.
+   .th-light and .th-dark scope the tokens to one frame, so light and dark sit side by side. */
+      :root,
+      .th-light {
+        --page: #f0f0f3;
+        --panel: #ffffff;
+        --sunk: #f9f9fb;
+        --gray-bg: #f0f0f3;
+        --hover: rgb(28 32 36 / 0.045);
+        --ink: #1c2024;
+        --ink-2: #60646c;
+        --ink-3: #696c74;
+        --rule: #e0e1e6;
+        --rule-2: #f0f0f3;
+        --trunk: #1c2024;
+        --route: #0090ff;
+        --route-bg: #e6f4fe;
+        --route-ink: #0c6bbe;
+        --proceed: #46a758;
+        --proceed-bg: #e9f6e9;
+        --proceed-ink: #287939;
+        --danger: #e5484d;
+        --danger-bg: #feebec;
+        --danger-ink: #c62a2f;
+        --caution: #ef5f00;
+        --caution-bg: #ffefd6;
+        --caution-ink: #b44500;
+        --change: #ffe770;
+        --focus: #0d74ce;
+        --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.05);
+        --shadow: 0 10px 30px -6px rgb(16 24 40 / 0.16);
+        --r-ctl: 8px;
+        --r-pop: 12px;
+        --r-sheet: 14px;
+        --fs: 13.5px;
+        --fs-s: 12.5px;
+        --fs-xs: 11.5px;
+        --f-ui: 'Geist', system-ui, sans-serif;
+        --f-id: 'Geist Mono', ui-monospace, monospace;
+        color-scheme: light;
+      }
+      .th-dark,
+      :root[data-theme='dark'] {
+        --page: #0d0d0f;
+        --panel: #18191b;
+        --sunk: #111113;
+        --gray-bg: #272a2d;
+        --hover: rgb(237 238 240 / 0.06);
+        --ink: #edeef0;
+        --ink-2: #b0b4ba;
+        --ink-3: #90949d;
+        --rule: #2e3135;
+        --rule-2: #212225;
+        --trunk: #edeef0;
+        --route: #0090ff;
+        --route-bg: #0d2847;
+        --route-ink: #70b8ff;
+        --proceed: #46a758;
+        --proceed-bg: #1b2a1e;
+        --proceed-ink: #71d083;
+        --danger: #e5484d;
+        --danger-bg: #3b1219;
+        --danger-ink: #ff9592;
+        --caution: #ef5f00;
+        --caution-bg: #331e0b;
+        --caution-ink: #ffa057;
+        --change: #ffe770;
+        --focus: #70b8ff;
+        --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+        --shadow: 0 12px 32px -6px rgb(0 0 0 / 0.6);
+        color-scheme: dark;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          --page: #0d0d0f;
+          --panel: #18191b;
+          --sunk: #111113;
+          --gray-bg: #272a2d;
+          --hover: rgb(237 238 240 / 0.06);
+          --ink: #edeef0;
+          --ink-2: #b0b4ba;
+          --ink-3: #90949d;
+          --rule: #2e3135;
+          --rule-2: #212225;
+          --trunk: #edeef0;
+          --route: #0090ff;
+          --route-bg: #0d2847;
+          --route-ink: #70b8ff;
+          --proceed: #46a758;
+          --proceed-bg: #1b2a1e;
+          --proceed-ink: #71d083;
+          --danger: #e5484d;
+          --danger-bg: #3b1219;
+          --danger-ink: #ff9592;
+          --caution: #ef5f00;
+          --caution-bg: #331e0b;
+          --caution-ink: #ffa057;
+          --focus: #70b8ff;
+          --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+          --shadow: 0 12px 32px -6px rgb(0 0 0 / 0.6);
+          color-scheme: dark;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--ink);
+        font: 400 14.5px/1.6 var(--f-ui);
+        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+      }
+      :focus-visible {
+        outline: 2px solid var(--focus);
+        outline-offset: 2px;
+      }
+      .doc {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 32px 16px 96px;
+      }
+      .hero {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+      .eyebrow {
+        font-size: 12.5px;
+        color: var(--ink-3);
+      }
+      h1 {
+        font-size: 26px;
+        line-height: 1.25;
+        margin: 4px 0 14px;
+        letter-spacing: -0.02em;
+        font-weight: 600;
+      }
+      h2 {
+        font-size: 20px;
+        margin: 0;
+        letter-spacing: -0.015em;
+        font-weight: 600;
+      }
+      p {
+        margin: 0 0 10px;
+      }
+      .lead,
+      .body {
+        max-width: 780px;
+        color: var(--ink-2);
+      }
+      .lead b,
+      .body b {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .pill {
+        display: inline-flex;
+        font-size: 11.5px;
+        font-weight: 500;
+        padding: 1px 9px;
+        border-radius: 99px;
+        background: var(--gray-bg);
+        color: var(--ink-2);
+      }
+      .pill.rec {
+        background: var(--proceed-bg);
+        color: var(--proceed-ink);
+      }
+      .seg {
+        display: inline-flex;
+        flex-wrap: wrap;
+        background: var(--gray-bg);
+        border-radius: var(--r-ctl);
+        padding: 2px;
+      }
+      .seg button {
+        border: 0;
+        background: none;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 12.5px;
+        cursor: pointer;
+        color: var(--ink-2);
+      }
+      .seg button[aria-pressed='true'] {
+        background: var(--panel);
+        color: var(--ink);
+        box-shadow: var(--shadow-sm);
+      }
+      .q {
+        margin-top: 56px;
+        padding-top: 28px;
+        border-top: 1px solid var(--rule);
+      }
+      .q-head {
+        display: flex;
+        gap: 12px;
+        align-items: baseline;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+      }
+      .q-head .num {
+        font-family: var(--f-id);
+        font-size: 13px;
+        color: var(--ink-3);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+        gap: 18px;
+        margin-top: 16px;
+      }
+      .opt {
+        min-width: 0;
+      }
+      .opt-l {
+        font-size: 13px;
+        margin: 0 0 4px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .opt-l b {
+        font-weight: 600;
+      }
+      .gain {
+        font-size: 12.5px;
+        color: var(--ink-3);
+        margin: 0 0 10px;
+      }
+      .frames {
+        display: grid;
+        gap: 10px;
+      }
+      .frame {
+        background: var(--page);
+        color: var(--ink);
+        border: 1px solid var(--rule);
+        border-radius: var(--r-pop);
+        padding: 14px;
+        min-width: 0;
+        overflow: hidden;
+      }
+      .ask {
+        margin-top: 18px;
+        padding: 12px 14px;
+        border-radius: var(--r-pop);
+        background: var(--panel);
+        border: 1px solid var(--rule);
+        max-width: 780px;
+      }
+      .answer {
+        position: sticky;
+        bottom: 12px;
+        margin-top: 48px;
+        background: var(--panel);
+        border: 1px solid var(--rule);
+        border-radius: var(--r-pop);
+        padding: 12px 14px;
+        box-shadow: var(--shadow);
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .answer .txt {
+        flex: 1;
+        min-width: 220px;
+        font-size: 13.5px;
+      }
+      .btn {
+        border: 1px solid var(--ink);
+        background: var(--ink);
+        color: var(--panel);
+        border-radius: var(--r-ctl);
+        padding: 6px 12px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="doc">
+      <div class="hero">
+        <div>
+          <div class="eyebrow">Event tracker · DD Mon YYYY</div>
+          <h1>CÂU HỎI CHO CHỦ DỰ ÁN</h1>
+        </div>
+        <div class="seg" role="group" aria-label="Theme">
+          <button type="button" data-theme-btn="auto" aria-pressed="true">Auto</button>
+          <button type="button" data-theme-btn="light" aria-pressed="false">Light</button>
+          <button type="button" data-theme-btn="dark" aria-pressed="false">Dark</button>
+        </div>
+      </div>
+      <div class="lead"><p>Vấn đề là gì, và vì sao bạn cần chọn. Hai hoặc ba câu ngắn.</p></div>
+
+      <section class="q" id="q1">
+        <div class="q-head">
+          <span class="num">1</span>
+          <h2>TÊN CÂU HỎI</h2>
+        </div>
+        <div class="body"><p>Giải thích ngắn: cái gì có hôm nay, cái gì thay đổi.</p></div>
+        <div class="grid">
+          <!-- One .opt per option. Draw the real screen part inside each .frame. -->
+          <div class="opt">
+            <p class="opt-l"><b>O1. Tên</b><span class="pill rec">Đề xuất</span></p>
+            <p class="gain">Được: … Mất: …</p>
+            <div class="frames">
+              <div class="frame th-light"><!-- light drawing --></div>
+              <div class="frame th-dark"><!-- dark drawing --></div>
+            </div>
+          </div>
+          <div class="opt">
+            <p class="opt-l"><b>O2. Tên</b></p>
+            <p class="gain">Được: … Mất: …</p>
+            <div class="frames">
+              <div class="frame th-light"></div>
+              <div class="frame th-dark"></div>
+            </div>
+          </div>
+        </div>
+        <p style="margin-top: 16px">
+          <span class="seg" data-q="q1" role="group" aria-label="Câu 1">
+            <button type="button" data-v="O1" aria-pressed="true">O1 (đề xuất)</button>
+            <button type="button" data-v="O2" aria-pressed="false">O2</button>
+          </span>
+        </p>
+        <div class="ask"><b>Đề xuất:</b> O1, vì …</div>
+      </section>
+
+      <div class="answer" role="region" aria-label="Câu trả lời">
+        <div class="txt" id="answer"></div>
+        <button type="button" class="btn" id="copy">Copy</button>
+      </div>
+    </main>
+    <script>
+      (() => {
+        const picks = {};
+        const render = () => {
+          document.getElementById('answer').textContent =
+            Object.entries(picks)
+              .map(([q, v], i) => `${i + 1}. ${v}`)
+              .join('. ') + '.';
+        };
+        document.querySelectorAll('.seg[data-q]').forEach((seg) => {
+          picks[seg.dataset.q] = seg.querySelector('[aria-pressed="true"]').dataset.v;
+          seg.addEventListener('click', (e) => {
+            const b = e.target.closest('button');
+            if (!b) return;
+            picks[seg.dataset.q] = b.dataset.v;
+            seg
+              .querySelectorAll('button')
+              .forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+            render();
+          });
+        });
+        document.querySelectorAll('[data-theme-btn]').forEach((b) =>
+          b.addEventListener('click', () => {
+            const t = b.dataset.themeBtn;
+            if (t === 'auto') document.documentElement.removeAttribute('data-theme');
+            else document.documentElement.setAttribute('data-theme', t);
+            document
+              .querySelectorAll('[data-theme-btn]')
+              .forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+          }),
+        );
+        document.getElementById('copy').addEventListener('click', async () => {
+          const btn = document.getElementById('copy');
+          try {
+            await navigator.clipboard.writeText(document.getElementById('answer').textContent);
+            btn.textContent = 'Copied';
+          } catch {
+            btn.textContent = 'Chọn và copy tay';
+          }
+          setTimeout(() => {
+            btn.textContent = 'Copy';
+          }, 1500);
+        });
+        render();
+      })();
+    </script>
+  </body>
+</html>
