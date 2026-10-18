@@ -14,3 +14,4 @@ export * from './filter';
 export * from './deadline';
 export * from './permissions';
 export * from './teams';
+export * from './people';

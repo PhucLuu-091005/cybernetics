@@ -34,6 +34,10 @@ test('the project lead invites, sets grants, edits a team, removes a member and 
   await expect(row('Minh Trần')).toContainText('You');
   await expect(row('Minh Trần')).toContainText('Project lead');
   await expect(row('Minh Trần').getByRole('button', { name: /Remove/ })).toHaveCount(0);
+  await expect(row('Minh Trần').getByRole('button', { name: /Make project lead/ })).toHaveCount(0);
+  await expect(
+    row('Lan Phạm').getByRole('button', { name: /Make project lead/ }),
+  ).toHaveAccessibleName('Make project lead: Lan Phạm');
   await expect(page.getByLabel('Merge change requests: Minh Trần')).toBeDisabled();
   await expect(page.getByLabel('Merge change requests: Minh Trần')).toBeChecked();
 
@@ -49,6 +53,20 @@ test('the project lead invites, sets grants, edits a team, removes a member and 
     await expect(page.locator('.pg-error')).toHaveText(
       'members-guest@local.test is already in this project.',
     );
+    await form.getByLabel('Email').fill('a@b');
+    await form.getByRole('button', { name: 'Invite' }).click();
+    await expect(page.locator('.pg-error')).toHaveText('Invalid email address.');
+  });
+
+  await test.step('the invite is a person of the graph at once, in the Person filter', async () => {
+    await page.goto(`/projects/${projectId}/graph`);
+    await hydrated(page);
+    await page.locator('.tfilter-btn').click();
+    const panel = page.getByRole('group', { name: 'Filter the graph' });
+    await expect(panel.locator('.fchip', { hasText: 'members-guest@local.test' })).toHaveCount(1);
+    await expect(panel.locator('.fchip', { hasText: 'Sarah Kim' })).toHaveCount(1);
+    await page.goto(`/projects/${projectId}/members`);
+    await hydrated(page);
   });
 
   await test.step('grants follow their rule: a team lead keeps Create, Merge turns on its needs', async () => {
@@ -106,6 +124,36 @@ test('the project lead invites, sets grants, edits a team, removes a member and 
     await expect(row('Hà Đỗ')).toHaveCount(0);
   });
 
+  await test.step('Hà keeps the name on past work, but new work cannot go to her', async () => {
+    await page.goto(`/projects/${projectId}/graph`);
+    await hydrated(page);
+    await page.locator('.tfilter-btn').click();
+    const panel = page.getByRole('group', { name: 'Filter the graph' });
+    await expect(panel.locator('.fchip', { hasText: 'Hà Đỗ' })).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/changes\/\d+$/);
+    await hydrated(page);
+    await page
+      .locator('.cr-side')
+      .getByRole('button', { name: /^Queue/ })
+      .click();
+    await page.locator('.qpanel').getByRole('button', { name: 'Add' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Add to the queue' });
+    await expect(dialog.getByLabel('Who').locator('option', { hasText: 'Hà Đỗ' })).toHaveCount(0);
+    await expect(dialog.getByLabel('Who').locator('option', { hasText: 'Lan Phạm' })).toHaveCount(
+      1,
+    );
+    await dialog.getByRole('button', { name: 'Work item' }).click();
+    await expect(dialog.getByLabel('Done by').locator('option', { hasText: 'Hà Đỗ' })).toHaveCount(
+      0,
+    );
+    await page.keyboard.press('Escape');
+    await page.goto(`/projects/${projectId}/members`);
+    await hydrated(page);
+  });
+
   await test.step('the invited person signs in, lands in the project and reads the page only', async () => {
     const guest = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     const other = await guest.newPage();
@@ -137,12 +185,12 @@ test('the project lead invites, sets grants, edits a team, removes a member and 
   await test.step('hand the lead to Quang: Cancel keeps it, Make project lead moves it', async () => {
     await page.reload();
     await hydrated(page);
-    await row('Quang Nguyễn').getByRole('button', { name: 'Make project lead' }).click();
+    await page.getByRole('button', { name: 'Make project lead: Quang Nguyễn' }).click();
     const confirm = page.getByRole('dialog', { name: 'Make Quang Nguyễn the project lead?' });
     await expect(confirm).toContainText('You keep every grant');
     await confirm.getByRole('button', { name: 'Cancel' }).click();
     await expect(confirm).toHaveCount(0);
-    await row('Quang Nguyễn').getByRole('button', { name: 'Make project lead' }).click();
+    await page.getByRole('button', { name: 'Make project lead: Quang Nguyễn' }).click();
     await confirm.getByRole('button', { name: 'Make project lead' }).click();
     await expect(toast).toContainText('Quang Nguyễn is the project lead now.');
     await expect(page.getByRole('form', { name: 'Invite a person' })).toHaveCount(0);

@@ -7,6 +7,14 @@ export type ApiError = {
   errors?: FieldError[];
   details?: Record<string, unknown>;
 };
+const sentence = (text: string) => text.replace(/\.?$/, '.');
+
+/** A validation error names the field problems; its general message ("Invalid invite") says less. */
+export function errorText(error: ApiError): string {
+  const fields = error.code === 'VALIDATION' ? (error.errors ?? []).map((e) => e.message) : [];
+  return fields.length ? [...new Set(fields)].map(sentence).join(' ') : sentence(error.message);
+}
+
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: ApiError };
 
 export async function send<T>(

@@ -47,6 +47,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker projects', () => {
         color: '#0f766e',
         userId: ctx.userId,
         active: true,
+        removed: false,
         grants: ALL_GRANTS,
       },
     ]);
