@@ -7,6 +7,7 @@ import {
   clashesOf,
   clashLabel,
   crVersionApplies,
+  goneNamed,
   liveOps,
   mainState,
   noNul,
@@ -148,12 +149,17 @@ function stillApplying(state: TrackerState, ops: readonly Op[], tz: string): Op[
   return kept;
 }
 
-type Main = { base: Scope['tracker']['base']; queue: QueueRow[]; commits: Commit[] };
+type Main = {
+  base: Scope['tracker']['base'];
+  queue: QueueRow[];
+  commits: Commit[];
+  members: Scope['members'];
+};
 
 async function loadMain(tx: Tx, scope: Scope): Promise<Main> {
   const queue = await loadQueue(tx, scope.project.id);
   const commits = await loadCommits(tx, scope.project.id);
-  return { base: scope.tracker.base, queue, commits };
+  return { base: scope.tracker.base, queue, commits, members: scope.members };
 }
 
 /** Each new op must apply on the latest Main plus the live ops before it. */
@@ -174,6 +180,14 @@ function admit(
     const op = candidate(raw, rev, by);
     if (op.op === 'addTeam' && state.teams.some((team) => team.id === op.a.id))
       throw new AppError('VALIDATION', `The change does not fit: team ${op.a.id} already exists`);
+    const gone = goneNamed(state, main.members, op).map(
+      (id) => main.members.find((m) => m.id === id)?.name ?? id,
+    );
+    if (gone.length)
+      throw new AppError(
+        'VALIDATION',
+        `The change does not fit: ${gone.join(' and ')} ${gone.length > 1 ? 'are' : 'is'} no longer in this project`,
+      );
     try {
       const applied = applyOp(state, op, tz);
       state = applied.state;

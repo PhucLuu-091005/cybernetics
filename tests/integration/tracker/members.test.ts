@@ -7,6 +7,7 @@ import { createEmptyProject, listProjects } from '../../../src/server/domain/pro
 import {
   addQueueEntry,
   addTeam,
+  appendOp,
   createCr,
   crAction,
   deleteTeam,
@@ -130,6 +131,54 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
     await removeMember(t.db, demo.owner, { ...own(), memberId: idOf(joined) });
     const after = await getTrackerPayload(t.db, demo.owner, own());
     expect(after.base.people.find((p) => p.id === idOf(joined))?.name).toBe('Mai Vũ');
+  });
+
+  it('keeps a removed member on past work but takes no new work for them', async () => {
+    await fresh();
+    await removeMember(t.db, demo.owner, { ...own(), memberId: demo.ids.ha });
+    const payload = await getTrackerPayload(t.db, demo.owner, own());
+    expect(payload.members.find((m) => m.id === demo.ids.ha)).toMatchObject({ removed: true });
+    expect(payload.base.people.find((p) => p.id === demo.ids.ha)?.name).toBe('Hà Đỗ');
+
+    const card = (doneBy: string) => ({
+      ...own(),
+      kind: 'item' as const,
+      fields: { title: 'Retest', doneBy, requestedBy: demo.ids.minh, plannedFinish: '2026-10-20' },
+    });
+    await expect(addQueueEntry(t.db, demo.owner, card(demo.ids.ha))).rejects.toMatchObject({
+      code: 'VALIDATION',
+      extras: {
+        errors: [{ path: 'fields', message: 'doneBy: Hà Đỗ is no longer in this project' }],
+      },
+    });
+    await expect(
+      addQueueEntry(t.db, demo.owner, {
+        ...own(),
+        kind: 'event',
+        fields: { kind: 'message', at: '2026-10-08T03:00:00.000Z', by: demo.ids.ha, text: 'Hi' },
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+
+    const { num } = await createCr(t.db, demo.owner, { ...own(), title: 'Hand over the tests' });
+    const change = (
+      op: { op: 'doneBy' | 'requestedBy'; personId: string },
+      expectedRevision: number,
+    ) =>
+      appendOp(t.db, demo.owner, {
+        ...own(),
+        num,
+        expectedRevision,
+        op: { op: op.op, a: { workItemId: 'test', personId: op.personId } },
+      });
+    await expect(change({ op: 'requestedBy', personId: demo.ids.ha }, 0)).rejects.toMatchObject({
+      code: 'VALIDATION',
+      message: expect.stringContaining('Hà Đỗ'),
+    });
+    await expect(change({ op: 'doneBy', personId: demo.ids.ha }, 0)).resolves.toBeDefined();
+    await expect(change({ op: 'doneBy', personId: demo.ids.quang }, 1)).resolves.toBeDefined();
+    await expect(change({ op: 'doneBy', personId: demo.ids.ha }, 2)).rejects.toMatchObject({
+      code: 'VALIDATION',
+    });
   });
 
   it('starts a new project with its creator as the one person, with no copy', async () => {

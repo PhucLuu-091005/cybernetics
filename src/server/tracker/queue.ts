@@ -6,6 +6,7 @@ import {
   QueueEventInputSchema,
   QueueItemInputSchema,
   type Commit,
+  type Member,
   type Op,
   type TrackerPayload,
   type TrackerState,
@@ -33,10 +34,16 @@ const DismissQueueEntryInputSchema = z.strictObject({
 
 type Entry = z.infer<typeof AddQueueEntryInputSchema>;
 
-/** A card that names an unknown person, milestone or work item could never be placed. */
-function unknownReferences(entry: Entry, main: TrackerState): string[] {
-  const person = (field: string, id: string) =>
-    main.people.some((p) => p.id === id) ? [] : [`${field}: no person ${id}`];
+/**
+ * A card that names an unknown person, milestone or work item could never be placed. A removed
+ * member keeps the name on past work, but a new card cannot give them work.
+ */
+function unknownReferences(entry: Entry, main: TrackerState, members: readonly Member[]): string[] {
+  const person = (field: string, id: string) => {
+    const gone = members.find((m) => m.id === id && m.removed);
+    if (gone) return [`${field}: ${gone.name} is no longer in this project`];
+    return main.people.some((p) => p.id === id) ? [] : [`${field}: no person ${id}`];
+  };
   if (entry.kind === 'event') return person('by', entry.fields.by);
   const { doneBy, requestedBy, milestoneId, after } = entry.fields;
   return [
@@ -68,7 +75,11 @@ export async function addQueueCard(
     const me = requireQueueWriter(scope);
     const queue = await loadQueue(tx, scope.project.id);
     const commits = await loadCommits(tx, scope.project.id);
-    const problems = unknownReferences(entry, mainState(scope.tracker.base, queue, commits));
+    const problems = unknownReferences(
+      entry,
+      mainState(scope.tracker.base, queue, commits),
+      scope.members,
+    );
     if (problems.length)
       throw new AppError('VALIDATION', 'The queue card names something Main does not have', {
         errors: problems.map((message) => ({ path: 'fields', message })),

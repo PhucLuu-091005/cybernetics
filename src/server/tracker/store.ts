@@ -120,6 +120,7 @@ export async function loadMembers(db: Reader, projectId: string): Promise<Member
     color: row.color,
     userId: row.userId,
     active: row.removedAt === null && !isInvite(row),
+    removed: row.removedAt !== null,
     grants: grantsOf(row),
   }));
 }

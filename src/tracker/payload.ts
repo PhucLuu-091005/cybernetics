@@ -14,6 +14,8 @@ export type Member = {
   userId: string | null;
   /** A present person: not removed and not a pending invite. What they may do comes from `can`. */
   active: boolean;
+  /** Removed from the project: the name stays on past work, but nobody gives them new work. */
+  removed: boolean;
   /** The stored grants; `rightsOf` adds the project lead and team lead rules. */
   grants: Grants;
 };

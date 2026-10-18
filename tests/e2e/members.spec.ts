@@ -124,6 +124,36 @@ test('the project lead invites, sets grants, edits a team, removes a member and 
     await expect(row('Hà Đỗ')).toHaveCount(0);
   });
 
+  await test.step('Hà keeps the name on past work, but new work cannot go to her', async () => {
+    await page.goto(`/projects/${projectId}/graph`);
+    await hydrated(page);
+    await page.locator('.tfilter-btn').click();
+    const panel = page.getByRole('group', { name: 'Filter the graph' });
+    await expect(panel.locator('.fchip', { hasText: 'Hà Đỗ' })).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/changes\/\d+$/);
+    await hydrated(page);
+    await page
+      .locator('.cr-side')
+      .getByRole('button', { name: /^Queue/ })
+      .click();
+    await page.locator('.qpanel').getByRole('button', { name: 'Add' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Add to the queue' });
+    await expect(dialog.getByLabel('Who').locator('option', { hasText: 'Hà Đỗ' })).toHaveCount(0);
+    await expect(dialog.getByLabel('Who').locator('option', { hasText: 'Lan Phạm' })).toHaveCount(
+      1,
+    );
+    await dialog.getByRole('button', { name: 'Work item' }).click();
+    await expect(dialog.getByLabel('Done by').locator('option', { hasText: 'Hà Đỗ' })).toHaveCount(
+      0,
+    );
+    await page.keyboard.press('Escape');
+    await page.goto(`/projects/${projectId}/members`);
+    await hydrated(page);
+  });
+
   await test.step('the invited person signs in, lands in the project and reads the page only', async () => {
     const guest = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     const other = await guest.newPage();

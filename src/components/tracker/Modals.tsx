@@ -18,12 +18,14 @@ import {
   KIND_GROUPS,
   KIND_LABEL,
   kindText,
+  pickable,
   toInstant,
   wallTimeInstant,
   type Cr,
   type Member,
   type CrPermission,
   type EventKind,
+  type Person,
   type TrackerState,
 } from '../../tracker';
 import type { OpInput, QueueEntry } from './api';
@@ -273,17 +275,17 @@ const finishFields = (kind: EventKind, finishes: boolean) =>
   kind === 'handoff' && finishes ? { finishes: true } : {};
 
 function PeopleSelect({
-  state,
+  people,
   value,
   onChange,
 }: {
-  state: TrackerState;
+  people: readonly Person[];
   value: string;
   onChange: (v: string) => void;
 }) {
   return (
     <select value={value} onChange={(event) => onChange(event.target.value)}>
-      {state.people.map((p) => (
+      {people.map((p) => (
         <option key={p.id} value={p.id}>
           {p.name}
         </option>
@@ -318,8 +320,8 @@ function ItemSelect({
 const blankText = (kind: EventKind) =>
   kind === 'cancelled' ? 'Write why the work item is cancelled.' : 'Write what happened first.';
 
-const personOr = (state: TrackerState, id: string | null | undefined) =>
-  id && state.people.some((p) => p.id === id) ? id : (state.people[0]?.id ?? '');
+const personOr = (people: readonly Person[], id: string | null | undefined) =>
+  id && people.some((p) => p.id === id) ? id : (people[0]?.id ?? '');
 
 function Gone({ onClose }: { onClose: () => void }) {
   useEffect(() => onClose(), [onClose]);
@@ -352,7 +354,8 @@ function EventQuote({
 
 function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'add'>) {
   const tz = session.tz;
-  const me = personOr(state, session.me);
+  const people = pickable(state.people, session.payload.members);
+  const me = personOr(people, session.me);
   const [what, setWhat] = useState(modal.what);
   const [kind, setKind] = useState<EventKind>('message');
   const [finishes, setFinishes] = useState(true);
@@ -422,7 +425,7 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
           <div className="grid2">
             <label className="field">
               Who
-              <PeopleSelect state={state} value={by} onChange={setBy} />
+              <PeopleSelect people={people} value={by} onChange={setBy} />
             </label>
             <div className="field">
               When
@@ -452,11 +455,11 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
           <div className="grid2">
             <label className="field">
               Done by
-              <PeopleSelect state={state} value={doneBy} onChange={setDoneBy} />
+              <PeopleSelect people={people} value={doneBy} onChange={setDoneBy} />
             </label>
             <label className="field">
               For (requested by)
-              <PeopleSelect state={state} value={requestedBy} onChange={setRequestedBy} />
+              <PeopleSelect people={people} value={requestedBy} onChange={setRequestedBy} />
             </label>
           </div>
           <div className="grid2">
@@ -632,6 +635,7 @@ function PlaceModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<
 
 function EventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'event'>) {
   const tz = session.tz;
+  const people = pickable(state.people, session.payload.members);
   const start = state.workItems.find((w) => w.id === modal.workItemId);
   const [workItemId, setWorkItemId] = useState(modal.workItemId);
   const [kind, setKind] = useState<EventKind>(
@@ -639,7 +643,7 @@ function EventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<
   );
   const [finishes, setFinishes] = useState(true);
   const [text, setText] = useState(modal.done ? 'Done.' : '');
-  const [by, setBy] = useState(personOr(state, start?.requestedBy));
+  const [by, setBy] = useState(personOr(people, start?.requestedBy));
   const [when, setWhen] = useState(localInput(hourBefore(asOf, tz), tz));
   if (!start) return <Gone onClose={onClose} />;
   const create = () => {
@@ -670,7 +674,7 @@ function EventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<
       <div className="grid2">
         <label className="field">
           Who
-          <PeopleSelect state={state} value={by} onChange={setBy} />
+          <PeopleSelect people={people} value={by} onChange={setBy} />
         </label>
         <div className="field">
           When
@@ -690,12 +694,13 @@ function EventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<
 
 function FromEventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'fromEvent'>) {
   const tz = session.tz;
+  const people = pickable(state.people, session.payload.members);
   const ev = state.queue.events.find((e) => e.id === modal.eventId);
   const lead = state.teams.find((t) => t.id === modal.teamId)?.leadId;
   const [teamId, setTeamId] = useState(modal.teamId);
   const [title, setTitle] = useState(ev ? trunc(ev.text, 50) : '');
-  const [doneBy, setDoneBy] = useState(personOr(state, lead ?? session.me));
-  const [requestedBy, setRequestedBy] = useState(personOr(state, ev?.by));
+  const [doneBy, setDoneBy] = useState(personOr(people, lead ?? session.me));
+  const [requestedBy, setRequestedBy] = useState(personOr(people, ev?.by));
   const [after, setAfter] = useState('');
   const [planned, setPlanned] = useState(weekAfter(asOf, tz));
   const [plannedTime, setPlannedTime] = useState('');
@@ -742,11 +747,11 @@ function FromEventModal({ modal, session, state, asOf, busy, on, onClose }: Prop
       <div className="grid2">
         <label className="field">
           Done by
-          <PeopleSelect state={state} value={doneBy} onChange={setDoneBy} />
+          <PeopleSelect people={people} value={doneBy} onChange={setDoneBy} />
         </label>
         <label className="field">
           For (requested by)
-          <PeopleSelect state={state} value={requestedBy} onChange={setRequestedBy} />
+          <PeopleSelect people={people} value={requestedBy} onChange={setRequestedBy} />
         </label>
       </div>
       <div className="grid2">
