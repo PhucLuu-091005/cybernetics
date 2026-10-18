@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { drag, hydrated } from './helpers';
 
 type TrackerRead = {
@@ -16,12 +16,30 @@ async function visit(page: Page, path: string) {
   await hydrated(page);
 }
 
-async function signIn(page: Page, label: string) {
+async function viewMenu(page: Page, run: (pop: Locator) => Promise<void>) {
+  const button = page.getByRole('button', { name: 'Row height and teams' });
+  await button.click();
+  const pop = page.getByRole('dialog', { name: 'Row height and teams' });
+  await run(pop);
+  await page.keyboard.press('Escape');
+  await expect(pop).toBeHidden();
+}
+
+/** The older walks read rows of every team at 32 units, as the graph drew them before round 9. */
+async function classicView(page: Page) {
+  await viewMenu(page, async (pop) => {
+    await pop.getByRole('button', { name: 'Comfortable', exact: true }).click();
+    await pop.getByRole('button', { name: 'Expand all' }).click();
+  });
+}
+
+async function signIn(page: Page, label: string, { classic = true } = {}) {
   await page.goto(`/signin?label=${label}`);
   await page.getByRole('button', { name: /continue/i }).click();
   await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
   await expect(page.locator('svg.pg')).toBeVisible();
   await hydrated(page);
+  if (classic) await classicView(page);
   const projectId = new URL(page.url()).pathname.split('/')[2];
   return { projectId, graph: `/projects/${projectId}/graph` };
 }
@@ -1148,7 +1166,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await expect(side.locator('[data-eyeteam="engineering"]')).toHaveCount(0);
       await expect(side.locator('[data-eyeteam="solutions-engineering"]')).toHaveCount(0);
       await expect(side.getByText(/hidden/)).toHaveCount(0);
-      expect(await height()).toBe(full - 6 * 32 - 2 * (22 + 6));
+      expect(await height()).toBe(full - 6 * 32 - 2 * (40 + 6));
 
       const badge = page.locator('.hid-menu > summary');
       await expect(badge).toContainText('3 hidden');
@@ -1269,5 +1287,123 @@ test.describe('the tracker at phone width', () => {
       await expect(page.locator('.pg-head h1')).toBeVisible();
       await noHorizontalScroll(page);
     }
+  });
+});
+
+test.describe('row height and collapsible teams', () => {
+  test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
+
+  const rowY = (page: Page, id: string) =>
+    page.locator(`svg.pg [data-loop="${id}"]`).evaluate((el) => {
+      const r = el as SVGRectElement;
+      return r.y.baseVal.value + r.height.baseVal.value / 2;
+    });
+
+  test('the row height starts Compact, changes in the view menu and stays after a reload', async ({
+    page,
+  }) => {
+    const { graph } = await signIn(page, 'tracker-density', { classic: false });
+    // Engineering has late work, so it starts open.
+    expect((await rowY(page, 'syncmon')) - (await rowY(page, 'dynamics'))).toBe(20);
+    await viewMenu(page, async (pop) => {
+      await expect(pop.getByRole('button', { name: 'Compact' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      await pop.getByRole('button', { name: 'Dense' }).click();
+    });
+    await expect
+      .poll(async () => (await rowY(page, 'syncmon')) - (await rowY(page, 'dynamics')))
+      .toBe(12);
+    await expect(page.locator('svg.pg [data-act] circle.dot').first()).toBeVisible();
+    await visit(page, graph);
+    expect((await rowY(page, 'syncmon')) - (await rowY(page, 'dynamics'))).toBe(12);
+    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Comfortable' }).click());
+    await expect
+      .poll(async () => (await rowY(page, 'syncmon')) - (await rowY(page, 'dynamics')))
+      .toBe(32);
+  });
+
+  test('a team opens and collapses from its summary row, by click and by keyboard', async ({
+    page,
+  }) => {
+    const { graph } = await signIn(page, 'tracker-collapse', { classic: false });
+    const side = page.locator('svg.pg-side');
+    const implementation = side.getByRole('button', { name: /^Implementation, 3 work items/ });
+    const engineering = side.getByRole('button', { name: /^Engineering, 4 work items: 2 late/ });
+    await expect(implementation).toHaveAttribute('aria-expanded', 'false');
+    await expect(engineering).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('svg.pg [data-loop="golive"]')).toHaveCount(0);
+    await expect(page.locator('svg.pg [data-loop="pg203"]')).toHaveCount(1);
+
+    await implementation.click();
+    await expect(implementation).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('svg.pg [data-loop="golive"]')).toHaveCount(1);
+
+    await engineering.focus();
+    await page.keyboard.press('Enter');
+    await expect(engineering).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('svg.pg [data-loop="pg203"]')).toHaveCount(0);
+    await page.keyboard.press(' ');
+    await expect(engineering).toHaveAttribute('aria-expanded', 'true');
+    await page.keyboard.press('Enter');
+
+    // The toggles are the person's own and come back with the page.
+    await visit(page, graph);
+    await expect(implementation).toHaveAttribute('aria-expanded', 'true');
+    await expect(engineering).toHaveAttribute('aria-expanded', 'false');
+
+    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Collapse all' }).click());
+    await expect(page.locator('svg.pg [data-loop]')).toHaveCount(0);
+    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Expand all' }).click());
+    await expect(page.locator('svg.pg [data-loop]')).toHaveCount(14);
+  });
+
+  test('a search pick, a filter and a handoff pick open a collapsed team', async ({ page }) => {
+    await signIn(page, 'tracker-collapse-pick', { classic: false });
+    const side = page.locator('svg.pg-side');
+    const qa = side.getByRole('button', { name: /^Digitization QA, 1 work item/ });
+    await expect(qa).toHaveAttribute('aria-expanded', 'false');
+
+    // While the search text narrows the graph, every team with a match shows open.
+    const search = page.getByRole('combobox', { name: 'Search work items' });
+    await search.fill('Test the CRS');
+    await expect(page.locator('svg.pg [data-loop="test"]')).toHaveCount(1);
+    await search.fill('');
+    await expect(page.locator('svg.pg [data-loop="test"]')).toHaveCount(0);
+
+    await search.fill('Go-live date');
+    await page.getByRole('option').first().click();
+    await expect(page.locator('.drawer h4')).toHaveText('Go-live date');
+    await expect(
+      side.getByRole('button', { name: /^Implementation, 3 work items/ }),
+    ).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('svg.pg [data-loop="golive"]')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+
+    const mark = page.locator('svg.pg [data-handoff="pg203"]');
+    await mark.focus();
+    await page.keyboard.press('Enter');
+    await expect(qa).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('svg.pg [data-loop="test"]')).toHaveCount(1);
+  });
+
+  test('an event on the graph takes the colour of its kind, and the line keeps its status', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-kinds', { classic: false });
+    const task = page.locator('svg.pg [data-act="p31"] circle.bg');
+    await expect(task).toHaveCSS('stroke', 'rgb(96, 100, 108)');
+    await expect(page.locator('svg.pg [data-act="p31"] g[style]').last()).toHaveCSS(
+      'color',
+      'rgb(96, 100, 108)',
+    );
+    await expect(page.locator('svg.pg line.seg').first()).not.toHaveCSS(
+      'stroke',
+      'rgb(96, 100, 108)',
+    );
+    await expect(
+      page.locator('.legend2').getByRole('group', { name: 'Event kinds' }),
+    ).toContainText('Meeting');
   });
 });

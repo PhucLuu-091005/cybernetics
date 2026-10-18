@@ -7,10 +7,10 @@
   --change-bg: #ffe14d;
   --edit-bg: #fefce9;
   --k-message: #0c67b6;
-  --k-task: #6550b9;
+  --k-task: #60646c;
   --k-handoff: #0e738c;
   --k-decision: #975800;
-  --k-meeting: #ba2784;
+  --k-meeting: #9e5426;
   --k-delivery: #54722b;
   --k-issue: #be282d;
   --k-done: #1e744e;
@@ -21,10 +21,10 @@
   --change-bg: #6e5a00;
   --edit-bg: #1b180f;
   --k-message: #70b8ff;
-  --k-task: #baa7ff;
+  --k-task: #b0b4ba;
   --k-handoff: #4ccce6;
   --k-decision: #ffca16;
-  --k-meeting: #ff8dcc;
+  --k-meeting: #dbb594;
   --k-delivery: #d4ff70;
   --k-issue: #ff9592;
   --k-done: #3dd68c;
@@ -36,10 +36,10 @@
     --change-bg: #6e5a00;
     --edit-bg: #1b180f;
     --k-message: #70b8ff;
-    --k-task: #baa7ff;
+    --k-task: #b0b4ba;
     --k-handoff: #4ccce6;
     --k-decision: #ffca16;
-    --k-meeting: #ff8dcc;
+    --k-meeting: #dbb594;
     --k-delivery: #d4ff70;
     --k-issue: #ff9592;
     --k-done: #3dd68c;
@@ -793,7 +793,8 @@
     margin-right: calc(min(380px, 100%) + 20px);
   }
 }
-.tk .zoombar button {
+.tk .zoombar > button,
+.tk .zoombar .view-btn {
   display: grid;
   place-items: center;
   min-width: 26px;
@@ -806,19 +807,47 @@
   font: 600 12px/1 var(--f-ui);
   cursor: pointer;
 }
-.tk .zoombar button svg {
+.tk .zoombar > button svg,
+.tk .zoombar .view-btn svg {
   fill: none;
   stroke: currentColor;
   stroke-width: 2.4;
   stroke-linecap: round;
 }
-.tk .zoombar button:hover:not(:disabled) {
+.tk .zoombar > button:hover:not(:disabled),
+.tk .zoombar .view-btn:hover {
   background: var(--hover);
   color: var(--ink);
 }
-.tk .zoombar button:disabled {
+.tk .zoombar > button:disabled {
   opacity: 0.35;
   cursor: default;
+}
+/* The menu hangs from the right end of the whole bar, so on a phone it stays on the screen. */
+.tk .zoombar .view-menu {
+  display: flex;
+  margin-right: 2px;
+  box-shadow: 1px 0 0 var(--rule);
+}
+.tk .zoombar .view-btn[aria-expanded='true'] {
+  background: var(--hover);
+  color: var(--ink);
+}
+.tk .view-pop {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 8;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 4px 12px 12px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-pop);
+  box-shadow: var(--shadow);
+}
+.tk .view-pop .q-label {
+  margin: 8px 0 6px;
 }
 .tk .zoombar .full {
   margin-left: 2px;
@@ -1199,6 +1228,16 @@
 .tk .ms-sw.fill {
   background: currentColor;
 }
+.tk .legend2 .lg-kinds {
+  gap: 4px 12px;
+  flex-wrap: wrap;
+}
+.tk .legend2 .lg-kinds svg {
+  margin-right: 0;
+}
+.tk .legend2 .lg-kind {
+  color: var(--ink-2);
+}
 .tk .legend2 .chg {
   padding: 0 5px;
   border-radius: 4px;
@@ -1387,6 +1426,50 @@ svg.tg .lane-name {
   fill: var(--ink-2);
   pointer-events: none;
 }
+svg.tg .sum-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+svg.tg .sum-hit:hover {
+  fill: var(--hover);
+}
+:root .tk svg.tg .sum-hit:focus-visible {
+  outline: none;
+  stroke: var(--focus);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+svg.tg .sum-name {
+  fill: var(--ink);
+}
+svg.tg .sum-count {
+  fill: var(--ink-3);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+svg.tg .sum-counts {
+  font-size: 10.5px;
+  fill: var(--ink-3);
+  pointer-events: none;
+}
+svg.tg .sum-counts .late {
+  fill: var(--danger-ink);
+  font-weight: 600;
+}
+svg.tg .sum-counts .done {
+  fill: var(--proceed-ink);
+}
+svg.tg .sum-chev {
+  color: var(--ink-3);
+  pointer-events: none;
+}
+svg.tg .sum-bar {
+  fill: color-mix(in srgb, var(--ink-3) 22%, var(--panel));
+  pointer-events: none;
+}
+svg.tg .sum-tick {
+  pointer-events: none;
+}
 svg.tg .row-label {
   font-size: 12px;
   fill: var(--ink);
@@ -1509,6 +1592,13 @@ svg.tg .act .bg {
 }
 svg.tg .act .layer {
   stroke-width: 1.5;
+}
+svg.tg .act .act-hit,
+svg.tg .plus .plus-hit,
+svg.tg .chip .chip-hit,
+svg.tg .handoff .hand-hit {
+  fill: transparent;
+  stroke: none;
 }
 svg.tg .act .halo {
   fill: color-mix(in srgb, var(--change) 30%, transparent);
@@ -2343,6 +2433,13 @@ svg.tg .deadline-name {
 .tk .mem b {
   font-size: var(--fs-s);
   display: block;
+  line-height: 1.3;
+}
+.tk .mem .mem-title {
+  display: block;
+  text-align: left;
+  color: var(--ink);
+  font-weight: 600;
   line-height: 1.3;
 }
 .tk .mem small {

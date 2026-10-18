@@ -115,7 +115,14 @@ export function MilestoneDrawer({
   edit,
   actions,
   busy = false,
-}: Base & { milestoneId: string; edit: boolean; actions: TrackerActions }) {
+  onPick,
+}: Base & {
+  milestoneId: string;
+  edit: boolean;
+  actions: TrackerActions;
+  /** A member name opens that work item and brings its row into view. */
+  onPick?: (workItemId: string) => void;
+}) {
   const { dir, tz } = session;
   const m = state.milestones.find((x) => x.id === milestoneId);
   // Null until the editor types, so a hand-over or a poll shows the current milestone, not a stale copy.
@@ -204,7 +211,13 @@ export function MilestoneDrawer({
         return (
           <div className="mem" key={w.id}>
             <div>
-              <b>{w.title}</b>
+              {onPick ? (
+                <button className="lnk mem-title" type="button" onClick={() => onPick(w.id)}>
+                  {w.title}
+                </button>
+              ) : (
+                <b>{w.title}</b>
+              )}
               <small>
                 {finishedAt ? `Done ${formatDay(dayOf(finishedAt, tz))}` : 'Not finished'} ·{' '}
                 {team(w.teamId)}
