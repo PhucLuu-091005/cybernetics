@@ -68,6 +68,9 @@ test('Profile uploads a photo after a preview, shows it in every avatar, and rem
   await openProfile(page, projectId);
   const section = page.getByRole('region', { name: 'Photo' });
   await expect(section.getByRole('button', { name: 'Remove photo' })).toHaveCount(0);
+  // The initials of the member name that every avatar shows, not of the sign-in account.
+  await expect(section.locator('.pf-face svg')).toContainText('MT');
+  await expect(page.locator('details.acct .acct-av')).toHaveText('MT');
   await section.getByRole('button', { name: 'Upload photo' }).click();
   const dialog = page.getByRole('dialog', { name: 'Upload a photo' });
   const save = dialog.getByRole('button', { name: 'Save photo' });
@@ -131,6 +134,6 @@ test('Profile uploads a photo after a preview, shows it in every avatar, and rem
   await hydrated(page);
   await section.getByRole('button', { name: 'Remove photo' }).click();
   await expect(section.getByRole('button', { name: 'Remove photo' })).toHaveCount(0);
-  await expect(section.locator('.pf-face svg')).toContainText('LD');
+  await expect(section.locator('.pf-face svg')).toContainText('MT');
   expect((await page.request.get(src!)).status()).toBe(404);
 });
