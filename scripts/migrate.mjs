@@ -4,23 +4,50 @@ import pg from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 
+// Drizzle's migrator takes no lock, so two instances that start at once would both apply the same migration.
+const LOCK = "hashtextextended('promise-graph:migrations', 0)";
+
+const log = (detail) => console.log(JSON.stringify(detail));
 const fail = (detail) => {
   console.error(JSON.stringify({ event: 'migrations_failed', ...detail }));
   process.exitCode = 1;
 };
-const connectionString = process.env.DATABASE_URL;
+const isPooled = (connectionString) => {
+  try {
+    return /-pooler\./.test(new URL(connectionString).hostname);
+  } catch {
+    return false;
+  }
+};
+
+const source = process.env.MIGRATE_DATABASE_URL ? 'MIGRATE_DATABASE_URL' : 'DATABASE_URL';
+const connectionString = process.env[source];
 if (!connectionString) fail({ message: 'DATABASE_URL is required' });
+// A session lock over PgBouncer in transaction mode can land on another server connection, so it would lock nothing.
+else if (isPooled(connectionString))
+  fail({
+    message: `${source} is a pooled (-pooler) host: set MIGRATE_DATABASE_URL to the direct host of the same database`,
+  });
 else {
   const migrationsFolder = path.join(process.cwd(), 'src/server/db/migrations');
-  const pool = new pg.Pool({
+  const client = new pg.Client({
     connectionString,
-    max: 1,
-    connectionTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 15_000,
     options: '-c TimeZone=UTC',
   });
+  // Without a listener, a dropped connection during the wait crashes the process with no JSON line.
+  client.on('error', () => {});
   try {
-    await migrate(drizzle(pool), { migrationsFolder });
-    console.log(JSON.stringify({ event: 'migrations_applied', folder: migrationsFolder }));
+    await client.connect();
+    const { rows } = await client.query(`select pg_try_advisory_lock(${LOCK}) as locked`);
+    if (!rows[0].locked) {
+      log({ event: 'migrations_waiting' });
+      await client.query(`select pg_advisory_lock(${LOCK})`);
+    }
+    await migrate(drizzle(client), { migrationsFolder });
+    await client.query(`alter role current_user set timezone to 'UTC'`);
+    await client.query(`select pg_advisory_unlock(${LOCK})`);
+    log({ event: 'migrations_applied', folder: migrationsFolder });
   } catch (error) {
     // PostgreSQL messages name the database or relation, never the password; the URL itself is never printed.
     fail({
@@ -28,6 +55,6 @@ else {
       message: String(error?.cause?.message ?? error?.message ?? error).slice(0, 300),
     });
   } finally {
-    await pool.end();
+    await client.end().catch(() => {});
   }
 }

@@ -29,6 +29,7 @@ import { svgPoint } from './drag';
 import { gestureFactor, openScale, wheelZoomFactor, zoomTarget } from './scale';
 import { cutToFit, keepInView } from './in-view';
 import { Icon, KIND_COLOR, KindIcon, SvgIcon } from './icons';
+import { teamMenuItems } from './team';
 
 const { X0, SIDE, AXIS_Y, TRUNK_Y, TOP, INDENT, MAX_DAY_WIDTH } = GEOMETRY;
 // The bin floats over the bottom of the graph, so the New team pill needs room above it.
@@ -133,7 +134,7 @@ function groupBy<T extends { workItemId: string }>(list: readonly T[]): Map<stri
 }
 
 const TARGETS =
-  '[data-teamsum],[data-eyerow],[data-eyeteam],[data-focusitem],[data-focusteam],[data-show],[data-handoff],[data-act],[data-ms],[data-goal],[data-plus],[data-newms],[data-newteam],[data-rowlabel],[data-loop]';
+  '[data-teamsum],[data-teammenu],[data-eyerow],[data-eyeteam],[data-focusitem],[data-focusteam],[data-show],[data-handoff],[data-act],[data-ms],[data-goal],[data-plus],[data-newms],[data-newteam],[data-rowlabel],[data-loop]';
 const HAND_ICON = { up: 'cornerUp', down: 'cornerDown', both: 'upDown' } as const;
 const diamond = (s: number) => `M0 ${-s} L${s} 0 L0 ${s} L${-s} 0 Z`;
 const DIAMOND = diamond(6);
@@ -514,13 +515,39 @@ export function TrackerGraph(props: Props) {
     const align = x < TIP_ROOM ? 'start' : x > box.width - TIP_ROOM ? 'end' : 'mid';
     setMenu({ fromId: h.fromId, x, y: r.bottom - box.top, align });
   };
-  const floating = !!tip || !!menu;
+  const [teamMenu, setTeamMenu] = useState<{ teamId: string; x: number; y: number } | null>(null);
+  const teamMenuRef = useRef<HTMLDivElement>(null);
+  // A hidden team takes its name away, so the focus moves to the badge that unhides it.
+  const hiddenByMenu = useRef(false);
+  useEffect(() => {
+    if (!hiddenByMenu.current) return;
+    hiddenByMenu.current = false;
+    root.current?.closest('.tk')?.querySelector<HTMLElement>('.hid-menu > summary')?.focus();
+  });
+  const teamMenuLane = teamMenu ? L.lanes.find((l) => l.teamId === teamMenu.teamId) : undefined;
+  if (teamMenu && (!teamMenuLane || L.side >= SIDE)) setTeamMenu(null);
+  const closeTeamMenu = (refocus: boolean) => {
+    const teamId = teamMenu?.teamId;
+    setTeamMenu(null);
+    if (teamId && refocus)
+      root.current?.querySelector<SVGElement>(`svg.pg-side [data-teammenu="${teamId}"]`)?.focus();
+  };
+  const toggleTeamMenu = (el: Element, teamId: string) => {
+    if (teamMenu?.teamId === teamId) return setTeamMenu(null);
+    const box = root.current?.getBoundingClientRect();
+    if (!box) return;
+    const r = el.getBoundingClientRect();
+    setTeamMenu({ teamId, x: r.left - box.left + 12, y: r.bottom - box.top });
+  };
+  const floating = !!tip || !!menu || !!teamMenu;
   useEffect(() => {
     if (!floating) return;
     const hide = (event: Event) => {
       if (menuRef.current?.contains(event.target as Node)) return;
+      if (teamMenuRef.current?.contains(event.target as Node)) return;
       setTip(null);
       setMenu(null);
+      setTeamMenu(null);
     };
     // Capture sees the scroll of every container, and any of them moves the mark away from its tip.
     document.addEventListener('scroll', hide, { capture: true, passive: true });
@@ -536,6 +563,16 @@ export function TrackerGraph(props: Props) {
     document.addEventListener('pointerdown', onDown);
     return () => document.removeEventListener('pointerdown', onDown);
   }, [menu]);
+  useEffect(() => {
+    if (!teamMenu) return;
+    teamMenuRef.current?.querySelector<HTMLElement>('button')?.focus();
+    const onDown = (event: PointerEvent) => {
+      const t = event.target as Element;
+      if (!teamMenuRef.current?.contains(t) && !t.closest?.('[data-teammenu]')) setTeamMenu(null);
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [teamMenu]);
   const [viewMenu, setViewMenu] = useState(false);
   const viewRef = useRef<HTMLSpanElement>(null);
   // A menu opened with the mouse gives the focus back to its button without a ring, even on Esc.
@@ -634,6 +671,7 @@ export function TrackerGraph(props: Props) {
     const el = target.closest<SVGElement>(TARGETS);
     const d = el?.dataset;
     if (d?.teamsum) return props.onCollapse?.(d.teamsum);
+    if (d?.teammenu && el) return toggleTeamMenu(el, d.teammenu);
     if (d?.eyerow) return props.onToggleRow(d.eyerow);
     if (d?.eyeteam) return props.onToggleTeam(d.eyeteam);
     if (d?.focusitem) return props.onFocusItem?.(d.focusitem);
@@ -748,7 +786,21 @@ export function TrackerGraph(props: Props) {
         const toggles = summary.count > 0;
         return (
           <Fragment key={lane.teamId}>
-            {toggles ? (
+            {narrow ? (
+              <rect
+                className="sum-hit"
+                data-teammenu={lane.teamId}
+                x={0.5}
+                y={top + 0.5}
+                width={sideW - 1}
+                height={head - 1}
+                aria-haspopup="menu"
+                aria-expanded={teamMenu?.teamId === lane.teamId}
+                {...button(`${summary.ariaLabel}${lane.collapsed ? ', collapsed' : ''}`)}
+              >
+                <title>{`${summary.ariaLabel}. Team actions`}</title>
+              </rect>
+            ) : toggles ? (
               <rect
                 className="sum-hit"
                 data-teamsum={lane.teamId}
@@ -1305,13 +1357,13 @@ export function TrackerGraph(props: Props) {
     </svg>
   );
 
-  const onMenuKey = (event: KeyboardEvent<HTMLDivElement>) => {
-    const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('button') ?? []);
+  const onMenuKey = (event: KeyboardEvent<HTMLDivElement>, close: (refocus: boolean) => void) => {
+    const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button'));
     const at = items.indexOf(document.activeElement as HTMLElement);
     if (event.key === 'Escape' || event.key === 'Tab') {
       event.preventDefault();
       event.stopPropagation();
-      closeMenu(true);
+      close(true);
     } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       const step = event.key === 'ArrowDown' ? 1 : -1;
@@ -1372,9 +1424,11 @@ export function TrackerGraph(props: Props) {
           role="menu"
           aria-label={`Handoffs from ${L.rows.find((r) => r.id === menu.fromId)?.title ?? ''}`}
           style={{ left: menu.x, top: menu.y }}
-          onKeyDown={onMenuKey}
+          onKeyDown={(event) => onMenuKey(event, closeMenu)}
           onBlur={(event) => {
-            if (!menuRef.current?.contains(event.relatedTarget as Node | null)) setMenu(null);
+            const to = event.relatedTarget as Element | null;
+            // A press on a mark moves the focus there first; its click then closes or switches the list.
+            if (!menuRef.current?.contains(to) && !to?.closest('[data-handoff]')) setMenu(null);
           }}
         >
           <p>
@@ -1414,6 +1468,55 @@ export function TrackerGraph(props: Props) {
               <b>Show the {menuStack.eventIds.length} events here</b>
             </button>
           )}
+        </div>
+      )}
+      {teamMenu && teamMenuLane && (
+        <div
+          ref={teamMenuRef}
+          className="hand-menu team-menu start"
+          role="menu"
+          aria-label={teamMenuLane.name}
+          style={{ left: teamMenu.x, top: teamMenu.y }}
+          onKeyDown={(event) => onMenuKey(event, closeTeamMenu)}
+          onBlur={(event) => {
+            const to = event.relatedTarget as Element | null;
+            if (!teamMenuRef.current?.contains(to) && !to?.closest('[data-teammenu]'))
+              setTeamMenu(null);
+          }}
+        >
+          <p>{teamMenuLane.name}</p>
+          {teamMenuItems({
+            name: teamMenuLane.name,
+            count: teamMenuLane.summary.count,
+            collapsed: teamMenuLane.collapsed,
+            focused: teamMenuLane.focused,
+          })
+            .filter(
+              (i) =>
+                (i.action !== 'collapse' || props.onCollapse) &&
+                (i.action !== 'focus' || props.onFocusTeam),
+            )
+            .map((i) => (
+              <button
+                key={i.action}
+                type="button"
+                role="menuitem"
+                aria-label={i.label}
+                onClick={() => {
+                  const teamId = teamMenuLane.teamId;
+                  // The Focus panel gives the focus back to the team name when it closes.
+                  closeTeamMenu(i.action !== 'hide');
+                  if (i.action === 'collapse') props.onCollapse?.(teamId);
+                  else if (i.action === 'focus') props.onFocusTeam?.(teamId);
+                  else {
+                    hiddenByMenu.current = true;
+                    props.onToggleTeam(teamId);
+                  }
+                }}
+              >
+                <b>{i.text}</b>
+              </button>
+            ))}
         </div>
       )}
       <div className="zoombar" role="group" aria-label="View controls" ref={barRef}>
