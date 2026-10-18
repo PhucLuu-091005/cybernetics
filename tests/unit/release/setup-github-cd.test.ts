@@ -19,8 +19,11 @@ const DEPLOYER = 'promise-graph-deployer@promise-graph.iam.gserviceaccount.com';
 const RUNTIME = 'promise-graph-runtime@promise-graph.iam.gserviceaccount.com';
 const POOL = `projects/${NUMBER}/locations/global/workloadIdentityPools/github-actions`;
 const PROVIDER = `${POOL}/providers/github`;
-const CONDITION =
-  "assertion.repository == 'PhucLuu-091005/cybernetics' && assertion.ref_type == 'tag' && assertion.ref.startsWith('refs/tags/v')";
+const REPO_ID = '1415634185';
+const OWNER_ID = '187116949';
+const CONDITION = `assertion.repository_id == '${REPO_ID}' && assertion.repository_owner_id == '${OWNER_ID}' && assertion.ref_type == 'tag' && assertion.ref.startsWith('refs/tags/v') && assertion.environment == 'production'`;
+const MAPPING =
+  'google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.repository_id=assertion.repository_id,attribute.repository_owner_id=assertion.repository_owner_id,attribute.ref=assertion.ref,attribute.ref_type=assertion.ref_type';
 
 // A stand-in gcloud that remembers what it created in $FAKE_DIR/state, so a second run sees it.
 const FAKE = `#!/usr/bin/env bash
@@ -46,6 +49,14 @@ esac
 exit 0
 `;
 
+// A stand-in gh that answers the ids of the repository and of its owner.
+const FAKE_GH = `#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$FAKE_DIR/gh.log"
+[ "$FAKE_GH_FAIL" = 1 ] && exit 1
+[ "$FAKE_GH_BAD" = 1 ] && { echo 'null'; echo ${OWNER_ID}; exit 0; }
+printf '%s\\n%s\\n' ${REPO_ID} ${OWNER_ID}
+`;
+
 const dirs: string[] = [];
 afterEach(() => dirs.splice(0).forEach((d) => rmSync(d, { recursive: true, force: true })));
 const fakeDir = () => {
@@ -54,6 +65,8 @@ const fakeDir = () => {
   mkdirSync(join(dir, 'state'));
   writeFileSync(join(dir, 'gcloud'), FAKE);
   chmodSync(join(dir, 'gcloud'), 0o755);
+  writeFileSync(join(dir, 'gh'), FAKE_GH);
+  chmodSync(join(dir, 'gh'), 0o755);
   return dir;
 };
 const setup = (
@@ -74,10 +87,11 @@ const setup = (
     },
   });
   const lines = (existsSync(log) ? readFileSync(log, 'utf8') : '').split('\n').filter(Boolean);
+  const gh = existsSync(join(dir, 'gh.log')) ? readFileSync(join(dir, 'gh.log'), 'utf8') : '';
   const policy = existsSync(join(dir, 'policy.json'))
     ? JSON.parse(readFileSync(join(dir, 'policy.json'), 'utf8'))
     : null;
-  return { ...result, dir, lines, calls: lines.join('\n'), policy };
+  return { ...result, dir, lines, calls: lines.join('\n'), gh, policy };
 };
 const grants = (lines: string[]) => lines.filter((line) => line.includes('add-iam-policy-binding'));
 
@@ -113,7 +127,34 @@ describe('scripts/setup-github-cd.sh', () => {
     expect(run.stderr).toContain('project number');
   });
 
-  it('trusts only v* tags of the one repository through an OIDC provider for GitHub', () => {
+  it('reads the ids of the repository and its owner with gh, or takes them as values', () => {
+    const read = setup(VALUES);
+    expect(read.gh.trim()).toBe('api repos/PhucLuu-091005/cybernetics --jq .id,.owner.id');
+    const given = setup(
+      { ...VALUES, GITHUB_REPOSITORY_ID: REPO_ID, GITHUB_OWNER_ID: OWNER_ID },
+      { flags: { FAKE_GH_FAIL: '1' } },
+    );
+    expect(given.status).toBe(0);
+    expect(given.gh).toBe('');
+    expect(given.calls).toContain(`--attribute-condition ${CONDITION}`);
+  });
+
+  it('refuses ids that are not digits, or a failed gh call, before any gcloud call', () => {
+    for (const run of [
+      setup(VALUES, { flags: { FAKE_GH_BAD: '1' } }),
+      setup({ ...VALUES, GITHUB_REPOSITORY_ID: '1 || true', GITHUB_OWNER_ID: OWNER_ID }),
+    ]) {
+      expect(run.status).toBe(2);
+      expect(run.stderr).toContain('GITHUB_REPOSITORY_ID and GITHUB_OWNER_ID must be digits');
+      expect(run.calls).toBe('');
+    }
+    const failed = setup(VALUES, { flags: { FAKE_GH_FAIL: '1' } });
+    expect(failed.status).toBe(2);
+    expect(failed.stderr).toContain('gh auth login');
+    expect(failed.calls).toBe('');
+  });
+
+  it('trusts only v* tags of the one repository id in the production environment', () => {
     const run = setup(VALUES);
     expect(run.stderr).toBe('');
     expect(run.status).toBe(0);
@@ -123,9 +164,7 @@ describe('scripts/setup-github-cd.sh', () => {
     expect(provider).toBeDefined();
     expect(provider).toContain('--workload-identity-pool github-actions');
     expect(provider).toContain('--issuer-uri https://token.actions.githubusercontent.com');
-    expect(provider).toContain(
-      '--attribute-mapping google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref,attribute.ref_type=assertion.ref_type',
-    );
+    expect(provider).toContain(`--attribute-mapping ${MAPPING}`);
     expect(provider).toContain(`--attribute-condition ${CONDITION}`);
   });
 
@@ -139,7 +178,7 @@ describe('scripts/setup-github-cd.sh', () => {
       `run services add-iam-policy-binding promise-graph --project promise-graph --region asia-southeast1 --member serviceAccount:${DEPLOYER} --role roles/run.developer --quiet`,
       `artifacts repositories add-iam-policy-binding promise-graph --project promise-graph --location asia-southeast1 --member serviceAccount:${DEPLOYER} --role roles/artifactregistry.writer --quiet`,
       `iam service-accounts add-iam-policy-binding ${RUNTIME} --project promise-graph --member serviceAccount:${DEPLOYER} --role roles/iam.serviceAccountUser --quiet`,
-      `iam service-accounts add-iam-policy-binding ${DEPLOYER} --project promise-graph --member principalSet://iam.googleapis.com/${POOL}/attribute.repository/PhucLuu-091005/cybernetics --role roles/iam.workloadIdentityUser --quiet`,
+      `iam service-accounts add-iam-policy-binding ${DEPLOYER} --project promise-graph --member principalSet://iam.googleapis.com/${POOL}/attribute.repository_id/${REPO_ID} --role roles/iam.workloadIdentityUser --quiet`,
     ]);
     expect(run.calls).not.toMatch(
       /projects add-iam-policy-binding|keys create|roles\/(owner|editor|run\.admin)/,
@@ -187,5 +226,45 @@ describe('scripts/setup-github-cd.sh', () => {
     expect(update).toContain(`--attribute-condition ${CONDITION}`);
     expect(grants(second.lines)).toEqual(grants(first.lines));
     expect(second.stdout).toContain(`GCP_WIF_PROVIDER=${PROVIDER}`);
+  });
+});
+
+describe('the attribute condition of the GitHub provider', () => {
+  const condition = () => {
+    const line = setup(VALUES).lines.find((l) => l.includes('create-oidc'))!;
+    const text = line.slice(line.indexOf('--attribute-condition ') + 22);
+    // CEL and JavaScript read this subset the same way once == becomes ===.
+    return new Function('assertion', `return ${text.replace(/==/g, '===')};`) as (
+      claims: Record<string, string>,
+    ) => boolean;
+  };
+  const good = {
+    repository: 'PhucLuu-091005/cybernetics',
+    repository_id: REPO_ID,
+    repository_owner_id: OWNER_ID,
+    ref: 'refs/tags/v0.1.0',
+    ref_type: 'tag',
+    environment: 'production',
+  };
+
+  it.each([
+    ['a v* tag of the repository in production', good, true],
+    [
+      'a fork',
+      { ...good, repository: 'someone/cybernetics', repository_id: '9', repository_owner_id: '8' },
+      false,
+    ],
+    [
+      'a new repository with the old name after a rename',
+      { ...good, repository_id: '7', repository_owner_id: '6' },
+      false,
+    ],
+    ['a branch push', { ...good, ref: 'refs/heads/main', ref_type: 'branch' }, false],
+    ['a pull request', { ...good, ref: 'refs/pull/1/merge', ref_type: 'branch' }, false],
+    ['a tag that does not start with v', { ...good, ref: 'refs/tags/release-1' }, false],
+    ['a tag run of a job without the environment', { ...good, environment: undefined }, false],
+    ['a tag run in another environment', { ...good, environment: 'preview' }, false],
+  ])('%s', (_, claims, allowed) => {
+    expect(condition()(claims as Record<string, string>)).toBe(allowed);
   });
 });

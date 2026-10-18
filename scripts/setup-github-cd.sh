@@ -38,6 +38,26 @@ if ! command -v gcloud > /dev/null 2>&1; then
   exit 2
 fi
 
+# Google trusts the numeric ids, not the name: after a rename, a new repository with the old name
+# must get no token.
+if [ -z "${GITHUB_REPOSITORY_ID:-}" ] || [ -z "${GITHUB_OWNER_ID:-}" ]; then
+  echo "Reading the ids of $GITHUB_REPOSITORY and its owner with gh"
+  if ! ids="$(gh api "repos/$GITHUB_REPOSITORY" --jq '.id,.owner.id' 2> /dev/null)"; then
+    echo "Could not read the ids of $GITHUB_REPOSITORY: run gh auth login, or set GITHUB_REPOSITORY_ID and GITHUB_OWNER_ID" >&2
+    exit 2
+  fi
+  GITHUB_REPOSITORY_ID="$(printf '%s\n' "$ids" | sed -n 1p)"
+  GITHUB_OWNER_ID="$(printf '%s\n' "$ids" | sed -n 2p)"
+fi
+case "$GITHUB_REPOSITORY_ID$GITHUB_OWNER_ID" in
+  *[!0-9]*) bad=1 ;;
+  *) bad="" ;;
+esac
+if [ -n "$bad" ] || [ -z "$GITHUB_REPOSITORY_ID" ] || [ -z "$GITHUB_OWNER_ID" ]; then
+  echo "GITHUB_REPOSITORY_ID and GITHUB_OWNER_ID must be digits (gh api repos/$GITHUB_REPOSITORY --jq '.id,.owner.id')" >&2
+  exit 2
+fi
+
 project="$GCP_PROJECT_ID"
 runtime="$SERVICE-runtime@$project.iam.gserviceaccount.com"
 deployer_name="$SERVICE-deployer"
@@ -122,14 +142,15 @@ else
     --display-name "GitHub Actions" > /dev/null
 fi
 
-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref,attribute.ref_type=assertion.ref_type"
-condition="assertion.repository == '$GITHUB_REPOSITORY' && assertion.ref_type == 'tag' && assertion.ref.startsWith('refs/tags/v')"
+mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.repository_id=assertion.repository_id,attribute.repository_owner_id=assertion.repository_owner_id,attribute.ref=assertion.ref,attribute.ref_type=assertion.ref_type"
+# A tag commit that drops "environment: production" from the deploy job must get no token either.
+condition="assertion.repository_id == '$GITHUB_REPOSITORY_ID' && assertion.repository_owner_id == '$GITHUB_OWNER_ID' && assertion.ref_type == 'tag' && assertion.ref.startsWith('refs/tags/v') && assertion.environment == 'production'"
 if gcloud iam workload-identity-pools providers describe "$PROVIDER" --project "$project" \
   --location global --workload-identity-pool "$POOL" > /dev/null 2>&1; then
-  echo "Updating the OIDC provider $PROVIDER: only v* tags of $GITHUB_REPOSITORY"
+  echo "Updating the OIDC provider $PROVIDER: only v* tags of $GITHUB_REPOSITORY (id $GITHUB_REPOSITORY_ID) in production"
   verb=update-oidc
 else
-  echo "Creating the OIDC provider $PROVIDER: only v* tags of $GITHUB_REPOSITORY"
+  echo "Creating the OIDC provider $PROVIDER: only v* tags of $GITHUB_REPOSITORY (id $GITHUB_REPOSITORY_ID) in production"
   verb=create-oidc
 fi
 gcloud iam workload-identity-pools providers "$verb" "$PROVIDER" --project "$project" \
@@ -139,7 +160,7 @@ gcloud iam workload-identity-pools providers "$verb" "$PROVIDER" --project "$pro
 
 grant "roles/iam.workloadIdentityUser on $deployer to the runs of $GITHUB_REPOSITORY" \
   iam service-accounts add-iam-policy-binding "$deployer" --project "$project" \
-  --member "principalSet://iam.googleapis.com/$pool_path/attribute.repository/$GITHUB_REPOSITORY" \
+  --member "principalSet://iam.googleapis.com/$pool_path/attribute.repository_id/$GITHUB_REPOSITORY_ID" \
   --role roles/iam.workloadIdentityUser
 
 echo
