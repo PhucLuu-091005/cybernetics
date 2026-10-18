@@ -15,7 +15,9 @@ import {
 } from 'react';
 import {
   collapsedTeams,
-  teamsGivenWork,
+  changedTeams,
+  openTeams as openTeamsPlan,
+  teamsOfOps,
   descendantsOf,
   formatDay,
   formatDeadline,
@@ -536,16 +538,18 @@ export function TrackerScreen({
     map: new Map(),
   });
   if (activeToggles.key !== narrowKey) setActiveToggles({ key: narrowKey, map: new Map() });
+  const changed = useMemo(() => changedTeams(state, current.marks), [state, current.marks]);
   const collapsed = useMemo(
     () =>
       collapsedTeams(state, {
         asOf,
         timeZone: tz,
         toggles: teamOpen,
+        changed,
         active: narrowed,
         activeToggles: activeToggles.map,
       }),
-    [state, asOf, tz, teamOpen, narrowed, activeToggles.map],
+    [state, asOf, tz, teamOpen, changed, narrowed, activeToggles.map],
   );
   const windowStart = useMemo(
     () => windowStartFor(state, project.windowStart, asOf, tz),
@@ -636,19 +640,26 @@ export function TrackerScreen({
     hide({ ...hidden, hiddenRows: toggleId(hidden.hiddenRows, id) });
   const toggleTeam = (id: string) =>
     hide({ ...hidden, hiddenTeams: toggleId(hidden.hiddenTeams, id) });
-  /** A row inside a collapsed team needs its team open first, also once the filters clear. */
-  const openTeams = (teams: string[]) => {
-    const quiet = collapsedTeams(state, { asOf, timeZone: tz, toggles: teamOpen, active: false });
-    const known = new Set(state.teams.map((t) => t.id));
-    if (teams.some((t) => quiet.has(t) || !known.has(t)))
-      changeTeamOpen(new Map([...teamOpen, ...teams.map((t) => [t, true] as const)]));
-    if (teams.some((t) => collapsed.has(t)))
+  /** `narrowedAfter`: the graph stays narrowed after this action, so the opening is temporary. */
+  const openTeams = (teams: string[], narrowedAfter = narrowed) => {
+    const plan = openTeamsPlan(
+      state,
+      { asOf, timeZone: tz, toggles: teamOpen, changed },
+      teams,
+      narrowedAfter,
+    );
+    if (plan.toggles) changeTeamOpen(plan.toggles);
+    if (plan.active.length)
       setActiveToggles((a) => ({
         ...a,
-        map: new Map([...a.map, ...teams.map((t) => [t, true] as const)]),
+        map: new Map([...a.map, ...plan.active.map((t) => [t, true] as const)]),
       }));
   };
-  const openTeamsOf = (ids: string[]) => openTeams(ids.map(teamOf).filter((t): t is string => !!t));
+  const openTeamsOf = (ids: string[], narrowedAfter = narrowed) =>
+    openTeams(
+      ids.map(teamOf).filter((t): t is string => !!t),
+      narrowedAfter,
+    );
   const toggleCollapse = (teamId: string) => {
     setPop(null);
     const open = collapsed.has(teamId);
@@ -668,10 +679,13 @@ export function TrackerScreen({
   const filteredOut = (workItemId: string, match: RowMatch | null) =>
     !!match && !match.match.has(workItemId) && !match.context.has(workItemId);
   const bringIn = (workItemId: string, match = rowMatch) => {
-    if (isHidden(workItemId)) reveal([workItemId]);
-    else openTeamsOf([workItemId]);
-    if (inFocus && !inFocus.has(workItemId)) setFocus(null);
-    if (filteredOut(workItemId, match)) setRowFilter(NO_FILTER);
+    const leaveFocus = !!inFocus && !inFocus.has(workItemId);
+    const clearFilters = filteredOut(workItemId, match);
+    const narrowedAfter = (!!match && !clearFilters) || (!!(focused || focusedTeam) && !leaveFocus);
+    if (isHidden(workItemId)) changeHidden(revealRows(hidden, [workItemId], teamOf));
+    openTeamsOf([workItemId], narrowedAfter);
+    if (leaveFocus) setFocus(null);
+    if (clearFilters) setRowFilter(NO_FILTER);
   };
   const find = (workItemId: string) =>
     setInView((r) => ({ rowId: workItemId, key: (r?.key ?? 0) + 1 }));
@@ -800,7 +814,7 @@ export function TrackerScreen({
       return;
     }
     closeModal();
-    openTeams(teamsGivenWork(ops));
+    openTeams(teamsOfOps(state, ops));
     void appendAll(cr.num, ops).then((p) => {
       if (p && after?.added) setPopFor({ kind: 'added', id: after.added });
     });
