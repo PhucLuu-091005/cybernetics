@@ -1158,6 +1158,11 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await page.locator('.zoombar').getByRole('button', { name: 'Zoom in' }).focus();
       await expect(menu).toHaveCount(0);
       await mark.click();
+      await expect(menu).toBeVisible();
+      // A second click on the open mark closes its list and does not open it again.
+      await mark.click();
+      await expect(menu).toHaveCount(0);
+      await mark.click();
       await menu.getByRole('menuitem', { name: /PG-203 Country list field type/ }).click();
       await expect(menu).toHaveCount(0);
       await expect(row('pg203')).toHaveCount(1);
@@ -1519,7 +1524,14 @@ test.describe('the tracker at phone width', () => {
     await menu.getByRole('menuitem', { name: 'Focus on Engineering' }).click();
     await expect(menu).toHaveCount(0);
     const panel = page.getByRole('complementary', { name: 'Focus on Engineering' });
-    await panel.getByRole('button', { name: 'Leave focus' }).click();
+    await expect(panel).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(panel).toHaveCount(0);
+    await expect(team).toBeFocused();
+    await team.click();
+    await expect(menu).toBeVisible();
+    await team.click();
+    await expect(menu).toHaveCount(0);
     await expect(page.getByRole('complementary')).toHaveCount(0);
     await expect(rows).toHaveCount(all);
 
@@ -1539,6 +1551,7 @@ test.describe('the tracker at phone width', () => {
     await menu.getByRole('menuitem', { name: 'Hide Engineering' }).click();
     await expect(team).toHaveCount(0);
     await expect(page.locator('.hid-menu > summary')).toContainText('1 hidden');
+    await expect(page.locator('.hid-menu > summary')).toBeFocused();
     await noHorizontalScroll(page);
   });
 

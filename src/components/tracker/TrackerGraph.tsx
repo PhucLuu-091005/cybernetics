@@ -517,6 +517,13 @@ export function TrackerGraph(props: Props) {
   };
   const [teamMenu, setTeamMenu] = useState<{ teamId: string; x: number; y: number } | null>(null);
   const teamMenuRef = useRef<HTMLDivElement>(null);
+  // A hidden team takes its name away, so the focus moves to the badge that unhides it.
+  const hiddenByMenu = useRef(false);
+  useEffect(() => {
+    if (!hiddenByMenu.current) return;
+    hiddenByMenu.current = false;
+    root.current?.closest('.tk')?.querySelector<HTMLElement>('.hid-menu > summary')?.focus();
+  });
   const teamMenuLane = teamMenu ? L.lanes.find((l) => l.teamId === teamMenu.teamId) : undefined;
   if (teamMenu && (!teamMenuLane || L.side >= SIDE)) setTeamMenu(null);
   const closeTeamMenu = (refocus: boolean) => {
@@ -1405,7 +1412,9 @@ export function TrackerGraph(props: Props) {
           style={{ left: menu.x, top: menu.y }}
           onKeyDown={(event) => onMenuKey(event, closeMenu)}
           onBlur={(event) => {
-            if (!menuRef.current?.contains(event.relatedTarget as Node | null)) setMenu(null);
+            const to = event.relatedTarget as Element | null;
+            // A press on a mark moves the focus there first; its click then closes or switches the list.
+            if (!menuRef.current?.contains(to) && !to?.closest('[data-handoff]')) setMenu(null);
           }}
         >
           <p>
@@ -1456,7 +1465,8 @@ export function TrackerGraph(props: Props) {
           style={{ left: teamMenu.x, top: teamMenu.y }}
           onKeyDown={(event) => onMenuKey(event, closeTeamMenu)}
           onBlur={(event) => {
-            if (!teamMenuRef.current?.contains(event.relatedTarget as Node | null))
+            const to = event.relatedTarget as Element | null;
+            if (!teamMenuRef.current?.contains(to) && !to?.closest('[data-teammenu]'))
               setTeamMenu(null);
           }}
         >
@@ -1480,10 +1490,14 @@ export function TrackerGraph(props: Props) {
                 aria-label={i.label}
                 onClick={() => {
                   const teamId = teamMenuLane.teamId;
-                  closeTeamMenu(i.action === 'collapse');
+                  // The Focus panel gives the focus back to the team name when it closes.
+                  closeTeamMenu(i.action !== 'hide');
                   if (i.action === 'collapse') props.onCollapse?.(teamId);
                   else if (i.action === 'focus') props.onFocusTeam?.(teamId);
-                  else props.onToggleTeam(teamId);
+                  else {
+                    hiddenByMenu.current = true;
+                    props.onToggleTeam(teamId);
+                  }
                 }}
               >
                 <b>{i.text}</b>
