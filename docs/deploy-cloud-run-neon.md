@@ -200,7 +200,7 @@ Each visitor's copy is a full Larkspur project in its own workspace, owned by an
   (source ~/.config/promise-graph/deploy.env && DATABASE_URL="$MIGRATE_DATABASE_URL" node scripts/delete-demo-sandboxes.mjs --days 30 --apply)
   ```
 
-  A smaller `--days` also deletes copies whose cookie still works: their visitor then gets a new copy on the next visit.
+  The script refuses a `--days` under 30, because those copies still open with their cookie. Add `--force` to delete them anyway; their visitors then get a new copy on the next visit.
 
 ## Troubleshooting
 
