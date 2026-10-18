@@ -6,6 +6,10 @@ import type { HttpIdentityStore } from './identity-store';
 import { assertRequestOrigin } from './origin';
 export const SESSION_COOKIE = 'pg_session';
 export const SESSION_TTL_MS = 604_800_000;
+// A demo visitor has no way to sign in again, so the cookie is their only key to the sandbox.
+export const DEMO_SESSION_TTL_MS = 2_592_000_000;
+export const sessionTtl = (env: AuthEnvironment) =>
+  env.mode === 'demo' ? DEMO_SESSION_TTL_MS : SESSION_TTL_MS;
 const SessionSchema = z.strictObject({ userId: z.uuid(), expiresAt: z.number().int().positive() });
 export type Session = z.infer<typeof SessionSchema>;
 const secure = (env: AuthEnvironment) => (env.appOrigin.startsWith('https:') ? '; Secure' : '');
@@ -51,7 +55,7 @@ export function readSession(request: Request, env: AuthEnvironment, now = Date.n
   return session;
 }
 export function sessionCookie(value: string, env: AuthEnvironment): string {
-  return `${SESSION_COOKIE}=${value}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_MS / 1000}${secure(env)}`;
+  return `${SESSION_COOKIE}=${value}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${sessionTtl(env) / 1000}${secure(env)}`;
 }
 export function clearSessionCookie(): string {
   return `${SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`;
