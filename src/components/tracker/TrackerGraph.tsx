@@ -41,6 +41,9 @@ const REVEAL_ZOOM = 2;
 const REVEAL_FLASH_MS = 1500;
 const REVEAL_PAD = 40;
 const TIP_ROOM = 180;
+/** The space between a menu and its anchor; `.hand-menu` moves by the same 6 px. */
+const MENU_GAP = 6;
+const OPEN_QUIET_MS = 300;
 
 export type PopKind = 'act' | 'stack';
 export type DatePreview = { kind: 'item' | 'ms'; id: string; x: number; label?: string };
@@ -490,10 +493,16 @@ export function TrackerGraph(props: Props) {
     setTip({ text, x, y: r.top - box.top, align });
   };
   const hideTip = () => setTip(null);
-  const [menu, setMenu] = useState<{ fromId: string; x: number; y: number; align: string } | null>(
-    null,
-  );
+  const [menu, setMenu] = useState<{
+    fromId: string;
+    x: number;
+    y: number;
+    top: number;
+    align: string;
+    up?: boolean;
+  } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const quietUntil = useRef(0);
   const menuMark = menu ? L.handoffs.find((h) => h.fromId === menu.fromId) : undefined;
   // A poll, a hide or a filter can take the source mark away while its list is open.
   if (menu && !menuMark) setMenu(null);
@@ -513,9 +522,16 @@ export function TrackerGraph(props: Props) {
     const r = el.getBoundingClientRect();
     const x = r.left + r.width / 2 - box.left;
     const align = x < TIP_ROOM ? 'start' : x > box.width - TIP_ROOM ? 'end' : 'mid';
-    setMenu({ fromId: h.fromId, x, y: r.bottom - box.top, align });
+    quietUntil.current = performance.now() + OPEN_QUIET_MS;
+    setMenu({ fromId: h.fromId, x, y: r.bottom - box.top, top: r.top - box.top, align });
   };
-  const [teamMenu, setTeamMenu] = useState<{ teamId: string; x: number; y: number } | null>(null);
+  const [teamMenu, setTeamMenu] = useState<{
+    teamId: string;
+    x: number;
+    y: number;
+    top: number;
+    up?: boolean;
+  } | null>(null);
   const teamMenuRef = useRef<HTMLDivElement>(null);
   // A hidden team takes its name away, so the focus moves to the badge that unhides it.
   const hiddenByMenu = useRef(false);
@@ -537,12 +553,35 @@ export function TrackerGraph(props: Props) {
     const box = root.current?.getBoundingClientRect();
     if (!box) return;
     const r = el.getBoundingClientRect();
-    setTeamMenu({ teamId, x: r.left - box.left + 12, y: r.bottom - box.top });
+    quietUntil.current = performance.now() + OPEN_QUIET_MS;
+    setTeamMenu({ teamId, x: r.left - box.left + 12, y: r.bottom - box.top, top: r.top - box.top });
   };
+  /**
+   * A menu opens above its anchor when it has no room below, down to the sticky zoom bar, and more
+   * room above, up to the pinned axis.
+   */
+  const opensUp = (pop: HTMLElement | null, anchor: { y: number; top: number }) => {
+    const box = root.current?.getBoundingClientRect();
+    if (!pop || !box) return false;
+    const bar = barRef.current?.getBoundingClientRect();
+    const bottom = box.top + anchor.y;
+    const floor = Math.min(innerHeight, bar && bar.top >= bottom ? bar.top : Infinity) - 4;
+    const ceiling = Math.max(0, head.current?.getBoundingClientRect().bottom ?? 0);
+    const below = floor - bottom - MENU_GAP;
+    const above = box.top + anchor.top - MENU_GAP - ceiling;
+    return pop.offsetHeight > below && above > below;
+  };
+  useLayoutEffect(() => {
+    if (menu && menu.up === undefined) setMenu({ ...menu, up: opensUp(menuRef.current, menu) });
+    if (teamMenu && teamMenu.up === undefined)
+      setTeamMenu({ ...teamMenu, up: opensUp(teamMenuRef.current, teamMenu) });
+  }, [menu, teamMenu]);
   const floating = !!tip || !!menu || !!teamMenu;
   useEffect(() => {
     if (!floating) return;
     const hide = (event: Event) => {
+      // Opening a menu can move the page by a pixel; only a scroll of the person closes it.
+      if (performance.now() < quietUntil.current) return;
       if (menuRef.current?.contains(event.target as Node)) return;
       if (teamMenuRef.current?.contains(event.target as Node)) return;
       setTip(null);
@@ -553,26 +592,28 @@ export function TrackerGraph(props: Props) {
     document.addEventListener('scroll', hide, { capture: true, passive: true });
     return () => document.removeEventListener('scroll', hide, { capture: true });
   }, [floating]);
+  const menuFrom = menu?.fromId;
   useEffect(() => {
-    if (!menu) return;
-    menuRef.current?.querySelector<HTMLElement>('button')?.focus();
+    if (!menuFrom) return;
+    menuRef.current?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
     const onDown = (event: PointerEvent) => {
       const t = event.target as Element;
       if (!menuRef.current?.contains(t) && !t.closest?.('[data-handoff]')) setMenu(null);
     };
     document.addEventListener('pointerdown', onDown);
     return () => document.removeEventListener('pointerdown', onDown);
-  }, [menu]);
+  }, [menuFrom]);
+  const teamMenuId = teamMenu?.teamId;
   useEffect(() => {
-    if (!teamMenu) return;
-    teamMenuRef.current?.querySelector<HTMLElement>('button')?.focus();
+    if (!teamMenuId) return;
+    teamMenuRef.current?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
     const onDown = (event: PointerEvent) => {
       const t = event.target as Element;
       if (!teamMenuRef.current?.contains(t) && !t.closest?.('[data-teammenu]')) setTeamMenu(null);
     };
     document.addEventListener('pointerdown', onDown);
     return () => document.removeEventListener('pointerdown', onDown);
-  }, [teamMenu]);
+  }, [teamMenuId]);
   const [viewMenu, setViewMenu] = useState(false);
   const viewRef = useRef<HTMLSpanElement>(null);
   // A menu opened with the mouse gives the focus back to its button without a ring, even on Esc.
@@ -1420,10 +1461,10 @@ export function TrackerGraph(props: Props) {
       {menu && menuMark && (
         <div
           ref={menuRef}
-          className={`hand-menu ${menu.align}`}
+          className={`hand-menu ${menu.align}${menu.up ? ' up' : ''}`}
           role="menu"
           aria-label={`Handoffs from ${L.rows.find((r) => r.id === menu.fromId)?.title ?? ''}`}
-          style={{ left: menu.x, top: menu.y }}
+          style={{ left: menu.x, top: menu.up ? menu.top : menu.y }}
           onKeyDown={(event) => onMenuKey(event, closeMenu)}
           onBlur={(event) => {
             const to = event.relatedTarget as Element | null;
@@ -1473,10 +1514,10 @@ export function TrackerGraph(props: Props) {
       {teamMenu && teamMenuLane && (
         <div
           ref={teamMenuRef}
-          className="hand-menu team-menu start"
+          className={`hand-menu team-menu start${teamMenu.up ? ' up' : ''}`}
           role="menu"
           aria-label={teamMenuLane.name}
-          style={{ left: teamMenu.x, top: teamMenu.y }}
+          style={{ left: teamMenu.x, top: teamMenu.up ? teamMenu.top : teamMenu.y }}
           onKeyDown={(event) => onMenuKey(event, closeTeamMenu)}
           onBlur={(event) => {
             const to = event.relatedTarget as Element | null;
