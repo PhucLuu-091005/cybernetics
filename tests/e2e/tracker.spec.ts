@@ -49,6 +49,11 @@ async function actAs(page: Page, name: string) {
   await expect(page.locator('.me b')).toHaveText(name);
 }
 
+const hexToRgb = (hex: string) => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return `rgb(${r}, ${g}, ${b})`;
+};
+
 const crPath = (graph: string, num: number) => graph.replace(/graph$/, `changes/${num}`);
 
 async function readTracker(page: Page, projectId: string): Promise<TrackerRead> {
@@ -1352,13 +1357,31 @@ test.describe('row height and collapsible teams', () => {
     await expect(page.locator('svg.pg [data-loop="golive"]')).toHaveCount(0);
     await expect(page.locator('svg.pg [data-loop="pg203"]')).toHaveCount(1);
 
+    // The lane right of a summary row stays empty, and the row is 28 units high.
+    await expect(page.locator('svg.pg .sum-bar, svg.pg .sum-tick')).toHaveCount(0);
+    expect((await implementation.boundingBox())!.height).toBeCloseTo(27, 0);
+
+    const ring = (el: typeof implementation) =>
+      el.evaluate((node) => {
+        const s = getComputedStyle(node);
+        return { outline: s.outlineStyle, stroke: s.stroke };
+      });
     await implementation.click();
     await expect(implementation).toHaveAttribute('aria-expanded', 'true');
     await expect(page.locator('svg.pg [data-loop="golive"]')).toHaveCount(1);
+    // A mouse click leaves no ring; keyboard focus shows a thin neutral one.
+    await expect(implementation).toBeFocused();
+    expect(await ring(implementation)).toEqual({ outline: 'none', stroke: 'none' });
 
     await engineering.focus();
     await page.keyboard.press('Enter');
     await expect(engineering).toHaveAttribute('aria-expanded', 'false');
+    const ink3 = await page.evaluate(() =>
+      getComputedStyle(document.documentElement).getPropertyValue('--ink-3').trim(),
+    );
+    const keyboard = await ring(engineering);
+    expect(keyboard.outline).toBe('none');
+    expect(keyboard.stroke).toBe(ink3.startsWith('#') ? hexToRgb(ink3) : ink3);
     await expect(page.locator('svg.pg [data-loop="pg203"]')).toHaveCount(0);
     await page.keyboard.press(' ');
     await expect(engineering).toHaveAttribute('aria-expanded', 'true');

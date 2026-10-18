@@ -3,6 +3,8 @@ import {
   GEOMETRY,
   ROW_LEVELS,
   layoutTracker,
+  laneCountsWidth,
+  laneNameWidth,
   type Density,
   windowStartFor,
   type LayoutSegment,
@@ -373,9 +375,9 @@ describe('layoutTracker: lanes and rows', () => {
       teamId: 'implementation',
       label: 'IMPLEMENTATION',
       top: TRUNK_Y + 16,
-      head: 40,
-      bottom: 206,
-      guide: { y1: TRUNK_Y + 52, y2: 184 },
+      head: 28,
+      bottom: 194,
+      guide: { y1: TRUNK_Y + 40, y2: 172 },
       eyeLabel: 'Hide Implementation',
     });
     expect(L.lanes[0]).not.toHaveProperty('more');
@@ -387,19 +389,19 @@ describe('layoutTracker: lanes and rows', () => {
   it('gives one row per visible work item and drops items finished before the window', () => {
     const L = layoutTracker(larkspurState(), view());
     expect(L.rows.map((r) => [r.id, r.y])).toEqual([
-      ['golive', 120],
-      ['crs', 152],
-      ['rehearsal', 184],
-      ['analyse', 262],
-      ['pg201', 340],
-      ['pg202', 372],
-      ['dynamics', 450],
-      ['syncmon', 482],
-      ['crmlive', 514],
-      ['pg203', 546],
-      ['test', 624],
-      ['incident', 702],
-      ['secret', 780],
+      ['golive', 108],
+      ['crs', 140],
+      ['rehearsal', 172],
+      ['analyse', 238],
+      ['pg201', 304],
+      ['pg202', 336],
+      ['dynamics', 402],
+      ['syncmon', 434],
+      ['crmlive', 466],
+      ['pg203', 498],
+      ['test', 564],
+      ['incident', 630],
+      ['secret', 696],
     ]);
     expect(L.rows.every((r) => !r.changed)).toBe(true);
     expect(L.rows.find((r) => r.id === 'crs')).toMatchObject({
@@ -417,7 +419,7 @@ describe('layoutTracker: lanes and rows', () => {
     });
     const withButtons = layoutTracker(larkspurState(), view({ focusButtons: true }));
     expect(withButtons.rows.find((r) => r.id === 'crs')!.label).toBe('CRS tax residency secti…');
-    expect(L.height).toBe(858);
+    expect(L.height).toBe(774);
   });
 
   it('drops a hidden team completely: no head line, no rows, no drop target', () => {
@@ -433,7 +435,7 @@ describe('layoutTracker: lanes and rows', () => {
     expect(L.laneDrops.map((d) => d.teamId)).not.toContain('engineering');
     const height = lane.bottom - lane.top;
     expect(L.lanes.find((l) => l.teamId === 'digitization-qa')!.top).toBe(lane.top);
-    expect(L.rows.find((r) => r.id === 'test')!.y).toBe(624 - height);
+    expect(L.rows.find((r) => r.id === 'test')!.y).toBe(564 - height);
     expect(L.height).toBe(all.height - height);
     expect(L).not.toHaveProperty('folds');
   });
@@ -447,8 +449,8 @@ describe('layoutTracker: lanes and rows', () => {
     const L = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['pg203']) }));
     expect(L.rows.some((r) => r.id === 'pg203')).toBe(false);
     expect(L.segments.some((s) => s.workItemId === 'pg203')).toBe(false);
-    expect(L.rows.find((r) => r.id === 'test')!.y).toBe(624 - 32);
-    expect(L.height).toBe(858 - 32);
+    expect(L.rows.find((r) => r.id === 'test')!.y).toBe(564 - 32);
+    expect(L.height).toBe(774 - 32);
   });
 
   it('drops a team whose rows are all hidden, and keeps its full name on other lanes', () => {
@@ -468,17 +470,17 @@ describe('layoutTracker: lanes and rows', () => {
       x: X0,
       y: TRUNK_Y + 18,
       width: X1 - X0,
-      height: 36,
+      height: 24,
       text: 'Drop here: Implementation',
       textX: X0 + 10,
-      textY: TRUNK_Y + 40,
+      textY: TRUNK_Y + 34,
     });
   });
 
   it('gives an empty lane room for drops', () => {
     const s = buildState({ teams: [{ id: 't', name: 'Team', leadId: null }] });
     const L = layoutTracker(s, view());
-    expect(L.lanes[0]).toMatchObject({ top: 64, bottom: 64 + 40 + 18 + 6, guide: null });
+    expect(L.lanes[0]).toMatchObject({ top: 64, bottom: 64 + 28 + 18 + 6, guide: null });
   });
 });
 
@@ -528,7 +530,7 @@ describe('layoutTracker: segments and waits', () => {
     expect(segs[0].x2).toBeCloseTo(L.x(dayEnd('2026-10-06')), 9);
     expect(segs[1].x1).toBeCloseTo(L.x(dayEnd('2026-10-06')), 9);
     expect(segs[1].x2).toBeCloseTo(L.x(Date.parse(AS_OF)), 9);
-    expect(segs[1].y).toBe(546);
+    expect(segs[1].y).toBe(498);
   });
 
   it('shows PG-202 caution after its planned day (finished late)', () => {
@@ -561,11 +563,11 @@ describe('layoutTracker: segments and waits', () => {
       workItemId: 'test',
       x1: sx,
       x2: L.x(Date.parse(AS_OF)),
-      y: 624,
+      y: 564,
       tone: 'ink-3',
       text: 'Waiting for PG-203',
       textX: sx + 8,
-      textY: 624 - 7,
+      textY: 564 - 7,
     });
   });
 
@@ -652,7 +654,7 @@ describe('layoutTracker: events and milestone ticks', () => {
       topId: 'r3',
       kind: 'done',
       x: L.x(ms('2026-09-24T16:40')),
-      y: 184,
+      y: 172,
       tone: 'proceed',
       changed: false,
       ariaLabel: '3 events, the last: Done by Sarah Kim, 24 Sept 16:40',
@@ -716,7 +718,7 @@ describe('layoutTracker: milestone deadlines on member rows', () => {
     expect(mark('rehearsal')).toMatchObject({
       date: '2026-09-30',
       x: L.x(dayEnd('2026-09-30')),
-      y: 184,
+      y: 172,
       tone: 'danger',
       stroke: 'danger',
       filled: true,
@@ -980,7 +982,7 @@ describe('layoutTracker: handoff marks and chips', () => {
       eventId: 'a3',
       groupId: handoff.topId,
       x: handoff.x - 10,
-      y: 262 - 10,
+      y: 238 - 10,
       width: 20,
       height: 20,
       dir: 'down',
@@ -999,7 +1001,7 @@ describe('layoutTracker: handoff marks and chips', () => {
       targets: [{ id: 'test', text }],
       eventId: null,
       x: xt + 32,
-      y: 546 - 7,
+      y: 498 - 7,
       width: 14,
       tone: 'danger',
       wait: true,
@@ -1654,9 +1656,9 @@ describe('layoutTracker: filters', () => {
 });
 
 const LEVELS: Array<[Density, number, number]> = [
-  ['comfortable', 32, 40],
-  ['compact', 20, 40],
-  ['dense', 12, 32],
+  ['comfortable', 32, 28],
+  ['compact', 20, 28],
+  ['dense', 12, 24],
 ];
 
 describe('layoutTracker: row height', () => {
@@ -1753,7 +1755,6 @@ describe('layoutTracker: row height', () => {
 describe('layoutTracker: team summary rows', () => {
   const L = layoutTracker(larkspurState(), view());
   const lane = (id: string, M = L) => M.lanes.find((l) => l.teamId === id)!;
-  const xt = L.x(Date.parse(AS_OF));
 
   it('counts late, not yet and done work items, and names only the counts above zero', () => {
     expect(lane('engineering').summary).toMatchObject({
@@ -1772,25 +1773,69 @@ describe('layoutTracker: team summary rows', () => {
     });
   });
 
-  it('draws a bar from the earliest start to the latest finish, T or planned finish', () => {
-    const imp = lane('implementation').summary.bar!;
-    const crsDeadline = dayEnd('2026-10-16');
-    expect(imp.x1).toBeCloseTo(X0, 6);
-    expect(imp.x2).toBeCloseTo(L.x(crsDeadline), 6);
-    const eng = lane('engineering').summary.bar!;
-    expect(eng.x2).toBeCloseTo(xt, 6);
-    expect(eng.y).toBe(lane('engineering').top + lane('engineering').head / 2);
+  it('leaves the lane right of the summary row empty: no bar and no event ticks', () => {
+    for (const l of L.lanes) {
+      expect(l.summary).not.toHaveProperty('bar');
+      expect(l.summary).not.toHaveProperty('ticks');
+    }
   });
 
-  it('puts one tick per event in the window of the visible work items', () => {
-    const ticks = lane('engineering').summary.ticks;
-    const groups = L.eventGroups.filter(
-      (g) => L.rows.find((r) => r.id === g.workItemId)?.teamId === 'engineering',
-    );
-    expect(ticks).toHaveLength(groups.reduce((n, g) => n + g.eventIds.length, 0));
-    const hidden = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['pg203']) }));
-    expect(lane('engineering', hidden).summary.count).toBe(3);
-    expect(lane('engineering', hidden).summary.ticks.length).toBeLessThan(ticks.length);
+  it('puts the name, the count and the counts on one line only where they fit', () => {
+    const F = layoutTracker(larkspurState(), view({ focusButtons: true }));
+    const oneLine = (M: TrackerLayout) =>
+      Object.fromEntries(M.lanes.map((l) => [l.teamId, l.oneLine]));
+    expect(oneLine(F)).toEqual({
+      implementation: false,
+      digitization: true,
+      'solutions-engineering': false,
+      engineering: false,
+      'digitization-qa': false,
+      'customer-success': false,
+      it: true,
+    });
+    // Without the focus button the line has 19 more units.
+    expect(oneLine(L)).toMatchObject({
+      implementation: false,
+      engineering: true,
+      'digitization-qa': true,
+      'customer-success': true,
+    });
+  });
+
+  it('keeps an empty team on one line, its name cut before the buttons', () => {
+    const name = 'Solutions Engineering and Delivery';
+    const s = buildState({ teams: [{ id: 't', name, leadId: null }] });
+    const E = layoutTracker(s, view({ focusButtons: true })).lanes[0];
+    expect(E.oneLine).toBe(true);
+    expect(E.label.endsWith('…')).toBe(true);
+    expect(laneNameWidth(E.label)).toBeLessThanOrEqual(155 - laneNameWidth(' · 0', true));
+  });
+
+  // Geist 10.5px as the browser measured it (18 Oct): the estimate may be a little wide, never narrow.
+  it.each([
+    ['IMPLEMENTATION', 3, 115],
+    ['DIGITIZATION', 2, 89],
+    ['SOLUTIONS ENGINEERING', 2, 162],
+    ['ENGINEERING', 4, 93],
+    ['DIGITIZATION QA', 1, 107],
+    ['CUSTOMER SUCCESS', 1, 134],
+    ['IT', 1, 22],
+  ])('estimates the width of "%s · %i" within 8 %% above the measure', (name, n, real) => {
+    const w = laneNameWidth(name) + laneNameWidth(` · ${n}`, true);
+    expect(w).toBeGreaterThanOrEqual(real);
+    expect(w).toBeLessThanOrEqual(real * 1.08);
+  });
+
+  it.each([
+    [{ late: 0, notYet: 2, done: 1 }, 79],
+    [{ late: 0, notYet: 0, done: 2 }, 33],
+    [{ late: 2, notYet: 0, done: 2 }, 68],
+    [{ late: 0, notYet: 1, done: 0 }, 40],
+    [{ late: 1, notYet: 0, done: 0 }, 26],
+  ])('estimates the width of the counts %o within 8 %% above the measure', (counts, real) => {
+    const w = laneCountsWidth(counts);
+    expect(w).toBeGreaterThanOrEqual(real);
+    expect(w).toBeLessThanOrEqual(real * 1.08);
   });
 
   it('gives a collapsed team its summary row only, and no rows, lines or events', () => {
@@ -1814,7 +1859,7 @@ describe('layoutTracker: team summary rows', () => {
     const E = layoutTracker(s, view({ collapsedTeams: new Set(['t']) }));
     expect(E.lanes[0]).toMatchObject({
       collapsed: false,
-      summary: { count: 0, bar: null, ariaLabel: 'Team, 0 work items' },
+      summary: { count: 0, ariaLabel: 'Team, 0 work items' },
     });
   });
 
