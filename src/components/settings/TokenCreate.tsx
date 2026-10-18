@@ -87,6 +87,8 @@ export function TokenCreate({
           Label
           <input
             value={label}
+            // Hydration resets a controlled value, so text typed before it would be lost.
+            disabled={!hydrated}
             maxLength={200}
             onChange={(event) => setLabel(event.target.value)}
             placeholder="Claude Code, release review"
