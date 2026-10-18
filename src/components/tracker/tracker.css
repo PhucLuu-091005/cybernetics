@@ -513,6 +513,10 @@
 .tk .bbar .sp {
   flex: 1;
 }
+/* On a wrapped phone bar the badge keeps the right end of its line. */
+.tk .bbar > .hid-menu {
+  margin-left: auto;
+}
 .tk .bbar .muted {
   font-size: var(--fs-s);
 }
