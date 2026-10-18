@@ -60,6 +60,8 @@ export type ReviewModel = {
   applying: number;
   /** The positions of the changes that no longer apply, last first, so removing them one by one keeps the rest in place. */
   stale: number[];
+  /** An open CR whose every change Main already took; it can only be cancelled. */
+  inMain: boolean;
   clashes: ReviewClash[];
   /** The picks that match a clash now; the server rejects a merge that sends any other key. */
   picks: Picks;
@@ -67,6 +69,7 @@ export type ReviewModel = {
   dropped: Resolution[];
 };
 
+const isOpenCr = (cr: Cr) => cr.status === 'draft' || cr.status === 'ready';
 const isMerger = (payload: TrackerPayload) => !!payload.me && can(payload, 'merge');
 
 function eventIdOf(op: Op): string | null {
@@ -297,6 +300,7 @@ export function reviewModel(
     marks: shape.after.marks,
     changes,
     applying: applyingCount(shape.described),
+    inMain: isOpenCr(cr) && cr.ops.length > 0 && shape.ops.length === 0,
     stale: changes
       .flatMap((change) => (change.skipReason && change.opIndex !== null ? [change.opIndex] : []))
       .sort((a, b) => b - a),

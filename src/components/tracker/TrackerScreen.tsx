@@ -1403,6 +1403,7 @@ export function TrackerScreen({
                 changed: frozen.changed,
                 onReviewAgain: reviewAgain,
                 applying: model.applying,
+                inMain: model.inMain,
               },
             }
           : {})}

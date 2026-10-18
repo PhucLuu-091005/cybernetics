@@ -2174,6 +2174,36 @@ test.describe('the legend popover on a phone', () => {
 test.describe('changes that no longer apply', () => {
   test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
 
+  test('a draft whose every change is already in Main says so and can be cancelled', async ({
+    page,
+  }) => {
+    const { projectId, graph } = await signIn(page, 'tracker-inmain', { classic: false });
+    const num = await page.evaluate(async (pid) => {
+      const base = `/api/v1/projects/${pid}/tracker/crs`;
+      const post = (url: string, body: unknown) =>
+        fetch(url, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        }).then((r) => r.json());
+      const ops = [{ op: 'rename', a: { workItemId: 'secret', title: 'Client secret renewed' } }];
+      const first = await post(base, { title: 'First', ops });
+      const copy = await post(base, { title: 'Copy', ops });
+      await post(`${base}/${first.num}/actions`, { action: 'ready' });
+      const read = await (await fetch(`/api/v1/projects/${pid}/tracker`)).json();
+      const revision = read.crs.find((c: { num: number }) => c.num === first.num).revision;
+      await post(`${base}/${first.num}/actions`, { action: 'merge', expectedRevision: revision });
+      return copy.num as number;
+    }, projectId);
+    await visit(page, crPath(graph, num));
+    const bar = page.locator('.bbar').first();
+    await expect(bar).toContainText('0 changes');
+    await expect(bar).toContainText('Every change is already in Main.');
+    await expect(bar.getByRole('button', { name: 'Mark as ready' })).toBeDisabled();
+    await expect(bar.getByRole('button', { name: 'Cancel change request' })).toBeEnabled();
+    await expect(page.locator('.cr-side')).toContainText('Every change is already in Main.');
+  });
+
   test('an undone placement leaves its later changes out of the count and of Mark as ready, and Clear removes them', async ({
     page,
   }) => {
