@@ -146,11 +146,12 @@ export type TrackerActions = {
   openQueueItem: (id: string) => void;
   addEvent: (workItemId: string) => void;
   markDone: (workItemId: string) => void;
+  cancelItem: (workItemId: string) => void;
   moveDate: (target: DateTarget) => void;
   saveRename: (workItemId: string, title: string) => void;
   editItem: (ops: OpInput[]) => void;
   changeKind: (eventId: string) => void;
-  setKind: (eventId: string, kind: EventKind) => void;
+  setKind: (eventId: string, kind: EventKind, finishes?: boolean) => void;
   moveEvent: (eventId: string) => void;
   hideEvent: (eventId: string) => void;
   newMilestone: () => void;
@@ -181,6 +182,7 @@ export const NO_ACTIONS: TrackerActions = {
   openQueueItem: noop,
   addEvent: noop,
   markDone: noop,
+  cancelItem: noop,
   moveDate: noop,
   saveRename: noop,
   editItem: noop,
@@ -976,6 +978,7 @@ export function TrackerScreen({
     openQueueItem: (id) => openModal({ mode: 'placeItem', itemId: id }),
     addEvent: (workItemId) => openModal({ mode: 'event', workItemId }),
     markDone: (workItemId) => openModal({ mode: 'event', workItemId, done: true }),
+    cancelItem: (workItemId) => openModal({ mode: 'event', workItemId, cancel: true }),
     moveDate: ({ kind, id }) => {
       const date =
         kind === 'ms'
@@ -993,9 +996,12 @@ export function TrackerScreen({
       const anchor = anchorOf(`[data-act="${eventId}"]`) ?? pop?.anchor;
       if (anchor) setPop({ kind: 'kind', id: eventId, anchor, view });
     },
-    setKind: (eventId, kind) => {
-      if (state.events.find((e) => e.id === eventId)?.kind === kind) return setPop(null);
-      commitOps([{ op: 'kind', a: { eventId, kind } }]);
+    setKind: (eventId, kind, finishes) => {
+      const ev = state.events.find((e) => e.id === eventId);
+      if (ev?.kind === kind && (finishes === undefined || finishes === !!ev.finishes))
+        return setPop(null);
+      // A kind change to Handoff leaves it open until the person ticks the box, so no item finishes by surprise.
+      commitOps([{ op: 'kind', a: { eventId, kind, ...(finishes ? { finishes: true } : {}) } }]);
     },
     moveEvent: (eventId) => {
       const ev = state.events.find((e) => e.id === eventId);

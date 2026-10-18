@@ -20,6 +20,7 @@ import {
   type Density,
   type LayoutHandoff,
   type LayoutMilestone,
+  type Status,
   type Tone,
   type TrackerLayout,
 } from '../../tracker';
@@ -97,6 +98,9 @@ const DENSITY_LABEL: Record<Density, string> = {
 };
 // The smallest target a pointer or a finger still hits on a Dense row.
 const MIN_HIT = 12;
+
+// A milestone is never cancelled: its cancelled members finish it (decision 6).
+const MILESTONE_STATUSES = (Object.keys(STATUS_LABEL) as Status[]).filter((s) => s !== 'cancelled');
 
 const color = (tone: Tone) => `var(--${tone})`;
 // Status colours are tuned for lines; text takes the darker -ink step where one exists, for AA contrast.
@@ -545,6 +549,7 @@ export function TrackerGraph(props: Props) {
           { n: summary.late, word: 'late', cls: 'late' },
           { n: summary.notYet, word: 'not yet', cls: undefined },
           { n: summary.done, word: 'done', cls: 'done' },
+          { n: summary.cancelled, word: 'cancelled', cls: undefined },
         ].filter((p) => p.n > 0);
         return (
           <Fragment key={lane.teamId}>
@@ -1298,13 +1303,14 @@ export function Legend() {
       {line('var(--proceed)', 'Done')}
       {line('var(--danger)', 'Not finished after its planned finish')}
       {line('var(--caution)', 'Done after its planned finish')}
+      {line('var(--isolated)', 'Cancelled')}
       <span>
         <svg width="12" height="12" viewBox="-7 -7 14 14" aria-hidden="true">
           <path d={DIAMOND} fill="var(--ink-3)" stroke="var(--ink-3)" strokeWidth="1.5" />
         </svg>
         Milestone deadline on its work items
       </span>
-      {(Object.keys(STATUS_LABEL) as Array<keyof typeof STATUS_LABEL>).map((status) => (
+      {MILESTONE_STATUSES.map((status) => (
         <span key={status} style={{ color: color(STATUS_TONE[status]) }}>
           <i className={cls('ms-sw', status !== 'planned' && 'fill')} />
           <span style={{ color: 'var(--ink-2)' }}>{STATUS_LABEL[status]}</span>

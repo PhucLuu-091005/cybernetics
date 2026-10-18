@@ -92,6 +92,7 @@ export const TrackerEventSchema = z.strictObject({
   at: Instant,
   by: Id,
   text: Body,
+  finishes: z.boolean().optional(),
   addedBy: Id.nullable(),
   hidden: z.boolean(),
 }) satisfies z.ZodType<TrackerEvent>;
@@ -101,6 +102,7 @@ export const QueueEventInputSchema = z.strictObject({
   at: Instant,
   by: Id,
   text: Body,
+  finishes: z.boolean().optional(),
 });
 export type QueueEventInput = z.infer<typeof QueueEventInputSchema>;
 
@@ -169,7 +171,11 @@ export const FromEventArgsSchema = z.strictObject({
 export const NewEventSchema = z.strictObject({ id: Id, ...QueueEventInputSchema.shape });
 export const AddEventArgsSchema = z.strictObject({ workItemId: Id, ev: NewEventSchema });
 export const MoveArgsSchema = z.strictObject({ eventId: Id, to: Id });
-export const KindArgsSchema = z.strictObject({ eventId: Id, kind: EventKindSchema });
+export const KindArgsSchema = z.strictObject({
+  eventId: Id,
+  kind: EventKindSchema,
+  finishes: z.boolean().optional(),
+});
 export const HideArgsSchema = z.strictObject({ eventId: Id });
 const dateMoveArgs = { date: DateString, why: Why, by: Id, at: Instant };
 export const MsDateArgsSchema = z.strictObject({

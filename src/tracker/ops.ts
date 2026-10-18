@@ -83,6 +83,12 @@ const personName = (s: TrackerState, id: string) =>
 const eventLabel = (s: TrackerState, ev: Pick<TrackerEvent, 'kind' | 'by'>) =>
   `${KIND_LABEL[ev.kind]} by ${personName(s, ev.by)}`;
 
+const finishFlag = (e: Pick<TrackerEvent, 'kind' | 'finishes'>): { finishes?: true } =>
+  e.kind === 'handoff' && e.finishes ? { finishes: true } : {};
+
+const kindText = (e: Pick<TrackerEvent, 'kind' | 'finishes'>) =>
+  finishFlag(e).finishes ? `${KIND_LABEL[e.kind]}, finishes the work item` : KIND_LABEL[e.kind];
+
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 function newItem(
@@ -112,6 +118,7 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
         at: q.at,
         by: q.by,
         text: q.text,
+        ...finishFlag(q),
         addedBy: q.agent ? 'agent' : q.addedBy,
         hidden: false,
       });
@@ -192,6 +199,7 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
         at: q.at,
         by: q.by,
         text: q.text,
+        ...finishFlag(q),
         addedBy: q.agent ? 'agent' : q.addedBy,
         hidden: false,
       });
@@ -207,7 +215,17 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
       const { workItemId, ev } = op.a;
       const item = find(s.workItems, workItemId, 'work item');
       assertNew(s.events, ev.id, 'event');
-      s.events.push({ ...ev, workItemId: item.id, addedBy: c.by, hidden: false });
+      s.events.push({
+        id: ev.id,
+        kind: ev.kind,
+        at: ev.at,
+        by: ev.by,
+        text: ev.text,
+        ...finishFlag(ev),
+        workItemId: item.id,
+        addedBy: c.by,
+        hidden: false,
+      });
       return {
         item: eventLabel(s, ev),
         change: 'added',
@@ -231,13 +249,15 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
     }
     case 'kind': {
       const ev = visibleEvent(s, op.a.eventId);
-      const old = ev.kind;
+      const before = kindText(ev);
       ev.kind = op.a.kind;
+      if (finishFlag(op.a).finishes) ev.finishes = true;
+      else delete ev.finishes;
       return {
         item: `Event by ${personName(s, ev.by)}, ${formatStamp(ev.at, c.timeZone)}`,
         change: 'changed',
-        before: KIND_LABEL[old],
-        after: KIND_LABEL[ev.kind],
+        before,
+        after: kindText(ev),
         icon: ev.kind,
       };
     }

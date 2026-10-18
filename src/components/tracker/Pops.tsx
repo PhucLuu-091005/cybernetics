@@ -9,7 +9,7 @@ import {
 } from '../../tracker';
 import type { Directory } from './avatar';
 import { Icon, KIND_COLOR, KindIcon, type IconName } from './icons';
-import { KindGrid } from './Modals';
+import { FinishesCheck, KindGrid } from './Modals';
 import type { PopKind } from './TrackerGraph';
 import type { TrackerActions } from './TrackerScreen';
 
@@ -318,6 +318,12 @@ function KindPop({
       onClose={c.onClose}
     >
       <KindGrid value={ev.kind} onPick={(kind) => c.actions.setKind(ev.id, kind)} />
+      {ev.kind === 'handoff' && (
+        <FinishesCheck
+          checked={!!ev.finishes}
+          onChange={(finishes) => c.actions.setKind(ev.id, 'handoff', finishes)}
+        />
+      )}
     </PopFrame>
   );
 }

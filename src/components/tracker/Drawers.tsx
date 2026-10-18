@@ -21,6 +21,7 @@ import {
   mainState,
   milestoneStatus,
   replayOps,
+  startHint,
   STATUS_LABEL,
   STATUS_TONE,
   teamFocusTree,
@@ -207,7 +208,7 @@ export function MilestoneDrawer({
       />
       <p className="q-label">Work items in this milestone ({members.length})</p>
       {members.map((w) => {
-        const finishedAt = itemInfo(w, state.events).finishedAt;
+        const { finishedAt, cancelled } = itemInfo(w, state.events);
         return (
           <div className="mem" key={w.id}>
             <div>
@@ -219,8 +220,10 @@ export function MilestoneDrawer({
                 <b>{w.title}</b>
               )}
               <small>
-                {finishedAt ? `Done ${formatDay(dayOf(finishedAt, tz))}` : 'Not finished'} ·{' '}
-                {team(w.teamId)}
+                {finishedAt
+                  ? `${cancelled ? 'Cancelled' : 'Done'} ${formatDay(dayOf(finishedAt, tz))}`
+                  : 'Not finished'}{' '}
+                · {team(w.teamId)}
               </small>
             </div>
             {edit && (
@@ -368,6 +371,7 @@ export function WorkItemDrawer({
   if (!item) return null;
   const info = itemInfo(item, state.events, asOf);
   const status = itemStatus(item, state.events, asOf, tz);
+  const hint = startHint(item, state.events);
   const late = status === 'late';
   const lateText = late
     ? lateBy({ planned: item.plannedFinish, plannedTime: item.plannedFinishTime }, asOf, tz)
@@ -434,7 +438,16 @@ export function WorkItemDrawer({
     <Frame
       label={item.title}
       icon={
-        <span className="pi" style={{ color: info.done ? 'var(--proceed)' : 'var(--route)' }}>
+        <span
+          className="pi"
+          style={{
+            color: info.cancelled
+              ? 'var(--isolated)'
+              : info.done
+                ? 'var(--proceed)'
+                : 'var(--route)',
+          }}
+        >
           <Icon name="loop" size={15} />
         </span>
       }
@@ -489,6 +502,15 @@ export function WorkItemDrawer({
           {hidden ? 'Show on the graph' : 'Hide from the graph'}
         </button>
       </div>
+      {hint && (
+        <p className="wi-hint" role="note" aria-label="Start of the work item">
+          <Icon name="info" size={14} />
+          <span>
+            This work item starts with a {KIND_LABEL[hint]}. Add the event that started it, such as
+            a Message, an Idea or a Task.
+          </span>
+        </p>
+      )}
       {edit && !info.done && (
         <div className="row-btns wi-acts">
           <button
@@ -500,6 +522,9 @@ export function WorkItemDrawer({
           </button>
           <button className="btn sm" type="button" onClick={() => actions.markDone(item.id)}>
             <KindIcon kind="done" size={13} /> Mark done
+          </button>
+          <button className="btn sm" type="button" onClick={() => actions.cancelItem(item.id)}>
+            <KindIcon kind="cancelled" size={13} /> Cancel work item
           </button>
         </div>
       )}
@@ -748,6 +773,7 @@ export function WorkItemDrawer({
                 </b>
                 <small>
                   {formatStamp(ev.at, tz)}
+                  {ev.kind === 'handoff' && ev.finishes && ' · finishes the work item'}
                   {ev.hidden && <span className="chipx"> hidden</span>}
                 </small>
                 <span>{ev.text}</span>

@@ -7,6 +7,8 @@ export const EVENT_KINDS = [
   'delivery',
   'issue',
   'done',
+  'idea',
+  'cancelled',
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
@@ -19,9 +21,18 @@ export const KIND_LABEL: Record<EventKind, string> = {
   delivery: 'Delivery',
   issue: 'Issue',
   done: 'Done',
+  idea: 'Idea',
+  cancelled: 'Cancelled',
 };
 
-export type Status = 'planned' | 'early' | 'ontime' | 'late' | 'flate';
+/** Guidance for the kind picker only: any kind can sit anywhere on a work item. */
+export const KIND_GROUPS: ReadonlyArray<{ label: string; kinds: readonly EventKind[] }> = [
+  { label: 'Start', kinds: ['idea', 'message', 'issue'] },
+  { label: 'Progress', kinds: ['task', 'meeting', 'decision', 'delivery'] },
+  { label: 'Finish', kinds: ['handoff', 'done', 'cancelled'] },
+];
+
+export type Status = 'planned' | 'early' | 'ontime' | 'late' | 'flate' | 'cancelled';
 
 export const STATUS_LABEL: Record<Status, string> = {
   planned: 'Planned',
@@ -29,6 +40,7 @@ export const STATUS_LABEL: Record<Status, string> = {
   ontime: 'Finished on time',
   late: 'Late',
   flate: 'Finished late',
+  cancelled: 'Cancelled',
 };
 
 export type Person = { id: string; name: string };
@@ -80,6 +92,8 @@ export type TrackerEvent = {
   at: string;
   by: string;
   text: string;
+  /** Only a Handoff reads it: true makes the Handoff finish its work item. */
+  finishes?: boolean;
   addedBy: 'agent' | string | null;
   hidden: boolean;
 };
@@ -90,6 +104,7 @@ export type QueueEvent = {
   at: string;
   by: string;
   text: string;
+  finishes?: boolean;
   addedBy: string | null;
   agent: boolean;
   createdAt: string;
