@@ -1677,7 +1677,7 @@ export function TrackerScreen({
           {drag.ghost}
         </div>
       )}
-      <Toast toast={toast} onClose={closeToast} />
+      <Toast toast={toast} onClose={closeToast} paused={!!drag?.items} />
     </div>
   );
 }
