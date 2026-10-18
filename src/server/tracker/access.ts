@@ -173,7 +173,7 @@ const AGENT_SCOPES: Record<keyof Rights, readonly TokenScope[]> = {
   viewCrs: [],
   create: ['queue:dismiss', 'crs:edit', 'crs:ready'],
   merge: ['crs:merge'],
-  manage: ['members:manage', 'teams:manage', 'project:lead'],
+  manage: ['members:manage', 'teams:manage'],
 };
 
 export function requireRight(

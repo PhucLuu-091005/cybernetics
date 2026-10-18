@@ -15,7 +15,6 @@ import {
   type ForeignKeyBuilder,
   type PgColumn,
 } from 'drizzle-orm/pg-core';
-import type { Scope } from '../../contracts';
 import type {
   CrCommentKind,
   CrPermission,
@@ -107,7 +106,7 @@ export const agentTokens = pgTable(
     prefix: text('prefix').notNull(),
     hash: text('hash').notNull().unique(),
     label: text('label').notNull(),
-    scopes: text('scopes').array().$type<Scope[]>().notNull(),
+    scopes: text('scopes').array().$type<string[]>().notNull(),
     idempotencyKey: text('idempotency_key').notNull(),
     // Nullable because the HttpIdentityStore port declares requestDigest optional.
     requestDigest: text('request_digest'),

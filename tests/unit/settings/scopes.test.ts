@@ -4,6 +4,8 @@ import {
   SCOPE_GROUPS,
   SCOPE_INFO,
   ScopeSchema,
+  SCOPE_GROUP_NOTE,
+  knownScopes,
   scopeBlock,
   type Creator,
   type Scope,
@@ -42,12 +44,22 @@ describe('token scopes', () => {
       'crs:close',
       'members:manage',
       'teams:manage',
-      'project:lead',
     ]);
     expect(DEFAULT_AGENT_SCOPES).toEqual(['project:read', 'queue:add']);
   });
-  it('has no scope that manages tokens or deletes the project', () => {
-    expect(ScopeSchema.options.some((scope) => /token|delete/.test(scope))).toBe(false);
+  it('has no scope that manages tokens, deletes the project or hands over the lead', () => {
+    expect(ScopeSchema.options.some((scope) => /token|delete|lead/.test(scope))).toBe(false);
+  });
+  it('reads an old token scope that no longer exists by dropping it', () => {
+    expect(knownScopes(['project:read', 'project:lead', 'queue:add'])).toEqual([
+      'project:read',
+      'queue:add',
+    ]);
+    expect(ScopeSchema.safeParse('project:lead').success).toBe(false);
+  });
+  it('says that a team lead gets the create right', () => {
+    const teams = SCOPE_INFO.find((info) => info.scope === 'teams:manage')!;
+    expect(teams.text).toMatch(/team lead can create and edit change requests/);
   });
   it('gives every scope a group, a title, a short name and one line of what the agent can do', () => {
     expect(SCOPE_INFO.map((info) => info.scope)).toEqual(ScopeSchema.options);
@@ -58,13 +70,10 @@ describe('token scopes', () => {
       expect(info.text).toMatch(/\.$/);
       expect(info.text.length).toBeLessThanOrEqual(90);
     }
-    expect(SCOPE_GROUPS).toEqual([
-      'Read',
-      'Queue',
-      'Change requests',
-      'People and teams',
-      'Project',
-    ]);
+    expect(SCOPE_GROUPS).toEqual(['Read', 'Queue', 'Change requests', 'People and teams']);
+    expect(SCOPE_GROUP_NOTE['People and teams']).toBe(
+      'The agent can invite people and give them rights.',
+    );
   });
   it('blocks a scope whose right the creator does not hold, with the reason', () => {
     const merge = SCOPE_INFO.find((info) => info.scope === 'crs:merge')!;
@@ -73,7 +82,11 @@ describe('token scopes', () => {
     const members = SCOPE_INFO.find((info) => info.scope === 'members:manage')!;
     expect(scopeBlock(members, writer)).toBe('Only the project lead can do this');
     const comment = SCOPE_INFO.find((info) => info.scope === 'crs:comment')!;
+    expect(comment.need).toBe('viewMain');
+    expect(SCOPE_INFO.find((info) => info.scope === 'crs:close')!.need).toBe('viewMain');
     expect(scopeBlock(comment, reader)).toBe('Only members of the project can do this');
+    const blind: Creator = { member: true, rights: { ...writer.rights, viewMain: false } };
+    expect(scopeBlock(comment, blind)).toBe('You cannot see Main of this project');
     expect(allowedScopes(lead)).toEqual(ScopeSchema.options);
     expect(allowedScopes(writer)).toEqual([
       'project:read',

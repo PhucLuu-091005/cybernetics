@@ -303,7 +303,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     'crs:close',
     'close',
     { ...Reviewed, reason: z.string().min(1).max(1000) },
-    `Cancel an open change request with a reason. Its author, its editor or a person with the Merge right can cancel it. ${SEEN}`,
+    `Cancel an open change request with a reason. Your person can cancel one they wrote or edit; any other one needs the Merge right and also the crs:merge scope. ${SEEN}`,
   ),
   tool(
     'invite_member',
@@ -346,12 +346,5 @@ export const MCP_TOOLS: readonly McpTool[] = [
     DeleteTeamInputSchema.shape,
     'Delete a team that has no work items and that no change request uses. The last team stays.',
     (db, ctx, input) => deleteTeam(db, ctx, typed(input)),
-  ),
-  tool(
-    'make_project_lead',
-    'project:lead',
-    { memberId: IdSchema },
-    'Make another member the project lead. The person of this token then stops being the lead, and the token loses every right that only the lead has.',
-    (db, ctx, input) => updateMember(db, ctx, typed({ ...input, projectLead: true })),
   ),
 ];

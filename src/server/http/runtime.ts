@@ -8,7 +8,7 @@ import type {
   TokenCreated,
 } from '../../contracts';
 import { readAuthEnvironment } from '../env';
-import { createTokenService, type ListTokensInput } from '../domain/tokens/service';
+import { createTokenService, type CreatorOf, type ListTokensInput } from '../domain/tokens/service';
 import { createIdentityServices, type BrowserSession } from './actors';
 import type { HttpIdentityStore } from './identity-store';
 import { MemoryRateLimiter } from './rate-limit';
@@ -48,21 +48,31 @@ export async function getBrowserProjectActor(
 export async function getTokenActor(request: Request, scope: Scope | null): Promise<ActorContext> {
   return identities().getTokenActor(request, scope);
 }
+// Loaded on use: the app module imports this one, and the creator's rights live in the tracker.
+const creatorOf: CreatorOf = async (ctx, projectId) => {
+  const [{ getApp }, { tokenCreator }] = await Promise.all([
+    import('../app'),
+    import('../domain/account'),
+  ]);
+  return tokenCreator(getApp().db, ctx, projectId);
+};
+const tokenService = () => createTokenService(getHttpIdentityStore(), creatorOf);
+
 export async function createToken(
   ctx: ActorContext,
   input: Omit<CreateAgentTokenInput, 'scopes'> & { scopes?: Scope[] },
 ): Promise<TokenCreated> {
-  return createTokenService(getHttpIdentityStore()).createToken(ctx, input);
+  return tokenService().createToken(ctx, input);
 }
 export async function revokeToken(
   ctx: ActorContext,
   input: RevokeAgentTokenInput,
 ): Promise<RevokeAgentTokenResult> {
-  return createTokenService(getHttpIdentityStore()).revokeToken(ctx, input);
+  return tokenService().revokeToken(ctx, input);
 }
 export async function listTokens(
   ctx: ActorContext,
   input: ListTokensInput,
 ): Promise<ListAgentTokensResult> {
-  return createTokenService(getHttpIdentityStore()).listTokens(ctx, input);
+  return tokenService().listTokens(ctx, input);
 }

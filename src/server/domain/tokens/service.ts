@@ -2,6 +2,10 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { z } from 'zod';
 import {
   CreateAgentTokenInputSchema,
+  DEFAULT_AGENT_SCOPES,
+  SCOPE_INFO,
+  scopeBlock,
+  type Creator,
   ListAgentTokensInputSchema,
   RevokeAgentTokenInputSchema,
   type ActorContext,
@@ -19,7 +23,14 @@ type CreateInput = Omit<CreateAgentTokenInput, 'scopes'> & {
   scopes?: CreateAgentTokenInput['scopes'];
 };
 export type ListTokensInput = z.input<typeof ListAgentTokensInputSchema>;
-export function createTokenService(store: HttpIdentityStore, now: () => number = Date.now) {
+/** The creator of a token as their member rows say today. */
+export type CreatorOf = (ctx: ActorContext, projectId: string) => Promise<Creator>;
+
+export function createTokenService(
+  store: HttpIdentityStore,
+  creatorOf: CreatorOf,
+  now: () => number = Date.now,
+) {
   async function authorize(ctx: ActorContext, projectId: string): Promise<void> {
     if (ctx.kind !== 'user')
       throw new AppError('FORBIDDEN', 'Only browser users can manage tokens');
@@ -37,6 +48,24 @@ export function createTokenService(store: HttpIdentityStore, now: () => number =
       if (!result.success) throw new AppError('VALIDATION', 'Invalid token input');
       const input = result.data;
       await authorize(ctx, input.projectId);
+      // The same rule as the page: a token never asks for a right its creator lacks. Each call checks again.
+      const creator = await creatorOf(ctx, input.projectId);
+      const blockOf = (scope: string) =>
+        scopeBlock(
+          SCOPE_INFO.find((info) => info.scope === scope)!,
+          creator,
+        );
+      if (raw.scopes === undefined)
+        input.scopes = DEFAULT_AGENT_SCOPES.filter((scope) => blockOf(scope) === null);
+      if (!input.scopes.length)
+        throw new AppError('VALIDATION', 'You cannot give an agent any permission here');
+      for (const scope of input.scopes) {
+        const reason = blockOf(scope);
+        if (reason)
+          throw new AppError('VALIDATION', reason, {
+            errors: [{ path: 'scopes', message: `${scope}: ${reason}` }],
+          });
+      }
       const createdAt = new Date(now()).toISOString(),
         expiresAt = input.expiresAt ?? new Date(now() + 30 * 86_400_000).toISOString();
       if (Date.parse(expiresAt) <= now())

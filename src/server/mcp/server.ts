@@ -41,7 +41,7 @@ Normal flow:
 
 Scopes and their tools (every token lists every tool; a tool outside your scopes answers FORBIDDEN):
 ${SCOPES}
-No scope lets a token create, list or revoke tokens, or delete the project.
+No scope lets a token create, list or revoke tokens, delete the project or hand over the project lead; a person does those in the browser.
 
 Everything you write records your person plus an agent mark.
 

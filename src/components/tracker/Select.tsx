@@ -1,6 +1,7 @@
 'use client';
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { FieldPop } from './FieldPop';
+import { activeOnOpen, moveActive, typeahead } from './select-keys';
 import { Icon } from './icons';
 import './fields.css';
 
@@ -34,9 +35,10 @@ export function Select({
     const li = list.current?.children[active];
     if (li instanceof HTMLElement) li.scrollIntoView({ block: 'nearest' });
   }, [open, active]);
+  const typed = useRef({ text: '', at: 0 });
   const show = () => {
     setOpen(true);
-    setActive(Math.max(0, options.indexOf(current!)));
+    setActive(activeOnOpen(options, value));
   };
   const close = () => {
     setOpen(false);
@@ -47,20 +49,37 @@ export function Select({
     close();
     if (option.value !== value) onChange(option.value);
   };
-  const step = (from: number, by: number) => {
-    for (let at = from + by; at >= 0 && at < options.length; at += by)
-      if (!options[at].disabled) return at;
-    return from;
+  // Letters typed within a second read as one word, as in a native select.
+  const find = (key: string) => {
+    const now = Date.now();
+    const text = now - typed.current.at < 1000 ? typed.current.text + key : key;
+    typed.current = { text, at: now };
+    const from = open ? active : activeOnOpen(options, value);
+    const at = typeahead(options, from, text);
+    if (!open) setOpen(true);
+    setActive(at);
   };
   const onKey = (event: KeyboardEvent) => {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       if (!open) return show();
-      setActive(step(active, event.key === 'ArrowDown' ? 1 : -1));
-    } else if (event.key === 'Home' || event.key === 'End') {
+      setActive(moveActive(options, active, event.key));
+    } else if (['Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) {
       if (!open) return;
       event.preventDefault();
-      setActive(event.key === 'Home' ? step(-1, 1) : step(options.length, -1));
+      setActive(moveActive(options, active, event.key));
+    } else if (event.key === ' ' && typed.current.text && Date.now() - typed.current.at < 1000) {
+      event.preventDefault();
+      find(' ');
+    } else if (
+      event.key.length === 1 &&
+      event.key !== ' ' &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
+    ) {
+      event.preventDefault();
+      find(event.key);
     } else if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       if (open) pick(options[active]);

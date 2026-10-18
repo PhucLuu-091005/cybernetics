@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { hydrated } from './helpers';
 
 const PROJECT = 'Larkspur Capital';
 
@@ -195,20 +196,38 @@ test('Settings shows plain permission names, and Last call changes from Never af
 
   const form = page.getByRole('form', { name: 'Create a token' });
   const permissions = form.getByRole('group', { name: 'Permissions' });
-  await expect(permissions.getByRole('checkbox')).toHaveCount(12);
+  await expect(permissions.getByRole('checkbox')).toHaveCount(11);
   await expect(permissions.getByRole('checkbox', { name: /Read the project/ })).toBeChecked();
   await expect(permissions.getByRole('checkbox', { name: /Add to the Queue/ })).toBeChecked();
   await expect(permissions.getByRole('checkbox', { name: /Merge into Main/ })).not.toBeChecked();
+  await expect(permissions).toContainText('The agent can invite people and give them rights.');
   const all = permissions.getByRole('checkbox', { name: 'Select all' });
   await expect(all).toHaveJSProperty('indeterminate', true);
-  await all.check();
-  await expect(permissions.locator('input:checked')).toHaveCount(12);
-  await all.uncheck();
-  await expect(permissions.locator('input:checked')).toHaveCount(0);
+  await hydrated(page);
+  await all.focus();
+  await page.keyboard.press('Space');
+  await expect(permissions.locator('input:checked')).toHaveCount(11);
   await expect(all).toHaveJSProperty('indeterminate', false);
+  await page.keyboard.press('Space');
+  await expect(permissions.locator('input:checked')).toHaveCount(0);
   await permissions.getByRole('checkbox', { name: /Read the project/ }).check();
   await permissions.getByRole('checkbox', { name: /Add to the Queue/ }).check();
-  await expect(page.getByRole('combobox', { name: 'Expires' })).toHaveText(/In 30 days/);
+
+  const expires = page.getByRole('combobox', { name: 'Expires' });
+  await expect(expires).toHaveText(/In 30 days/);
+  await expires.focus();
+  await page.keyboard.press('ArrowDown');
+  const list = page.getByRole('listbox', { name: 'Expires' });
+  await expect(list).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(list).toHaveCount(0);
+  await page.keyboard.press('i');
+  await page.keyboard.press('Enter');
+  await expect(expires).toHaveText(/In 7 days/);
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('PageUp');
+  await page.keyboard.press('Enter');
+  await expect(expires).toHaveText(/In 30 days/);
 
   await expect(form.getByRole('button', { name: 'Create token' })).toBeDisabled();
   await form.getByLabel('Label').fill('Last call agent');

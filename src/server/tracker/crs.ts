@@ -618,10 +618,17 @@ async function requestChanges(run: Run, note: string) {
 async function close(run: Run, reason: string) {
   const { tx, ctx, scope, cr } = run;
   const me = requireRight(ctx, scope, 'viewMain');
-  if (![cr.author, cr.editor].includes(me.id) && !rightsIn(scope, me).merge)
+  const own = [cr.author, cr.editor].includes(me.id);
+  if (!own && !rightsIn(scope, me).merge)
     throw new AppError(
       'FORBIDDEN',
       `Only the author, the person who edits #${cr.num} or a person who can merge can cancel it`,
+    );
+  // Cancelling someone else's change request is a merger's decision, so the token needs that scope too.
+  if (!own && ctx.kind === 'agent' && !ctx.scopes.includes('crs:merge'))
+    throw new AppError(
+      'FORBIDDEN',
+      'Scope crs:merge is also required to cancel this change request',
     );
   requireStatus(cr, OPEN);
   requireSeen(run);
