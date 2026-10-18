@@ -24,7 +24,7 @@ import {
   type TrackerLayout,
 } from '../../tracker';
 import { svgPoint } from './drag';
-import { openScale, zoomTarget } from './scale';
+import { openScale, wheelZoomFactor, zoomTarget } from './scale';
 import { Icon, KIND_COLOR, KindIcon, SvgIcon } from './icons';
 
 const { X0, SIDE, AXIS_Y, TRUNK_Y, TOP, INDENT, MAX_DAY_WIDTH } = GEOMETRY;
@@ -223,8 +223,7 @@ export function TrackerGraph(props: Props) {
     const onWheel = (event: WheelEvent) => {
       if (event.ctrlKey || event.metaKey) {
         event.preventDefault();
-        const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1;
-        zoomBy(Math.exp(-event.deltaY * unit * 0.002), event.clientX);
+        zoomBy(wheelZoomFactor(event.deltaY, event.deltaMode), event.clientX);
       } else if (pinned.contains(event.target as Node) && event.deltaX && scroller.current) {
         // The pinned axis has no scroll of its own, so a sideways swipe on it moves the time line.
         event.preventDefault();

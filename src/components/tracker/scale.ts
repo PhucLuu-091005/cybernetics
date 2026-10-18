@@ -28,6 +28,17 @@ export function zoomTarget(
   return factor < 1 ? Math.max(next, Math.min(L.fitDayWidth, from)) : next;
 }
 
+/** The largest zoom of one wheel event, so a mouse notch with Ctrl stays one comfortable step. */
+export const WHEEL_STEP = 1.25;
+const WHEEL_RATE = 0.005;
+
+/** A trackpad pinch sends many small Ctrl wheel events; a mouse notch sends one large one. */
+export function wheelZoomFactor(deltaY: number, deltaMode: number): number {
+  const unit = deltaMode === 1 ? 16 : deltaMode === 2 ? 400 : 1;
+  const factor = Math.exp(-deltaY * unit * WHEEL_RATE);
+  return Math.min(WHEEL_STEP, Math.max(1 / WHEEL_STEP, factor));
+}
+
 const DAY = 86_400_000;
 /** The first view shows five weeks before T and one after, so recent work reads at a calm scale. */
 export const OPEN_DAYS = 42;
