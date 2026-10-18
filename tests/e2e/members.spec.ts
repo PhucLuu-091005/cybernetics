@@ -49,6 +49,9 @@ test('the project lead invites, sets grants, edits a team, removes a member and 
     await expect(page.locator('.pg-error')).toHaveText(
       'members-guest@local.test is already in this project.',
     );
+    await form.getByLabel('Email').fill('a@b');
+    await form.getByRole('button', { name: 'Invite' }).click();
+    await expect(page.locator('.pg-error')).toHaveText('Invalid email address.');
   });
 
   await test.step('grants follow their rule: a team lead keeps Create, Merge turns on its needs', async () => {
