@@ -107,6 +107,11 @@ test('Profile uploads a photo after a preview, shows it in every avatar, and rem
   const src = await section.locator('.pf-face img').getAttribute('src');
   const served = await page.request.get(src!);
   expect(served.headers()['content-type']).toBe('image/webp');
+  expect(served.headers()).toMatchObject({
+    'content-security-policy': "default-src 'none'; sandbox",
+    'x-frame-options': 'DENY',
+    'x-content-type-options': 'nosniff',
+  });
 
   await page.goto(`/projects/${projectId}/members`);
   const row = page.getByRole('row').filter({ hasText: 'Minh Trần' }).first();
