@@ -633,6 +633,8 @@ export function TrackerGraph(props: Props) {
       className="tg pg-top pg-top-side"
       viewBox={`0 0 ${sideW} ${TOP}`}
       width={sideW}
+      style={{ height: TOP }}
+      preserveAspectRatio="xMinYMin slice"
       role="group"
       aria-label="Milestones"
       {...svgProps}
@@ -662,6 +664,9 @@ export function TrackerGraph(props: Props) {
       className="tg pg-side"
       viewBox={`0 ${TOP} ${sideW} ${BODY}`}
       width={sideW}
+      // Until the phone flag arrives, CSS already narrows a wide view box; slice keeps the scale and crops it.
+      style={{ height: BODY }}
+      preserveAspectRatio="xMinYMin slice"
       role="group"
       aria-label="Teams and work items"
       {...svgProps}

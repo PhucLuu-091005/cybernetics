@@ -1347,6 +1347,31 @@ test.describe('events at their own time', () => {
 test.describe('the tracker at phone width', () => {
   test.use({ viewport: { width: 390, height: 844 }, colorScheme: 'light', hasTouch: true });
 
+  test('keeps the names level with their rows while the column still has the wide view box', async ({
+    page,
+  }) => {
+    await page.goto('/signin?label=tracker-level');
+    await page.getByRole('button', { name: /continue/i }).click();
+    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
+    const side = page.locator('.gscroll svg.pg-side');
+    await expect(side).toHaveAttribute('viewBox', /^0 64 128 /);
+    // A server-rendered first frame has the desktop view box until the phone flag arrives.
+    const offsets = await page.evaluate(() => {
+      const svg = document.querySelector<SVGSVGElement>('.gscroll svg.pg-side')!;
+      const [, y, , h] = svg.getAttribute('viewBox')!.split(' ');
+      svg.setAttribute('viewBox', `0 ${y} 228 ${h}`);
+      return Array.from(svg.querySelectorAll('.hit[data-rowlabel]')).map((hit) => {
+        const id = hit.getAttribute('data-rowlabel');
+        const line = document.querySelector(`svg.pg .hit[data-loop="${id}"]`);
+        const a = hit.getBoundingClientRect();
+        const b = line?.getBoundingClientRect();
+        return b ? Math.abs(a.top + a.height / 2 - (b.top + b.height / 2)) : 0;
+      });
+    });
+    expect(offsets.length).toBeGreaterThan(0);
+    for (const offset of offsets) expect(offset).toBeLessThan(1);
+  });
+
   test('pins a narrow column of row names beside the time line, which scrolls on its own', async ({
     page,
   }) => {
