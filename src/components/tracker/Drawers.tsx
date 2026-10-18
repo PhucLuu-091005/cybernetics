@@ -57,6 +57,7 @@ import { Select } from './Select';
 import { DateInput } from './DateInput';
 import { TimeInput } from './TimeInput';
 import { Moves } from './Pops';
+import { focusAction } from './team';
 import type { TrackerActions, TrackerView } from './TrackerScreen';
 
 function Frame({
@@ -355,10 +356,14 @@ export function WorkItemDrawer({
   onEvent,
   onMilestone,
   onToggleRow,
+  focused,
+  onFocus,
 }: Base & {
   itemId: string;
   edit: boolean;
   hidden: boolean;
+  focused: boolean;
+  onFocus: (workItemId: string) => void;
   actions: TrackerActions;
   onPick: (workItemId: string) => void;
   onEvent: (eventId: string) => void;
@@ -433,6 +438,8 @@ export function WorkItemDrawer({
     </span>
   );
   const finish = formatDeadline(item.plannedFinish, item.plannedFinishTime);
+  const focusLabel = focusAction(item.title, focused);
+  const hideText = hidden ? 'Show on the graph' : 'Hide from the graph';
   return (
     <Frame
       label={item.title}
@@ -492,15 +499,26 @@ export function WorkItemDrawer({
           {late ? lateBadge(itemDeadlineOf(item), asOf, tz) : STATUS_LABEL[status]}
         </span>
         <span className="sp" />
-        <button
-          className="btn sm btn-quiet"
-          type="button"
-          aria-pressed={hidden}
-          onClick={() => onToggleRow(item.id)}
-        >
-          <Icon name={hidden ? 'eyeoff' : 'eye'} size={13} />{' '}
-          {hidden ? 'Show on the graph' : 'Hide from the graph'}
-        </button>
+        <span className="wi-view">
+          <button
+            className="btn sm btn-quiet"
+            type="button"
+            aria-pressed={focused}
+            aria-label={focusLabel.label}
+            onClick={() => onFocus(item.id)}
+          >
+            <Icon name="focus" size={13} /> {focusLabel.text}
+          </button>
+          <button
+            className="btn sm btn-quiet"
+            type="button"
+            aria-pressed={hidden}
+            aria-label={`${hideText}: ${item.title}`}
+            onClick={() => onToggleRow(item.id)}
+          >
+            <Icon name={hidden ? 'eyeoff' : 'eye'} size={13} /> {hideText}
+          </button>
+        </span>
       </div>
       {hint && (
         <p className="wi-hint" role="note" aria-label="Start of the work item">

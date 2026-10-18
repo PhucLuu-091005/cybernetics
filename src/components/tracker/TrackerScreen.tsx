@@ -1628,6 +1628,8 @@ export function TrackerScreen({
                 setDrawer({ mode: 'ms', id });
               }}
               onToggleRow={(id) => (isHidden(id) ? reveal([id]) : toggleRow(id))}
+              focused={focused === drawer.id}
+              onFocus={toggleFocus}
             />
           )}
           {drawer?.mode === 'ms' && (

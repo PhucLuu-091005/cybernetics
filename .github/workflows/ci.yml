@@ -74,7 +74,7 @@ jobs:
           docker network create ci
           docker run -d --name db --network ci -e POSTGRES_USER=promise_graph -e POSTGRES_PASSWORD=ci-only -e POSTGRES_DB=promise_graph "$POSTGRES_IMAGE"
           until docker exec db pg_isready -U promise_graph -d promise_graph; do sleep 1; done
-          docker run -d --name app --network ci -p 3000:3000 \
+          docker run -d --name app --network ci -p 3000:8080 \
             -e DATABASE_URL=postgresql://promise_graph:ci-only@db:5432/promise_graph \
             -e AUTH_MODE=google -e NEXT_PUBLIC_APP_URL=https://promise-graph.example \
             -e SESSION_SECRET=ci-only-32-byte-session-secret-not-for-production-use \
