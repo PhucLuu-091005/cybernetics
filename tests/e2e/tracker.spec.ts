@@ -2991,6 +2991,8 @@ test.describe('new changes wait for Refresh', () => {
       if (/\/tracker\/version$/.test(request.url())) checks += 1;
     });
     await page.clock.runFor(16_000);
+    expect(checks).toBe(0);
+    await page.clock.runFor(5 * 60_000);
     await expect.poll(() => checks).toBe(1);
     const show = (state: 'hidden' | 'visible') =>
       page.evaluate((value) => {
@@ -3001,10 +3003,31 @@ test.describe('new changes wait for Refresh', () => {
         document.dispatchEvent(new Event('visibilitychange'));
       }, state);
     await show('hidden');
-    await page.clock.runFor(120_000);
+    await page.clock.runFor(10 * 60_000);
     expect(checks).toBe(1);
     await show('visible');
     await expect.poll(() => checks).toBe(2);
+  });
+
+  test('a focus after a minute away checks at once, and a shorter absence does not', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    await signIn(page, 'tracker-fresh-focus');
+    let checks = 0;
+    page.on('request', (request) => {
+      if (/\/tracker\/version$/.test(request.url())) checks += 1;
+    });
+    const away = async (ms: number) => {
+      await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+      await page.clock.runFor(ms);
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    };
+    await away(30_000);
+    await page.clock.runFor(1_000);
+    expect(checks).toBe(0);
+    await away(61_000);
+    await expect.poll(() => checks).toBe(1);
   });
 });
 

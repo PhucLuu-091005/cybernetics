@@ -652,7 +652,7 @@ describe('version checks', () => {
         new Request(`${env.appOrigin}/api/v1/me/keys`, { headers: s.request().headers }),
         'poll',
       );
-    for (let i = 0; i < 600; i++) await check();
+    for (let i = 0; i < 60; i++) await check();
     await expect(check()).rejects.toMatchObject({ code: 'RATE_LIMITED' });
     await expect(s.services.getBrowserActor(s.request())).resolves.toMatchObject({
       kind: 'user',

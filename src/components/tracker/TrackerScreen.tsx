@@ -205,7 +205,9 @@ export const NO_ACTIONS: TrackerActions = {
   addToMilestone: noop,
 };
 
-export const CHECK_MS = 15_000;
+// The owner wants no frequent polling; a person who comes back sees news through the checks on return.
+export const CHECK_MS = 5 * 60_000;
+const AWAY_MS = 60_000;
 // The prototype keeps a pop open for clicks in these areas; the graph closes it on its own background.
 const OUTSIDE_EXEMPT =
   '.p-head, .bbar, .pop, .drawer, .p-side, .empty, .ro-note, svg.tg, .tk-modal, .tk-toast, .zoombar, .gtools';
@@ -278,14 +280,26 @@ export function useTracker(initial: TrackerPayload, projectId: string, num: numb
     const onVisibility = () => {
       if (document.visibilityState === 'visible') void check();
     };
+    let blurredAt: number | null = null;
+    const onBlur = () => {
+      blurredAt = Date.now();
+    };
+    const onFocus = () => {
+      if (blurredAt !== null && Date.now() - blurredAt >= AWAY_MS) void check();
+      blurredAt = null;
+    };
     checkNow.current = () => void check();
     schedule();
     document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', onBlur);
+    window.addEventListener('focus', onFocus);
     return () => {
       stopped = true;
       clearTimeout(timer);
       checkNow.current = noop;
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('focus', onFocus);
     };
   }, [projectId, num]);
 

@@ -18,7 +18,7 @@ export type BrowserSession = { userId: string; defaultWorkspaceId: string };
  * photo reads and version checks have their own limits and leave the read limit alone.
  */
 export type LimitBucket = 'calls' | 'photo' | 'poll';
-const LIMITS = { read: 300, write: 120, photo: 1200, poll: 600 } as const;
+const LIMITS = { read: 300, write: 120, photo: 1200, poll: 60 } as const;
 const rateLimited = () => new AppError('RATE_LIMITED', 'Rate limit exceeded');
 export function projectInPath(pathname: string): string | null {
   const match = pathname.match(/\/projects\/([^/]+)/);
