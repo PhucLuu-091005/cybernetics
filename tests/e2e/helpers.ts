@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from '@playwright/test';
+import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 
 export type Point = { x: number; y: number };
 
@@ -44,4 +44,24 @@ export async function drag(page: Page, from: Locator, to: Locator | Point) {
   await page.mouse.move(a.x + 8, a.y + 8, { steps: 3 });
   await page.mouse.move(b.x, b.y, { steps: 12 });
   await page.mouse.up();
+}
+
+/** The tab icon and the home screen icon that `page` links, fetched with no session. */
+export async function expectAppIcons(request: APIRequestContext, page: string) {
+  const html = await (await request.get(page)).text();
+  const links = [...html.matchAll(/<link [^>]*>/g)].map(([tag]) => ({
+    rel: /rel="([^"]+)"/.exec(tag)?.[1],
+    href: /href="([^"]+)"/.exec(tag)?.[1]?.replaceAll('&amp;', '&'),
+  }));
+  const hrefOf = (rel: string) => links.find((link) => link.rel === rel)?.href;
+  for (const [rel, type] of [
+    ['icon', 'image/svg+xml'],
+    ['apple-touch-icon', 'image/png'],
+  ]) {
+    const href = hrefOf(rel);
+    expect(href, rel).toBeTruthy();
+    const response = await request.get(href!, { maxRedirects: 0 });
+    expect(response.status(), href).toBe(200);
+    expect(response.headers()['content-type']).toContain(type);
+  }
 }

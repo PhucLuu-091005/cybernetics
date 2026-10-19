@@ -1,6 +1,6 @@
 import { expect, request, test, type Page } from '@playwright/test';
 import sharp from 'sharp';
-import { hydrated } from '../e2e/helpers';
+import { expectAppIcons, hydrated } from '../e2e/helpers';
 
 test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
 
@@ -29,6 +29,10 @@ test('the first visit opens a sandbox graph with no sign-in, and a second visit 
   await expect(menu.getByRole('button', { name: 'Sign out' })).toHaveCount(0);
   expect(await open(page)).toBe(projectId);
   expect(await open(page, '/signin')).toBe(projectId);
+});
+
+test('the app icon serves to a visitor with no session', async ({ request: visitor }) => {
+  await expectAppIcons(visitor, '/welcome');
 });
 
 test('two visitors get separate sandboxes, and one cannot open the other', async ({

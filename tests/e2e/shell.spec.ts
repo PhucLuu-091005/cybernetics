@@ -1,7 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
-import { hydrated } from './helpers';
+import { expectAppIcons, hydrated } from './helpers';
 
 const PROJECT = 'Larkspur Capital';
+
+test('the app icon serves without a session', async ({ request }) => {
+  await expectAppIcons(request, '/signin');
+});
 
 test('the rail folds to icons, keeps the state after a reload, and opens again', async ({
   page,
