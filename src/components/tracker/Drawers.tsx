@@ -143,7 +143,7 @@ export function MilestoneDrawer({
   const date = edit && draft ? draft.date : m.planned;
   const time = edit && draft ? draft.time : (m.plannedTime ?? '');
   const unchanged = name === m.name && date === m.planned && time === (m.plannedTime ?? '');
-  const outside = state.workItems.filter((w) => w.milestoneId !== m.id);
+  const outside = state.workItems.filter((w) => !w.milestoneId);
   const pick = adding && outside.some((w) => w.id === adding) ? adding : (outside[0]?.id ?? '');
   return (
     <Frame

@@ -802,6 +802,12 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       dialog.getByRole('checkbox', { name: 'PG-203 Country list field type' }),
     ).toBeVisible();
     await expect(dialog.getByRole('checkbox', { name: 'Dynamics CRM sync scope' })).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await page.locator('svg.tg [data-ms="crm"] .ms-hit').click();
+    await page.locator('.drawer').getByLabel('Work item to add').click();
+    const options = page.getByRole('option');
+    await expect(options.filter({ hasText: 'PG-203 Country list field type' })).toHaveCount(1);
+    await expect(options.filter({ hasText: 'Go-live date' })).toHaveCount(0);
   });
 
   test('a selected milestone lights its work items and dims the others until its drawer closes', async ({
