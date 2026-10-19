@@ -1533,6 +1533,19 @@ describe('layoutTracker: milestone labels never overlap (QA 19 Oct, M1)', () => 
     }
   }
 
+  it('never starts a label under the pinned names or past the right edge, on a phone or a desktop', () => {
+    for (const n of [0, 1, 2, 3])
+      for (const { over } of widths) {
+        const s = larkspurState();
+        s.milestones.push(...extra(n));
+        const L = layoutTracker(s, view({ windowEnd: '2026-10-31', ...over }));
+        for (const m of L.milestones.filter((x) => x.label)) {
+          expect(m.labelBox.x0, m.label).toBeGreaterThanOrEqual(X0);
+          expect(m.labelBox.x1, m.label).toBeLessThanOrEqual(L.x1);
+        }
+      }
+  });
+
   it('drops the status, then the date, before it cuts a name', () => {
     const s = larkspurState();
     s.milestones.push(...extra(3));

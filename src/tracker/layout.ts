@@ -1230,17 +1230,18 @@ function placeMilestoneLabels(c: Ctx, drafts: readonly MsDraft[]): Map<string, M
             spot.x0 < p.x1 + MS_LABEL_GAP &&
             spot.x1 > p.x0 - MS_LABEL_GAP,
         );
-      const fits = (text: string, own: boolean) =>
+      // A label never starts under the pinned names or runs past the edge, as nothing may be hidden.
+      const fits = (text: string) =>
         [
           spotOf(d, 0, d.preferRight, text),
           spotOf(d, 1, d.preferRight, text),
           spotOf(d, 0, !d.preferRight, text),
           spotOf(d, 1, !d.preferRight, text),
-        ].find((spot, i) => ((own && i < 2) || inside(spot)) && !near(spot) && !covers(spot, d.mx));
+        ].find((spot) => inside(spot) && !near(spot) && !covers(spot, d.mx));
       let spot: MsSpot | undefined;
       let step = 0;
       for (const text of [...d.texts, ...cutNames(d.m.name)]) {
-        spot = fits(text, step === 0);
+        spot = fits(text);
         if (spot) break;
         step += 1;
       }
