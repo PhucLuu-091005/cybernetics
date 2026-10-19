@@ -1059,6 +1059,7 @@ function NoteModal({
   action,
   keep,
   danger,
+  max,
   busy,
   onClose,
   onSend,
@@ -1069,6 +1070,7 @@ function NoteModal({
   tip: string;
   action: string;
   keep: string;
+  max: number;
   danger?: boolean;
   busy: boolean;
   onClose: () => void;
@@ -1082,12 +1084,12 @@ function NoteModal({
         {label}
         <textarea
           value={text}
-          maxLength={TEXT_MAX.why}
+          maxLength={max}
           required
           placeholder={placeholder}
           onChange={(event) => setText(event.target.value)}
         />
-        <TextCount value={text} max={TEXT_MAX.why} />
+        <TextCount value={text} max={max} />
       </label>
       <p className="tip">{tip}</p>
       <div className="m-foot">
@@ -1117,6 +1119,7 @@ function CancelCrModal({ cr, busy, on, onClose }: PropsOf<'cancelCr'>) {
       tip="Nothing from it goes into Main. Everyone sees the reason in its header and in History."
       action="Cancel change request"
       keep="Keep it"
+      max={TEXT_MAX.why}
       danger
       busy={busy}
       onClose={onClose}
@@ -1135,6 +1138,7 @@ function RequestChangesModal({ cr, session, busy, on, onClose }: PropsOf<'reques
       tip={`#${cr.num} goes back to draft, and ${session.dir.name(cr.editor)} sees your note in its header.`}
       action="Send back to draft"
       keep="Cancel"
+      max={TEXT_MAX.body}
       busy={busy}
       onClose={onClose}
       onSend={on.requestChanges}
