@@ -108,18 +108,6 @@ export const serveMemberPhoto = (request: Request, memberId: string, hash: strin
 export const servePhoto = (request: Request, userId: string, hash: string) =>
   handle(
     request,
-    async (ctx, store) => {
-      const body = await readPhoto(getApp().db, store, ctx, userId, hash);
-      return new Response(new Uint8Array(body), {
-        headers: {
-          'Content-Type': 'image/webp',
-          'Content-Length': String(body.length),
-          'Cache-Control': 'private, max-age=31536000, immutable',
-          'X-Content-Type-Options': 'nosniff',
-          'Content-Security-Policy': "default-src 'none'; sandbox",
-          Vary: 'Cookie',
-        },
-      });
-    },
+    async (ctx, store) => photoResponse(await readPhoto(getApp().db, store, ctx, userId, hash)),
     'photo',
   );
