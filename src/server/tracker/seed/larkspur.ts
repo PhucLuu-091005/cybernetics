@@ -42,7 +42,6 @@ const longDay = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'UTC',
 });
 
-/** Moves every date and instant by `days`, and writes each `{YYYY-MM-DD}` in a text as "30 September". */
 function shiftStory<T>(value: T, days: number): T {
   if (typeof value === 'string') {
     const date = /^(\d{4}-\d{2}-\d{2})(T.*)?$/.exec(value);
@@ -534,7 +533,6 @@ const QUEUE_ITEMS: QueueItem[] = [
 
 const orNull = (id: LarkspurIds, key: string | null) => (key === null ? null : id(key));
 
-/** `days` moves a copy of the story in time (`larkspurShift`); 0 is the story as written. */
 export function larkspurBase(id: LarkspurIds = keep, days = 0): TrackerBase {
   return shiftStory(storyBase(id), days);
 }

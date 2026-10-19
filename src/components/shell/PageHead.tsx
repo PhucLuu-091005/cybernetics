@@ -1,6 +1,5 @@
 import { AccountMenu, type Account } from './AccountMenu';
 
-/** `project` is left out on a page of the person, such as Profile. */
 export function PageHead({
   title,
   project,

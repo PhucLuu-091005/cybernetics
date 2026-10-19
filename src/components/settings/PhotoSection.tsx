@@ -11,9 +11,7 @@ type Props = {
   name: string;
   color: string;
   photo: string | null;
-  /** The photo route of the person on screen, with the project whose acting member it names. */
   api: string;
-  /** Set when the visitor of a demo copy acts as a seeded person, who then gets the photo. */
   actingAs?: string;
 };
 

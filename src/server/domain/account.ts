@@ -27,11 +27,8 @@ export async function signedInAccount(db: Db, userId: string): Promise<AccountBa
 }
 
 export type OnScreen = {
-  /** The act-as cookie when the project accepts it. */
   actAs: string | undefined;
-  /** The member a page shows as "me" and acts as; null for a person with no member here. */
   member: Member | null;
-  /** The visitor of a demo copy acts as a seeded person, who has no user of their own. */
   seeded: boolean;
   account: AccountBadge;
 };

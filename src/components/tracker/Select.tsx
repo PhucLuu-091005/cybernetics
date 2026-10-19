@@ -17,7 +17,6 @@ export type SelectOption = {
   value: string;
   label: string;
   hint?: string;
-  /** A face or mark before the label in the list; it adds nothing to the name. */
   before?: ReactNode;
   disabled?: boolean;
 };

@@ -136,8 +136,7 @@ export function assertDemoClock(values: Record<string, string | undefined> = pro
 }
 
 /**
- * The project lead keeps the story name Minh Trần (spec 2.19), so it needs no user name. The story
- * moves to `now` by whole days (`larkspurShift`).
+ * The project lead keeps the story name Minh Trần (spec 2.19), so it needs no user name.
  */
 export async function seedTrackerDemo(
   tx: Tx,

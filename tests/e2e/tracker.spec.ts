@@ -1115,7 +1115,6 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(pop).toContainText('Minh sends the rehearsal report.');
     await page.keyboard.press('Escape');
 
-    // The first view is Fit already.
     await expect(page.getByRole('button', { name: 'Fit to width' })).toBeDisabled();
     await expect.poll(overflow).toBe(0);
     const zoomIn = page.getByRole('button', { name: 'Zoom in' });
@@ -1373,7 +1372,6 @@ test.describe('events at their own time', () => {
 
   test('Fit shows the earliest events, and a sideways drag moves nothing', async ({ page }) => {
     const { projectId } = await signIn(page, 'tracker-day');
-    // The first view is Fit, and the earliest event sits clear of the label column.
     await expect(page.getByRole('button', { name: 'Fit to width' })).toBeDisabled();
     const g1 = page.locator('svg.pg [data-act="g1"]');
     await expect(g1).toHaveCount(1);
@@ -1938,7 +1936,6 @@ test.describe('row height and collapsible teams', () => {
     const side = page.locator('svg.pg-side');
     const implementation = side.getByRole('button', { name: /^Implementation, 3 work items/ });
     const engineering = side.getByRole('button', { name: /^Engineering, 4 work items: 2 late/ });
-    // Every team starts open.
     await expect(side.locator('[aria-expanded="false"]')).toHaveCount(0);
     await expect(implementation).toHaveAttribute('aria-expanded', 'true');
     await expect(engineering).toHaveAttribute('aria-expanded', 'true');

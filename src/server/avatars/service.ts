@@ -110,7 +110,6 @@ export async function removeMemberPhoto(
   return { photo: null };
 }
 
-/** A seeded person's photo shows to the people who can open their project. */
 export async function readMemberPhoto(
   db: Db,
   store: PhotoStore,

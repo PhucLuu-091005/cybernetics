@@ -300,7 +300,6 @@ test('while the visitor acts as Quang, every page shows Quang and acts as Quang'
     'You',
   );
 
-  // A key made on Settings acts as Quang, and the list says so.
   await page.goto(`/projects/${projectId}/settings/tokens`);
   await hydrated(page);
   const form = page.getByRole('form', { name: 'Create a token' });
@@ -313,7 +312,6 @@ test('while the visitor acts as Quang, every page shows Quang and acts as Quang'
     'Acts as Quang Nguyễn',
   );
 
-  // A comment from a page of the app is Quang's.
   const reply = await page.evaluate(async (pid) => {
     const sent = await fetch(`/api/v1/projects/${pid}/tracker/crs/2/actions`, {
       method: 'POST',
