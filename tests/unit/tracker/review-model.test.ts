@@ -243,7 +243,7 @@ describe('reviewModel', () => {
       event: null,
       d: {
         change: 'planned date moved',
-        why: 'The CRS section is not ready. Sarah agreed on 13 September.',
+        why: 'The CRS section is not ready. Sarah agreed on 26 September.',
       },
     });
   });

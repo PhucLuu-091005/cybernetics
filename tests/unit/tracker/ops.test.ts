@@ -302,7 +302,7 @@ describe('the Larkspur fixture', () => {
       'it',
     ]);
     expect(s.milestones).toHaveLength(2);
-    expect(s.workItems).toHaveLength(14);
+    expect(s.workItems).toHaveLength(15);
     expect(s.queue.events.map((e) => e.id)).toEqual(['qe1', 'qe2', 'qe3', 'qe4']);
     expect(s.queue.items.map((q) => q.id)).toEqual(['q1', 'q2']);
     expect(s.workItems.filter((w) => w.moves.length).map((w) => w.id)).toEqual(['golive', 'pg201']);
@@ -341,7 +341,7 @@ describe('applyOp', () => {
       kind: 'message',
       at: at('2026-10-07T08:30'),
       by: 'sarah',
-      text: 'Sarah needs an explanation for the go-live slip before the LP call on Monday.',
+      text: 'Sarah needs an explanation for the go-live slip before the LP call.',
       addedBy: 'minh',
       hidden: false,
     });
@@ -396,9 +396,9 @@ describe('applyOp', () => {
       {
         from: '2026-09-30',
         to: '2026-10-15',
-        why: 'The CRS section is not ready. Sarah agreed to 15 October on 13 September.',
+        why: 'The CRS section is not ready. Sarah agreed to 15 October on 26 September.',
         by: 'minh',
-        at: at('2026-09-12T10:40'),
+        at: at('2026-09-26T09:30'),
       },
       { from: '2026-10-15', to: '2026-10-20', why: WHY, by: 'minh', at: at('2026-10-09T17:00') },
     ]);

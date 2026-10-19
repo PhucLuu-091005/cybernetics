@@ -356,9 +356,11 @@ describe('layout and filters for a cancelled work item', () => {
     expect([...match!.match]).toEqual(['w']);
   });
 
-  it('keeps the Larkspur demo free of cancelled work items', () => {
-    const L = layoutTracker(larkspurState(), { ...view, windowStart: '2026-09-10' });
-    expect(L.lanes.every((l) => l.summary.cancelled === 0)).toBe(true);
+  it('has one cancelled work item in the Larkspur demo, in IT', () => {
+    const L = layoutTracker(larkspurState(), { ...view, windowStart: '2026-09-13' });
+    expect(L.lanes.map((l) => [l.teamId, l.summary.cancelled]).filter(([, n]) => n)).toEqual([
+      ['it', 1],
+    ]);
   });
 });
 

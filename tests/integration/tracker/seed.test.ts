@@ -43,12 +43,12 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker demo seed', () => {
       id: demo.projectId,
       demo: true,
       timeZone: 'Asia/Ho_Chi_Minh',
-      windowStart: '2026-09-10',
+      windowStart: '2026-09-13',
       leadMemberId: demo.ids.minh,
     });
     expect(sameInstant(payload.project.asOf, LARKSPUR_AS_OF)).toBe(true);
     expect(payload.base.teams).toHaveLength(7);
-    expect(payload.base.workItems).toHaveLength(14);
+    expect(payload.base.workItems).toHaveLength(15);
     expect(payload.base.milestones).toHaveLength(2);
     // The project's team list replaces the story leads with the members who lead each team.
     const base = larkspurBase(id);
@@ -113,7 +113,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker demo seed', () => {
       item: 'Go-live and first close',
       before: 'planned 30 Sept',
       after: 'planned 15 Oct',
-      why: 'The CRS section is not ready. Sarah agreed on 13 September.',
+      why: 'The CRS section is not ready. Sarah agreed on 26 September.',
     });
     const main = mainState(payload.base, payload.queue, payload.commits);
     expect(main.milestones.find((m) => m.id === 'golive')?.planned).toBe('2026-10-15');

@@ -146,7 +146,7 @@ describe('tracker view state', () => {
       hiddenTeams: ['it', 'nope'],
     });
     expect(list).toEqual({
-      teams: [{ id: 'it', name: 'IT', items: 1 }],
+      teams: [{ id: 'it', name: 'IT', items: 2 }],
       items: [
         { id: 'analyse', title: 'Analyse the CRS and FATCA rules', team: 'Digitization' },
         { id: 'pg203', title: 'PG-203 Country list field type', team: 'Engineering' },

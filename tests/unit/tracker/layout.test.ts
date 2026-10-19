@@ -121,7 +121,7 @@ describe('layoutTracker: scale and window', () => {
       larkspurState(),
       view({ windowStart: undefined, windowEnd: undefined }),
     );
-    expect(D.window.start).toBe('2026-06-29');
+    expect(D.window.start).toBe('2026-09-06');
     expect(D.window.end).toBe('2026-10-19');
   });
 
@@ -403,6 +403,7 @@ describe('layoutTracker: lanes and rows', () => {
       ['test', 564],
       ['incident', 630],
       ['secret', 696],
+      ['sso', 728],
     ]);
     expect(L.rows.every((r) => !r.changed)).toBe(true);
     expect(L.rows.find((r) => r.id === 'crs')).toMatchObject({
@@ -420,7 +421,7 @@ describe('layoutTracker: lanes and rows', () => {
     });
     const withButtons = layoutTracker(larkspurState(), view({ focusButtons: true }));
     expect(withButtons.rows.find((r) => r.id === 'crs')!.label).toBe('CRS tax residency secti…');
-    expect(L.height).toBe(774);
+    expect(L.height).toBe(806);
   });
 
   it('drops a hidden team completely: no head line, no rows, no drop target', () => {
@@ -451,7 +452,7 @@ describe('layoutTracker: lanes and rows', () => {
     expect(L.rows.some((r) => r.id === 'pg203')).toBe(false);
     expect(L.segments.some((s) => s.workItemId === 'pg203')).toBe(false);
     expect(L.rows.find((r) => r.id === 'test')!.y).toBe(564 - 32);
-    expect(L.height).toBe(774 - 32);
+    expect(L.height).toBe(806 - 32);
   });
 
   it('drops a team whose rows are all hidden, and keeps its full name on other lanes', () => {
@@ -547,7 +548,8 @@ describe('layoutTracker: segments and waits', () => {
   });
 
   it('starts a line that began before the window at the label column', () => {
-    const [seg] = lines(L, 'dynamics');
+    const late = layoutTracker(larkspurState(), view({ windowStart: '2026-09-20' }));
+    const [seg] = lines(late, 'dynamics');
     expect(seg.x1).toBe(X0);
   });
 
@@ -667,19 +669,18 @@ describe('layoutTracker: events and milestone ticks', () => {
       tooltip:
         'Task · Lan Phạm · 24 Sept 09:20\nAdd a multi-select country list field. Target: 6 October.',
     });
-    expect(L.eventGroups.filter((g) => g.workItemId === 'analyse').map((g) => g.eventIds)).toEqual([
-      ['a1'],
-      ['a2'],
-      ['a3', 'a4'],
+    expect(L.eventGroups.filter((g) => g.workItemId === 'crs').map((g) => g.eventIds)).toEqual([
+      ['c1'],
+      ['c2', 'c3'],
     ]);
   });
 
   it('skips events before the window', () => {
-    expect(L.eventGroups.filter((g) => g.workItemId === 'golive').map((g) => g.eventIds)).toEqual([
-      ['g3'],
-      ['g4'],
-    ]);
-    expect(L.eventGroups.some((g) => g.workItemId === 'dynamics')).toBe(false);
+    const late = layoutTracker(state, view({ windowStart: '2026-09-20' }));
+    expect(
+      late.eventGroups.filter((g) => g.workItemId === 'golive').map((g) => g.eventIds),
+    ).toEqual([['g3'], ['g4']]);
+    expect(late.eventGroups.some((g) => g.workItemId === 'dynamics')).toBe(false);
   });
 
   it('colours an event after the planned finish red while open', () => {
@@ -689,7 +690,7 @@ describe('layoutTracker: events and milestone ticks', () => {
       ['p32', 'danger'],
     ]);
     const pg202 = L.eventGroups.filter((g) => g.workItemId === 'pg202');
-    expect(pg202.map((g) => g.tone)).toEqual(['proceed', 'caution']);
+    expect(pg202.map((g) => g.tone)).toEqual(['proceed', 'proceed', 'caution']);
   });
 
   it('draws no mark for the own planned finish of a work item', () => {
@@ -1591,10 +1592,10 @@ describe('layoutTracker: focus on a team', () => {
 
 describe('windowStartFor: the board shows every event', () => {
   it('moves the project start back to 3 days before the earliest work on the board', () => {
-    expect(windowStartFor(larkspurState(), '2026-09-10', AS_OF, TIME_ZONE)).toBe('2026-06-29');
+    expect(windowStartFor(larkspurState(), '2026-09-20', AS_OF, TIME_ZONE)).toBe('2026-09-11');
     const L = layoutTracker(
       larkspurState(),
-      view({ windowStart: windowStartFor(larkspurState(), '2026-09-10', AS_OF, TIME_ZONE) }),
+      view({ windowStart: windowStartFor(larkspurState(), '2026-09-20', AS_OF, TIME_ZONE) }),
     );
     for (const id of ['g1', 'g2', 'd1'])
       expect(L.eventGroups.some((g) => g.eventIds.includes(id))).toBe(true);
@@ -1675,7 +1676,7 @@ describe('layoutTracker: focus on a work item', () => {
 
   it('ignores a focus on an unknown work item', () => {
     const L = layoutTracker(larkspurState(), view({ focus: 'nope' }));
-    expect(L.rows).toHaveLength(13);
+    expect(L.rows).toHaveLength(14);
   });
 });
 
