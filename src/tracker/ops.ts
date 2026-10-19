@@ -319,7 +319,6 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
     case 'msAdd': {
       const item = find(s.workItems, op.a.workItemId, 'work item');
       const m = find(s.milestones, op.a.milestoneId, 'milestone');
-      if (item.milestoneId !== m.id) assertNoMilestone(s, item);
       const old = item.milestoneId
         ? s.milestones.find((x) => x.id === item.milestoneId)
         : undefined;
@@ -334,7 +333,6 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
     case 'newMs': {
       const { id, name, planned, time, members } = op.a;
       assertNew(s.milestones, id, 'milestone');
-      for (const item of s.workItems) if (members.includes(item.id)) assertNoMilestone(s, item);
       s.milestones.push({
         id,
         name,
@@ -455,13 +453,20 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
   }
 }
 
-/** A work item belongs to one milestone; a move is an explicit msRemove, then msAdd. */
-function assertNoMilestone(s: TrackerState, item: WorkItem) {
-  const m = item.milestoneId && s.milestones.find((x) => x.id === item.milestoneId);
-  if (m)
-    throw new OpError(
-      `${item.title} is in ${m.name} already. Remove it from that milestone first.`,
-    );
+/**
+ * A new change may not put a work item in a second milestone; a move is msRemove, then msAdd.
+ * Replay still reads an old single msAdd as a move, so merged history keeps its result.
+ */
+export function secondMilestone(s: TrackerState, op: Op): string | null {
+  const ids =
+    op.op === 'msAdd' ? [op.a.workItemId] : op.op === 'newMs' ? op.a.members : ([] as string[]);
+  for (const item of s.workItems) {
+    if (!ids.includes(item.id) || !item.milestoneId) continue;
+    if (op.op === 'msAdd' && item.milestoneId === op.a.milestoneId) continue;
+    const m = s.milestones.find((x) => x.id === item.milestoneId);
+    if (m) return `${item.title} is in ${m.name} already. Remove it from that milestone first.`;
+  }
+  return null;
 }
 
 export function applyOp(

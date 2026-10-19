@@ -19,6 +19,7 @@ import {
   OpError,
   OpSchema,
   replayOps,
+  secondMilestone,
   type Commit,
   type Member,
   type Op,
@@ -204,6 +205,8 @@ function admit(
         'VALIDATION',
         `The change does not fit: ${gone.join(' and ')} ${gone.length > 1 ? 'are' : 'is'} no longer in this project`,
       );
+    const taken = secondMilestone(state, op);
+    if (taken) throw new AppError('VALIDATION', `The change does not fit: ${taken}`);
     try {
       const applied = applyOp(state, op, tz);
       state = applied.state;

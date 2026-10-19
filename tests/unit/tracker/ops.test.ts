@@ -8,7 +8,9 @@ import {
   sameOp,
   type Op,
   type OpDescription,
+  secondMilestone,
 } from '../../../src/tracker/ops';
+import { mainState, type Commit } from '../../../src/tracker/clash';
 import { OpSchema, QueueEventInputSchema, TrackerStateSchema } from '../../../src/tracker/schemas';
 import {
   at,
@@ -547,25 +549,39 @@ describe('applyOp', () => {
     );
   });
 
-  it('keeps one milestone per work item: adding one that has a milestone is refused, a move is remove then add', () => {
+  it('refuses a new change that puts a work item in a second milestone; a move is remove then add', () => {
     const s = larkspurState();
     const taken =
       'Dynamics CRM sync scope is in CRM integration live already. Remove it from that milestone first.';
-    expect(() =>
-      applyOp(s, makeOp('msAdd', { workItemId: 'dynamics', milestoneId: 'golive' })),
-    ).toThrow(taken);
-    expect(() =>
-      applyOp(
+    const add = (workItemId: string, milestoneId: string) =>
+      makeOp('msAdd', { workItemId, milestoneId });
+    expect(secondMilestone(s, add('dynamics', 'golive'))).toBe(taken);
+    expect(
+      secondMilestone(
         s,
         makeOp('newMs', { id: 'm9', name: 'X', planned: '2026-10-20', members: ['dynamics'] }),
       ),
-    ).toThrow(taken);
+    ).toBe(taken);
+    expect(secondMilestone(s, add('pg203', 'golive'))).toBeNull();
+    expect(secondMilestone(s, add('dynamics', 'crm'))).toBeNull();
     const removed = applyOp(s, makeOp('msRemove', { workItemId: 'dynamics' })).state;
-    const moved = applyOp(
-      removed,
-      makeOp('msAdd', { workItemId: 'dynamics', milestoneId: 'golive' }),
-    ).state;
-    expect(moved.workItems.find((w) => w.id === 'dynamics')?.milestoneId).toBe('golive');
+    expect(secondMilestone(removed, add('dynamics', 'golive'))).toBeNull();
+  });
+
+  it('replays an old merged single msAdd as a move, so history keeps its result', () => {
+    const commits: Commit[] = [
+      {
+        rev: 1,
+        crId: 'old',
+        crNum: 1,
+        mergedBy: 'minh',
+        mergedAt: at('2026-10-01T10:00'),
+        ops: [makeOp('msAdd', { workItemId: 'dynamics', milestoneId: 'golive' })],
+        resolutions: [],
+      },
+    ];
+    const main = mainState(larkspurBase(), larkspurQueueRows(), commits);
+    expect(main.workItems.find((w) => w.id === 'dynamics')?.milestoneId).toBe('golive');
   });
 
   it('addTeam appends the team', () => {
