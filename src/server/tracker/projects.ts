@@ -123,6 +123,18 @@ export function demoClock(values: Record<string, string | undefined> = process.e
   return { now, asOf: pinned };
 }
 
+/** A pin in production or a wrong one stops the server at start, so no visitor meets it as a 500. */
+export function assertDemoClock(values: Record<string, string | undefined> = process.env): void {
+  try {
+    demoClock(values);
+  } catch (error) {
+    console.error(
+      JSON.stringify({ event: 'demo_clock_invalid', message: (error as Error).message }),
+    );
+    process.exit(1);
+  }
+}
+
 /**
  * The project lead keeps the story name Minh Trần (spec 2.19), so it needs no user name. The story
  * moves to `now` by whole days (`larkspurShift`).

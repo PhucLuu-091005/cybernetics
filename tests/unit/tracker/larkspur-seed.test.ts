@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { openScale } from '../../../src/components/tracker/scale';
-import { demoClock } from '../../../src/server/tracker/projects';
+import { assertDemoClock, demoClock } from '../../../src/server/tracker/projects';
 import {
   LARKSPUR_STORY_NOW,
   LARKSPUR_WINDOW_START,
@@ -183,5 +183,27 @@ describe('demoClock', () => {
     expect(demoClock(pin)).toEqual({ now: new Date(LARKSPUR_STORY_NOW), asOf: LARKSPUR_STORY_NOW });
     expect(() => demoClock({ ...pin, NODE_ENV: 'production' })).toThrow(/tests only/);
     expect(() => demoClock({ TRACKER_DEMO_AS_OF: 'soon' })).toThrow(/ISO instant/);
+  });
+});
+
+describe('demo clock start check', () => {
+  it('ends the start with code 1 for a pinned clock in production or a wrong one, and passes without one', () => {
+    const exit = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      assertDemoClock({ TRACKER_DEMO_AS_OF: LARKSPUR_STORY_NOW, NODE_ENV: 'production' });
+      expect(exit).toHaveBeenCalledWith(1);
+      expect(log.mock.calls[0][0]).toContain('demo_clock_invalid');
+      exit.mockClear();
+      assertDemoClock({ TRACKER_DEMO_AS_OF: 'soon' });
+      expect(exit).toHaveBeenCalledWith(1);
+      exit.mockClear();
+      assertDemoClock({ NODE_ENV: 'production' });
+      assertDemoClock({ TRACKER_DEMO_AS_OF: LARKSPUR_STORY_NOW });
+      expect(exit).not.toHaveBeenCalled();
+    } finally {
+      exit.mockRestore();
+      log.mockRestore();
+    }
   });
 });
