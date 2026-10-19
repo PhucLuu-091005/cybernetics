@@ -4,7 +4,10 @@
  */
 export const VERSION_PARTS = ['main', 'queue', 'crs', 'project'] as const;
 export type VersionPart = (typeof VERSION_PARTS)[number];
-export type TrackerVersion = { version: string; crCount: number };
+/** The change request on screen: a touch (ask, share, comment) moves only `updatedAt`. */
+export type CrMark = { num: number; revision: number; updatedAt: string };
+/** `cr` is there when the check named a change request: null when the viewer cannot see it. */
+export type TrackerVersion = { version: string; crCount: number; cr?: CrMark | null };
 
 export const joinVersion = (parts: Record<VersionPart, string>) =>
   VERSION_PARTS.map((part) => parts[part]).join('.');

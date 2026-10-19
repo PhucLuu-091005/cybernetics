@@ -11,19 +11,31 @@ import {
   trackerCrs,
   trackerQueue,
 } from '../db/schema';
-import type { Db } from '../db/tx';
+import { toIso, type Db } from '../db/tx';
 import { invalidInput } from '../errors';
 import { requireScope } from '../http/scopes';
 import { ProjectScopeSchema, readScope, requireView, subjectOf, type Scope } from './access';
 import type { Reader } from './store';
 
-const GetVersionInputSchema = z.strictObject(ProjectScopeSchema);
+const GetVersionInputSchema = z.strictObject({
+  ...ProjectScopeSchema,
+  num: z
+    .union([
+      z.number(),
+      z
+        .string()
+        .regex(/^\d{1,9}$/)
+        .transform(Number),
+    ])
+    .pipe(z.number().int().positive())
+    .optional(),
+});
 
 const digest = (value: unknown) =>
   createHash('sha256').update(JSON.stringify(value)).digest('base64url').slice(0, 12);
 
 /** Reads ids, revisions and counts only: no ops, no comment bodies, so a check costs far less than the payload. */
-export async function versionOf(db: Reader, scope: Scope): Promise<TrackerVersion> {
+export async function versionOf(db: Reader, scope: Scope, num?: number): Promise<TrackerVersion> {
   const projectId = scope.project.id;
   const [main] = await db
     .select({ rev: max(trackerCommits.rev), n: count() })
@@ -83,6 +95,7 @@ export async function versionOf(db: Reader, scope: Scope): Promise<TrackerVersio
       comments: comments.find((c) => c.crId === cr.id) ?? null,
     }));
   const { project, tracker, members, me, canActAs } = scope;
+  const onScreen = num === undefined ? undefined : visible.find((cr) => cr.num === num);
   return {
     version: joinVersion({
       main: digest([main?.rev ?? 0, main?.n ?? 0]),
@@ -91,6 +104,13 @@ export async function versionOf(db: Reader, scope: Scope): Promise<TrackerVersio
       project: digest([project.title, project.clientName, tracker, members, me?.id, canActAs]),
     }),
     crCount: visible.length,
+    ...(num === undefined
+      ? {}
+      : {
+          cr: onScreen
+            ? { num, revision: onScreen.revision, updatedAt: toIso(onScreen.updatedAt) }
+            : null,
+        }),
   };
 }
 
@@ -102,12 +122,12 @@ export async function getTrackerVersion(
   requireScope(ctx, 'project:read');
   const parsed = GetVersionInputSchema.safeParse(raw);
   if (!parsed.success) throw invalidInput('Invalid tracker version read', parsed.error);
-  const { projectId, actAs } = parsed.data;
+  const { projectId, actAs, num } = parsed.data;
   return db.transaction(
     async (tx) => {
       const scope = await readScope(tx, ctx, projectId, actAs);
       requireView(scope);
-      return versionOf(tx, scope);
+      return versionOf(tx, scope, num);
     },
     { isolationLevel: 'repeatable read', accessMode: 'read only' },
   );
