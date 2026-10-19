@@ -39,6 +39,15 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('the person on screen', () => {
     }
   });
 
+  it('never plays a pending invitee, who has no account yet, as a seeded person', async () => {
+    const email = `${randomUUID()}@example.com`;
+    const invited = await inviteMember(t.db, demo.owner, { projectId: demo.projectId, email });
+    const pending = invited.members.find((m) => m.email === email)!;
+    expect(pending.pending).toBe(true);
+    const seen = await personOnScreen(t.db, demo.owner, demo.projectId, pending.id);
+    expect(seen).toMatchObject({ actAs: undefined, seeded: false, member: { id: demo.ids.minh } });
+  });
+
   it('never lets an invited person of a demo copy act as another member', async () => {
     const email = `${randomUUID()}@example.com`;
     const guest = await testActor(t.db, { email, name: 'Invited Person' });

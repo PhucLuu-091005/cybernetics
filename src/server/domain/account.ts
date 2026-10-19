@@ -75,7 +75,9 @@ export async function personOnScreen(
         photo: member.photo ?? null,
       }
     : { ...(await signedInAccount(db, ctx.userId)), detail: 'Can view' };
-  return { actAs, member, seeded: !!member && member.userId === null, account };
+  // A pending invitee also has no user, but is not active, so only a story person counts as seeded.
+  const seeded = !!member && member.active && member.userId === null;
+  return { actAs, member, seeded, account };
 }
 
 const READER: Creator = {

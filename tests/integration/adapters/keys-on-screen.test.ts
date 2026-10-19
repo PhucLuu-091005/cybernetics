@@ -153,6 +153,14 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('keys made by the person on scre
     ).toBe(a.ids.lan);
   });
 
+  it('makes no key as a pending invitee', async () => {
+    const email = `${randomUUID()}@example.com`;
+    const invited = await inviteMember(t.db, alice, { projectId: a.projectId, email });
+    const pending = invited.members.find((m) => m.email === email)!.id;
+    const reply = (await (await projectKey(a.projectId, pending, ['project:read'])).json()) as Json;
+    expect(reply.token).not.toHaveProperty('actsAs');
+  });
+
   it('changes nothing for a key made in the own name or outside a demo copy', async () => {
     const own = (await (await projectKey(a.projectId, undefined, ['project:read'])).json()) as Json;
     expect(own.token).not.toHaveProperty('actsAs');

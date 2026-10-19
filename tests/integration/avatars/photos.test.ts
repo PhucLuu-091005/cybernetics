@@ -293,6 +293,15 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('profile photos', () => {
       expect((await own.json()).photo).toMatch(
         new RegExp(`^/api/v1/avatars/${demo.owner.userId}/`),
       );
+      // A pending invitee is no seeded person: a cookie for them gives the own photo.
+      const pendingEmail = `${randomUUID()}@example.com`;
+      const pending = (
+        await inviteMember(t.db, demo.owner, { projectId: demo.projectId, email: pendingEmail })
+      ).members.find((m) => m.email === pendingEmail)!.id;
+      const asPending = await asMember(demo.owner.userId, pending, 'PUT', await solid('png'));
+      expect((await asPending.json()).photo).toMatch(
+        new RegExp(`^/api/v1/avatars/${demo.owner.userId}/`),
+      );
       // An invited person may not act as others, so the cookie falls back to their own photo.
       const invited = await asMember(guest.userId, demo.ids.quang, 'PUT', await solid('png'));
       expect((await invited.json()).photo).toMatch(new RegExp(`^/api/v1/avatars/${guest.userId}/`));
