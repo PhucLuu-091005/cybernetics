@@ -4,7 +4,7 @@ This file describes the visual language of the event tracker. The values come fr
 
 - Visual reference: [docs/design/design-system.html](design/design-system.html). Open it from the file system. It shows every token and component in light and dark.
 - Sources: [src/app/globals.css](../src/app/globals.css) (base tokens and global components), [src/app/shell.css](../src/app/shell.css) (rail and project switcher), [src/components/tracker/tracker.css](../src/components/tracker/tracker.css) (tracker tokens, board, graph, pops, drawers, modals), [src/components/tracker/review.css](../src/components/tracker/review.css) (clash picks and the Before / After switch of the change request page), [src/components/tracker/icons.tsx](../src/components/tracker/icons.tsx) (icons), [src/tracker/layout.ts](../src/tracker/layout.ts) (graph geometry and status tones).
-- Direction: D2 Radix calm, chosen by the owner on 17 October 2026, drawn flat with few cards. The option page is [docs/design/2026-10-17-design-directions.html](design/2026-10-17-design-directions.html).
+- Direction: D2 Radix calm, chosen by the owner on 17 October 2026, drawn flat with few cards.
 - Behaviour rules of the graph come from the spec: [docs/superpowers/specs/2026-10-16-event-tracker-design.md](superpowers/specs/2026-10-16-event-tracker-design.md), decisions 2, 3, 5, 8 and section 3.8.
 
 ## 1. Principles

@@ -3,7 +3,6 @@
 - Date: 2026-10-16. Deadline: 2026-10-19 23:59 Asia/Ho_Chi_Minh.
 - Branch: `phucluu/event-tracker`, from `phucluu/direction-b` (= `origin/main` 8b4e3a0 + 56 commits). Local only until the owner checks.
 - Visual and behavioral reference: `docs/design/2026-10-16-event-tracker-v8.html`. It is a working prototype. When this spec is silent, copy the prototype. Its script holds the reference logic: `OPS`, `replayOps`, `keysOf`, `sameOp`, `clashesOf`, `liveOps`, `itemStatus`, `msStatus`, `graphSVG`, `layout`, `hiddenSet`, the review screen (`renderReview`), and the drag and drop code.
-- Codebase facts: `docs/superpowers/specs/2026-10-16-event-tracker-codebase-map.md`.
 
 ## 1. Goal
 
@@ -69,7 +68,7 @@ Build the tracker as a new vertical slice, then delete the promise subsystems. P
 - `src/server/tracker/`: database tables access, permissions, use cases, seed.
 - `src/app/api/v1/projects/[projectId]/tracker/**`: REST routes through the existing `route()` and `domain()` helpers.
 - `src/components/tracker/`: React UI. `src/app/(app)/projects/[id]/graph/page.tsx` renders Main; `src/app/(app)/projects/[id]/changes/[num]/page.tsx` renders the change request page with the same `TrackerScreen` and its `num`.
-- A CR is an ordered list of operations (option B of the codebase map). Main is a base snapshot plus the operations of every merge, replayed in order. The browser replays with the same pure code, so views need no server round trip.
+- A CR is an ordered list of operations. Main is a base snapshot plus the operations of every merge, replayed in order. The browser replays with the same pure code, so views need no server round trip.
 
 ### 3.2 Pure model (`src/tracker/model.ts`)
 
