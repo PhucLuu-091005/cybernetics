@@ -15,7 +15,7 @@ import {
   users,
 } from '../db/schema';
 import { photosOn } from '../avatars/config';
-import { photoUrl } from '../avatars/store';
+import { memberPhotoUrl } from '../avatars/store';
 import { toIso, type Db, type Tx } from '../db/tx';
 
 export type Reader = Db | Tx;
@@ -123,7 +123,7 @@ export async function loadMembers(db: Reader, projectId: string): Promise<Member
     .orderBy(asc(trackerMembers.seq));
   const photos = photosOn();
   return rows.map(({ member: row, avatarKey }) => {
-    const photo = photos ? photoUrl(row.userId, avatarKey) : null;
+    const photo = photos ? memberPhotoUrl(row, avatarKey) : null;
     return {
       id: row.id,
       name: row.name,

@@ -128,6 +128,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('container migration script', ()
       expect(journal.entries.map((entry) => entry.tag)).toEqual([
         '0000_baseline',
         '0001_personal_keys_and_photos',
+        '0002_member_photos',
       ]);
       expect(rows[0].applied).toBe(journal.entries.length);
       expect(await tablesOf(pool)).toEqual(TABLES);

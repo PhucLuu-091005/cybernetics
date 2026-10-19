@@ -160,6 +160,8 @@ export const trackerMembers = pgTable(
     // A removed member keeps its row, because change requests and history still name it.
     removedAt: tz('removed_at'),
     createdAt: createdAt(),
+    // Only a seeded demo person, who has no user, keeps a photo here; a person's photo is on users.
+    avatarKey: text('avatar_key'),
   },
   (table) => [
     unique('tracker_members_project_id_unique').on(table.projectId, table.id),

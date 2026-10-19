@@ -1,6 +1,6 @@
 import { expect, request, test, type Page } from '@playwright/test';
 import sharp from 'sharp';
-import { expectAppIcons, hydrated } from '../e2e/helpers';
+import { expectAppIcons, hydrated, photoShowsEverywhere } from '../e2e/helpers';
 
 test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
 
@@ -236,4 +236,27 @@ test('a new sandbox places its story before now, and T follows the real clock', 
     timeZone: 'Asia/Ho_Chi_Minh',
   }).format(new Date());
   await expect(page.locator('.tpill text').first()).toHaveText(new RegExp(`^T ${day} `));
+});
+
+test('a visitor who acts as Quang gives Quang the photo, and it shows at once', async ({
+  page,
+}) => {
+  const projectId = await open(page);
+  await page.getByLabel('Demo: act as').click();
+  await page.getByRole('option', { name: 'Quang Nguyễn', exact: true }).click();
+  await expect(page.locator('.me b')).toHaveText('Quang Nguyễn');
+  const png = await sharp({
+    create: { width: 200, height: 200, channels: 3, background: { r: 40, g: 90, b: 200 } },
+  })
+    .png()
+    .toBuffer();
+  // The photo is Quang's: the visitor's own member, Minh, keeps the initials.
+  const minh = page.getByRole('row').filter({ hasText: 'Minh Trần' }).first().locator('.acct-av');
+  await photoShowsEverywhere(page, {
+    projectId,
+    name: 'Quang Nguyễn',
+    initials: 'QN',
+    png,
+    onMembers: () => expect(minh).toHaveText('MT'),
+  });
 });

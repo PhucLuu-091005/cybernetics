@@ -25,7 +25,7 @@ import {
   users,
 } from '../db/schema';
 import { photosOn } from '../avatars/config';
-import { photoUrl } from '../avatars/store';
+import { memberPhotoUrl } from '../avatars/store';
 import { isUniqueViolation, withTransaction, type Db, type Tx } from '../db/tx';
 import { AppError, invalidInput } from '../errors';
 import { requireScope } from '../http/scopes';
@@ -129,17 +129,21 @@ const COLORS = ['#2563eb', '#0f766e', '#d97706', '#0891b2', '#65a30d', '#dc2626'
 
 type Row = typeof trackerMembers.$inferSelect & {
   userEmail: string | null;
-  avatarKey: string | null;
+  userAvatarKey: string | null;
 };
 
 async function memberRows(db: Reader, projectId: string): Promise<Row[]> {
   const rows = await db
-    .select({ member: trackerMembers, userEmail: users.email, avatarKey: users.avatarKey })
+    .select({ member: trackerMembers, userEmail: users.email, userAvatarKey: users.avatarKey })
     .from(trackerMembers)
     .leftJoin(users, eq(users.id, trackerMembers.userId))
     .where(eq(trackerMembers.projectId, projectId))
     .orderBy(asc(trackerMembers.seq));
-  return rows.map(({ member, userEmail, avatarKey }) => ({ ...member, userEmail, avatarKey }));
+  return rows.map(({ member, userEmail, userAvatarKey }) => ({
+    ...member,
+    userEmail,
+    userAvatarKey,
+  }));
 }
 
 const teamOf = (op: Op): string | null => {
@@ -195,7 +199,7 @@ async function toPayload(db: Reader, ctx: ActorContext, scope: Scope): Promise<M
         email: row.email ?? row.userEmail?.toLowerCase() ?? null,
         pending: isInvite(row),
         color: row.color,
-        photo: photos ? photoUrl(row.userId, row.avatarKey) : null,
+        photo: photos ? memberPhotoUrl(row, row.userAvatarKey) : null,
         you: row.id === scope.me?.id,
         projectLead: row.id === lead,
         grants,

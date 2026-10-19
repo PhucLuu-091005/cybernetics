@@ -65,3 +65,69 @@ export async function expectAppIcons(request: APIRequestContext, page: string) {
     expect(response.headers()['content-type']).toContain(type);
   }
 }
+
+const PHOTO_SRC = /^\/api\/v1\/avatars\/(members\/)?[0-9a-f-]{36}\/[0-9a-f]{64}$/;
+
+/**
+ * Sets a photo on Profile for the person on screen, then moves inside the app (no reload) and
+ * checks that the account menu and the person's Members row show it at once, and after a reload.
+ * Remove photo brings the initials back the same way.
+ */
+export async function photoShowsEverywhere(
+  page: Page,
+  opts: {
+    projectId: string;
+    name: string;
+    initials: string;
+    png: Buffer;
+    /** Runs on Members while the photo is set. */
+    onMembers?: () => Promise<void>;
+  },
+) {
+  const { projectId, name, initials, png } = opts;
+  const menu = page.locator('.p-head details.acct .acct-av');
+  const memberFace = () =>
+    page.getByRole('row').filter({ hasText: name }).first().locator('.acct-av');
+  await page.locator('.p-head details.acct > summary').click();
+  await page.getByRole('link', { name: 'Profile' }).click();
+  await expect(page).toHaveURL(`/projects/${projectId}/profile`);
+  await hydrated(page);
+  const section = page.getByRole('region', { name: 'Photo' });
+  await expect(section.locator('.pf-face svg')).toContainText(initials);
+  await expect(menu).toHaveText(initials);
+  await section.getByRole('button', { name: 'Upload photo' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Upload a photo' });
+  await page
+    .getByLabel('Photo file')
+    .setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: png });
+  await dialog.getByRole('button', { name: 'Save photo' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(section.locator('.pf-face img')).toHaveAttribute('src', PHOTO_SRC);
+  await expect(menu.locator('img')).toHaveAttribute('src', PHOTO_SRC);
+
+  const rail = page.getByRole('navigation', { name: 'Project' });
+  await rail.getByRole('link', { name: 'Graph' }).click();
+  await expect(page).toHaveURL(`/projects/${projectId}/graph`);
+  await expect(menu.locator('img')).toHaveAttribute('src', PHOTO_SRC);
+  await rail.getByRole('link', { name: 'Members' }).click();
+  await expect(page).toHaveURL(`/projects/${projectId}/members`);
+  await expect(memberFace().locator('img')).toHaveAttribute('src', PHOTO_SRC);
+  await opts.onMembers?.();
+  await page.goBack();
+  await expect(page).toHaveURL(`/projects/${projectId}/graph`);
+  await expect(menu.locator('img')).toHaveAttribute('src', PHOTO_SRC);
+  await page.reload();
+  await expect(menu.locator('img')).toHaveAttribute('src', PHOTO_SRC);
+
+  await page.goto(`/projects/${projectId}/profile`);
+  await hydrated(page);
+  await section.getByRole('button', { name: 'Remove photo' }).click();
+  await expect(section.locator('.pf-face svg')).toContainText(initials);
+  await expect(menu).toHaveText(initials);
+  await rail.getByRole('link', { name: 'Graph' }).click();
+  await expect(page).toHaveURL(`/projects/${projectId}/graph`);
+  await expect(menu).toHaveText(initials);
+  await expect(menu.locator('img')).toHaveCount(0);
+  await rail.getByRole('link', { name: 'Members' }).click();
+  await expect(memberFace().locator('img')).toHaveCount(0);
+}

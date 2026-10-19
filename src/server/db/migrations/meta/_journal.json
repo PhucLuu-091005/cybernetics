@@ -15,6 +15,13 @@
       "when": 1792339720507,
       "tag": "0001_personal_keys_and_photos",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792398275167,
+      "tag": "0002_member_photos",
+      "breakpoints": true
     }
   ]
 }

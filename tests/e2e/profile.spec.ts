@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import sharp from 'sharp';
-import { hydrated } from './helpers';
+import { hydrated, photoShowsEverywhere } from './helpers';
 
 const PROJECT = 'Larkspur Capital';
 
@@ -145,4 +145,17 @@ test('Profile uploads a photo after a preview, shows it in every avatar, and rem
   await expect(section.getByRole('button', { name: 'Remove photo' })).toHaveCount(0);
   await expect(section.locator('.pf-face svg')).toContainText('MT');
   expect((await page.request.get(src!)).status()).toBe(404);
+});
+
+test('a new photo shows at once in the account menu and on Members, with no reload', async ({
+  page,
+}) => {
+  const projectId = await signIn(page, 'profile-photo-live');
+  await hydrated(page);
+  const png = await sharp({
+    create: { width: 200, height: 200, channels: 3, background: { r: 200, g: 120, b: 40 } },
+  })
+    .png()
+    .toBuffer();
+  await photoShowsEverywhere(page, { projectId, name: 'Minh Trần', initials: 'MT', png });
 });
