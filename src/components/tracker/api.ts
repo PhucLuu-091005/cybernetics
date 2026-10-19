@@ -46,7 +46,6 @@ const FIELD_LABEL: Record<string, string> = {
   reason: 'Reason',
 };
 
-/** A validation error names the field as its input does, e.g. "Name: at most 200 characters". */
 export function errorText(error: ApiError): string {
   const first = error.code === 'VALIDATION' ? error.errors?.[0] : undefined;
   const label = first && FIELD_LABEL[first.path.split('.').at(-1) ?? ''];

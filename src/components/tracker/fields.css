@@ -41,7 +41,6 @@
   flex-wrap: wrap;
   gap: 6px;
 }
-/* A whole line under its box, also inside a row of boxes. */
 .field-err {
   flex-basis: 100%;
   order: 1;

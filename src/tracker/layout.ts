@@ -1196,7 +1196,6 @@ type MsDraft = { m: Milestone; mx: number; texts: string[]; preferRight: boolean
 const MS_CHAR = 5.9;
 const msWidth = (text: string) => text.length * MS_CHAR;
 
-/** The name cut shorter and shorter, each ending with an ellipsis. */
 function* cutNames(name: string) {
   for (let n = name.length - 1; n > 0; n -= 1) yield `${name.slice(0, n).trimEnd()}…`;
 }

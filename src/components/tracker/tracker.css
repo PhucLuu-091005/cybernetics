@@ -1668,7 +1668,7 @@ svg.tg .row-label.dim {
 svg.tg .hit.focus {
   fill: color-mix(in srgb, var(--ink) 8%, transparent) !important;
 }
-/* A jump target stays marked long enough to find, then fades out calmly (round 24, part 8). */
+/* A jump target stays marked long enough to find, then fades out calmly. */
 svg.tg .hit.flash {
   animation: row-flash 2800ms ease-in forwards;
 }
