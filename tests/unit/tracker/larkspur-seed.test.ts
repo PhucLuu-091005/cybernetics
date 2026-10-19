@@ -66,7 +66,24 @@ describe('the Larkspur seed on the default graph', () => {
     }
     expect([...crowded].sort()).toEqual(CROWDS);
     expect(touching).toEqual([]);
-    expect(layout.rows.length).toBe(14);
+    expect(layout.rows.length).toBe(15);
+  });
+
+  it('shows every work item of Main as a row and every event as a mark, at Fit and at the default view', () => {
+    const state = main();
+    for (const L of Object.values(defaultView(state))) {
+      expect(L.rows.map((r) => r.id).sort()).toEqual(state.workItems.map((w) => w.id).sort());
+      for (const team of state.teams)
+        expect(L.rows.filter((r) => r.teamId === team.id).length, team.id).toBe(
+          state.workItems.filter((w) => w.teamId === team.id).length,
+        );
+      for (const e of state.events) {
+        const mark = L.eventGroups.find((g) => g.eventIds.includes(e.id));
+        expect(mark, e.id).toBeDefined();
+        expect(mark!.x).toBeGreaterThanOrEqual(L.x(Date.parse(`${L.window.start}T00:00:00+07:00`)));
+        expect(mark!.x).toBeLessThanOrEqual(L.x1);
+      }
+    }
   });
 
   it('keeps the mix of statuses and event kinds', () => {

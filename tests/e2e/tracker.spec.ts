@@ -563,8 +563,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     );
 
     await expect(goLive).toHaveCount(5);
-    // Legal review routing finished before the board starts, so three member rows show it.
-    await expect(crm).toHaveCount(3);
+    await expect(crm).toHaveCount(4);
     await expect(page.locator('svg.pg-rail, svg.tg .ms-chip, svg.tg .goal')).toHaveCount(0);
     await expect(page.locator('svg.tg [data-ms="crm"] .ms-c')).toHaveCount(1);
 
@@ -695,7 +694,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
 
     await expect(
       page.locator('svg.pg .deadline[aria-label^="CRM integration live · deadline 18 Sept 12:00"]'),
-    ).toHaveCount(3);
+    ).toHaveCount(4);
     await expect(page.locator('svg.tg [data-ms="crm"]')).toHaveAttribute(
       'aria-label',
       /CRM integration live · 18 Sept 12:00 · Late \(was 18 Sept\)/,
@@ -988,7 +987,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(dialog).toHaveCount(0);
     await expect(
       page.locator('svg.pg .deadline[aria-label^="CRM integration live · deadline 2 Oct 14:30"]'),
-    ).toHaveCount(3);
+    ).toHaveCount(4);
 
     await page
       .locator('.cr-side')
@@ -1144,7 +1143,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     const rows = page.locator('svg.pg [data-loop]');
     const control = page.locator('.tfilter-btn');
     const search = page.getByRole('combobox', { name: 'Search work items' });
-    await expect(rows).toHaveCount(14);
+    await expect(rows).toHaveCount(15);
 
     await control.click();
     const panel = page.getByRole('group', { name: 'Filter the graph' });
@@ -1169,7 +1168,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(rows).toHaveCount(5);
     await control.click();
     await page.getByRole('button', { name: 'Clear filters' }).click();
-    await expect(rows).toHaveCount(14);
+    await expect(rows).toHaveCount(15);
     await expect(page.locator('summary[aria-label="Filters"]')).toHaveCount(1);
     await page.keyboard.press('Escape');
 
@@ -1181,7 +1180,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(drawer).toBeFocused();
     expect(await drawer.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('none');
     await expect(search).toHaveValue('');
-    await expect(rows).toHaveCount(14);
+    await expect(rows).toHaveCount(15);
   });
 
   test('the axis stays pinned while the rows scroll, and follows the sideways scroll', async ({
@@ -1325,7 +1324,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     const side = page.locator('svg.pg-side');
     const tip = page.getByRole('tooltip');
     const fit = page.getByRole('button', { name: 'Fit to width' });
-    await expect(rows).toHaveCount(14);
+    await expect(rows).toHaveCount(15);
 
     await test.step('one mark per source lists every handoff, and a click on a receiver shows it', async () => {
       await expect(page.locator('svg.tg path.link, svg.tg path.stem')).toHaveCount(0);
@@ -1393,13 +1392,12 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       const teamFocus = side.getByRole('button', { name: 'Focus on Digitization', exact: true });
       await teamFocus.click();
       await expect(teamFocus).toHaveAttribute('aria-pressed', 'true');
-      // Legal review routing finished before the board starts: the panel lists it, the graph does not.
-      await expect(rows).toHaveCount(5);
+      await expect(rows).toHaveCount(6);
       const panel = page.getByRole('complementary', { name: 'Focus on Digitization' });
       await expect(panel).toContainText('6 work items');
       await expect(panel).toContainText('Legal review routing');
       await page.keyboard.press('Escape');
-      await expect(rows).toHaveCount(14);
+      await expect(rows).toHaveCount(15);
       await expect(teamFocus).toHaveAttribute('aria-pressed', 'false');
     });
 
@@ -1424,17 +1422,17 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
         }),
       ).toBeVisible();
       await page.keyboard.press('Escape');
-      await expect(rows).toHaveCount(14);
+      await expect(rows).toHaveCount(15);
       const focusPg201 = side.getByRole('button', { name: 'Focus on PG-201 CRS form logic' });
       await focusPg201.click();
       await expect(rows).toHaveCount(2);
       await expect(focusPg201).toHaveAttribute('aria-pressed', 'true');
       await focusPg201.click();
-      await expect(rows).toHaveCount(14);
+      await expect(rows).toHaveCount(15);
       await expect(focusPg201).toHaveAttribute('aria-pressed', 'false');
       await focusPg201.click();
       await page.getByRole('complementary').getByRole('button', { name: 'Leave focus' }).click();
-      await expect(rows).toHaveCount(14);
+      await expect(rows).toHaveCount(15);
     });
 
     await test.step('hiding the team of the focused row ends the focus, and the parent link shows a hidden parent', async () => {
@@ -1453,7 +1451,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await expect(page.getByRole('complementary')).toHaveCount(0);
       await page.locator('.hid-menu > summary').click();
       await page.getByRole('button', { name: 'Unhide Digitization' }).click();
-      await expect(rows).toHaveCount(14);
+      await expect(rows).toHaveCount(15);
       // The badge goes away with the last hidden row, so the focus moves to the control before it.
       await expect(page.locator('.bbar .gpick > summary')).toBeFocused();
 
@@ -1467,7 +1465,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await expect(row('crs')).toHaveCount(1);
       await expect(rows).toHaveCount(6);
       await page.keyboard.press('Escape');
-      await expect(rows).toHaveCount(14);
+      await expect(rows).toHaveCount(15);
       await expect(page.locator('.hid-menu')).toHaveCount(0);
     });
 
@@ -1477,7 +1475,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await side.locator('[data-eyeteam="engineering"]').click();
       await side.locator('[data-eyerow="pg201"]').click();
       await side.locator('[data-eyerow="pg202"]').click();
-      await expect(rows).toHaveCount(8);
+      await expect(rows).toHaveCount(9);
       await expect(side.locator('[data-eyeteam="engineering"]')).toHaveCount(0);
       await expect(side.locator('[data-eyeteam="solutions-engineering"]')).toHaveCount(0);
       await expect(side.getByText(/hidden/)).toHaveCount(0);
@@ -1499,7 +1497,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await expect(row('pg201')).toHaveCount(1);
       await expect(badge).toContainText('2 hidden');
       await list.getByRole('button', { name: 'Unhide all' }).click();
-      await expect(rows).toHaveCount(14);
+      await expect(rows).toHaveCount(15);
       await expect(page.locator('.hid-menu')).toHaveCount(0);
       await expect(page.locator('.bbar .gpick > summary')).toBeFocused();
     });
@@ -2167,7 +2165,7 @@ test.describe('row height and collapsible teams', () => {
     await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Collapse all' }).click());
     await expect(page.locator('svg.pg [data-loop]')).toHaveCount(0);
     await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Expand all' }).click());
-    await expect(page.locator('svg.pg [data-loop]')).toHaveCount(14);
+    await expect(page.locator('svg.pg [data-loop]')).toHaveCount(15);
   });
 
   test('the view and zoom buttons show a ring for the keyboard only', async ({ page }) => {

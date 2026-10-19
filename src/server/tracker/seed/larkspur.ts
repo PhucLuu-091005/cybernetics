@@ -219,11 +219,11 @@ const LOOPS: Loop[] = [
     milestoneId: 'crm',
     parentId: null,
     after: [],
-    plannedFinish: '2026-09-09',
+    plannedFinish: '2026-09-18',
     events: [
-      ['l1', '2026-09-09T09:20', 'task', 'priya', 'Configure legal review routing.'],
-      ['l2', '2026-09-09T15:10', 'delivery', 'lan', 'Legal review routing is live.'],
-      ['l3', '2026-09-09T16:40', 'done', 'priya', 'Priya accepts the routing.'],
+      ['l1', '2026-09-14T09:20', 'task', 'priya', 'Configure legal review routing.'],
+      ['l2', '2026-09-16T10:10', 'delivery', 'lan', 'Legal review routing is live.'],
+      ['l3', '2026-09-18T10:40', 'done', 'priya', 'Priya accepts the routing.'],
     ],
   },
   {

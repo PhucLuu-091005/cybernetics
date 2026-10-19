@@ -442,6 +442,30 @@ const baseTone = (info: ItemInfo): Tone =>
 const lateTone = (info: ItemInfo): Tone =>
   info.cancelled ? 'isolated' : info.done ? 'caution' : 'danger';
 
+/** The first and last day that the payload on screen touches: events, work item lives, plans and milestones. */
+function spanDays(
+  state: TrackerState,
+  infos: Map<string, ItemInfo>,
+  asOf: string,
+  tz: string,
+): { first: string | null; last: string | null } {
+  const times = state.events.map((e) => Date.parse(e.at));
+  for (const w of state.workItems) times.push(itemStartMs(w, infos, asOf));
+  const days = [
+    ...state.workItems.map((w) => w.plannedFinish),
+    ...state.milestones.map((m) => m.planned),
+    ...(times.length ? [dayOf(new Date(Math.max(...times)).toISOString(), tz)] : []),
+  ];
+  return {
+    first: times.length ? dayOf(new Date(Math.min(...times)).toISOString(), tz) : null,
+    last: days.length ? days.reduce(later) : null,
+  };
+}
+
+/**
+ * Owner rule (round 24): the range always covers every event, work item and milestone on screen, so
+ * nothing is ever missing from the graph; a given window only widens, with a margin, to reach them.
+ */
 function windowDays(
   state: TrackerState,
   view: View,
@@ -449,30 +473,18 @@ function windowDays(
 ): { start: string; end: string } {
   const tz = view.timeZone;
   const today = dayOf(view.asOf, tz);
-  const recent = addDays(today, -60);
-  const starts = state.workItems.flatMap((w) => {
-    const info = infos.get(w.id);
-    if (!info?.start) return [];
-    if (info.finishedAt && compareDay(dayOf(info.finishedAt, tz), recent) < 0) return [];
-    return [Date.parse(info.start)];
-  });
-  const start =
-    view.windowStart ??
-    addDays(starts.length ? dayOf(new Date(Math.min(...starts)).toISOString(), tz) : today, -3);
-  const plans = [
-    ...state.workItems.map((w) => w.plannedFinish),
-    ...state.milestones.map((m) => m.planned),
-  ];
-  const end = view.windowEnd ?? plans.map((p) => addDays(p, 3)).reduce(later, addDays(today, 7));
+  const { first, last } = spanDays(state, infos, view.asOf, tz);
+  let start = view.windowStart ?? addDays(first ?? today, -START_MARGIN_DAYS);
+  if (first && compareDay(first, start) < 0) start = addDays(first, -START_MARGIN_DAYS);
+  let end =
+    view.windowEnd ?? (last ? later(addDays(last, 3), addDays(today, 7)) : addDays(today, 7));
+  if (last && compareDay(last, end) >= 0) end = addDays(last, 3);
   return { start, end: compareDay(end, start) > 0 ? end : addDays(start, 1) };
 }
 
 const START_MARGIN_DAYS = 3;
 
-/**
- * The project's window start, moved earlier when a work item on the board starts before it, so every
- * event of the board shows at Fit. Work items that finished before the project's start stay off the board.
- */
+/** The project's window start, moved earlier when a work item or an event lies before it. */
 export function windowStartFor(
   state: Pick<TrackerState, 'workItems' | 'events'>,
   windowStart: string | null | undefined,
@@ -483,11 +495,8 @@ export function windowStartFor(
   const startMs = Date.parse(startOfDayInstant(windowStart, timeZone));
   const infos = new Map(state.workItems.map((w) => [w.id, itemInfo(w, state.events, asOf)]));
   let earliest = Infinity;
-  for (const w of state.workItems) {
-    const info = infos.get(w.id)!;
-    if (info.finishedAt && Date.parse(info.finishedAt) < startMs) continue;
-    earliest = Math.min(earliest, itemStartMs(w, infos, asOf));
-  }
+  for (const w of state.workItems) earliest = Math.min(earliest, itemStartMs(w, infos, asOf));
+  for (const e of state.events) earliest = Math.min(earliest, Date.parse(e.at));
   if (!(earliest < startMs)) return windowStart;
   return addDays(dayOf(new Date(earliest).toISOString(), timeZone), -START_MARGIN_DAYS);
 }
@@ -1144,9 +1153,7 @@ function ticksOf(c: Ctx, start: string, endMs: number): LayoutTick[] {
 function groupsOf(c: Ctx, w: WorkItem, r: LayoutRow, info: ItemInfo): LayoutEventGroup[] {
   const groups: Array<{ x: number; events: TrackerEvent[] }> = [];
   for (const e of info.events) {
-    const at = Date.parse(e.at);
-    if (at < c.startMs) continue;
-    const ex = c.x(at);
+    const ex = c.x(Date.parse(e.at));
     const last = groups.at(-1);
     if (last && ex - last.x < c.level.gap) {
       last.events.push(e);
@@ -1312,11 +1319,7 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
   const dayStart = (date: string) => Date.parse(startOfDayInstant(date, tz));
   const startMs = dayStart(start);
   const endMs = dayStart(end);
-  const inWindow = new Set(
-    [...infos]
-      .filter(([, i]) => !(i.finishedAt && Date.parse(i.finishedAt) < startMs))
-      .map(([id]) => id),
-  );
+  const inWindow = new Set(infos.keys());
   const items = new Map(state.workItems.map((w) => [w.id, w]));
   const hidden = new Set(
     [...inWindow].filter((id) => {
