@@ -156,5 +156,5 @@ cp -cR <base checkout>/node_modules <scratch dir>/<task>/
 | `docs/superpowers/specs/2026-10-16-event-tracker-design.md` | The owner rules a change of behaviour or look. Edit the decision in place. |
 | `.superpowers/sdd/2026-10-16-event-tracker/progress.md` | After each task, review or ruling: one line with the branch, commits, gate counts, and each ruling as "Ruling: <decision>, why: <reason>, cost if wrong: <cost>". The folder is gitignored and lives in the controller's checkout; task briefs and reports sit next to the ledger. |
 | `docs/design-system.md` and `docs/design/design-system.html` | A token, a component or a graph mark changes. |
-| `README.md` | A user-visible flow changes. Take the screenshots again when the UI changes. |
+| `README.md` | A user-visible flow changes. Take the README screenshot again when the UI changes. |
 | `docs/mcp-agent-recipe.md` | An MCP tool or scope changes. |
