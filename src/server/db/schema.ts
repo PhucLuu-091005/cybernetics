@@ -122,6 +122,8 @@ export const agentTokens = pgTable(
     revokedAt: tz('revoked_at'),
     lastUsedAt: tz('last_used_at'),
     revokeKey: text('revoke_key'),
+    // A key made while the visitor of a demo copy acts as a seeded person acts as that member.
+    memberId: uuid('member_id').references(() => trackerMembers.id, { onDelete: 'cascade' }),
   },
   (table) => [
     unique('agent_tokens_creation_key_unique')

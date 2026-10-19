@@ -2,6 +2,8 @@ import { ScopeSchema, type AgentToken, type Scope } from '../../contracts';
 export type Membership = { userId: string; workspaceId: string };
 export type StoredToken = AgentToken & {
   workspaceId: string;
+  /** The project of the member the key acts as (`actsAs`). */
+  memberProjectId?: string;
   hash: string;
   idempotencyKey: string;
   requestDigest?: string;

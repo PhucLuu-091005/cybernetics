@@ -27,12 +27,13 @@ const DAY = 86_400_000;
 async function loadTokens(projectId: string, cursor: string | null) {
   const actor = await requireActor(`/projects/${projectId}/settings/tokens`);
   const db = getApp().db;
-  const [{ project, timeZone }, page, account, creator] = await Promise.all([
+  const [{ project, timeZone }, page, seen] = await Promise.all([
     notFoundOn(getProject(db, actor, { projectId })),
     notFoundOnCursor(listAgentTokens(actor, { projectId, cursor }), cursor),
-    pageOnScreen(actor, projectId).then((seen) => seen.account),
-    tokenCreator(db, actor, projectId),
+    pageOnScreen(actor, projectId),
   ]);
+  const { account } = seen;
+  const creator = await tokenCreator(db, actor, projectId, seen.actAs);
   const now = Date.now();
   const expiryOptions = [30, 7].map((days) => ({
     days,
@@ -44,6 +45,7 @@ async function loadTokens(projectId: string, cursor: string | null) {
     page,
     account,
     creator,
+    actingAs: seen.seeded ? account.name : undefined,
     expiryOptions,
     now: new Date(now).toISOString(),
   };
@@ -59,10 +61,8 @@ export default async function AgentTokensPage({
   const [{ id }, search] = await Promise.all([params, searchParams]);
   const cursor = searchCursor(search.cursor);
   if (!IdSchema.safeParse(id).success) notFound();
-  const { project, timeZone, page, account, creator, expiryOptions, now } = await loadTokens(
-    id,
-    cursor,
-  );
+  const { project, timeZone, page, account, creator, actingAs, expiryOptions, now } =
+    await loadTokens(id, cursor);
   const endpoint = `${readAuthEnvironment().appOrigin}/mcp`;
 
   return (
@@ -98,6 +98,7 @@ export default async function AgentTokensPage({
             endpoint={endpoint}
             expiryOptions={expiryOptions}
             creator={creator}
+            actingAs={actingAs}
           />
         </div>
         <aside className="pg-aside">

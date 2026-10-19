@@ -52,6 +52,8 @@ export const ActorContextSchema = z.discriminatedUnion('kind', [
     tokenId: IdSchema,
     key: KeyKindSchema,
     keyLabel: KeyLabelSchema,
+    /** The seeded demo member the key acts as instead of its person's own member. */
+    memberId: IdSchema.optional(),
     ...verified,
     projectId: IdSchema.nullable(),
   }),
@@ -69,6 +71,8 @@ export const AgentTokenSchema = z.strictObject({
   expiresAt: TimestampSchema,
   revokedAt: TimestampSchema.nullable(),
   lastUsedAt: TimestampSchema.nullable(),
+  /** The seeded demo person the key acts as, when it was made while the visitor acted as them. */
+  actsAs: z.strictObject({ memberId: IdSchema, name: TextSchema }).optional(),
 });
 export type AgentToken = z.infer<typeof AgentTokenSchema>;
 export const CreateAgentTokenInputSchema = z.strictObject({

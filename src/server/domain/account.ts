@@ -83,10 +83,22 @@ const READER: Creator = {
   rights: { viewMain: true, create: false, merge: false, manage: false },
 };
 
-/** A token acts as its person's own member, never as the demo person they work as now. */
-export async function tokenCreator(db: Db, ctx: ActorContext, projectId: string): Promise<Creator> {
+/**
+ * The rights a new key may ask for: those of the person on screen. A key made while the visitor of
+ * a demo copy acts as a seeded person (`actAs`) acts as that member; else it acts as its person's
+ * own member.
+ */
+export async function tokenCreator(
+  db: Db,
+  ctx: ActorContext,
+  projectId: string,
+  actAs?: string,
+): Promise<Creator> {
   try {
-    const { members } = await listProjectMembers(db, ctx, { projectId });
+    const { members } = await listProjectMembers(db, ctx, {
+      projectId,
+      ...(actAs ? { actAs } : {}),
+    });
     const own = members.find((member) => member.you);
     return own ? { member: true, rights: own.rights } : READER;
   } catch (error) {

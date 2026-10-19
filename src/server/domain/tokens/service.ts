@@ -33,8 +33,17 @@ export type ListKeysInput = z.input<typeof ListPersonalKeysInputSchema>;
 type CreateKeyInput = Omit<CreatePersonalKeyInput, 'scopes'> & {
   scopes?: CreatePersonalKeyInput['scopes'];
 };
-/** The creator of a token as their member rows say today; a null project asks across all their projects. */
-export type CreatorOf = (ctx: ActorContext, projectId: string | null) => Promise<Creator>;
+/** A seeded person of a demo copy whom the visitor acts as while making a key; the key acts as them. */
+export type ActsAs = { memberId: string; name: string; projectId: string };
+/**
+ * The creator of a token as their member rows say today; a null project asks across all their
+ * projects, and `actsAs` asks for that member in their demo copy only.
+ */
+export type CreatorOf = (
+  ctx: ActorContext,
+  projectId: string | null,
+  actsAs?: ActsAs,
+) => Promise<Creator>;
 
 export function createTokenService(
   store: HttpIdentityStore,
@@ -60,9 +69,10 @@ export function createTokenService(
     raw: { scopes?: unknown },
     input: Omit<CreateAgentTokenInput, 'projectId'>,
     projectId: string | null,
+    actsAs: ActsAs | undefined,
   ): Promise<TokenCreated> {
     // The same rule as the page: a token never asks for a right its creator lacks. Each call checks again.
-    const creator = await creatorOf(ctx, projectId);
+    const creator = await creatorOf(ctx, projectId, actsAs);
     const blockOf = (scope: string) =>
       scopeBlock(
         SCOPE_INFO.find((info) => info.scope === scope)!,
@@ -98,6 +108,7 @@ export function createTokenService(
       expiresAt,
       revokedAt: null,
       lastUsedAt: null,
+      ...(actsAs ? { actsAs: { memberId: actsAs.memberId, name: actsAs.name } } : {}),
     };
     await store.insertToken({
       ...token,
@@ -152,12 +163,18 @@ export function createTokenService(
     return { projectId, tokenId: input.tokenId, revokedAt, requestId: ctx.requestId };
   }
   return {
-    async createToken(ctx: ActorContext, raw: CreateInput): Promise<TokenCreated> {
+    async createToken(ctx: ActorContext, raw: CreateInput, actsAs?: ActsAs): Promise<TokenCreated> {
       const result = CreateAgentTokenInputSchema.safeParse(raw);
       if (!result.success) throw new AppError('VALIDATION', 'Invalid token input');
       const { projectId, ...input } = result.data;
       await authorize(ctx, projectId);
-      return issue(ctx, raw, input, projectId);
+      return issue(
+        ctx,
+        raw,
+        input,
+        projectId,
+        actsAs?.projectId === projectId ? actsAs : undefined,
+      );
     },
     async listTokens(ctx: ActorContext, raw: ListTokensInput): Promise<ListAgentTokensResult> {
       const result = ListAgentTokensInputSchema.safeParse(raw);
@@ -174,11 +191,15 @@ export function createTokenService(
       await authorize(ctx, result.data.projectId);
       return revoke(ctx, result.data, result.data.projectId);
     },
-    async createPersonalKey(ctx: ActorContext, raw: CreateKeyInput): Promise<TokenCreated> {
+    async createPersonalKey(
+      ctx: ActorContext,
+      raw: CreateKeyInput,
+      actsAs?: ActsAs,
+    ): Promise<TokenCreated> {
       const result = CreatePersonalKeyInputSchema.safeParse(raw);
       if (!result.success) throw new AppError('VALIDATION', 'Invalid key input');
       requireUser(ctx);
-      return issue(ctx, raw, result.data, null);
+      return issue(ctx, raw, result.data, null, actsAs);
     },
     async listPersonalKeys(ctx: ActorContext, raw: ListKeysInput): Promise<ListAgentTokensResult> {
       const result = ListPersonalKeysInputSchema.safeParse(raw);

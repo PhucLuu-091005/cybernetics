@@ -5,6 +5,7 @@ import type { Db } from '../db/tx';
 import { readAuthEnvironment } from '../env';
 import { AppError, invalidInput, privateJson } from '../errors';
 import { personOnScreen } from '../domain/account';
+import type { ActsAs } from '../domain/tokens/service';
 import { getTrackerPayload } from '../tracker/read';
 import type { Handler, Input } from './route';
 import { cookieValue } from './session';
@@ -57,3 +58,16 @@ export const setActingMember: Handler = async (ctx, _request, _params, input) =>
   response.headers.append('Set-Cookie', actAsCookie(projectId, memberId));
   return response;
 };
+
+/** A key made from this request acts as the seeded person on screen of that demo copy, if any. */
+export async function keyActsAs(
+  request: Request,
+  ctx: ActorContext,
+  projectId: string | null,
+): Promise<ActsAs | undefined> {
+  if (!projectId || !IdSchema.safeParse(projectId).success) return undefined;
+  const seen = await personOnScreen(getApp().db, ctx, projectId, readActAs(request, projectId));
+  return seen.seeded && seen.member
+    ? { memberId: seen.member.id, name: seen.member.name, projectId }
+    : undefined;
+}

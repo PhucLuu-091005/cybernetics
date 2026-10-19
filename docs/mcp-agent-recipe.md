@@ -1,6 +1,6 @@
 # Promise Graph MCP: agent recipe
 
-Promise Graph exposes the event tracker of one project to your own AI agent (for example, Claude Code) at `/mcp`. The endpoint uses stateless Streamable HTTP and a bearer key: a project key works in one project, and a personal key works in every project of its person. The key is its person's key: the agent acts as that person, with the rights the person holds in each project today, limited to the permissions (scopes) of the key: read the project, add to the Queue, work on change requests, merge, and manage members and teams. Main changes only through a merged change request. The app runs no model and holds no provider keys.
+Promise Graph exposes the event tracker of one project to your own AI agent (for example, Claude Code) at `/mcp`. The endpoint uses stateless Streamable HTTP and a bearer key: a project key works in one project, and a personal key works in every project of its person. The key is its person's key: the agent acts as that person, with the rights the person holds in each project today, limited to the permissions (scopes) of the key: read the project, add to the Queue, work on change requests, merge, and manage members and teams. In a demo copy, a key made while you act as one of the demo people (the Demo select) acts as that person, with their rights, and works in that copy only. Main changes only through a merged change request. The app runs no model and holds no provider keys.
 
 ## 1. Create a token
 

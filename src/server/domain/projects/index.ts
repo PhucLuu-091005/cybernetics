@@ -14,6 +14,7 @@ import {
   findProjectForActor,
   isId,
   joinTransaction,
+  keyReaches,
   projectOpenTo,
   withTransaction,
   type Db,
@@ -129,6 +130,7 @@ export async function listProjects(db: Db, ctx: ActorContext): Promise<Project[]
     .where(
       and(
         projectOpenTo(ctx.userId),
+        keyReaches(ctx),
         ctx.kind === 'agent' && ctx.projectId ? eq(projects.id, ctx.projectId) : undefined,
       ),
     )

@@ -298,6 +298,19 @@ test('while the visitor acts as Quang, every page shows Quang and acts as Quang'
     'You',
   );
 
+  // A key made on Settings acts as Quang, and the list says so.
+  await page.goto(`/projects/${projectId}/settings/tokens`);
+  await hydrated(page);
+  const form = page.getByRole('form', { name: 'Create a token' });
+  await expect(form).toContainText('You act as Quang Nguyễn in your demo copy');
+  await form.getByLabel('Label').fill('Quang agent');
+  await form.getByRole('button', { name: 'Create token' }).click();
+  await expect(page.getByTestId('token-secret')).toBeVisible();
+  const keys = page.getByRole('table', { name: 'Your agent tokens' });
+  await expect(keys.getByRole('row').filter({ hasText: 'Quang agent' })).toContainText(
+    'Acts as Quang Nguyễn',
+  );
+
   // A comment from a page of the app is Quang's.
   const reply = await page.evaluate(async (pid) => {
     const sent = await fetch(`/api/v1/projects/${pid}/tracker/crs/2/actions`, {

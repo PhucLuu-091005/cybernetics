@@ -53,6 +53,7 @@ function TokenRow({
       <span className="pg-tname" role="cell">
         <b className="pg-token">{token.label}</b>
         <span className="id faint">{token.prefix}…</span>
+        {token.actsAs && <small className="pg-hint">Acts as {token.actsAs.name}</small>}
       </span>
       <span className="pg-tperm" role="cell" title={permissionShort(token.scopes)}>
         {permissionShort(token.scopes)}

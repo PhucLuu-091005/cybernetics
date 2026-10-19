@@ -32,6 +32,12 @@ export function resolveActing(
   actAs?: string | null,
   canSwitch = true,
 ): Member | null {
+  // A key made as a seeded person acts as that member, with their live rights, while the copy allows it.
+  if (ctx.kind === 'agent' && ctx.memberId)
+    return canSwitch
+      ? (members.find((item) => item.id === ctx.memberId && item.active && item.userId === null) ??
+          null)
+      : null;
   const own = members.find((item) => item.userId === ctx.userId && item.active) ?? null;
   // The cookie only switches a member to another member; it never makes a guest a member.
   if (!actAs || !own) return own;
@@ -56,7 +62,8 @@ async function canSwitchMember(
   project: ProjectRow,
   tracker: TrackerRow,
 ): Promise<boolean> {
-  if (!tracker.demo || ctx.kind !== 'user') return false;
+  if (!tracker.demo || (ctx.kind !== 'user' && !(ctx.kind === 'agent' && ctx.memberId)))
+    return false;
   const [row] = await db
     .select({ userId: workspaceMembers.userId })
     .from(workspaceMembers)

@@ -96,6 +96,9 @@ export function createIdentityServices(options: IdentityOptions) {
       // A personal key opens no project here: each tool call names one and passes the same project check.
       const requested = requestedProject(request);
       const bound = token.kind === 'project' ? token.projectId : requested;
+      // A key made as a seeded person of a demo copy works in that copy only.
+      if (token.actsAs && bound && bound !== token.memberProjectId)
+        throw new AppError('NOT_FOUND', 'Project not found');
       const project = bound ? await store.resolveProject(token.userId, bound) : null;
       if (
         (bound && !project) ||
@@ -115,6 +118,7 @@ export function createIdentityServices(options: IdentityOptions) {
         tokenId: token.id,
         key: token.kind,
         keyLabel: token.label,
+        ...(token.actsAs ? { memberId: token.actsAs.memberId } : {}),
         workspaceId: project?.workspaceId ?? token.workspaceId,
         projectId: bound,
         scopes: [...token.scopes],

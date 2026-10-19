@@ -28,12 +28,15 @@ export function TokenCreate({
   endpoint,
   expiryOptions,
   creator,
+  actingAs,
 }: {
   kind?: KeyKind;
   api: string;
   endpoint: string;
   expiryOptions: ExpiryOption[];
   creator: Creator;
+  /** The seeded person of a demo copy whom the visitor acts as; the new key acts as them. */
+  actingAs?: string;
 }) {
   const copy = KEY_COPY[kind];
   const router = useRouter();
@@ -78,6 +81,12 @@ export function TokenCreate({
   return (
     <form className="pg-sec pg-create" aria-label={copy.create} onSubmit={submit}>
       <h2>{copy.create}</h2>
+      {actingAs && (
+        <p className="pg-hint">
+          You act as {actingAs} in your demo copy, so the new {copy.noun} acts as {actingAs} there,
+          with their rights{kind === 'personal' ? ', and works in this copy only' : ''}.
+        </p>
+      )}
       {created && (
         <SecretReveal
           secret={created.secret}

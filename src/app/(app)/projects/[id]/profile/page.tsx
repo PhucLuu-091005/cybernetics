@@ -10,7 +10,7 @@ import { TokenList } from '../../../../../components/settings/TokenList';
 import { PageHead } from '../../../../../components/shell/PageHead';
 import { getApp, listUserKeys } from '../../../../../server/app';
 import { photosOn } from '../../../../../server/avatars/config';
-import { personalCreator } from '../../../../../server/domain/account';
+import { personalCreator, tokenCreator } from '../../../../../server/domain/account';
 import { getProject } from '../../../../../server/domain/projects';
 import { readAuthEnvironment } from '../../../../../server/env';
 import {
@@ -29,13 +29,16 @@ const KEYS = '/api/v1/me/keys';
 async function loadProfile(projectId: string, cursor: string | null) {
   const actor = await requireActor(`/projects/${projectId}/profile`);
   const db = getApp().db;
-  const [{ timeZone }, page, seen, creator] = await Promise.all([
+  const [{ timeZone }, page, seen] = await Promise.all([
     notFoundOn(getProject(db, actor, { projectId })),
     notFoundOnCursor(listUserKeys(actor, { cursor }), cursor),
     pageOnScreen(actor, projectId),
-    personalCreator(db, actor),
   ]);
   const { account } = seen;
+  // A key made as a seeded person of a demo copy acts as them there only, with their rights.
+  const creator = seen.seeded
+    ? await tokenCreator(db, actor, projectId, seen.actAs)
+    : await personalCreator(db, actor);
   // The face of the person on screen, as every avatar shows them; the grey of avatar.tsx without a member.
   const face = {
     name: account.name,
@@ -92,10 +95,11 @@ export default async function ProfilePage({
           />
           <TokenCreate
             kind="personal"
-            api={KEYS}
+            api={`${KEYS}?project=${id}`}
             endpoint={endpoint}
             expiryOptions={expiryOptions}
             creator={creator}
+            actingAs={actingAs}
           />
         </div>
         <aside className="pg-aside">
