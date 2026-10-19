@@ -15,7 +15,6 @@ import {
 } from 'react';
 import {
   collapsedTeams,
-  changedTeams,
   openTeams as openTeamsPlan,
   teamsOfOps,
   descendantsOf,
@@ -478,7 +477,7 @@ export function TrackerScreen({
     writeViewState(browserStore(), projectId, next);
   };
 
-  const [density, setDensity] = useState<Density>('compact');
+  const [density, setDensity] = useState<Density>('comfortable');
   const [teamOpen, setTeamOpen] = useState<TeamToggles>(new Map());
   useLayoutEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -634,18 +633,14 @@ export function TrackerScreen({
     map: new Map(),
   });
   if (activeToggles.key !== narrowKey) setActiveToggles({ key: narrowKey, map: new Map() });
-  const changed = useMemo(() => changedTeams(state, current.marks), [state, current.marks]);
   const collapsed = useMemo(
     () =>
       collapsedTeams(state, {
-        asOf,
-        timeZone: tz,
         toggles: teamOpen,
-        changed,
         active: narrowed,
         activeToggles: activeToggles.map,
       }),
-    [state, asOf, tz, teamOpen, changed, narrowed, activeToggles.map],
+    [state, teamOpen, narrowed, activeToggles.map],
   );
   const windowStart = useMemo(
     () => windowStartFor(state, project.windowStart, asOf, tz),
@@ -741,12 +736,7 @@ export function TrackerScreen({
     hide({ ...hidden, hiddenTeams: toggleId(hidden.hiddenTeams, id) });
   /** `narrowedAfter`: the graph stays narrowed after this action, so the opening is temporary. */
   const openTeams = (teams: string[], narrowedAfter = narrowed) => {
-    const plan = openTeamsPlan(
-      state,
-      { asOf, timeZone: tz, toggles: teamOpen, changed },
-      teams,
-      narrowedAfter,
-    );
+    const plan = openTeamsPlan(state, { toggles: teamOpen }, teams, narrowedAfter);
     if (plan.toggles) changeTeamOpen(plan.toggles);
     if (plan.active.length)
       setActiveToggles((a) => ({

@@ -26,21 +26,12 @@ async function viewMenu(page: Page, run: (pop: Locator) => Promise<void>) {
   await expect(pop).toBeHidden();
 }
 
-/** The older walks read rows of every team at 32 units, as the graph drew them before round 9. */
-async function classicView(page: Page) {
-  await viewMenu(page, async (pop) => {
-    await pop.getByRole('button', { name: 'Comfortable', exact: true }).click();
-    await pop.getByRole('button', { name: 'Expand all' }).click();
-  });
-}
-
-async function signIn(page: Page, label: string, { classic = true } = {}) {
+async function signIn(page: Page, label: string) {
   await page.goto(`/signin?label=${label}`);
   await page.getByRole('button', { name: /continue/i }).click();
   await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
   await expect(page.locator('svg.pg')).toBeVisible();
   await hydrated(page);
-  if (classic) await classicView(page);
   const projectId = new URL(page.url()).pathname.split('/')[2];
   return { projectId, graph: `/projects/${projectId}/graph` };
 }
@@ -527,7 +518,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
   test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
 
   test('the details panel has Focus beside Hide on a wide screen too', async ({ page }) => {
-    await signIn(page, 'tracker-drawer-focus', { classic: false });
+    await signIn(page, 'tracker-drawer-focus');
     const drawer = page.locator('.drawer');
     await page.locator('svg.pg-side .label-hit[data-rowlabel="pg203"]').click();
     const focus = drawer.getByRole('button', { name: 'Focus on PG-203 Country list field type' });
@@ -614,7 +605,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
   test('a milestone name on the axis keeps the T line behind its own background and covers no circle', async ({
     page,
   }) => {
-    const { projectId, graph } = await signIn(page, 'tracker-axis', { classic: false });
+    const { projectId, graph } = await signIn(page, 'tracker-axis');
     // Both milestones move next to T (9 Oct 18:00): whichever side each name takes, one crosses T.
     const num = await page.evaluate(async (pid) => {
       const read = await (await fetch(`/api/v1/projects/${pid}/tracker`)).json();
@@ -942,8 +933,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
   test('a click on a row opens its details, and an event brief leads to its work item', async ({
     page,
   }) => {
-    // This walk runs on the shipped view: Compact rows, and teams without late work collapsed.
-    await signIn(page, 'tracker-click', { classic: false });
+    await signIn(page, 'tracker-click');
     const drawer = page.locator('.drawer');
     const pop = page.locator('.pop');
 
@@ -1354,7 +1344,7 @@ test.describe('the hidden badge in a change request', () => {
   test('the last Unhide in a draft with no changes keeps the focus on an enabled control of the bar', async ({
     page,
   }) => {
-    await signIn(page, 'tracker-hidden-cr', { classic: false });
+    await signIn(page, 'tracker-hidden-cr');
     await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
     await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
     await page.waitForURL(/\/changes\/\d+$/);
@@ -1913,14 +1903,13 @@ test.describe('row height and collapsible teams', () => {
       return r.y.baseVal.value + r.height.baseVal.value / 2;
     });
 
-  test('the row height starts Compact, changes in the view menu and stays after a reload', async ({
+  test('the row height starts Comfortable, changes in the view menu and stays after a reload', async ({
     page,
   }) => {
-    const { graph } = await signIn(page, 'tracker-density', { classic: false });
-    // Engineering has late work, so it starts open.
-    expect((await rowY(page, 'syncmon')) - (await rowY(page, 'dynamics'))).toBe(20);
+    const { graph } = await signIn(page, 'tracker-density');
+    expect((await rowY(page, 'syncmon')) - (await rowY(page, 'dynamics'))).toBe(32);
     await viewMenu(page, async (pop) => {
-      await expect(pop.getByRole('button', { name: 'Compact' })).toHaveAttribute(
+      await expect(pop.getByRole('button', { name: 'Comfortable' })).toHaveAttribute(
         'aria-pressed',
         'true',
       );
@@ -1937,21 +1926,26 @@ test.describe('row height and collapsible teams', () => {
     await expect(page.locator('svg.pg [data-act] circle.dot').first()).toBeVisible();
     await visit(page, graph);
     expect((await rowY(page, 'syncmon')) - (await rowY(page, 'dynamics'))).toBe(12);
-    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Comfortable' }).click());
+    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Compact' }).click());
     await expect
       .poll(async () => (await rowY(page, 'syncmon')) - (await rowY(page, 'dynamics')))
-      .toBe(32);
+      .toBe(20);
   });
 
   test('a team opens and collapses from its summary row, by click and by keyboard', async ({
     page,
   }) => {
-    const { graph } = await signIn(page, 'tracker-collapse', { classic: false });
+    const { graph } = await signIn(page, 'tracker-collapse');
     const side = page.locator('svg.pg-side');
     const implementation = side.getByRole('button', { name: /^Implementation, 3 work items/ });
     const engineering = side.getByRole('button', { name: /^Engineering, 4 work items: 2 late/ });
-    await expect(implementation).toHaveAttribute('aria-expanded', 'false');
+    // Every team starts open.
+    await expect(side.locator('[aria-expanded="false"]')).toHaveCount(0);
+    await expect(implementation).toHaveAttribute('aria-expanded', 'true');
     await expect(engineering).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('svg.pg [data-loop="golive"]')).toHaveCount(1);
+    await implementation.click();
+    await expect(implementation).toHaveAttribute('aria-expanded', 'false');
     await expect(page.locator('svg.pg [data-loop="golive"]')).toHaveCount(0);
     await expect(page.locator('svg.pg [data-loop="pg203"]')).toHaveCount(1);
 
@@ -2011,7 +2005,7 @@ test.describe('row height and collapsible teams', () => {
   });
 
   test('the view and zoom buttons show a ring for the keyboard only', async ({ page }) => {
-    await signIn(page, 'tracker-zoom-ring', { classic: false });
+    await signIn(page, 'tracker-zoom-ring');
     const btn = page.getByRole('button', { name: 'Row height and teams' });
     const outline = (el: Locator) => el.evaluate((node) => getComputedStyle(node).outlineStyle);
     await btn.click();
@@ -2040,7 +2034,7 @@ test.describe('row height and collapsible teams', () => {
   test('at Dense a summary row is one 24-unit line with its counts in the lane', async ({
     page,
   }) => {
-    await signIn(page, 'tracker-dense-summary', { classic: false });
+    await signIn(page, 'tracker-dense-summary');
     await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Dense', exact: true }).click());
     const engineering = page
       .locator('svg.pg-side')
@@ -2063,10 +2057,12 @@ test.describe('row height and collapsible teams', () => {
   test('search, the filter panel, a search pick and a handoff pick open a collapsed team', async ({
     page,
   }) => {
-    await signIn(page, 'tracker-collapse-pick', { classic: false });
+    await signIn(page, 'tracker-collapse-pick');
     const side = page.locator('svg.pg-side');
     const qa = side.getByRole('button', { name: /^Digitization QA, 1 work item/ });
     const testRow = page.locator('svg.pg [data-loop="test"]');
+    await qa.click();
+    await side.getByRole('button', { name: /^Implementation, 3 work items/ }).click();
     await expect(qa).toHaveAttribute('aria-expanded', 'false');
 
     // While the search text narrows the graph, every team with a match shows open.
@@ -2111,11 +2107,13 @@ test.describe('row height and collapsible teams', () => {
   });
 
   test('a details link and a milestone member open a collapsed team', async ({ page }) => {
-    await signIn(page, 'tracker-collapse-links', { classic: false });
+    await signIn(page, 'tracker-collapse-links');
     const side = page.locator('svg.pg-side');
     const drawer = page.locator('.drawer');
     const qa = side.getByRole('button', { name: /^Digitization QA, 1 work item/ });
     const implementation = side.getByRole('button', { name: /^Implementation, 3 work items/ });
+    await qa.click();
+    await implementation.click();
     await expect(qa).toHaveAttribute('aria-expanded', 'false');
     await expect(implementation).toHaveAttribute('aria-expanded', 'false');
 
@@ -2136,13 +2134,14 @@ test.describe('row height and collapsible teams', () => {
   });
 
   test('an event added to a work item of a collapsed team opens that team', async ({ page }) => {
-    const { graph } = await signIn(page, 'tracker-collapse-attach', { classic: false });
+    const { graph } = await signIn(page, 'tracker-collapse-attach');
     await page.goto(crPath(graph, 4));
     await hydrated(page);
     await actAs(page, 'Hà Đỗ');
     const implementation = page
       .locator('svg.pg-side')
       .getByRole('button', { name: /^Implementation, 3 work items/ });
+    await implementation.click();
     await expect(implementation).toHaveAttribute('aria-expanded', 'false');
 
     await page
@@ -2167,7 +2166,7 @@ test.describe('row height and collapsible teams', () => {
   test('an event takes the colour of its kind while its row line keeps the status colour', async ({
     page,
   }) => {
-    await signIn(page, 'tracker-kinds', { classic: false });
+    await signIn(page, 'tracker-kinds');
     // PG-203 is open, so its line starts in the Not finished blue; p31 on it is a Task.
     await expect(page.locator('svg.pg [data-line="pg203"]').first()).toHaveCSS(
       'stroke',
@@ -2366,7 +2365,7 @@ test.describe('row height and collapsible teams', () => {
   test('an event circle is a full kind-colour ring on a light tint, and the circles behind a stack tint more', async ({
     page,
   }) => {
-    await signIn(page, 'tracker-kind-tint', { classic: false });
+    await signIn(page, 'tracker-kind-tint');
     // The browser serialises color-mix in its own way, so a probe element computes the expected colour.
     const mixed = (color: string, percent: number) =>
       page.evaluate(
@@ -2397,7 +2396,7 @@ test.describe('row height and collapsible teams', () => {
       colorScheme: 'dark',
     });
     const page = await context.newPage();
-    await signIn(page, 'tracker-kind-tint-dark', { classic: false });
+    await signIn(page, 'tracker-kind-tint-dark');
     const task = page.locator('svg.pg [data-act="p31"] circle.bg');
     await expect(task).toHaveCSS('stroke', 'rgb(176, 180, 186)');
     const expected = await page.evaluate(() => {
@@ -2419,7 +2418,7 @@ test.describe('the legend popover', () => {
   test('opens on the first visit and remembers a close and an open across reloads', async ({
     page,
   }) => {
-    const { graph } = await signIn(page, 'legend-store', { classic: false });
+    const { graph } = await signIn(page, 'legend-store');
     const button = page.getByRole('button', { name: 'Legend', exact: true });
     const legend = page.getByRole('dialog', { name: 'Legend' });
     await expect(page.locator('.legend2')).toHaveCount(0);
@@ -2485,7 +2484,7 @@ test.describe('the legend popover', () => {
   test('Esc closes it only from inside, and the graph around it still takes clicks', async ({
     page,
   }) => {
-    await signIn(page, 'legend-esc', { classic: false });
+    await signIn(page, 'legend-esc');
     const button = page.getByRole('button', { name: 'Legend', exact: true });
     const legend = page.getByRole('dialog', { name: 'Legend' });
     const drawer = page.locator('.drawer');
@@ -2524,7 +2523,7 @@ test.describe('the legend popover beside a drawer', () => {
   test('follows the zoom corner when a drawer opens, and hides while an event moves', async ({
     page,
   }) => {
-    const { graph } = await signIn(page, 'legend-drawer', { classic: false });
+    const { graph } = await signIn(page, 'legend-drawer');
     await visit(page, crPath(graph, 4));
     await actAs(page, 'Hà Đỗ');
     const legend = page.getByRole('dialog', { name: 'Legend' });
@@ -2623,7 +2622,7 @@ test.describe('changes that no longer apply', () => {
   test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
 
   test('when Clear fails part way, the rows left keep their Clear button', async ({ page }) => {
-    const { projectId, graph } = await signIn(page, 'tracker-clear-409', { classic: false });
+    const { projectId, graph } = await signIn(page, 'tracker-clear-409');
     const num = await page.evaluate(async (pid) => {
       const read = await (await fetch(`/api/v1/projects/${pid}/tracker`)).json();
       const item = read.queue.items.find(
@@ -2675,7 +2674,7 @@ test.describe('changes that no longer apply', () => {
   test('a draft whose every change is already in Main says so and can be cancelled', async ({
     page,
   }) => {
-    const { projectId, graph } = await signIn(page, 'tracker-inmain', { classic: false });
+    const { projectId, graph } = await signIn(page, 'tracker-inmain');
     const num = await page.evaluate(async (pid) => {
       const base = `/api/v1/projects/${pid}/tracker/crs`;
       const post = (url: string, body: unknown) =>
@@ -2705,7 +2704,7 @@ test.describe('changes that no longer apply', () => {
   test('an undone placement leaves its later changes out of the count and of Mark as ready, and Clear removes them', async ({
     page,
   }) => {
-    const { projectId, graph } = await signIn(page, 'tracker-stale', { classic: false });
+    const { projectId, graph } = await signIn(page, 'tracker-stale');
     const num = await page.evaluate(async (pid) => {
       const read = await (await fetch(`/api/v1/projects/${pid}/tracker`)).json();
       const item = read.queue.items.find(
@@ -2796,7 +2795,7 @@ test.describe('new changes wait for Refresh', () => {
   test('another write leaves the screen alone; Refresh shows it and keeps the scroll and the drawer', async ({
     page,
   }) => {
-    const { projectId } = await signIn(page, 'tracker-fresh', { classic: false });
+    const { projectId } = await signIn(page, 'tracker-fresh');
     const bar = page.locator('.bbar').first();
     const notice = bar.locator('.fresh');
     const drawer = page.locator('.drawer');
@@ -2837,7 +2836,7 @@ test.describe('new changes wait for Refresh', () => {
   });
 
   test('own writes show at once and raise no notice; a 409 offers Refresh', async ({ page }) => {
-    const { projectId, graph } = await signIn(page, 'tracker-fresh-own', { classic: false });
+    const { projectId, graph } = await signIn(page, 'tracker-fresh-own');
     const num = await writeElsewhere(page, projectId, 'Client secret renewed');
     await visit(page, crPath(graph, num));
     const bar = page.locator('.bbar').first();
@@ -2873,7 +2872,7 @@ test.describe('new changes wait for Refresh', () => {
   test('a merger keeps the version they opened: Refresh shows Review again when the change request moved', async ({
     page,
   }) => {
-    const { projectId, graph } = await signIn(page, 'tracker-fresh-merger', { classic: false });
+    const { projectId, graph } = await signIn(page, 'tracker-fresh-merger');
     await visit(page, crPath(graph, 2));
     const bar = page.locator('.bbar').first();
     const notice = bar.locator('.fresh');
@@ -2912,7 +2911,7 @@ test.describe('new changes wait for Refresh', () => {
   test('a Refresh that answers after an own write does not roll the write back', async ({
     page,
   }) => {
-    const { projectId, graph } = await signIn(page, 'tracker-fresh-race', { classic: false });
+    const { projectId, graph } = await signIn(page, 'tracker-fresh-race');
     const num = await writeElsewhere(page, projectId, 'Client secret renewed');
     await visit(page, crPath(graph, num));
     const bar = page.locator('.bbar').first();
@@ -2990,7 +2989,7 @@ test.describe('new changes wait for Refresh', () => {
 
   test('a hidden tab does not check, and checks at once when it shows again', async ({ page }) => {
     await page.clock.install();
-    await signIn(page, 'tracker-fresh-hidden', { classic: false });
+    await signIn(page, 'tracker-fresh-hidden');
     let checks = 0;
     page.on('request', (request) => {
       if (/\/tracker\/version$/.test(request.url())) checks += 1;
