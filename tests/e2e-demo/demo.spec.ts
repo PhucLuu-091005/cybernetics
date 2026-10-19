@@ -306,10 +306,15 @@ test('a new sandbox places its story before now, and T follows the real clock', 
   const read = await page.request.get(`/api/v1/projects/${projectId}/tracker`);
   const tracker = (await read.json()) as {
     project: { asOf: string | null };
-    base: { events: Array<{ at: string }> };
+    commits: Array<{ ops: Array<{ op: string; a: { ev?: { at: string } } }> }>;
   };
   expect(tracker.project.asOf).toBeNull();
-  const latest = Math.max(...tracker.base.events.map((e) => Date.parse(e.at)));
+  // Main starts empty, so the story's events arrive through the merged history.
+  const latest = Math.max(
+    ...tracker.commits.flatMap((c) =>
+      c.ops.flatMap((op) => (op.a.ev ? [Date.parse(op.a.ev.at)] : [])),
+    ),
+  );
   expect(latest).toBeLessThanOrEqual(Date.now());
   expect(Date.now() - latest).toBeLessThan(4 * 86_400_000);
   const dayOf = (ms: number) =>
@@ -393,14 +398,18 @@ test('while the visitor acts as Quang, every page shows Quang and acts as Quang'
     'Acts as Quang Nguyễn',
   );
 
-  const reply = await page.evaluate(async (pid) => {
-    const sent = await fetch(`/api/v1/projects/${pid}/tracker/crs/${storyCr(2)}/actions`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action: 'comment', body: 'Quang checks the mapping.' }),
-    });
-    return sent.json();
-  }, projectId);
+  // The callback runs in the page, so the number goes in as an argument.
+  const reply = await page.evaluate(
+    async ({ pid, num }) => {
+      const sent = await fetch(`/api/v1/projects/${pid}/tracker/crs/${num}/actions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'comment', body: 'Quang checks the mapping.' }),
+      });
+      return sent.json();
+    },
+    { pid: projectId, num: storyCr(2) },
+  );
   const quang = reply.members.find((m: { name: string }) => m.name === 'Quang Nguyễn').id;
   const comments = reply.crs.find((c: { num: number }) => c.num === storyCr(2)).comments;
   expect(comments.at(-1)).toMatchObject({ memberId: quang, body: 'Quang checks the mapping.' });
