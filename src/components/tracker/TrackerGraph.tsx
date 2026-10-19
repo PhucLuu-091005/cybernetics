@@ -542,7 +542,7 @@ export function TrackerGraph(props: Props) {
   const menuRef = useRef<HTMLDivElement>(null);
   const quietUntil = useRef(0);
   const menuMark = menu ? L.handoffs.find((h) => h.fromId === menu.fromId) : undefined;
-  // A poll, a hide or a filter can take the source mark away while its list is open.
+  // A Refresh, a hide or a filter can take the source mark away while its list is open.
   if (menu && !menuMark) setMenu(null);
   const menuGroup = menuMark?.groupId
     ? L.eventGroups.find((g) => g.topId === menuMark.groupId)

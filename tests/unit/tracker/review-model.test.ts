@@ -117,6 +117,7 @@ function payload(crs: Cr[], commits: Commit[], me = LARKSPUR_OWNER): TrackerPayl
     queue,
     commits,
     crs,
+    version: 'v',
   };
 }
 

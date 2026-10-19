@@ -133,7 +133,7 @@ export function MilestoneDrawer({
 }) {
   const { dir, tz } = session;
   const m = state.milestones.find((x) => x.id === milestoneId);
-  // Null until the editor types, so a hand-over or a poll shows the current milestone, not a stale copy.
+  // Null until the editor types, so a hand-over or a Refresh shows the current milestone, not a stale copy.
   const [draft, setDraft] = useState<{ name: string; date: string; time: string } | null>(null);
   const [adding, setAdding] = useState('');
   if (!m) return null;
@@ -372,7 +372,7 @@ export function WorkItemDrawer({
 }) {
   const { dir, tz } = session;
   const item = state.workItems.find((w) => w.id === itemId);
-  // Null until the editor types, so a hand-over or a poll shows the current values, not a stale copy.
+  // Null until the editor types, so a hand-over or a Refresh shows the current values, not a stale copy.
   const [title, setTitle] = useState<string | null>(null);
   const [dates, setDates] = useState<Dates | null>(null);
   const [adding, setAdding] = useState('');

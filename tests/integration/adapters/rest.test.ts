@@ -39,6 +39,7 @@ const expectedRoutes = [
   '/projects/:projectId/tracker/crs/:num/ops',
   '/projects/:projectId/tracker/crs/:num/ops/:index',
   '/projects/:projectId/tracker/crs/:num/actions',
+  '/projects/:projectId/tracker/version',
 ];
 
 function routeFiles(): string[] {

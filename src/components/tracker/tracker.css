@@ -464,6 +464,13 @@
 .tk .bbar .muted {
   font-size: var(--fs-s);
 }
+.tk .bbar .fresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
 .tk .bnote {
   flex-basis: 100%;
   margin: 0;

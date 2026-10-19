@@ -41,6 +41,7 @@ import {
   loadShares,
   OPEN,
   ProjectScopeSchema,
+  readScope,
   requireEditor,
   requireRight,
   requireStatus,
@@ -685,6 +686,9 @@ export async function crAction(
     const scope = await writeScope(tx, ctx, input.projectId, input.actAs);
     const cr = await lockCr(tx, scope.project.id, input.num);
     await run({ tx, ctx, scope, cr, expectedRevision: input.expectedRevision }, input);
-    return buildPayload(tx, scope);
+    // A merge can add a team, and the project part of the version must see it.
+    const after =
+      input.action === 'merge' ? await readScope(tx, ctx, input.projectId, input.actAs) : scope;
+    return buildPayload(tx, after);
   });
 }

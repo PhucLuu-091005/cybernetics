@@ -644,3 +644,18 @@ describe('photo reads', () => {
     });
   });
 });
+describe('version checks', () => {
+  it('count against their own light limit, so open tabs leave the read limit alone', async () => {
+    const s = await setup();
+    const check = () =>
+      s.services.getBrowserActor(
+        new Request(`${env.appOrigin}/api/v1/me/keys`, { headers: s.request().headers }),
+        'poll',
+      );
+    for (let i = 0; i < 600; i++) await check();
+    await expect(check()).rejects.toMatchObject({ code: 'RATE_LIMITED' });
+    await expect(s.services.getBrowserActor(s.request())).resolves.toMatchObject({
+      kind: 'user',
+    });
+  });
+});

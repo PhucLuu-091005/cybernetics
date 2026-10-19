@@ -112,4 +112,6 @@ export type TrackerPayload = {
   queue: TrackerQueue;
   commits: Commit[];
   crs: Cr[];
+  /** The version of this payload; the light check compares it (`TrackerVersion`). */
+  version: string;
 };

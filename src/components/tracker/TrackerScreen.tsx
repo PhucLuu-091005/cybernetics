@@ -41,6 +41,7 @@ import {
   type TrackerLayout,
   type TrackerPayload,
   type TrackerState,
+  type TrackerVersion,
   can,
   mergerIds,
 } from '../../tracker';
@@ -53,6 +54,7 @@ import {
   crAction,
   dismissQueueEntry,
   getTracker,
+  getTrackerVersion,
   removeOp,
   type ApiResult,
   type CrAction,
@@ -60,6 +62,7 @@ import {
   type QueueEntry,
 } from './api';
 import { makeDirectory } from './avatar';
+import { freshLabel, onlyAppended } from './fresh';
 import {
   byNumDesc,
   ContextBar,
@@ -202,7 +205,7 @@ export const NO_ACTIONS: TrackerActions = {
   addToMilestone: noop,
 };
 
-export const POLL_MS = 5000;
+export const CHECK_MS = 15_000;
 // The prototype keeps a pop open for clicks in these areas; the graph closes it on its own background.
 const OUTSIDE_EXEMPT =
   '.p-head, .bbar, .pop, .drawer, .p-side, .empty, .ro-note, svg.tg, .tk-modal, .tk-toast, .zoombar, .gtools';
@@ -212,18 +215,34 @@ const OWN_ESCAPE =
 const MINUTE = 60_000;
 const PHONE_QUERY = '(max-width: 760px)';
 
-const samePayload = (a: TrackerPayload, b: TrackerPayload) =>
-  JSON.stringify(a) === JSON.stringify(b);
+const crByNum = (p: TrackerPayload, num: number) => p.crs.find((c) => c.num === num);
 
-/** Main and each change request have their own page, so a view switch is a navigation. */
+/**
+ * Main and each change request have their own page, so a view switch is a navigation. The screen
+ * changes only on the person's own writes and on Refresh: a light check in the background finds a
+ * newer version and offers Refresh, as a pull request page does.
+ */
 export function useTracker(initial: TrackerPayload, projectId: string, num: number | null) {
   const [payload, setPayloadState] = useState(initial);
-  // A poll that started before a write must not overwrite the payload the write returned.
+  // A check that overlaps a write compares an old payload, so its answer is dropped.
   const writes = useRef(0);
+  const inFlight = useRef(0);
+  const shown = useRef(initial);
   const setPayload = useCallback((next: TrackerPayload) => {
     writes.current += 1;
+    shown.current = next;
     setPayloadState(next);
   }, []);
+  const startWrite = useCallback(() => {
+    writes.current += 1;
+    inFlight.current += 1;
+  }, []);
+  const endWrite = useCallback(() => {
+    writes.current += 1;
+    inFlight.current -= 1;
+  }, []);
+  const writeMark = useCallback(() => writes.current, []);
+  const [seen, setSeen] = useState<{ against: string; next: TrackerVersion } | null>(null);
   const router = useRouter();
   const view: TrackerView = num ?? 'main';
   const setView = useCallback(
@@ -234,39 +253,75 @@ export function useTracker(initial: TrackerPayload, projectId: string, num: numb
     [router, projectId, view],
   );
 
+  const checkNow = useRef<() => void>(noop);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let stopped = false;
-    let inFlight = false;
+    let checking = false;
     const schedule = () => {
       clearTimeout(timer);
-      timer = setTimeout(poll, POLL_MS);
+      timer = setTimeout(check, CHECK_MS);
     };
-    async function poll() {
-      if (stopped || inFlight) return;
+    // A hidden tab schedules nothing, so it sends no request until it shows again.
+    async function check() {
+      if (stopped || checking) return;
       if (document.visibilityState !== 'visible') return;
-      inFlight = true;
-      const seen = writes.current;
-      const result = await getTracker(projectId);
-      inFlight = false;
+      checking = true;
+      const before = writes.current;
+      const against = shown.current.version;
+      const result = await getTrackerVersion(projectId, num);
+      checking = false;
       if (stopped) return;
-      if (result.ok && seen === writes.current)
-        setPayloadState((prev) => (samePayload(prev, result.data) ? prev : result.data));
+      if (result.ok && before === writes.current && inFlight.current === 0)
+        setSeen({ against, next: result.data });
       schedule();
     }
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') void poll();
+      if (document.visibilityState === 'visible') void check();
     };
+    checkNow.current = () => void check();
     schedule();
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
       stopped = true;
       clearTimeout(timer);
+      checkNow.current = noop;
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [projectId]);
+  }, [projectId, num]);
 
-  return { payload, view, setPayload, setView };
+  const onScreen = num === null ? undefined : crByNum(payload, num);
+  const label =
+    seen && seen.against === payload.version
+      ? freshLabel(
+          {
+            version: payload.version,
+            crCount: payload.crs.length,
+            ...(onScreen
+              ? {
+                  cr: {
+                    num: onScreen.num,
+                    revision: onScreen.revision,
+                    updatedAt: onScreen.updatedAt,
+                  },
+                }
+              : {}),
+          },
+          seen.next,
+        )
+      : null;
+  const check = useCallback(() => checkNow.current(), []);
+  return {
+    payload,
+    view,
+    setPayload,
+    setView,
+    fresh: label,
+    check,
+    startWrite,
+    endWrite,
+    writeMark,
+  };
 }
 
 const everyHalfMinute = (onChange: () => void) => {
@@ -287,7 +342,6 @@ const isPhone = () => window.matchMedia(PHONE_QUERY).matches;
 // CSS sets the phone column width before this flag arrives, so the first measured span is already right.
 const usePhone = () => useSyncExternalStore(watchPhone, isPhone, () => false);
 
-const crByNum = (p: TrackerPayload, num: number) => p.crs.find((c) => c.num === num);
 const withoutNum = (data: TrackerPayload & { num?: number }): TrackerPayload => {
   const copy = { ...data };
   delete copy.num;
@@ -335,7 +389,17 @@ export function TrackerScreen({
   /** The server's time rounded down to the minute, for a project without a demo clock. */
   serverNow: number;
 }) {
-  const { payload: latest, view, setPayload, setView } = useTracker(initial, projectId, num);
+  const {
+    payload: latest,
+    view,
+    setPayload,
+    setView,
+    fresh,
+    check,
+    startWrite,
+    endWrite,
+    writeMark,
+  } = useTracker(initial, projectId, num);
   const latestCr = num === null ? null : (latest.crs.find((c) => c.num === num) ?? null);
   const mayEdit = !!latestCr && can(latest, 'edit', latestCr);
   // A merger decides on the version they opened; a newer revision waits behind Review again.
@@ -499,8 +563,12 @@ export function TrackerScreen({
   useEffect(() => () => stopDrag.current?.(), []);
 
   const showToast = useCallback(
-    (text: string, undo?: () => void) =>
-      setToast({ text, at: Date.now(), ...(undo ? { undo } : {}) }),
+    (text: string, act?: (() => void) | { refresh: () => void }) =>
+      setToast({
+        text,
+        at: Date.now(),
+        ...(typeof act === 'function' ? { undo: act } : act),
+      }),
     [],
   );
   const closeToast = useCallback(() => setToast(null), []);
@@ -623,7 +691,7 @@ export function TrackerScreen({
       phone,
     ],
   );
-  // Pointer handlers outlive the render that started a drag, and a poll can land in between.
+  // Pointer handlers outlive the render that started a drag, and a Refresh can land in between.
   const live = useRef<{
     payload: TrackerPayload;
     state: TrackerState;
@@ -775,38 +843,82 @@ export function TrackerScreen({
     setPopFor({ kind: 'act', id: eventId });
   };
 
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshed, setRefreshed] = useState(0);
   /**
-   * A 409 means someone wrote first, so the screen reads again. Only an append retries: it adds to
-   * whatever is there, while every other write acted on what the person saw and must not repeat.
+   * The merger keeps the version they opened, as a pull request keeps a review: a moved change
+   * request waits behind Review again. A write during the read wins over the read.
    */
-  const write = async <T extends TrackerPayload>(
+  const refresh = async () => {
+    setRefreshing(true);
+    const mark = writeMark();
+    const result = await getTracker(projectId);
+    setRefreshing(false);
+    if (!result.ok) {
+      showToast(result.error.message);
+      return;
+    }
+    if (mark !== writeMark()) return;
+    setPayload(result.data);
+    live.current = { ...live.current, payload: result.data };
+    setRefreshed((n) => n + 1);
+  };
+
+  // A drawer whose item went away with a Refresh closes, so the focus panel can come back.
+  const [drawerChecked, setDrawerChecked] = useState(0);
+  if (drawerChecked !== refreshed) {
+    setDrawerChecked(refreshed);
+    const gone =
+      (drawer?.mode === 'item' && !state.workItems.some((w) => w.id === drawer.id)) ||
+      (drawer?.mode === 'ms' && !state.milestones.some((m) => m.id === drawer.id));
+    if (gone) setDrawer(null);
+  }
+
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  /**
+   * Writes run one after another, so each one sends the revision of the reply before it. A 409
+   * keeps the screen as it was and offers Refresh; only an append retries once, when the draft on
+   * the server only gained changes after the ones on screen (the editor's own agent).
+   */
+  const write = <T extends TrackerPayload>(
     run: (p: TrackerPayload) => Promise<ApiResult<T>>,
-    { retry = false }: { retry?: boolean } = {},
+    { append }: { append?: number } = {},
   ): Promise<T | null> => {
     setWriting((n) => n + 1);
-    try {
-      let result = await run(live.current.payload);
-      if (!result.ok && result.error.status === 409) {
-        const fresh = await getTracker(projectId);
-        if (fresh.ok) {
-          setPayload(fresh.data);
-          live.current = { ...live.current, payload: fresh.data };
-          if (retry) result = await run(fresh.data);
-        }
-      }
-      if (!result.ok) {
-        showToast(result.error.message);
-        return null;
-      }
-      const next = withoutNum(result.data);
-      setPayload(next);
-      live.current = { ...live.current, payload: next };
-      // The person acted on the latest version, so it becomes the one they review.
-      if (num !== null) setOpened(next.crs.find((c) => c.num === num) ?? null);
-      return result.data;
-    } finally {
-      setWriting((n) => n - 1);
+    startWrite();
+    const job = queue.current
+      .then(() => send(run, append))
+      .finally(() => {
+        setWriting((n) => n - 1);
+        endWrite();
+      });
+    queue.current = job.catch(() => null);
+    return job;
+  };
+  const send = async <T extends TrackerPayload>(
+    run: (p: TrackerPayload) => Promise<ApiResult<T>>,
+    append: number | undefined,
+  ): Promise<T | null> => {
+    let result = await run(live.current.payload);
+    if (!result.ok && result.error.status === 409 && append !== undefined) {
+      const shownCr = crByNum(live.current.payload, append);
+      const fresh = await getTracker(projectId);
+      if (shownCr && fresh.ok && onlyAppended(shownCr, crByNum(fresh.data, append)))
+        result = await run(fresh.data);
     }
+    if (!result.ok) {
+      if (result.error.status === 409) {
+        showToast(result.error.message, { refresh: () => void refresh() });
+        check();
+      } else showToast(result.error.message);
+      return null;
+    }
+    const next = withoutNum(result.data);
+    setPayload(next);
+    live.current = { ...live.current, payload: next };
+    // The person acted on the latest version, so it becomes the one they review.
+    if (num !== null) setOpened(next.crs.find((c) => c.num === num) ?? null);
+    return result.data;
   };
   const revisionOf = (p: TrackerPayload, num: number) => crByNum(p, num)?.revision ?? 0;
   /** `seen` sends the revision the editor sees, so ready and edit again act on the changes on screen. */
@@ -829,9 +941,7 @@ export function TrackerScreen({
   const appendAll = async (num: number, ops: readonly OpInput[]) => {
     let last: TrackerPayload | null = null;
     for (const op of ops) {
-      last = await write((p) => appendOp(projectId, num, op, revisionOf(p, num)), {
-        retry: true,
-      });
+      last = await write((p) => appendOp(projectId, num, op, revisionOf(p, num)), { append: num });
       if (!last) return null;
     }
     const d = last && crByNum(last, num)?.ops.at(-1)?.d;
@@ -1150,7 +1260,7 @@ export function TrackerScreen({
     else if (done.kind === 'dismiss') void onDismiss(done.id);
     else if (done.kind === 'hint') showToast(done.text);
   };
-  // A poll during the drag can change who edits, so the drop must use this render's handlers.
+  // A Refresh during the drag can change who edits, so the drop must use this render's handlers.
   const onDrop = useRef(drop);
   useLayoutEffect(() => {
     onDrop.current = drop;
@@ -1389,6 +1499,9 @@ export function TrackerScreen({
         busy={busy}
         onView={openView}
         onDrawer={toggleDrawer}
+        fresh={
+          fresh ? { label: fresh, busy: refreshing || busy, onRefresh: () => void refresh() } : null
+        }
         hidden={{
           hidden: hiddenNow,
           onUnhideTeam: (id) =>

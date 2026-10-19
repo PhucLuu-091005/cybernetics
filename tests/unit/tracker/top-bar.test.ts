@@ -111,6 +111,7 @@ function sessionOf(me: Member | null, crs: Cr[] = []): Session {
     queue,
     commits: [],
     crs,
+    version: 'v',
   };
   return {
     projectId: 'p1',
