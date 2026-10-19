@@ -35,7 +35,7 @@ async function loadProfile(projectId: string, cursor: string | null) {
   const actor = await requireActor(`/projects/${projectId}/profile`);
   const actAs = (await cookies()).get(`pg_act_${projectId}`)?.value;
   const db = getApp().db;
-  const [{ project, timeZone }, page, account, own, creator] = await Promise.all([
+  const [{ timeZone }, page, account, own, creator] = await Promise.all([
     notFoundOn(getProject(db, actor, { projectId })),
     notFoundOnCursor(listUserKeys(actor, { cursor }), cursor),
     projectAccount(db, actor, projectId, actAs),
@@ -52,7 +52,6 @@ async function loadProfile(projectId: string, cursor: string | null) {
     label: `In ${days} days (${shortDay(new Date(now + days * DAY).toISOString(), timeZone, true)})`,
   }));
   return {
-    project,
     timeZone,
     page,
     account,
@@ -75,12 +74,12 @@ export default async function ProfilePage({
   const [{ id }, search] = await Promise.all([params, searchParams]);
   const cursor = searchCursor(search.cursor);
   if (!IdSchema.safeParse(id).success) notFound();
-  const { project, timeZone, page, account, own, ownName, ownColor, creator, expiryOptions, now } =
+  const { timeZone, page, account, own, ownName, ownColor, creator, expiryOptions, now } =
     await loadProfile(id, cursor);
   const endpoint = `${readAuthEnvironment().appOrigin}/mcp`;
   return (
     <div className="tk pg">
-      <PageHead title="Profile" project={project} account={account} />
+      <PageHead title="Profile" account={account} />
       <div className="pg-body pg-split">
         <div className="pg-main">
           {photosOn() && <PhotoSection name={ownName} color={ownColor} photo={own.photo ?? null} />}

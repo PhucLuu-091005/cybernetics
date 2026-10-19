@@ -24,6 +24,9 @@ test('the account menu opens Profile, where a personal key reaches every project
 }) => {
   const projectId = await signIn(page, 'profile-keys');
   await openProfile(page, projectId);
+  // Profile belongs to the person, so its header names no project.
+  await expect(page.locator('header.pg-head')).not.toContainText('Fund III onboarding');
+  await expect(page.locator('header.pg-head .pg-proj')).toHaveCount(0);
   const connect = page.getByRole('region', { name: 'Connect your agent' });
   await expect(connect).toContainText('Replace inv_... with the secret of your key.');
   await expect(connect).not.toContainText('token');
