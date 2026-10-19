@@ -2324,12 +2324,14 @@ test.describe('row height and collapsible teams', () => {
       await expect(hint).toHaveCount(0);
       await drawer.getByRole('button', { name: 'Add an event' }).click();
       const dialog = page.getByRole('dialog', { name: 'Add an event' });
-      await expect(dialog.getByLabel('Who')).toHaveText('Minh Trần');
-      await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-      await expect(dialog.getByLabel('Who')).toHaveText('Hà Đỗ');
-      await choose(dialog.getByLabel('Who'), 'Lan Phạm');
-      await dialog.getByRole('button', { name: 'Message', exact: true }).click();
       await expect(dialog.getByLabel('Who')).toHaveText('Lan Phạm');
+      await expect(dialog.getByLabel('Date')).toHaveValue('9 Oct 2026');
+      await expect(dialog.getByLabel('Time')).toHaveValue('18:00');
+      await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+      await expect(dialog.getByLabel('Who')).toHaveText('Lan Phạm');
+      await choose(dialog.getByLabel('Who'), 'Minh Trần');
+      await dialog.getByRole('button', { name: 'Message', exact: true }).click();
+      await expect(dialog.getByLabel('Who')).toHaveText('Minh Trần');
       const group = (name: string) => dialog.getByRole('group', { name, exact: true });
       await expect(group('Start').getByRole('button')).toHaveText(['Idea', 'Message', 'Issue']);
       await expect(group('Progress').getByRole('button')).toHaveText([
@@ -2365,12 +2367,12 @@ test.describe('row height and collapsible teams', () => {
       await expect(drawer).not.toContainText(/late \d/);
       await drawer.getByRole('button', { name: 'Mark done' }).click();
       const done = page.getByRole('dialog', { name: 'Add an event' });
-      await expect(done.getByLabel('Who')).toHaveText('Quang Nguyễn');
+      await expect(done.getByLabel('Who')).toHaveText('Lan Phạm');
       await done.getByRole('button', { name: 'Cancel', exact: true }).click();
       await expect(done).toHaveCount(0);
       await drawer.getByRole('button', { name: 'Cancel work item' }).click();
       const dialog = page.getByRole('dialog', { name: 'Cancel this work item' });
-      await expect(dialog.getByLabel('Who')).toHaveText('Quang Nguyễn');
+      await expect(dialog.getByLabel('Who')).toHaveText('Lan Phạm');
       await expect(dialog.getByRole('button', { name: 'Cancelled', exact: true })).toHaveAttribute(
         'aria-pressed',
         'true',

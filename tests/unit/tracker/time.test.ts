@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  eventDefaultAt,
   addMonths,
   completeDayText,
   completeTimeText,
@@ -187,5 +188,26 @@ describe('completeDayText and completeTimeText: what a box saves while the perso
     expect(completeTimeText('1430')).toBe('14:30');
     for (const text of ['2', '25', '25:0', '25:00', '9:7', '9:75', '143', '9:5', '9', ''])
       expect(completeTimeText(text)).toBeNull();
+  });
+});
+
+describe('eventDefaultAt: the When an event form opens with', () => {
+  const tz = 'Asia/Ho_Chi_Minh';
+  it('takes now down to 5 minutes, so a past-tense event is never in the future', () => {
+    expect(eventDefaultAt(null, Date.parse('2026-10-19T19:05:23+07:00'), tz)).toBe(
+      '2026-10-19T19:05:00+07:00',
+    );
+    expect(eventDefaultAt(null, Date.parse('2026-10-19T19:09:59+07:00'), tz)).toBe(
+      '2026-10-19T19:05:00+07:00',
+    );
+    expect(eventDefaultAt(null, Date.parse('2026-10-19T19:00:00+07:00'), tz)).toBe(
+      '2026-10-19T19:00:00+07:00',
+    );
+  });
+
+  it('keeps a fixed project clock as it is', () => {
+    expect(eventDefaultAt('2026-10-09T18:00:00+07:00', Date.now(), tz)).toBe(
+      '2026-10-09T18:00:00+07:00',
+    );
   });
 });

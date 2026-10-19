@@ -21,7 +21,8 @@ import {
   pickable,
   toInstant,
   wallTimeInstant,
-  whoDid,
+  defaultWho,
+  eventDefaultAt,
   type Cr,
   type Member,
   type CrPermission,
@@ -84,7 +85,6 @@ type PropsOf<M extends ModalState['mode']> = Omit<Props, 'modal'> & {
   modal: Extract<ModalState, { mode: M }>;
 };
 
-const HOUR = 3_600_000;
 const newId = () => crypto.randomUUID();
 
 /** A `datetime-local` value is wall time in the project time zone. */
@@ -94,7 +94,8 @@ export function fromLocalInput(value: string, tz: string): string | null {
   const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/.exec(value);
   return match ? wallTimeInstant(match[1], match[2], tz) : null;
 }
-const hourBefore = (asOf: string, tz: string) => toInstant(Date.parse(asOf) - HOUR, tz);
+const defaultWhen = (session: Session) =>
+  localInput(eventDefaultAt(session.payload.project.asOf, Date.now(), session.tz), session.tz);
 const weekAfter = (asOf: string, tz: string) => addDays(dayOf(asOf, tz), 7);
 
 export function ModalFrame({
@@ -366,7 +367,7 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
   const [finishes, setFinishes] = useState(true);
   const [text, setText] = useState('');
   const [by, setBy] = useState(me);
-  const [when, setWhen] = useState(localInput(hourBefore(asOf, tz), tz));
+  const [when, setWhen] = useState(() => defaultWhen(session));
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
   const [doneBy, setDoneBy] = useState(me);
@@ -659,10 +660,20 @@ function EventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<
   const [finishes, setFinishes] = useState(true);
   const [text, setText] = useState(modal.done ? 'Done.' : '');
   const [picked, setBy] = useState<string | null>(null);
-  const [when, setWhen] = useState(localInput(hourBefore(asOf, tz), tz));
+  const [when, setWhen] = useState(() => defaultWhen(session));
   if (!start) return <Gone onClose={onClose} />;
   const item = state.workItems.find((w) => w.id === workItemId) ?? start;
-  const by = picked ?? personOr(people, whoDid(item, kind));
+  const by =
+    picked ??
+    personOr(
+      people,
+      defaultWho(
+        item,
+        kind,
+        session.me,
+        people.map((p) => p.id),
+      ),
+    );
   const create = () => {
     const at = fromLocalInput(when, tz);
     if (!text.trim() || !at) return on.toast(blankText(kind));

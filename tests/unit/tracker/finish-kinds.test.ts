@@ -6,6 +6,7 @@ import {
   kindText,
   kindWithArticle,
   whoDid,
+  defaultWho,
   STATUS_LABEL,
   type Milestone,
   type TrackerEvent,
@@ -83,6 +84,14 @@ describe('event kinds', () => {
     expect(whoDid(item, 'cancelled')).toBe('ha');
     expect(whoDid(item, 'message')).toBe('sarah');
     expect(whoDid(item, 'idea')).toBe('sarah');
+  });
+
+  it('fills Who with the person on screen, and with the item person only when they cannot be picked', () => {
+    const item = { doneBy: 'ha', requestedBy: 'lan' };
+    expect(defaultWho(item, 'message', 'quang', ['lan', 'quang', 'ha'])).toBe('quang');
+    expect(defaultWho(item, 'done', 'quang', ['lan', 'quang', 'ha'])).toBe('quang');
+    expect(defaultWho(item, 'message', 'reader', ['lan', 'quang', 'ha'])).toBe('lan');
+    expect(defaultWho(item, 'done', null, ['lan', 'quang', 'ha'])).toBe('ha');
   });
 
   it('has a Cancelled status with a neutral tone', () => {
