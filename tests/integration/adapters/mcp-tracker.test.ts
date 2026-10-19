@@ -165,7 +165,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP tracker tools', () => {
     ]);
     expect(tracker.milestones[1]).toMatchObject({
       planned: '2026-10-15',
-      plannedTime: null,
+      plannedTime: '17:00',
       firstPlannedTime: null,
     });
     expect(
@@ -225,7 +225,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP tracker tools', () => {
       ops: [
         {
           op: 'msDate',
-          a: { milestoneId: 'golive', date: '2026-10-15', time: '17:00', why: 'The client call.' },
+          a: { milestoneId: 'golive', date: '2026-10-15', time: '18:30', why: 'The client call.' },
         },
       ],
     });
@@ -237,12 +237,12 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP tracker tools', () => {
     const tracker = (await call(agent, 'get_tracker')).structuredContent;
     expect(tracker.milestones.find((m: { id: string }) => m.id === 'golive')).toMatchObject({
       planned: '2026-10-15',
-      plannedTime: '17:00',
+      plannedTime: '18:30',
     });
     const one = (await call(agent, 'get_change_request', { num })).structuredContent;
     expect(one.changeRequest.changes[0]).toMatchObject({
       op: 'msDate',
-      description: { before: 'planned 15 Oct', after: 'planned 15 Oct 17:00' },
+      description: { before: 'planned 15 Oct 17:00', after: 'planned 15 Oct 18:30' },
     });
   });
 

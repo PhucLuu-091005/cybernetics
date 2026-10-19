@@ -113,11 +113,14 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker demo seed', () => {
     expect(commit.ops[1].d).toMatchObject({
       item: 'Go-live and first close',
       before: 'planned 30 Sept',
-      after: 'planned 15 Oct',
+      after: 'planned 15 Oct 17:00',
       why: 'The CRS section is not ready. Sarah agreed on 26 September.',
     });
     const main = mainState(payload.base, payload.queue, payload.commits);
-    expect(main.milestones.find((m) => m.id === 'golive')?.planned).toBe('2026-10-15');
+    expect(main.milestones.find((m) => m.id === 'golive')).toMatchObject({
+      planned: '2026-10-15',
+      plannedTime: '17:00',
+    });
     expect(main.events.find((e) => e.id === demo.ids.qe3)?.workItemId).toBe('golive');
     expect(main.queue.events).toHaveLength(3);
     expect(crOf(payload, 1)).toMatchObject({
@@ -202,7 +205,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker demo seed', () => {
     expect(copy.base.workItems.find((w) => w.id === 'test')?.plannedFinish).toBe('2026-11-06');
     const merged = copy.commits[0];
     expect(sameInstant(merged.mergedAt, '2026-10-31T17:30:00+07:00')).toBe(true);
-    expect(merged.ops[1].d).toMatchObject({ before: 'planned 23 Oct', after: 'planned 7 Nov' });
+    expect(merged.ops[1].d).toMatchObject({
+      before: 'planned 23 Oct',
+      after: 'planned 7 Nov 17:00',
+    });
     const qe1 = copy.queue.events.find((e) => e.id === ids.qe1)!;
     expect(sameInstant(qe1.createdAt, '2026-11-01T14:20:00+07:00')).toBe(true);
   });

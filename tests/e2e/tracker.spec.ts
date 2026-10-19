@@ -712,6 +712,25 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     expect(at).toBeLessThan(after);
   });
 
+  test('a milestone deadline time shows on the axis, in its drawer and in the New milestone form', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-ms-time');
+    const drawer = page.locator('.drawer');
+    await expect(page.locator('svg.tg [data-ms="golive"] .ms-label')).toContainText(
+      'Go-live and first close · 15 Oct 17:00',
+    );
+    await page.locator('svg.tg [data-ms="golive"] .ms-hit').click();
+    await expect(drawer.locator('dd').filter({ hasText: '15 Oct 17:00' })).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
+    await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/changes\/\d+$/);
+    await page.getByRole('button', { name: 'New milestone' }).click();
+    const dialog = page.getByRole('dialog', { name: 'New milestone' });
+    await expect(dialog.getByLabel('Time (optional)')).toBeVisible();
+  });
+
   test('a selected milestone lights its work items and dims the others until its drawer closes', async ({
     page,
   }) => {

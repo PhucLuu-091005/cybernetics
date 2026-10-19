@@ -698,6 +698,7 @@ function storyCrs(id: LarkspurIds): LarkspurCr[] {
           a: {
             milestoneId: 'golive',
             date: '2026-10-15',
+            time: '17:00',
             why: 'The CRS section is not ready. Sarah agreed on {2026-09-26}.',
             by: minh,
             at: at('2026-10-08T16:55'),
