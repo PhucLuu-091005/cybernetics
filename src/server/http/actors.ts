@@ -13,9 +13,12 @@ export type IdentityOptions = {
   limiter?: RateLimiter;
 };
 export type BrowserSession = { userId: string; defaultWorkspaceId: string };
-/** A page of avatars loads many photos at once, so photo reads have their own, larger limit. */
-export type LimitBucket = 'calls' | 'photo';
-const LIMITS = { read: 300, write: 120, photo: 1200 } as const;
+/**
+ * A page of avatars loads many photos at once, and every open tracker tab checks its version, so
+ * photo reads and version checks have their own limits and leave the read limit alone.
+ */
+export type LimitBucket = 'calls' | 'photo' | 'poll';
+const LIMITS = { read: 300, write: 120, photo: 1200, poll: 600 } as const;
 const rateLimited = () => new AppError('RATE_LIMITED', 'Rate limit exceeded');
 export function projectInPath(pathname: string): string | null {
   const match = pathname.match(/\/projects\/([^/]+)/);
@@ -40,7 +43,7 @@ export function createIdentityServices(options: IdentityOptions) {
     const user = await store.resolveSessionUser(session.userId);
     if (!user) throw new AppError('UNAUTHENTICATED', 'Unknown session');
     const write = !['GET', 'HEAD', 'OPTIONS'].includes(request.method);
-    const kind = write ? 'write' : bucket === 'photo' ? 'photo' : 'read';
+    const kind = write ? 'write' : bucket === 'calls' ? 'read' : bucket;
     if (!limiter.consume(`user:${user.userId}:${kind}`, LIMITS[kind], now())) throw rateLimited();
     return user;
   }

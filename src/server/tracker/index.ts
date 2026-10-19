@@ -43,3 +43,4 @@ export {
   DismissQueueEntryInputSchema,
 } from './queue';
 export { getTrackerPayload } from './read';
+export { getTrackerVersion } from './version';

@@ -1,5 +1,6 @@
 import type { ActorContext } from '../../contracts';
 import { browserActor, getApp } from '../app';
+import type { LimitBucket } from './actors';
 import type { Db } from '../db/tx';
 import { AppError, errorResponse, newRequestId, privateJson } from '../errors';
 
@@ -57,11 +58,11 @@ function readQuery(request: Request): Input {
 }
 
 /** Route IDs override nothing silently: the session and URL scope are authoritative, so a different body value is VALIDATION. */
-export function route(handler: Handler, opts: { status?: number } = {}) {
+export function route(handler: Handler, opts: { status?: number; bucket?: LimitBucket } = {}) {
   return async (request: Request, context: { params: Promise<Params> }): Promise<Response> => {
     let ctx: ActorContext | undefined;
     try {
-      ctx = await browserActor(request);
+      ctx = await browserActor(request, opts.bucket);
       // Next passes no params to a static route such as /api/v1/projects, whatever the type says.
       const params = (await context.params) ?? {};
       const input =

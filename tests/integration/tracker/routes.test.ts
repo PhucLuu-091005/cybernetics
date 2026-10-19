@@ -106,6 +106,17 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
     expect(reply.body).not.toHaveProperty('offsets');
   });
 
+  it('answers a light version that matches the payload and moves after a write', async () => {
+    const read = await call('GET', tracker, p());
+    const version = await call('GET', `${tracker}/version`, p());
+    expect(version.status).toBe(200);
+    expect(version.headers.get('cache-control')).toBe('private, no-store');
+    expect(version.body).toEqual({ version: read.body.version, crCount: 4 });
+    const added = await call('POST', `${tracker}/queue`, p(), event('sarah'));
+    expect(added.body.version).not.toBe(read.body.version);
+    expect((await call('GET', `${tracker}/version`, p())).body.version).toBe(added.body.version);
+  });
+
   it('adds a queue event and dismisses a card with a DELETE that has no body', async () => {
     const added = await call('POST', `${tracker}/queue`, p(), event('sarah'));
     expect(added.status).toBe(201);
