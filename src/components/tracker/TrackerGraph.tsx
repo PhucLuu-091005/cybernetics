@@ -38,7 +38,7 @@ const ZOOM_STEP = 1.5;
 // Below this the pop is a sliver of its own padding, so it steps aside until the graph scrolls up.
 const LEGEND_MIN_ROOM = 48;
 const REVEAL_ZOOM = 2;
-const REVEAL_FLASH_MS = 1500;
+const REVEAL_FLASH_MS = 2800;
 const REVEAL_PAD = 40;
 const TIP_ROOM = 180;
 /** The space between a menu and its anchor; `.hand-menu` moves by the same 6 px. */

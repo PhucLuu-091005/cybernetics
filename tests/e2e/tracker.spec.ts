@@ -712,6 +712,28 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     expect(at).toBeLessThan(after);
   });
 
+  test('a handoff jump holds its highlight for about 3 s and fades, or holds it still with reduced motion', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-hand-flash');
+    const handoff = page.getByRole('button', {
+      name: 'Hands over to Digitization QA when done · received in Test the CRS section end to end',
+    });
+    const flash = page.locator('svg.pg .hit.flash[data-loop="test"]');
+    await handoff.click();
+    await expect(flash).toHaveCount(1);
+    expect(await flash.evaluate((el) => getComputedStyle(el).animationName)).toBe('row-flash');
+    await page.waitForTimeout(2200);
+    await expect(flash).toHaveCount(1);
+    await expect(flash).toHaveCount(0, { timeout: 2000 });
+
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await handoff.click();
+    await expect(flash).toHaveCount(1);
+    expect(await flash.evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
+    await expect(flash).toHaveCount(0, { timeout: 4000 });
+  });
+
   test('a milestone deadline time shows on the axis, in its drawer and in the New milestone form', async ({
     page,
   }) => {

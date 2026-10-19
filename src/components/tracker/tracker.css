@@ -1665,9 +1665,27 @@ svg.tg .row-label.dim {
   opacity: 0.5;
 }
 /* Yellow marks changes and blue is the Open line, so a revealed row flashes a neutral band. */
-svg.tg .hit.flash,
 svg.tg .hit.focus {
   fill: color-mix(in srgb, var(--ink) 8%, transparent) !important;
+}
+/* A jump target stays marked long enough to find, then fades out calmly (round 24, part 8). */
+svg.tg .hit.flash {
+  animation: row-flash 2800ms ease-in forwards;
+}
+@keyframes row-flash {
+  0%,
+  70% {
+    fill: color-mix(in srgb, var(--ink) 8%, transparent);
+  }
+  100% {
+    fill: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  svg.tg .hit.flash {
+    animation: none;
+    fill: color-mix(in srgb, var(--ink) 8%, transparent) !important;
+  }
 }
 svg.tg .lane-drop {
   fill: transparent;
