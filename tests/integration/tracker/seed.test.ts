@@ -197,7 +197,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker demo seed', () => {
     // The story's now (9 Oct 18:00) lands on 1 Nov 18:00, the evening before the copy: 23 days later.
     expect(copy.project).toMatchObject({ asOf: null, windowStart: '2026-10-06' });
     const g2 = copy.base.events.find((e) => e.id === 'g2')!;
-    expect(sameInstant(g2.at, '2026-10-08T10:45:00+07:00')).toBe(true);
+    expect(sameInstant(g2.at, '2026-10-09T10:45:00+07:00')).toBe(true);
     expect(g2.text).toBe('Go-live is set for 23 October.');
     expect(copy.base.workItems.find((w) => w.id === 'test')?.plannedFinish).toBe('2026-11-06');
     const merged = copy.commits[0];

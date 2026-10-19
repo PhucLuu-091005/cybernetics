@@ -539,7 +539,7 @@ describe('layoutTracker: segments and waits', () => {
     const segs = lines(L, 'pg202');
     expect(segs.map((s) => s.tone)).toEqual(['proceed', 'caution']);
     expect(segs[1].x1).toBeCloseTo(L.x(dayEnd('2026-10-01')), 9);
-    expect(segs[1].x2).toBeCloseTo(L.x(ms('2026-10-02T16:40')), 9);
+    expect(segs[1].x2).toBeCloseTo(L.x(ms('2026-10-03T10:00')), 9);
   });
 
   it('draws one blue or green line for items inside their plan', () => {
@@ -560,7 +560,7 @@ describe('layoutTracker: segments and waits', () => {
 
   it('draws a waiting line with the open items it waits for', () => {
     const wait = L.segments.find((s) => s.workItemId === 'test');
-    const sx = L.x(ms('2026-10-02T16:40'));
+    const sx = L.x(ms('2026-10-03T10:00'));
     expect(wait).toEqual({
       kind: 'wait',
       workItemId: 'test',
@@ -621,7 +621,7 @@ describe('layoutTracker: segments and waits', () => {
   it('gives a row with a hidden parent a chip', () => {
     const H = layoutTracker(larkspurState(), view({ hiddenRows: new Set(['crs']) }));
     const y = H.rows.find((r) => r.id === 'analyse')!.y;
-    const sx = H.x(ms('2026-09-15T13:00'));
+    const sx = H.x(ms('2026-09-16T14:00'));
     expect(H.chips.find((c) => c.workItemId === 'analyse')).toEqual({
       workItemId: 'analyse',
       sources: ['crs'],

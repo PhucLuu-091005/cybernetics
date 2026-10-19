@@ -20,8 +20,8 @@ import { AS_OF, TIME_ZONE } from '../../support/tracker-fixture';
 
 // The time line of the graph at 1440 px with the rail open (measured in the browser).
 const DESKTOP_SPAN = 988;
-// Two event marks closer than this touch at the default row height.
-const CLEAR = 2;
+// The clear gap between two event marks of a row, so they read as apart, not only not touching.
+const CLEAR = 12;
 // The examples of a crowd: a task and its handoff in one hour, and a rehearsal in one afternoon.
 const CROWDS = ['crs', 'rehearsal'];
 
@@ -50,7 +50,7 @@ describe('the Larkspur seed on the default graph', () => {
     expect(layout.width).toBeLessThanOrEqual(fit.width);
   });
 
-  it('keeps the events of each row apart, except the two crowd examples', () => {
+  it('keeps a clear gap between the events of each row, except the two crowd examples', () => {
     const { layout } = defaultView(main());
     const { r } = layout.level;
     const crowded = new Set<string>();
@@ -122,7 +122,7 @@ describe('a copy of the Larkspur story', () => {
     const copy = larkspurState(undefined, 10);
     const story = larkspurState();
     const g2 = copy.events.find((e) => e.id === 'g2')!;
-    expect(g2.at).toBe('2026-09-25T10:45:00+07:00');
+    expect(g2.at).toBe('2026-09-26T10:45:00+07:00');
     expect(g2.text).toBe('Go-live is set for 10 October.');
     expect(story.events.find((e) => e.id === 'g2')!.text).toBe('Go-live is set for 30 September.');
     expect(copy.workItems.find((w) => w.id === 'golive')).toMatchObject({

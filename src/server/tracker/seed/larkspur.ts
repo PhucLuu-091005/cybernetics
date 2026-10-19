@@ -115,10 +115,10 @@ const LOOPS: Loop[] = [
     plannedFinish: '2026-10-15',
     events: [
       ['g1', '2026-09-14T09:20', 'message', 'sarah', 'Can Fund III go live by {2026-09-30}?'],
-      ['g2', '2026-09-15T10:45', 'decision', 'minh', 'Go-live is set for {2026-09-30}.'],
+      ['g2', '2026-09-16T10:45', 'decision', 'minh', 'Go-live is set for {2026-09-30}.'],
       [
         'g3',
-        '2026-09-25T10:40',
+        '2026-09-24T10:40',
         'issue',
         'minh',
         'Go-live moves to {2026-10-15}. The CRS section is not ready.',
@@ -146,14 +146,14 @@ const LOOPS: Loop[] = [
       ],
       [
         'c2',
-        '2026-09-15T10:45',
+        '2026-09-16T10:45',
         'task',
         'minh',
         'Minh plans five parts: rules analysis, form logic, DealCloud mapping, country field and an end-to-end test. Target: {2026-10-16}.',
       ],
       [
         'c3',
-        '2026-09-15T11:30',
+        '2026-09-16T11:30',
         'handoff',
         'minh',
         'Minh hands the rules analysis to Digitization.',
@@ -189,21 +189,21 @@ const LOOPS: Loop[] = [
     events: [
       [
         'a1',
-        '2026-09-15T13:00',
+        '2026-09-16T14:00',
         'task',
         'lan',
         'Lan starts the rules analysis. Target: {2026-09-22}.',
       ],
       [
         'a2',
-        '2026-09-20T15:10',
+        '2026-09-18T15:10',
         'delivery',
         'lan',
         'The field list and the show and hide rules are in the ticket.',
       ],
       [
         'a3',
-        '2026-09-21T16:00',
+        '2026-09-20T12:00',
         'handoff',
         'lan',
         'Lan hands three tasks to Solutions Engineering and Engineering.',
@@ -245,7 +245,7 @@ const LOOPS: Loop[] = [
         'lan',
         'Build the show and hide logic from the analysis. Target: {2026-09-30}.',
       ],
-      ['p12', '2026-09-29T15:10', 'delivery', 'khoa', 'The logic is live on staging.'],
+      ['p12', '2026-09-28T15:10', 'delivery', 'khoa', 'The logic is live on staging.'],
       ['p13', '2026-09-30T16:40', 'done', 'lan', 'Lan checks staging. It matches the analysis.'],
     ],
   },
@@ -268,7 +268,7 @@ const LOOPS: Loop[] = [
         'Map the CRS fields to DealCloud. Target: {2026-10-01}.',
       ],
       ['p22', '2026-10-01T15:10', 'delivery', 'khoa', 'The CRS fields sync to DealCloud.'],
-      ['p23', '2026-10-02T16:40', 'done', 'lan', 'The values match in DealCloud.'],
+      ['p23', '2026-10-03T10:00', 'done', 'lan', 'The values match in DealCloud.'],
     ],
   },
   {
@@ -289,7 +289,7 @@ const LOOPS: Loop[] = [
         'sarah',
         'Can we have the Dynamics CRM sync in phase 1?',
       ],
-      ['d2', '2026-09-15T10:45', 'message', 'quang', "We'll look into it; phase 1 should be fine."],
+      ['d2', '2026-09-16T10:45', 'message', 'quang', "We'll look into it; phase 1 should be fine."],
     ],
   },
   {
@@ -301,11 +301,11 @@ const LOOPS: Loop[] = [
     milestoneId: 'crm',
     parentId: null,
     after: [],
-    plannedFinish: '2026-09-16',
+    plannedFinish: '2026-09-18',
     events: [
       ['s1', '2026-09-14T09:20', 'task', 'tom', 'Enable sync monitoring.'],
-      ['s2', '2026-09-15T15:10', 'delivery', 'quang', 'Sync monitoring is on.'],
-      ['s3', '2026-09-16T16:40', 'done', 'tom', 'Tom accepts sync monitoring.'],
+      ['s2', '2026-09-16T10:00', 'delivery', 'quang', 'Sync monitoring is on.'],
+      ['s3', '2026-09-18T11:00', 'done', 'tom', 'Tom accepts sync monitoring.'],
     ],
   },
   {
@@ -319,8 +319,8 @@ const LOOPS: Loop[] = [
     after: [],
     plannedFinish: '2026-09-18',
     events: [
-      ['m1', '2026-09-16T09:20', 'task', 'tom', 'Enable the CRM integration.'],
-      ['m2', '2026-09-17T15:10', 'delivery', 'quang', 'The CRM integration is live.'],
+      ['m1', '2026-09-14T14:00', 'task', 'tom', 'Enable the CRM integration.'],
+      ['m2', '2026-09-16T15:10', 'delivery', 'quang', 'The CRM integration is live.'],
       ['m3', '2026-09-18T16:40', 'done', 'tom', 'Tom accepts the CRM integration.'],
     ],
   },
