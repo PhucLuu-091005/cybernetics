@@ -60,15 +60,10 @@ export async function requireActor(path: string): Promise<ActorContext> {
 }
 
 /** The person a project page shows as "me"; pages never read the act-as cookie or the user for that. */
-export const pageOnScreen = cache(
-  async (actor: ActorContext, projectId: string): Promise<OnScreen> =>
-    personOnScreen(
-      getApp().db,
-      actor,
-      projectId,
-      (await cookies()).get(actAsCookieName(projectId))?.value,
-    ),
-);
+export async function pageOnScreen(actor: ActorContext, projectId: string): Promise<OnScreen> {
+  const cookie = (await cookies()).get(actAsCookieName(projectId))?.value;
+  return personOnScreen(getApp().db, actor, projectId, cookie);
+}
 
 /** Domain reads answer NOT_FOUND for foreign or missing rows; a page shows the same 404 for both. */
 export async function notFoundOn<T>(work: Promise<T>): Promise<T> {
