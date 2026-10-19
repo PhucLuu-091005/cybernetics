@@ -1,11 +1,25 @@
 'use client';
-import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import {
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 import { FieldPop } from './FieldPop';
 import { activeOnOpen, moveActive, typeahead } from './select-keys';
 import { Icon } from './icons';
 import './fields.css';
 
-export type SelectOption = { value: string; label: string; disabled?: boolean };
+/** `hint` is quiet text after the label, such as a role; it is a description, not part of the name. */
+export type SelectOption = {
+  value: string;
+  label: string;
+  hint?: string;
+  before?: ReactNode;
+  disabled?: boolean;
+};
 
 /** The one select of the app: a button and a list in the same pop as the date and time boxes. */
 export function Select({
@@ -107,7 +121,14 @@ export function Select({
         onKeyDown={onKey}
         onBlur={close}
       >
-        <span className="sel-val">{current?.label ?? ''}</span>
+        <span className="sel-val">
+          {current?.label ?? ''}
+          {current?.hint && (
+            <small className="sel-hint" aria-hidden="true">
+              {current.hint}
+            </small>
+          )}
+        </span>
         <Icon name="chev" size={14} />
       </button>
       {open && (
@@ -121,9 +142,16 @@ export function Select({
                 aria-selected={option.value === value}
                 aria-disabled={option.disabled || undefined}
                 className={i === active ? 'act' : undefined}
+                aria-describedby={option.hint ? `${id}-${i}-hint` : undefined}
                 onClick={() => pick(option)}
               >
+                {option.before}
                 {option.label}
+                {option.hint && (
+                  <small id={`${id}-${i}-hint`} className="sel-hint" aria-hidden="true">
+                    {option.hint}
+                  </small>
+                )}
               </li>
             ))}
           </ul>

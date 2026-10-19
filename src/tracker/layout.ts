@@ -850,7 +850,7 @@ type Span = [number, number];
 const LABEL_GAP = 9;
 // At 9.5 px a name letter takes about 5.4 units; smaller rows scale it with their font.
 const LABEL_CHAR = 5.4 / 9.5;
-const WAIT_CHAR = 5.6;
+export const WAIT_CHAR = 5.6;
 
 /**
  * What already sits on each row near the line, so the milestone name goes only where it is free.
@@ -899,7 +899,13 @@ function waitsClearOfMarks(
   const plusSpan: Span = [plus - c.level.plus - 2, plus + c.level.plus + 4];
   return segments.map((s) => {
     if (s.kind !== 'wait') return s;
-    const spans = [...(marks.get(s.workItemId) ?? []), ...(c.view.plusButtons ? [plusSpan] : [])];
+    // The T line runs through every row, so a text that crosses it reads as struck through.
+    const tSpan: Span = [c.xt - 4, c.xt + 4];
+    const spans = [
+      ...(marks.get(s.workItemId) ?? []),
+      tSpan,
+      ...(c.view.plusButtons ? [plusSpan] : []),
+    ];
     const width = s.text.length * WAIT_CHAR;
     let x = s.textX;
     let first: Span | null = null;
@@ -1172,28 +1178,87 @@ function groupsOf(c: Ctx, w: WorkItem, r: LayoutRow, info: ItemInfo): LayoutEven
 // The status circle has radius 8, so its label starts 14 units from its centre.
 const MS_GAP = 14;
 
+// Half the status circle (radius 8) and a gap, so a label below the axis never runs over a marker.
+const MS_MARKER = 12;
+const MS_LABEL_GAP = 8;
+
+type MsSpot = { level: 0 | 1; right: boolean; x0: number; x1: number };
+type MsDraft = { m: Milestone; mx: number; w: number; preferRight: boolean };
+
+/**
+ * Each label tries, in order: above the axis on its usual side, below it, then the other side. A
+ * spot is free when no label on its line is near and, below the axis, no marker is under it. The
+ * deadline order and the reverse order both run; the one with fewer covered markers wins.
+ */
+function placeMilestoneLabels(c: Ctx, drafts: readonly MsDraft[]): Map<string, MsSpot> {
+  const markers = drafts.map((d) => d.mx);
+  const spotOf = (d: MsDraft, level: 0 | 1, right: boolean): MsSpot => {
+    const x0 = right ? d.mx - MS_GAP - d.w : d.mx + MS_GAP;
+    return { level, right, x0, x1: x0 + d.w };
+  };
+  const covers = (spot: MsSpot, own: number) =>
+    spot.level === 1 &&
+    markers.some((x) => x !== own && spot.x0 < x + MS_MARKER && spot.x1 > x - MS_MARKER);
+  const run = (order: readonly MsDraft[]) => {
+    const placed = new Map<string, MsSpot>();
+    let covered = 0;
+    for (const d of order) {
+      const near = (spot: MsSpot) =>
+        [...placed.values()].some(
+          (p) =>
+            p.level === spot.level &&
+            spot.x0 < p.x1 + MS_LABEL_GAP &&
+            spot.x1 > p.x0 - MS_LABEL_GAP,
+        );
+      const inside = (spot: MsSpot) => spot.x0 >= X0 && spot.x1 <= c.x1;
+      const candidates = [
+        spotOf(d, 0, d.preferRight),
+        spotOf(d, 1, d.preferRight),
+        spotOf(d, 0, !d.preferRight),
+        spotOf(d, 1, !d.preferRight),
+      ];
+      const free = candidates.find(
+        (spot, i) => (i < 2 || inside(spot)) && !near(spot) && !covers(spot, d.mx),
+      );
+      const spot = free ?? (near(candidates[0]) ? candidates[1] : candidates[0]);
+      if (covers(spot, d.mx)) covered += 1;
+      placed.set(d.m.id, spot);
+    }
+    return { placed, covered };
+  };
+  const forward = run(drafts);
+  if (!forward.covered) return forward.placed;
+  const backward = run([...drafts].reverse());
+  return backward.covered < forward.covered ? backward.placed : forward.placed;
+}
+
 function placeMilestones(c: Ctx, statusOf: Map<string, MsStatus>): LayoutMilestone[] {
-  const placed: LayoutMilestone[] = [];
   const sorted = [...c.state.milestones].sort(
     (a, b) => milestoneDeadline(a, c.tz) - milestoneDeadline(b, c.tz),
   );
-  for (const m of sorted) {
+  const labels = new Map(
+    sorted.map((m) => {
+      const { status } = statusOf.get(m.id)!;
+      const previous = c.marks?.dates.has(`ms:${m.id}`) ? m.moves.at(-1) : undefined;
+      const was = previous ? ` (was ${formatDeadline(previous.from, previous.fromTime)})` : '';
+      return [
+        m.id,
+        `${m.name} · ${formatDeadline(m.planned, m.plannedTime)} · ${STATUS_LABEL[status]}${was}`,
+      ];
+    }),
+  );
+  const drafts = sorted.map((m): MsDraft => {
+    const mx = c.deadlineX(m);
+    return { m, mx, w: labels.get(m.id)!.length * 5.9, preferRight: mx > c.x1 - 280 };
+  });
+  const spots = placeMilestoneLabels(c, drafts);
+  return drafts.map(({ m, mx }): LayoutMilestone => {
     const { status } = statusOf.get(m.id)!;
     const tone = STATUS_TONE[status];
     const changed = !!c.marks?.milestones.has(m.id);
-    const mx = c.deadlineX(m);
-    const right = mx > c.x1 - 280;
-    const previous = c.marks?.dates.has(`ms:${m.id}`) ? m.moves.at(-1) : undefined;
-    const was = previous ? ` (was ${formatDeadline(previous.from, previous.fromTime)})` : '';
-    const label = `${m.name} · ${formatDeadline(m.planned, m.plannedTime)} · ${STATUS_LABEL[status]}${was}`;
-    const w = label.length * 5.9;
-    const x0 = right ? mx - MS_GAP - w : mx + MS_GAP;
-    const x1 = x0 + w;
-    const crowded = placed.some(
-      (p) => p.level === 0 && x0 < p.labelBox.x1 + 8 && x1 > p.labelBox.x0 - 8,
-    );
-    const level = crowded ? 1 : 0;
-    placed.push({
+    const label = labels.get(m.id)!;
+    const { level, right, x0, x1 } = spots.get(m.id)!;
+    return {
       id: m.id,
       name: m.name,
       x: mx,
@@ -1212,9 +1277,8 @@ function placeMilestones(c: Ctx, statusOf: Map<string, MsStatus>): LayoutMilesto
       anchor: right ? 'end' : 'start',
       level,
       labelBox: { x0, x1 },
-    });
-  }
-  return placed;
+    };
+  });
 }
 
 export function layoutTracker(state: TrackerState, view: View, marks?: Marks): TrackerLayout {

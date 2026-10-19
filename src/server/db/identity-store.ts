@@ -194,13 +194,25 @@ export class DbIdentityStore implements HttpIdentityStore {
     return row ? { workspaceId: row.workspaceId, projectId } : null;
   }
   async getTokenByHash(hash: string): Promise<StoredToken | null> {
-    const [row] = await this.db
-      .select()
+    const [found] = await this.db
+      .select({
+        token: agentTokens,
+        memberName: trackerMembers.name,
+        memberProjectId: trackerMembers.projectId,
+      })
       .from(agentTokens)
+      .leftJoin(trackerMembers, eq(trackerMembers.id, agentTokens.memberId))
       .where(eq(agentTokens.hash, hash))
       .limit(1);
-    if (!row) return null;
+    if (!found) return null;
+    const row = found.token;
     return {
+      ...(row.memberId && found.memberName && found.memberProjectId
+        ? {
+            actsAs: { memberId: row.memberId, name: found.memberName },
+            memberProjectId: found.memberProjectId,
+          }
+        : {}),
       id: row.id,
       userId: row.userId,
       kind: row.kind,
@@ -236,6 +248,7 @@ export class DbIdentityStore implements HttpIdentityStore {
         expiresAt: token.expiresAt,
         revokedAt: token.revokedAt,
         lastUsedAt: token.lastUsedAt,
+        memberId: token.actsAs?.memberId ?? null,
       });
     } catch (error) {
       if (isUniqueViolation(error, 'agent_tokens_creation_key_unique'))
@@ -266,14 +279,18 @@ export class DbIdentityStore implements HttpIdentityStore {
         expiresAt: t.expiresAt,
         revokedAt: t.revokedAt,
         lastUsedAt: t.lastUsedAt,
+        memberId: t.memberId,
+        memberName: trackerMembers.name,
       })
       .from(t)
+      .leftJoin(trackerMembers, eq(trackerMembers.id, t.memberId))
       .where(where)
       .orderBy(desc(t.createdAt), desc(t.id))
       .limit(input.limit)
       .offset(input.offset);
-    return rows.map((row) => ({
+    return rows.map(({ memberId, memberName, ...row }) => ({
       ...row,
+      ...(memberId && memberName ? { actsAs: { memberId, name: memberName } } : {}),
       scopes: knownScopes(row.scopes),
       createdAt: toIso(row.createdAt),
       expiresAt: toIso(row.expiresAt),

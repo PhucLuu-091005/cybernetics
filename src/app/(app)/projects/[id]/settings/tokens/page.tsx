@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import '../../../../../../components/tracker/tracker.css';
 import { IdSchema } from '../../../../../../contracts';
@@ -9,12 +8,13 @@ import { TokenCreate } from '../../../../../../components/settings/TokenCreate';
 import { TokenList } from '../../../../../../components/settings/TokenList';
 import { PageHead } from '../../../../../../components/shell/PageHead';
 import { getApp, listAgentTokens } from '../../../../../../server/app';
-import { projectAccount, tokenCreator } from '../../../../../../server/domain/account';
+import { tokenCreator } from '../../../../../../server/domain/account';
 import { readAuthEnvironment } from '../../../../../../server/env';
 import { getProject } from '../../../../../../server/domain/projects';
 import {
   notFoundOn,
   notFoundOnCursor,
+  pageOnScreen,
   requireActor,
   searchCursor,
 } from '../../../../../../server/http/rsc';
@@ -26,14 +26,14 @@ const DAY = 86_400_000;
 /** The request time belongs to the data load: token expiry and the expiry choices are read at the same instant. */
 async function loadTokens(projectId: string, cursor: string | null) {
   const actor = await requireActor(`/projects/${projectId}/settings/tokens`);
-  const actAs = (await cookies()).get(`pg_act_${projectId}`)?.value;
   const db = getApp().db;
-  const [{ project, timeZone }, page, account, creator] = await Promise.all([
+  const [{ project, timeZone }, page, seen] = await Promise.all([
     notFoundOn(getProject(db, actor, { projectId })),
     notFoundOnCursor(listAgentTokens(actor, { projectId, cursor }), cursor),
-    projectAccount(db, actor, projectId, actAs),
-    tokenCreator(db, actor, projectId),
+    pageOnScreen(actor, projectId),
   ]);
+  const { account } = seen;
+  const creator = await tokenCreator(db, actor, projectId, seen.actAs);
   const now = Date.now();
   const expiryOptions = [30, 7].map((days) => ({
     days,
@@ -45,6 +45,7 @@ async function loadTokens(projectId: string, cursor: string | null) {
     page,
     account,
     creator,
+    actingAs: seen.seeded ? account.name : undefined,
     expiryOptions,
     now: new Date(now).toISOString(),
   };
@@ -60,10 +61,8 @@ export default async function AgentTokensPage({
   const [{ id }, search] = await Promise.all([params, searchParams]);
   const cursor = searchCursor(search.cursor);
   if (!IdSchema.safeParse(id).success) notFound();
-  const { project, timeZone, page, account, creator, expiryOptions, now } = await loadTokens(
-    id,
-    cursor,
-  );
+  const { project, timeZone, page, account, creator, actingAs, expiryOptions, now } =
+    await loadTokens(id, cursor);
   const endpoint = `${readAuthEnvironment().appOrigin}/mcp`;
 
   return (
@@ -99,6 +98,7 @@ export default async function AgentTokensPage({
             endpoint={endpoint}
             expiryOptions={expiryOptions}
             creator={creator}
+            actingAs={actingAs}
           />
         </div>
         <aside className="pg-aside">

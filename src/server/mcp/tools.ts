@@ -9,7 +9,7 @@ import {
 } from '../../contracts';
 import { OpSchema } from '../../tracker';
 import { projects } from '../db/schema';
-import { projectOpenTo, type Db } from '../db/tx';
+import { keyReaches, projectOpenTo, type Db } from '../db/tx';
 import { getProject, listProjects } from '../domain/projects';
 import { AppError, invalidInput } from '../errors';
 import {
@@ -69,7 +69,7 @@ async function bindProject(db: Db, ctx: ActorContext, projectId: string): Promis
   const [row] = await db
     .select({ workspaceId: projects.workspaceId })
     .from(projects)
-    .where(and(eq(projects.id, projectId), projectOpenTo(ctx.userId)))
+    .where(and(eq(projects.id, projectId), projectOpenTo(ctx.userId), keyReaches(ctx)))
     .limit(1);
   if (!row) throw new AppError('NOT_FOUND', 'Project not found');
   return { ...ctx, projectId, workspaceId: row.workspaceId };
@@ -188,7 +188,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     'get_tracker',
     'project:read',
     TrackerInputSchema.shape,
-    'Read Main of the event tracker: revision, people (id and name), teams, work items with status and planned finish (plannedFinish, and plannedFinishTime as HH:mm or null for the end of that day; firstPlannedFinish and firstPlannedFinishTime the same for the first plan), milestones with status and deadline (planned and plannedTime; firstPlanned and firstPlannedTime for the first plan), and the open change requests. Statuses and times use the project time zone. Read it before you write, to get the ids.',
+    'Read Main of the event tracker: revision, people (id and name), teams, work items with status and planned finish (plannedFinish, and plannedFinishTime as HH:mm or null for the end of that day; firstPlannedFinish and firstPlannedFinishTime the same for the first plan), milestones with status and deadline (planned and plannedTime; firstPlanned and firstPlannedTime for the first plan), and the open change requests. Statuses and times use the project time zone; asOf is the moment the statuses use. Read it before you write, to get the ids.',
     (db, ctx, input) => getTrackerSummary(db, ctx, typed(input)),
   ),
   tool(

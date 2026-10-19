@@ -20,7 +20,7 @@ After the first deploy, each pushed `v*` tag deploys itself through GitHub Actio
 - **Settings.** The project facts and the agent tokens.
 - **Profile.** Your photo and your personal keys for every project (account menu, **Profile**).
 
-Your first visit (or your first sign-in in `local` and `google` modes) creates a private sandbox: the fictional Larkspur Capital project with 7 teams, a Queue and 4 change requests ([fixtures/README.md](fixtures/README.md)). The **Demo** select at the top right changes who you work as. The full behaviour is in the [spec](docs/superpowers/specs/2026-10-16-event-tracker-design.md).
+Your first visit (or your first sign-in in `local` and `google` modes) creates a private sandbox: the fictional Larkspur Capital project with 7 teams, a Queue and 4 change requests ([fixtures/README.md](fixtures/README.md)). The story covers five weeks and ends just before the moment you open it, so the T line and the statuses follow the real clock. An older sandbox keeps its data; **Start over** in the account menu gives the new story. The **Demo** select at the top right changes who you work as and shows each person's role; while you act as someone, every page, Profile and its photo included, is that person's. The graph opens with Comfortable rows and every team open. The full behaviour is in the [spec](docs/superpowers/specs/2026-10-16-event-tracker-design.md).
 
 ## Run it locally
 

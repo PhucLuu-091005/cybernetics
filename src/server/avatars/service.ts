@@ -4,7 +4,7 @@ import { projects, trackerMembers, users } from '../db/schema';
 import { isId, projectOpenTo, withTransaction, type Db } from '../db/tx';
 import { AppError } from '../errors';
 import { normalizePhoto } from './image';
-import { photoUrl, type PhotoStore } from './store';
+import { memberPhotoKey, memberPhotoUrl, photoUrl, type PhotoStore } from './store';
 
 const HASH = /^[0-9a-f]{64}$/;
 
@@ -65,6 +65,73 @@ export async function removePhoto(
     if (row?.key) await forget(store, row.key);
   });
   return { photo: null };
+}
+
+export async function setMemberPhoto(
+  db: Db,
+  store: PhotoStore,
+  ctx: ActorContext,
+  memberId: string,
+  bytes: Buffer,
+): Promise<{ photo: string }> {
+  requirePerson(ctx);
+  const { body, hash } = await normalizePhoto(bytes);
+  const key = memberPhotoKey(memberId, hash);
+  await withTransaction(db, async (tx) => {
+    const [row] = await tx
+      .select({ key: trackerMembers.avatarKey })
+      .from(trackerMembers)
+      .where(eq(trackerMembers.id, memberId))
+      .for('update');
+    if (!row) throw new AppError('NOT_FOUND', 'Member not found');
+    await store.put(key, body);
+    await tx.update(trackerMembers).set({ avatarKey: key }).where(eq(trackerMembers.id, memberId));
+    if (row.key && row.key !== key) await forget(store, row.key);
+  });
+  return { photo: memberPhotoUrl({ id: memberId, userId: null, avatarKey: key }, null)! };
+}
+
+export async function removeMemberPhoto(
+  db: Db,
+  store: PhotoStore,
+  ctx: ActorContext,
+  memberId: string,
+): Promise<{ photo: null }> {
+  requirePerson(ctx);
+  await withTransaction(db, async (tx) => {
+    const [row] = await tx
+      .select({ key: trackerMembers.avatarKey })
+      .from(trackerMembers)
+      .where(eq(trackerMembers.id, memberId))
+      .for('update');
+    await tx.update(trackerMembers).set({ avatarKey: null }).where(eq(trackerMembers.id, memberId));
+    if (row?.key) await forget(store, row.key);
+  });
+  return { photo: null };
+}
+
+export async function readMemberPhoto(
+  db: Db,
+  store: PhotoStore,
+  ctx: ActorContext,
+  memberId: string,
+  hash: string,
+): Promise<Buffer> {
+  const missing = () => new AppError('NOT_FOUND', 'Photo not found');
+  if (!isId(memberId) || !HASH.test(hash)) throw missing();
+  const [row] = await db
+    .select({ key: trackerMembers.avatarKey })
+    .from(projects)
+    .innerJoin(
+      trackerMembers,
+      and(eq(trackerMembers.projectId, projects.id), eq(trackerMembers.id, memberId)),
+    )
+    .where(projectOpenTo(ctx.userId))
+    .limit(1);
+  if (!row || row.key !== memberPhotoKey(memberId, hash)) throw missing();
+  const body = await store.get(row.key);
+  if (!body) throw missing();
+  return body;
 }
 
 /** A photo shows to its person and to anyone who shares a project with them, removed members too. */

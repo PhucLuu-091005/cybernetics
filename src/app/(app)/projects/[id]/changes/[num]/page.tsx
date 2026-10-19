@@ -1,12 +1,9 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { IdSchema } from '../../../../../../contracts';
 import { TrackerScreen } from '../../../../../../components/tracker/TrackerScreen';
-import { getApp } from '../../../../../../server/app';
-import { signedInAccount } from '../../../../../../server/domain/account';
-import { requireActor } from '../../../../../../server/http/rsc';
-import { NoViewNotice, serverMinute, trackerPayload } from '../../tracker-load';
+import { pageOnScreen, requireActor } from '../../../../../../server/http/rsc';
+import { NoViewNotice, serverHour, trackerPayload } from '../../tracker-load';
 import { Notice } from '../../../../../../components/shell/Notice';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +18,8 @@ export default async function ChangeRequestPage({
   const { id, num } = await params;
   if (!IdSchema.safeParse(id).success || !/^\d{1,9}$/.test(num)) notFound();
   const actor = await requireActor(`/projects/${id}/changes/${num}`);
-  const payload = await trackerPayload(actor, id, (await cookies()).get(`pg_act_${id}`)?.value);
+  const seen = await pageOnScreen(actor, id);
+  const payload = await trackerPayload(actor, id, seen.actAs);
   if (payload === 'no-view') return <NoViewNotice projectId={id} />;
   if (!payload) return <Notice role="status" title="This project has no tracker yet." />;
   if (!payload.crs.some((cr) => cr.num === Number(num))) notFound();
@@ -32,8 +30,8 @@ export default async function ChangeRequestPage({
       projectId={id}
       num={Number(num)}
       userId={actor.userId}
-      account={await signedInAccount(getApp().db, actor.userId)}
-      serverNow={serverMinute()}
+      account={seen.account}
+      serverNow={serverHour(payload.project.timeZone)}
     />
   );
 }

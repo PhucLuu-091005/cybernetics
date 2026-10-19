@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import sharp from 'sharp';
-import { hydrated } from './helpers';
+import { hydrated, photoShowsEverywhere } from './helpers';
 
 const PROJECT = 'Larkspur Capital';
 
@@ -24,6 +24,9 @@ test('the account menu opens Profile, where a personal key reaches every project
 }) => {
   const projectId = await signIn(page, 'profile-keys');
   await openProfile(page, projectId);
+  // Profile belongs to the person, so its header names no project.
+  await expect(page.locator('header.pg-head')).not.toContainText('Fund III onboarding');
+  await expect(page.locator('header.pg-head .pg-proj')).toHaveCount(0);
   const connect = page.getByRole('region', { name: 'Connect your agent' });
   await expect(connect).toContainText('Replace inv_... with the secret of your key.');
   await expect(connect).not.toContainText('token');
@@ -142,4 +145,42 @@ test('Profile uploads a photo after a preview, shows it in every avatar, and rem
   await expect(section.getByRole('button', { name: 'Remove photo' })).toHaveCount(0);
   await expect(section.locator('.pf-face svg')).toContainText('MT');
   expect((await page.request.get(src!)).status()).toBe(404);
+});
+
+test('a new photo shows at once in the account menu and on Members, with no reload', async ({
+  page,
+}) => {
+  const projectId = await signIn(page, 'profile-photo-live');
+  await hydrated(page);
+  const png = await sharp({
+    create: { width: 200, height: 200, channels: 3, background: { r: 200, g: 120, b: 40 } },
+  })
+    .png()
+    .toBuffer();
+  await photoShowsEverywhere(page, { projectId, name: 'Minh Trần', initials: 'MT', png });
+});
+
+test('an act-as cookie grants nothing in a project that is not a demo copy', async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  const larkspur = await signIn(page, 'act-as-real-project');
+  const read = await page.request.get(`/api/v1/projects/${larkspur}/tracker`);
+  const quang = (
+    (await read.json()) as { members: Array<{ id: string; name: string }> }
+  ).members.find((m) => m.name === 'Quang Nguyễn')!.id;
+  const made = await page.request.post('/api/v1/projects', {
+    headers: { origin: baseURL! },
+    data: { title: 'Fund IV onboarding', clientName: 'Larkspur Capital', teams: ['Ops'] },
+  });
+  expect(made.status()).toBe(201);
+  const { id } = (await made.json()) as { id: string };
+  await context.addCookies([{ name: `pg_act_${id}`, value: quang, url: baseURL! }]);
+  for (const path of ['graph', 'members', 'profile']) {
+    await page.goto(`/projects/${id}/${path}`);
+    await expect(page.locator('.p-head details.acct summary b')).not.toHaveText('Quang Nguyễn');
+  }
+  await page.goto(`/projects/${id}/graph`);
+  await expect(page.getByLabel('Demo: act as')).toHaveCount(0);
 });

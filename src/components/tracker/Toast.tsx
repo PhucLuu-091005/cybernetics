@@ -2,7 +2,13 @@
 import { useEffect } from 'react';
 import { Icon } from './icons';
 
-export type ToastState = { text: string; at: number; undo?: () => void; refresh?: () => void };
+export type ToastState = {
+  text: string;
+  at: number;
+  undo?: () => void;
+  refresh?: () => void;
+  error?: true;
+};
 
 export const TOAST_MS = 4500;
 

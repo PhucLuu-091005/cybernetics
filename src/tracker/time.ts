@@ -64,6 +64,13 @@ function offsetMs(ms: number, timeZone: string): number {
   return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - whole;
 }
 
+/** A zone half an hour off UTC keeps its own whole hours, so the floor is taken on the local clock. */
+export function hourFloor(ms: number, timeZone: string): number {
+  const HOUR_MS = 3_600_000;
+  const offset = offsetMs(ms, timeZone);
+  return Math.floor((ms + offset) / HOUR_MS) * HOUR_MS - offset;
+}
+
 export function dayOf(instant: string, timeZone: string): string {
   return isoDate(zoned(Date.parse(instant), timeZone));
 }

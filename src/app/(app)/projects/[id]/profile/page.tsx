@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import '../../../../../components/tracker/tracker.css';
 import { IdSchema } from '../../../../../contracts';
@@ -11,17 +10,13 @@ import { TokenList } from '../../../../../components/settings/TokenList';
 import { PageHead } from '../../../../../components/shell/PageHead';
 import { getApp, listUserKeys } from '../../../../../server/app';
 import { photosOn } from '../../../../../server/avatars/config';
-import {
-  personalCreator,
-  projectAccount,
-  signedInAccount,
-} from '../../../../../server/domain/account';
+import { personalCreator, tokenCreator } from '../../../../../server/domain/account';
 import { getProject } from '../../../../../server/domain/projects';
-import { loadMembers } from '../../../../../server/tracker/store';
 import { readAuthEnvironment } from '../../../../../server/env';
 import {
   notFoundOn,
   notFoundOnCursor,
+  pageOnScreen,
   requireActor,
   searchCursor,
 } from '../../../../../server/http/rsc';
@@ -33,32 +28,34 @@ const KEYS = '/api/v1/me/keys';
 
 async function loadProfile(projectId: string, cursor: string | null) {
   const actor = await requireActor(`/projects/${projectId}/profile`);
-  const actAs = (await cookies()).get(`pg_act_${projectId}`)?.value;
   const db = getApp().db;
-  const [{ project, timeZone }, page, account, own, creator] = await Promise.all([
+  const [{ timeZone }, page, seen] = await Promise.all([
     notFoundOn(getProject(db, actor, { projectId })),
     notFoundOnCursor(listUserKeys(actor, { cursor }), cursor),
-    projectAccount(db, actor, projectId, actAs),
-    signedInAccount(db, actor.userId),
-    personalCreator(db, actor),
+    pageOnScreen(actor, projectId),
   ]);
-  // As every avatar shows the person: their member name and colour, else the grey of avatar.tsx.
-  const member = (await loadMembers(db, projectId)).find((m) => m.userId === actor.userId);
-  const ownName = member?.name ?? own.name;
-  const ownColor = member?.color ?? '#737373';
+  const { account } = seen;
+  // A key made as a seeded person of a demo copy acts as them there only, with their rights.
+  const creator = seen.seeded
+    ? await tokenCreator(db, actor, projectId, seen.actAs)
+    : await personalCreator(db, actor);
+  // The face of the person on screen, as every avatar shows them; the grey of avatar.tsx without a member.
+  const face = {
+    name: account.name,
+    color: account.color ?? '#737373',
+    photo: account.photo ?? null,
+  };
   const now = Date.now();
   const expiryOptions = [30, 7].map((days) => ({
     days,
     label: `In ${days} days (${shortDay(new Date(now + days * DAY).toISOString(), timeZone, true)})`,
   }));
   return {
-    project,
     timeZone,
     page,
     account,
-    own,
-    ownName,
-    ownColor,
+    face,
+    actingAs: seen.seeded ? account.name : undefined,
     creator,
     expiryOptions,
     now: new Date(now).toISOString(),
@@ -75,15 +72,17 @@ export default async function ProfilePage({
   const [{ id }, search] = await Promise.all([params, searchParams]);
   const cursor = searchCursor(search.cursor);
   if (!IdSchema.safeParse(id).success) notFound();
-  const { project, timeZone, page, account, own, ownName, ownColor, creator, expiryOptions, now } =
+  const { timeZone, page, account, face, actingAs, creator, expiryOptions, now } =
     await loadProfile(id, cursor);
   const endpoint = `${readAuthEnvironment().appOrigin}/mcp`;
   return (
     <div className="tk pg">
-      <PageHead title="Profile" project={project} account={account} />
+      <PageHead title="Profile" account={account} />
       <div className="pg-body pg-split">
         <div className="pg-main">
-          {photosOn() && <PhotoSection name={ownName} color={ownColor} photo={own.photo ?? null} />}
+          {photosOn() && (
+            <PhotoSection {...face} api={`/api/v1/me/avatar?project=${id}`} actingAs={actingAs} />
+          )}
           <TokenList
             kind="personal"
             api={KEYS}
@@ -96,10 +95,11 @@ export default async function ProfilePage({
           />
           <TokenCreate
             kind="personal"
-            api={KEYS}
+            api={`${KEYS}?project=${id}`}
             endpoint={endpoint}
             expiryOptions={expiryOptions}
             creator={creator}
+            actingAs={actingAs}
           />
         </div>
         <aside className="pg-aside">

@@ -9,9 +9,11 @@
     background: var(--sunk);
     border-right: 1px solid var(--rule);
   }
+  /* Above the main area, so a rail popover that is wider than the rail stays whole. */
   .app > .rail {
     grid-area: 1 / 1;
     align-self: start;
+    z-index: 60;
   }
   .app > .main {
     grid-area: 1 / 2;

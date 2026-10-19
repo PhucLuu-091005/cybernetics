@@ -7,7 +7,13 @@ import { PhotoOr } from '../shell/PhotoImg';
 import { ModalFrame } from '../tracker/Modals';
 import { initialsOf, photoProblem, PHOTO_RULE, PHOTO_TYPES } from './photo';
 
-type Props = { name: string; color: string; photo: string | null };
+type Props = {
+  name: string;
+  color: string;
+  photo: string | null;
+  api: string;
+  actingAs?: string;
+};
 
 /** The 28 px avatar drawn at 96 px, so the initials keep the avatar type scale. */
 function Face({
@@ -34,9 +40,9 @@ function Face({
   );
 }
 
-async function upload(file: File): Promise<ApiError | null> {
+async function upload(api: string, file: File): Promise<ApiError | null> {
   try {
-    const response = await fetch('/api/v1/me/avatar', {
+    const response = await fetch(api, {
       method: 'PUT',
       headers: { 'content-type': file.type },
       body: file,
@@ -58,7 +64,7 @@ async function upload(file: File): Promise<ApiError | null> {
   }
 }
 
-function UploadDialog({ name, color, photo, onClose }: Props & { onClose: () => void }) {
+function UploadDialog({ name, color, photo, api, onClose }: Props & { onClose: () => void }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -85,7 +91,7 @@ function UploadDialog({ name, color, photo, onClose }: Props & { onClose: () => 
     if (!file) return;
     setBusy(true);
     setError(null);
-    const failure = await upload(file);
+    const failure = await upload(api, file);
     if (failure) {
       setBusy(false);
       setError(errorText(failure));
@@ -167,7 +173,7 @@ export function PhotoSection(props: Props) {
   const remove = async () => {
     setBusy(true);
     setFailure(null);
-    const result = await send<{ photo: null }>('/api/v1/me/avatar', 'DELETE');
+    const result = await send<{ photo: null }>(props.api, 'DELETE');
     if (!result.ok) {
       setBusy(false);
       setFailure(errorText(result.error));
@@ -185,7 +191,9 @@ export function PhotoSection(props: Props) {
         <Face name={props.name} color={props.color} src={props.photo} />
         <div className="pf-photo-text">
           <p className="pg-lede">
-            The people of your projects see your photo instead of your initials.
+            {props.actingAs
+              ? `You act as ${props.actingAs} in your demo copy, so this photo is theirs there.`
+              : 'The people of your projects see your photo instead of your initials.'}
           </p>
           <div className="pg-acts">
             <button

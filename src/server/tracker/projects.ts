@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import {
+  addDays,
   ALL_GRANTS,
   DEFAULT_TIME_ZONE,
   mainState,
@@ -23,7 +24,6 @@ import {
 } from '../db/schema';
 import type { Tx } from '../db/tx';
 import {
-  LARKSPUR_AS_OF,
   LARKSPUR_MEMBERS,
   LARKSPUR_OWNER,
   LARKSPUR_PROJECT,
@@ -32,6 +32,7 @@ import {
   larkspurBase,
   larkspurCrs,
   larkspurQueueRows,
+  larkspurShift,
 } from './seed/larkspur';
 import { addComment, insertTeams } from './store';
 
@@ -106,11 +107,42 @@ export async function createTrackerProject(
   return { ownerMemberId };
 }
 
-/** The project lead keeps the story name Minh Trần (spec 2.19), so it needs no user name. */
+/**
+ * The clock of a new demo copy: now, with no fixed `asOf`, so the T line and the statuses follow
+ * the real time. Tests pin it with TRACKER_DEMO_AS_OF, which also fixes the project's clock there.
+ */
+export function demoClock(values: Record<string, string | undefined> = process.env): {
+  now: Date;
+  asOf: string | null;
+} {
+  const pinned = values.TRACKER_DEMO_AS_OF;
+  if (!pinned) return { now: new Date(), asOf: null };
+  if (values.NODE_ENV === 'production') throw new Error('TRACKER_DEMO_AS_OF is for tests only');
+  const now = new Date(pinned);
+  if (Number.isNaN(now.getTime())) throw new Error('TRACKER_DEMO_AS_OF must be an ISO instant');
+  return { now, asOf: pinned };
+}
+
+/** A pin in production or a wrong one stops the server at start, so no visitor meets it as a 500. */
+export function assertDemoClock(values: Record<string, string | undefined> = process.env): void {
+  try {
+    demoClock(values);
+  } catch (error) {
+    console.error(
+      JSON.stringify({ event: 'demo_clock_invalid', message: (error as Error).message }),
+    );
+    process.exit(1);
+  }
+}
+
+/**
+ * The project lead keeps the story name Minh Trần (spec 2.19), so it needs no user name.
+ */
 export async function seedTrackerDemo(
   tx: Tx,
-  input: { workspaceId: string; userId: string },
+  input: { workspaceId: string; userId: string; now?: Date; asOf?: string | null },
 ): Promise<{ projectId: string; ids: Record<string, string> }> {
+  const days = larkspurShift(input.now ?? new Date());
   const [project] = await tx
     .insert(projects)
     .values({ id: randomUUID(), workspaceId: input.workspaceId, ...LARKSPUR_PROJECT })
@@ -124,15 +156,15 @@ export async function seedTrackerDemo(
   const id = (key: string) => ids[key] ?? key;
   const tenant = { workspaceId: input.workspaceId, projectId: project.id };
   const owner = LARKSPUR_MEMBERS.find((member) => member.key === LARKSPUR_OWNER)!;
-  const base = larkspurBase(id);
+  const base = larkspurBase(id, days);
   await createTrackerProject(tx, {
     ...tenant,
     userId: input.userId,
     userName: owner.name,
     teams: [],
     demo: true,
-    asOf: LARKSPUR_AS_OF,
-    windowStart: LARKSPUR_WINDOW_START,
+    asOf: input.asOf ?? null,
+    windowStart: addDays(LARKSPUR_WINDOW_START, days),
     base,
     ownerMemberId: id(owner.key),
   });
@@ -157,7 +189,7 @@ export async function seedTrackerDemo(
       .insert(trackerTeamMembers)
       .values(people.members.map((key) => ({ ...tenant, teamId, memberId: id(key) })));
   }
-  const rows = larkspurQueueRows(id);
+  const rows = larkspurQueueRows(id, days);
   await tx.insert(trackerQueue).values(
     rows.map((row) => ({
       ...tenant,
@@ -170,7 +202,7 @@ export async function seedTrackerDemo(
     })),
   );
   const commits: Commit[] = [];
-  for (const [index, seed] of larkspurCrs(id).entries()) {
+  for (const [index, seed] of larkspurCrs(id, days).entries()) {
     const num = index + 1;
     const ops: Op[] = replayOps(
       mainState(base, rows, commits, seed.ops[0].rev),

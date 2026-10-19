@@ -2,9 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seedOnUserCreated } from '../../../src/server/app';
 import { DbIdentityStore } from '../../../src/server/db/identity-store';
 import { listProjects } from '../../../src/server/domain/projects';
-import { crAction, getTrackerPayload } from '../../../src/server/tracker';
+import { crAction, getTrackerPayload, seedTrackerDemo } from '../../../src/server/tracker';
 import {
-  LARKSPUR_AS_OF,
+  LARKSPUR_STORY_NOW,
   LARKSPUR_PROJECT,
   larkspurBase,
   larkspurQueueRows,
@@ -18,7 +18,8 @@ import {
   queueFromRows,
   type TrackerPayload,
 } from '../../../src/tracker';
-import { createTestDatabase, type TestDb } from '../../support/db';
+import { withTransaction } from '../../../src/server/db/tx';
+import { createTestDatabase, testActor, type TestDb } from '../../support/db';
 import { seedDemo, type Demo } from '../../support/tracker-db';
 
 const crOf = (payload: TrackerPayload, num: number) => payload.crs.find((cr) => cr.num === num)!;
@@ -38,17 +39,17 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker demo seed', () => {
   });
   const id = (key: string) => demo.ids[key] ?? key;
 
-  it('stores the Larkspur base, queue and demo clock', () => {
+  it('stores the Larkspur base, the queue and the pinned clock of the tests', () => {
     expect(payload.project).toMatchObject({
       id: demo.projectId,
       demo: true,
       timeZone: 'Asia/Ho_Chi_Minh',
-      windowStart: '2026-09-10',
+      windowStart: '2026-09-13',
       leadMemberId: demo.ids.minh,
     });
-    expect(sameInstant(payload.project.asOf, LARKSPUR_AS_OF)).toBe(true);
+    expect(sameInstant(payload.project.asOf, LARKSPUR_STORY_NOW)).toBe(true);
     expect(payload.base.teams).toHaveLength(7);
-    expect(payload.base.workItems).toHaveLength(14);
+    expect(payload.base.workItems).toHaveLength(15);
     expect(payload.base.milestones).toHaveLength(2);
     // The project's team list replaces the story leads with the members who lead each team.
     const base = larkspurBase(id);
@@ -113,7 +114,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker demo seed', () => {
       item: 'Go-live and first close',
       before: 'planned 30 Sept',
       after: 'planned 15 Oct',
-      why: 'The CRS section is not ready. Sarah agreed on 13 September.',
+      why: 'The CRS section is not ready. Sarah agreed on 26 September.',
     });
     const main = mainState(payload.base, payload.queue, payload.commits);
     expect(main.milestones.find((m) => m.id === 'golive')?.planned).toBe('2026-10-15');
@@ -186,6 +187,26 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker demo seed', () => {
     ]);
   });
 
+  it('moves a copy made at a later moment by whole days and gives it no fixed clock', async () => {
+    const owner = await testActor(t.db, { name: 'Later User' });
+    const made = new Date('2026-11-02T08:00:00+07:00');
+    const { projectId, ids } = await withTransaction(t.db, (tx) =>
+      seedTrackerDemo(tx, { workspaceId: owner.workspaceId, userId: owner.userId, now: made }),
+    );
+    const copy = await getTrackerPayload(t.db, owner, { projectId });
+    // The story's now (9 Oct 18:00) lands on 1 Nov 18:00, the evening before the copy: 23 days later.
+    expect(copy.project).toMatchObject({ asOf: null, windowStart: '2026-10-06' });
+    const g2 = copy.base.events.find((e) => e.id === 'g2')!;
+    expect(sameInstant(g2.at, '2026-10-09T10:45:00+07:00')).toBe(true);
+    expect(g2.text).toBe('Go-live is set for 23 October.');
+    expect(copy.base.workItems.find((w) => w.id === 'test')?.plannedFinish).toBe('2026-11-06');
+    const merged = copy.commits[0];
+    expect(sameInstant(merged.mergedAt, '2026-10-31T17:30:00+07:00')).toBe(true);
+    expect(merged.ops[1].d).toMatchObject({ before: 'planned 23 Oct', after: 'planned 7 Nov' });
+    const qe1 = copy.queue.events.find((e) => e.id === ids.qe1)!;
+    expect(sameInstant(qe1.createdAt, '2026-11-01T14:20:00+07:00')).toBe(true);
+  });
+
   it('seeds one sandbox project, the tracker demo, on first sign-in', async () => {
     const store = new DbIdentityStore(t.db, { onUserCreated: seedOnUserCreated });
     const { userId } = await store.provisionUser({
@@ -210,7 +231,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker demo seed', () => {
       ...LARKSPUR_PROJECT,
     });
     const seeded = await getTrackerPayload(t.db, ctx, { projectId: sandbox.id });
-    expect(seeded.project).toMatchObject({ demo: true, title: sandbox.title });
+    expect(seeded.project).toMatchObject({ demo: true, title: sandbox.title, asOf: null });
+    const latest = Math.max(...seeded.base.events.map((e) => Date.parse(e.at)));
+    expect(latest).toBeLessThanOrEqual(Date.now());
+    expect(Date.now() - latest).toBeLessThan(10 * 86_400_000);
     expect(seeded.me).toMatchObject({ name: 'Minh Trần', userId });
     expect(seeded.crs.map((cr) => [cr.num, cr.status])).toEqual([
       [1, 'merged'],

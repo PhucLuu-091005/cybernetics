@@ -15,7 +15,6 @@ import {
 } from 'react';
 import {
   collapsedTeams,
-  changedTeams,
   openTeams as openTeamsPlan,
   teamsOfOps,
   descendantsOf,
@@ -126,6 +125,7 @@ import {
   type ViewState,
 } from './view-state';
 import { useTimeScale } from './scale';
+import { hourNow, subscribeHour } from './clock';
 
 export type TrackerView = 'main' | number;
 export type DrawerMode = 'ms' | 'item' | 'crs' | 'history';
@@ -205,14 +205,15 @@ export const NO_ACTIONS: TrackerActions = {
   addToMilestone: noop,
 };
 
-export const CHECK_MS = 15_000;
+// The owner wants no frequent polling; a person who comes back sees news through the checks on return.
+export const CHECK_MS = 5 * 60_000;
+const AWAY_MS = 60_000;
 // The prototype keeps a pop open for clicks in these areas; the graph closes it on its own background.
 const OUTSIDE_EXEMPT =
   '.p-head, .bbar, .pop, .drawer, .p-side, .empty, .ro-note, svg.tg, .tk-modal, .tk-toast, .zoombar, .gtools';
 // These layers close themselves on Esc, so the screen leaves the rest open.
 const OWN_ESCAPE =
   '.tk details[open], .tk .tsearch-pop:not([hidden]), .tk .hand-menu, .tk .field-pop, .tk .view-pop, .tk .legend-pop:focus-within';
-const MINUTE = 60_000;
 const PHONE_QUERY = '(max-width: 760px)';
 
 const crByNum = (p: TrackerPayload, num: number) => p.crs.find((c) => c.num === num);
@@ -279,14 +280,26 @@ export function useTracker(initial: TrackerPayload, projectId: string, num: numb
     const onVisibility = () => {
       if (document.visibilityState === 'visible') void check();
     };
+    let blurredAt: number | null = null;
+    const onBlur = () => {
+      blurredAt = Date.now();
+    };
+    const onFocus = () => {
+      if (blurredAt !== null && Date.now() - blurredAt >= AWAY_MS) void check();
+      blurredAt = null;
+    };
     checkNow.current = () => void check();
     schedule();
     document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', onBlur);
+    window.addEventListener('focus', onFocus);
     return () => {
       stopped = true;
       clearTimeout(timer);
       checkNow.current = noop;
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('focus', onFocus);
     };
   }, [projectId, num]);
 
@@ -324,14 +337,15 @@ export function useTracker(initial: TrackerPayload, projectId: string, num: numb
   };
 }
 
-const everyHalfMinute = (onChange: () => void) => {
-  const timer = setInterval(onChange, MINUTE / 2);
-  return () => clearInterval(timer);
-};
-const minuteNow = () => Math.floor(Date.now() / MINUTE) * MINUTE;
-// Hydration renders with the server's minute, so the T line matches the server HTML; the client clock takes over after.
-export const useNow = (serverNow: number) =>
-  useSyncExternalStore(everyHalfMinute, minuteNow, () => serverNow);
+// Hydration renders with the server's hour, so the T line matches the server HTML; the client clock takes over after.
+export function useNow(serverNow: number, timeZone: string) {
+  const subscribe = useMemo(() => subscribeHour(timeZone), [timeZone]);
+  return useSyncExternalStore(
+    subscribe,
+    () => hourNow(timeZone),
+    () => serverNow,
+  );
+}
 
 const watchPhone = (onChange: () => void) => {
   const query = window.matchMedia(PHONE_QUERY);
@@ -386,7 +400,7 @@ export function TrackerScreen({
   /** The signed-in user, so "Don't show again" on the Main notice holds for that person only. */
   userId: string;
   account: Account;
-  /** The server's time rounded down to the minute, for a project without a demo clock. */
+  /** The server's time rounded down to the hour, for a project without a fixed clock. */
   serverNow: number;
 }) {
   const {
@@ -411,7 +425,7 @@ export function TrackerScreen({
   const payload = frozen.payload;
   const { project } = payload;
   const tz = project.timeZone;
-  const now = useNow(serverNow);
+  const now = useNow(serverNow, tz);
   const asOf = project.asOf ?? toInstant(now, tz);
   const cr = num === null ? null : (payload.crs.find((c) => c.num === num) ?? null);
   const [picks, setPicks] = useState<Picks>({});
@@ -478,7 +492,7 @@ export function TrackerScreen({
     writeViewState(browserStore(), projectId, next);
   };
 
-  const [density, setDensity] = useState<Density>('compact');
+  const [density, setDensity] = useState<Density>('comfortable');
   const [teamOpen, setTeamOpen] = useState<TeamToggles>(new Map());
   useLayoutEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -634,18 +648,14 @@ export function TrackerScreen({
     map: new Map(),
   });
   if (activeToggles.key !== narrowKey) setActiveToggles({ key: narrowKey, map: new Map() });
-  const changed = useMemo(() => changedTeams(state, current.marks), [state, current.marks]);
   const collapsed = useMemo(
     () =>
       collapsedTeams(state, {
-        asOf,
-        timeZone: tz,
         toggles: teamOpen,
-        changed,
         active: narrowed,
         activeToggles: activeToggles.map,
       }),
-    [state, asOf, tz, teamOpen, changed, narrowed, activeToggles.map],
+    [state, teamOpen, narrowed, activeToggles.map],
   );
   const windowStart = useMemo(
     () => windowStartFor(state, project.windowStart, asOf, tz),
@@ -741,12 +751,7 @@ export function TrackerScreen({
     hide({ ...hidden, hiddenTeams: toggleId(hidden.hiddenTeams, id) });
   /** `narrowedAfter`: the graph stays narrowed after this action, so the opening is temporary. */
   const openTeams = (teams: string[], narrowedAfter = narrowed) => {
-    const plan = openTeamsPlan(
-      state,
-      { asOf, timeZone: tz, toggles: teamOpen, changed },
-      teams,
-      narrowedAfter,
-    );
+    const plan = openTeamsPlan(state, { toggles: teamOpen }, teams, narrowedAfter);
     if (plan.toggles) changeTeamOpen(plan.toggles);
     if (plan.active.length)
       setActiveToggles((a) => ({
@@ -911,6 +916,7 @@ export function TrackerScreen({
         showToast(result.error.message, { refresh: () => void refresh() });
         check();
       } else showToast(result.error.message);
+      setToast((t) => t && { ...t, error: true });
       return null;
     }
     const next = withoutNum(result.data);
@@ -1185,13 +1191,17 @@ export function TrackerScreen({
     requestChanges: (note) => void onRequestChanges(note),
   };
 
+  /** A write still on its way answers for the person before; the switch waits for it in the queue. */
   const onActAs = async (memberId: string) => {
-    const result = await actAs(projectId, memberId);
-    if (!result.ok) {
-      showToast(result.error.message);
-      return;
-    }
-    const next = result.data;
+    const asked = Date.now();
+    const before = me ? dir.name(me) : null;
+    const next = await write(() => actAs(projectId, memberId));
+    if (!next) return;
+    // A write that answered while the switch waited spoke for the person before: their success
+    // note no longer fits the screen, and their error names them.
+    setToast((t) =>
+      !t || t.at < asked ? t : t.error && before ? { ...t, text: `${before}: ${t.text}` } : null,
+    );
     const nextMe = next.me?.id ?? null;
     const drafts = myDrafts(next.crs, nextMe);
     const draft =
@@ -1200,7 +1210,6 @@ export function TrackerScreen({
         .filter((c) => c.status === 'draft' && roleIn(c, nextMe) !== 'view')
         .sort(byNumDesc)[0];
     const merger = !!nextMe && can(next, 'merge');
-    setPayload(next);
     setPop(null);
     setMoving(null);
     closeModal();

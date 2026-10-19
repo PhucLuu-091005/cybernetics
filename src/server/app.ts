@@ -22,8 +22,8 @@ export type App = { db: Db; identity: HttpIdentityStore; pool: Pool };
 const state = globalThis as typeof globalThis & { promiseApp?: App };
 /** Loaded on first sign-in only, so routes do not carry the demo seed. */
 export const seedOnUserCreated: UserCreatedHook = async (tx, { userId, workspaceId }) => {
-  const { seedTrackerDemo } = await import('./tracker');
-  await seedTrackerDemo(tx, { workspaceId, userId });
+  const { demoClock, seedTrackerDemo } = await import('./tracker');
+  await seedTrackerDemo(tx, { workspaceId, userId, ...demoClock() });
 };
 const identityStore = (db: Db) => new DbIdentityStore(db, { onUserCreated: seedOnUserCreated });
 export function getApp(): App {

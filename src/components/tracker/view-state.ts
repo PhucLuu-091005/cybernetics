@@ -126,9 +126,9 @@ const DENSITY_VALUES: readonly Density[] = ['comfortable', 'compact', 'dense'];
 export function readDensity(store: KeyValueStore | null, userId: string): Density {
   try {
     const raw = store?.getItem(densityKey(userId));
-    return DENSITY_VALUES.find((d) => d === raw) ?? 'compact';
+    return DENSITY_VALUES.find((d) => d === raw) ?? 'comfortable';
   } catch {
-    return 'compact';
+    return 'comfortable';
   }
 }
 

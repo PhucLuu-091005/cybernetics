@@ -1,6 +1,6 @@
 import { expect, request, test, type Page } from '@playwright/test';
 import sharp from 'sharp';
-import { hydrated } from '../e2e/helpers';
+import { expectAppIcons, hydrated, photoShowsEverywhere } from '../e2e/helpers';
 
 test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
 
@@ -29,6 +29,10 @@ test('the first visit opens a sandbox graph with no sign-in, and a second visit 
   await expect(menu.getByRole('button', { name: 'Sign out' })).toHaveCount(0);
   expect(await open(page)).toBe(projectId);
   expect(await open(page, '/signin')).toBe(projectId);
+});
+
+test('the app icon serves to a visitor with no session', async ({ request: visitor }) => {
+  await expectAppIcons(visitor, '/welcome');
 });
 
 test('two visitors get separate sandboxes, and one cannot open the other', async ({
@@ -212,4 +216,111 @@ test('a token gets 429 RATE_LIMITED past 60 MCP calls in a minute', async ({ pag
   expect(reply.status(), `status of call ${calls}`).toBe(429);
   expect(await reply.json()).toMatchObject({ code: 'RATE_LIMITED' });
   expect(calls).toBeGreaterThanOrEqual(61);
+});
+
+test('a new sandbox places its story before now, and T follows the real clock', async ({
+  page,
+}) => {
+  const projectId = await open(page);
+  const read = await page.request.get(`/api/v1/projects/${projectId}/tracker`);
+  const tracker = (await read.json()) as {
+    project: { asOf: string | null };
+    base: { events: Array<{ at: string }> };
+  };
+  expect(tracker.project.asOf).toBeNull();
+  const latest = Math.max(...tracker.base.events.map((e) => Date.parse(e.at)));
+  expect(latest).toBeLessThanOrEqual(Date.now());
+  expect(Date.now() - latest).toBeLessThan(4 * 86_400_000);
+  const dayOf = (ms: number) =>
+    new Intl.DateTimeFormat('en-GB', { day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' }).format(ms);
+  // Near midnight the page may have rendered on the day before the test reads its clock.
+  const days = [...new Set([dayOf(Date.now()), dayOf(Date.now() - 60_000)])];
+  await expect(page.locator('.tpill text').first()).toHaveText(
+    new RegExp(`^T (${days.join('|')}) `),
+  );
+});
+
+test('a visitor who acts as Quang gives Quang the photo, and it shows at once', async ({
+  page,
+}) => {
+  const projectId = await open(page);
+  await page.getByLabel('Demo: act as').click();
+  await page.getByRole('option', { name: 'Quang Nguyễn', exact: true }).click();
+  await expect(page.locator('.me b')).toHaveText('Quang Nguyễn');
+  const png = await sharp({
+    create: { width: 200, height: 200, channels: 3, background: { r: 40, g: 90, b: 200 } },
+  })
+    .png()
+    .toBuffer();
+  // The photo is Quang's: the visitor's own member, Minh, keeps the initials.
+  const minh = page.getByRole('row').filter({ hasText: 'Minh Trần' }).first().locator('.acct-av');
+  await photoShowsEverywhere(page, {
+    projectId,
+    name: 'Quang Nguyễn',
+    initials: 'QN',
+    png,
+    onMembers: () => expect(minh).toHaveText('MT'),
+    onGraph: async () => {
+      await page.getByLabel('Demo: act as').click();
+      const list = page.getByRole('listbox', { name: 'Demo: act as' });
+      const row = (name: string) => list.getByRole('option', { name, exact: true }).locator('.av');
+      await expect(row('Quang Nguyễn').locator('img')).toHaveAttribute('src', /\/members\//);
+      await expect(row('Minh Trần')).toHaveText('MT');
+      await page.keyboard.press('Escape');
+    },
+  });
+});
+
+test('while the visitor acts as Quang, every page shows Quang and acts as Quang', async ({
+  page,
+}) => {
+  const projectId = await open(page);
+  await page.getByLabel('Demo: act as').click();
+  await page.getByRole('option', { name: 'Quang Nguyễn', exact: true }).click();
+  await expect(page.locator('.me b')).toHaveText('Quang Nguyễn');
+  const menu = page.locator('.p-head details.acct');
+  const isQuang = async () => {
+    await expect(menu.locator('summary b')).toHaveText('Quang Nguyễn');
+    await expect(menu.locator('.acct-av')).toHaveText('QN');
+  };
+  const pages = ['graph', 'changes/2', 'members', 'settings/tokens', 'profile'];
+  for (const path of pages) {
+    await page.goto(`/projects/${projectId}/${path}`);
+    await hydrated(page);
+    await isQuang();
+  }
+  await expect(page.getByRole('region', { name: 'Photo' }).locator('.pf-face svg')).toContainText(
+    'QN',
+  );
+  await expect(page.getByRole('region', { name: 'Photo' })).toContainText(
+    'You act as Quang Nguyễn in your demo copy',
+  );
+  await page.goto(`/projects/${projectId}/members`);
+  await expect(page.getByRole('row').filter({ hasText: 'Quang Nguyễn' }).first()).toContainText(
+    'You',
+  );
+
+  await page.goto(`/projects/${projectId}/settings/tokens`);
+  await hydrated(page);
+  const form = page.getByRole('form', { name: 'Create a token' });
+  await expect(form).toContainText('You act as Quang Nguyễn in your demo copy');
+  await form.getByLabel('Label').fill('Quang agent');
+  await form.getByRole('button', { name: 'Create token' }).click();
+  await expect(page.getByTestId('token-secret')).toBeVisible();
+  const keys = page.getByRole('table', { name: 'Your agent tokens' });
+  await expect(keys.getByRole('row').filter({ hasText: 'Quang agent' })).toContainText(
+    'Acts as Quang Nguyễn',
+  );
+
+  const reply = await page.evaluate(async (pid) => {
+    const sent = await fetch(`/api/v1/projects/${pid}/tracker/crs/2/actions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'comment', body: 'Quang checks the mapping.' }),
+    });
+    return sent.json();
+  }, projectId);
+  const quang = reply.members.find((m: { name: string }) => m.name === 'Quang Nguyễn').id;
+  const comments = reply.crs.find((c: { num: number }) => c.num === 2).comments;
+  expect(comments.at(-1)).toMatchObject({ memberId: quang, body: 'Quang checks the mapping.' });
 });

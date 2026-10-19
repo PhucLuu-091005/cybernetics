@@ -12,6 +12,7 @@ import type {
 import { readAuthEnvironment } from '../env';
 import {
   createTokenService,
+  type ActsAs,
   type CreatorOf,
   type ListKeysInput,
   type ListTokensInput,
@@ -61,12 +62,13 @@ export async function getTokenActor(request: Request, scope: Scope | null): Prom
   return identities().getTokenActor(request, scope);
 }
 // Loaded on use: the app module imports this one, and the creator's rights live in the tracker.
-const creatorOf: CreatorOf = async (ctx, projectId) => {
+const creatorOf: CreatorOf = async (ctx, projectId, actsAs) => {
   const [{ getApp }, { personalCreator, tokenCreator }] = await Promise.all([
     import('../app'),
     import('../domain/account'),
   ]);
   const db = getApp().db;
+  if (actsAs) return tokenCreator(db, ctx, actsAs.projectId, actsAs.memberId);
   return projectId === null ? personalCreator(db, ctx) : tokenCreator(db, ctx, projectId);
 };
 const tokenService = () => createTokenService(getHttpIdentityStore(), creatorOf);
@@ -74,8 +76,9 @@ const tokenService = () => createTokenService(getHttpIdentityStore(), creatorOf)
 export async function createToken(
   ctx: ActorContext,
   input: Omit<CreateAgentTokenInput, 'scopes'> & { scopes?: Scope[] },
+  actsAs?: ActsAs,
 ): Promise<TokenCreated> {
-  return tokenService().createToken(ctx, input);
+  return tokenService().createToken(ctx, input, actsAs);
 }
 export async function revokeToken(
   ctx: ActorContext,
@@ -92,8 +95,9 @@ export async function listTokens(
 export async function createPersonalKey(
   ctx: ActorContext,
   input: Omit<CreatePersonalKeyInput, 'scopes'> & { scopes?: Scope[] },
+  actsAs?: ActsAs,
 ): Promise<TokenCreated> {
-  return tokenService().createPersonalKey(ctx, input);
+  return tokenService().createPersonalKey(ctx, input, actsAs);
 }
 export async function revokePersonalKey(
   ctx: ActorContext,

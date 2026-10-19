@@ -4,10 +4,10 @@ import type { ActorContext } from '../../../../contracts';
 import { getApp } from '../../../../server/app';
 import { AppError } from '../../../../server/errors';
 import { getTrackerPayload } from '../../../../server/tracker';
-import type { TrackerPayload } from '../../../../tracker';
+import { hourFloor, type TrackerPayload } from '../../../../tracker';
 
-// A function imported from the client module would be a client reference here, so the page rounds the minute.
-export const serverMinute = () => Math.floor(Date.now() / 60_000) * 60_000;
+// A function imported from the client module would be a client reference here, so the page rounds the hour.
+export const serverHour = (timeZone: string) => hourFloor(Date.now(), timeZone);
 
 /** The layout already proved the project exists, so NOT_FOUND here means it has no tracker row. */
 export async function trackerPayload(

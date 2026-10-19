@@ -17,7 +17,12 @@ export {
 export { actingMember } from './access';
 export { appendOp, createCr, crAction, removeOp, type CrActionInput } from './crs';
 export { FirstMilestoneSchema, ProjectTeamsSchema } from '../../tracker';
-export { createTrackerProject, seedTrackerDemo, type CreateTrackerProjectInput } from './projects';
+export {
+  createTrackerProject,
+  demoClock,
+  seedTrackerDemo,
+  type CreateTrackerProjectInput,
+} from './projects';
 export {
   addTeam,
   AddTeamInputSchema,

@@ -2,6 +2,7 @@
 import { can, type RowFilter, type TrackerState } from '../../tracker';
 import { AccountMenu, type Account } from '../shell/AccountMenu';
 import type { Session } from './ContextBar';
+import { Avatar } from './avatar';
 import { Icon } from './icons';
 import { WorkSearch } from './Search';
 import { Select } from './Select';
@@ -25,12 +26,18 @@ type Props = {
 
 /** The demo plays the seeded people and your own member, never another signed-in person. */
 export const demoPeople = (
-  members: readonly { id: string; name: string; active: boolean; userId: string | null }[],
+  members: readonly {
+    id: string;
+    name: string;
+    roleLabel: string;
+    active: boolean;
+    userId: string | null;
+  }[],
   userId: string,
 ) =>
   members
     .filter((m) => m.active && (m.userId === null || m.userId === userId))
-    .map((m) => ({ value: m.id, label: m.name }));
+    .map((m) => ({ value: m.id, label: m.name, hint: m.roleLabel || undefined }));
 
 export function TopBar(props: Props) {
   const { session, state, asOf, drawer, actions, onDrawer, onActAs, onPick } = props;
@@ -92,7 +99,10 @@ export function TopBar(props: Props) {
             label="Demo: act as"
             value={me}
             onChange={onActAs}
-            options={demoPeople(payload.members, props.userId)}
+            options={demoPeople(payload.members, props.userId).map((option) => ({
+              ...option,
+              before: <Avatar id={option.value} dir={dir} sm />,
+            }))}
           />
         </div>
       )}

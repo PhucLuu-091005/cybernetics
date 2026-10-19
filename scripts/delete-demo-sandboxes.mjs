@@ -1,7 +1,8 @@
 // Deletes the demo copies (AUTH_MODE=demo) made more than N days ago. Run by hand, not by a cron job.
 // Usage: DATABASE_URL=... node scripts/delete-demo-sandboxes.mjs [--days 30] [--apply]
 // Without --apply it only counts. Steps and numbers: docs/deploy-cloud-run-neon.md.
-// Profile photos go too: AVATAR_BUCKET=<bucket> deletes them with gcloud, AVATAR_STORE=local from
+// Profile photos go too, with the photos the visitor gave the seeded people of their copy:
+// AVATAR_BUCKET=<bucket> deletes them with gcloud, AVATAR_STORE=local from
 // AVATAR_DIR; without either, the script lists the photo objects it leaves behind.
 import { spawnSync } from 'node:child_process';
 import { rm } from 'node:fs/promises';
@@ -46,7 +47,7 @@ async function tenantTablesInDeleteOrder(client) {
   return order;
 }
 
-const PHOTO_KEY = /^avatars\/[0-9a-f-]{36}\/[0-9a-f]{64}\.webp$/;
+const PHOTO_KEY = /^avatars\/(members\/)?[0-9a-f-]{36}\/[0-9a-f]{64}\.webp$/;
 
 /** Deletes the photo objects of the deleted people; returns how many went. */
 async function deletePhotos(keys) {
@@ -111,7 +112,11 @@ try {
   const photos = (
     await client.query(
       `select avatar_key as key from users
-       where id in (select id from doomed_users) and avatar_key is not null order by avatar_key`,
+       where id in (select id from doomed_users) and avatar_key is not null
+       union
+       select avatar_key from tracker_members
+       where workspace_id in (select id from doomed_workspaces) and avatar_key is not null
+       order by key`,
     )
   ).rows.map((row) => row.key);
   if (apply) {

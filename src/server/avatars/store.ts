@@ -8,12 +8,24 @@ export interface PhotoStore {
   remove(key: string): Promise<void>;
 }
 
-const KEY = /^avatars\/[0-9a-f-]{36}\/[0-9a-f]{64}\.webp$/;
+const KEY = /^avatars\/(members\/)?[0-9a-f-]{36}\/[0-9a-f]{64}\.webp$/;
 export const isPhotoKey = (key: string) => KEY.test(key);
+export const memberPhotoKey = (memberId: string, hash: string) =>
+  `avatars/members/${memberId}/${hash}.webp`;
 /** The hash in the URL changes with the photo, so a browser may keep each URL for good. */
 export function photoUrl(userId: string | null, key: string | null): string | null {
-  if (!userId || !key || !isPhotoKey(key)) return null;
+  if (!userId || !key || !isPhotoKey(key) || key.startsWith('avatars/members/')) return null;
   return `/api/v1/avatars/${userId}/${key.slice(-69, -5)}`;
+}
+/** A person's photo is on their user; a seeded demo person, who has none, keeps it on the member. */
+export function memberPhotoUrl(
+  member: { id: string; userId: string | null; avatarKey: string | null },
+  userKey: string | null,
+): string | null {
+  if (member.userId) return photoUrl(member.userId, userKey);
+  const key = member.avatarKey;
+  if (!key || key !== memberPhotoKey(member.id, key.slice(-69, -5))) return null;
+  return `/api/v1/avatars/members/${member.id}/${key.slice(-69, -5)}`;
 }
 function assertKey(key: string): void {
   if (!isPhotoKey(key)) throw new Error('Invalid photo key');

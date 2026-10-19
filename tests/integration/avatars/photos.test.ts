@@ -7,11 +7,12 @@ import sharp from 'sharp';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DELETE, PUT } from '../../../src/app/api/v1/me/avatar/route';
 import { GET } from '../../../src/app/api/v1/avatars/[userId]/[hash]/route';
+import { GET as GET_MEMBER } from '../../../src/app/api/v1/avatars/members/[memberId]/[hash]/route';
 import { configureApp, resetApp } from '../../../src/server/app';
 import { configurePhotoStore } from '../../../src/server/avatars/config';
 import { removePhoto, setPhoto } from '../../../src/server/avatars/service';
 import { LocalPhotoStore } from '../../../src/server/avatars/store';
-import { users } from '../../../src/server/db/schema';
+import { trackerMembers, users } from '../../../src/server/db/schema';
 import { SESSION_COOKIE, signSession } from '../../../src/server/http/session';
 import {
   getTrackerPayload,
@@ -238,5 +239,77 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('profile photos', () => {
     expect((await read(demo.owner.userId, photo)).status).toBe(404);
     const payload = await getTrackerPayload(t.db, demo.owner, { projectId: demo.projectId });
     expect(payload.members.every((m) => m.photo === undefined)).toBe(true);
+  });
+
+  describe('in a demo copy, for the seeded person the visitor acts as', () => {
+    const asMember = (userId: string, memberId: string, method: 'PUT' | 'DELETE', body?: Buffer) =>
+      (method === 'PUT' ? PUT : DELETE)(
+        new Request(`${origin}/api/v1/me/avatar?project=${demo.projectId}`, {
+          method,
+          headers: {
+            cookie: `${cookie(userId)}; pg_act_${demo.projectId}=${memberId}`,
+            origin,
+            'content-type': 'image/png',
+          },
+          ...(body ? { body: new Uint8Array(body) } : {}),
+        }),
+      );
+    const readMember = (viewer: string, url: string) => {
+      const [, , , , , memberId, hash] = url.split('/');
+      return GET_MEMBER(new Request(`${origin}${url}`, { headers: { cookie: cookie(viewer) } }), {
+        params: Promise.resolve({ memberId, hash }),
+      });
+    };
+
+    it('stores the photo on that member, shows it everywhere they appear, and removes it', async () => {
+      const reply = await asMember(demo.owner.userId, demo.ids.quang, 'PUT', await solid('png'));
+      expect(reply.status).toBe(200);
+      const { photo } = (await reply.json()) as Json;
+      expect(photo).toMatch(new RegExp(`^/api/v1/avatars/members/${demo.ids.quang}/[0-9a-f]{64}$`));
+      const [owner] = await t.db.select().from(users).where(eq(users.id, demo.owner.userId));
+      expect(owner.avatarKey).toBeNull();
+      const payload = await getTrackerPayload(t.db, demo.owner, { projectId: demo.projectId });
+      expect(payload.members.find((m) => m.id === demo.ids.quang)?.photo).toBe(photo);
+      expect(payload.members.find((m) => m.id === demo.ids.minh)?.photo).toBeUndefined();
+      const list = await listProjectMembers(t.db, demo.owner, { projectId: demo.projectId });
+      expect(list.members.find((m) => m.id === demo.ids.quang)?.photo).toBe(photo);
+
+      expect((await readMember(demo.owner.userId, photo)).status).toBe(200);
+      expect((await readMember(guest.userId, photo)).status).toBe(200);
+      expect((await readMember((await testActor(t.db)).userId, photo)).status).toBe(404);
+
+      const removed = await asMember(demo.owner.userId, demo.ids.quang, 'DELETE');
+      expect(await removed.json()).toMatchObject({ photo: null });
+      const [quang] = await t.db
+        .select()
+        .from(trackerMembers)
+        .where(eq(trackerMembers.id, demo.ids.quang));
+      expect(quang.avatarKey).toBeNull();
+      expect((await readMember(demo.owner.userId, photo)).status).toBe(404);
+    });
+
+    it('keeps the own photo for the own member and for a person who may not act as others', async () => {
+      const own = await asMember(demo.owner.userId, demo.ids.minh, 'PUT', await solid('png'));
+      expect((await own.json()).photo).toMatch(
+        new RegExp(`^/api/v1/avatars/${demo.owner.userId}/`),
+      );
+      // A pending invitee is no seeded person: a cookie for them gives the own photo.
+      const pendingEmail = `${randomUUID()}@example.com`;
+      const pending = (
+        await inviteMember(t.db, demo.owner, { projectId: demo.projectId, email: pendingEmail })
+      ).members.find((m) => m.email === pendingEmail)!.id;
+      const asPending = await asMember(demo.owner.userId, pending, 'PUT', await solid('png'));
+      expect((await asPending.json()).photo).toMatch(
+        new RegExp(`^/api/v1/avatars/${demo.owner.userId}/`),
+      );
+      // An invited person may not act as others, so the cookie falls back to their own photo.
+      const invited = await asMember(guest.userId, demo.ids.quang, 'PUT', await solid('png'));
+      expect((await invited.json()).photo).toMatch(new RegExp(`^/api/v1/avatars/${guest.userId}/`));
+      const [quang] = await t.db
+        .select()
+        .from(trackerMembers)
+        .where(eq(trackerMembers.id, demo.ids.quang));
+      expect(quang.avatarKey).toBeNull();
+    });
   });
 });

@@ -15,7 +15,12 @@ import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { seedOnUserCreated } from '../../../src/server/app';
 import { DbIdentityStore } from '../../../src/server/db/identity-store';
-import { agentTokens, users, workspaceMembers } from '../../../src/server/db/schema';
+import {
+  agentTokens,
+  trackerMembers,
+  users,
+  workspaceMembers,
+} from '../../../src/server/db/schema';
 import { createTestDatabase, type TestDb } from '../../support/db';
 
 const script = join(process.cwd(), 'scripts/delete-demo-sandboxes.mjs');
@@ -32,12 +37,31 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('scripts/delete-demo-sandboxes.m
     });
   const local = { AVATAR_STORE: 'local', AVATAR_DIR: photoDir };
   const photoKey = (userId: string) => `avatars/${userId}/${'a'.repeat(64)}.webp`;
-  /** A demo visitor who set a photo and made a personal key in their own copy. */
+  const memberKeys: Record<string, string> = {};
+  const memberKey = (userId: string) => memberKeys[userId];
+  /**
+   * A demo visitor who set a photo, gave one to Quang while acting as him, and made a personal key
+   * in their own copy.
+   */
   const usesProfile = async (person: { userId: string; ws: string }) => {
     const key = photoKey(person.userId);
     mkdirSync(join(photoDir, 'avatars', person.userId), { recursive: true });
     writeFileSync(join(photoDir, key), 'webp');
     await t.db.update(users).set({ avatarKey: key }).where(eq(users.id, person.userId));
+    const [quang] = await t.db
+      .select({ id: trackerMembers.id })
+      .from(trackerMembers)
+      .where(
+        sql`${trackerMembers.workspaceId} = ${person.ws} and ${trackerMembers.name} = 'Quang Nguyễn'`,
+      );
+    const member = `avatars/members/${quang.id}/${'b'.repeat(64)}.webp`;
+    memberKeys[person.userId] = member;
+    mkdirSync(join(photoDir, 'avatars', 'members', quang.id), { recursive: true });
+    writeFileSync(join(photoDir, member), 'webp');
+    await t.db
+      .update(trackerMembers)
+      .set({ avatarKey: member })
+      .where(eq(trackerMembers.id, quang.id));
     await new DbIdentityStore(t.db).insertToken({
       id: randomUUID(),
       userId: person.userId,
@@ -120,10 +144,11 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('scripts/delete-demo-sandboxes.m
       days: 30,
       people: 1,
       workspaces: 1,
-      photos: 1,
+      photos: 2,
       deleted: false,
     });
     expect(existsSync(join(photoDir, photoKey(people.oldDemo.userId)))).toBe(true);
+    expect(existsSync(join(photoDir, memberKey(people.oldDemo.userId)))).toBe(true);
     expect(await tenantRows(people.oldDemo.ws)).toBeGreaterThan(30);
   });
 
@@ -134,12 +159,14 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('scripts/delete-demo-sandboxes.m
     expect(JSON.parse(applied.stdout)).toMatchObject({
       people: 1,
       workspaces: 1,
-      photos: 1,
-      photosDeleted: 1,
+      photos: 2,
+      photosDeleted: 2,
       deleted: true,
     });
     expect(existsSync(join(photoDir, photoKey(people.oldDemo.userId)))).toBe(false);
+    expect(existsSync(join(photoDir, memberKey(people.oldDemo.userId)))).toBe(false);
     expect(existsSync(join(photoDir, photoKey(people.newDemo.userId)))).toBe(true);
+    expect(existsSync(join(photoDir, memberKey(people.newDemo.userId)))).toBe(true);
     const keys = await t.db.select({ userId: agentTokens.userId }).from(agentTokens);
     expect(keys.map((k) => k.userId)).toEqual([people.newDemo.userId]);
     expect(await tenantRows(people.oldDemo.ws)).toBe(0);
@@ -168,16 +195,16 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('scripts/delete-demo-sandboxes.m
     await usesProfile(gone);
     const deleted = run(['--days', '30', '--apply'], env());
     expect(deleted.status).toBe(0);
-    expect(JSON.parse(deleted.stdout)).toMatchObject({ photos: 1, photosDeleted: 1 });
+    expect(JSON.parse(deleted.stdout)).toMatchObject({ photos: 2, photosDeleted: 2 });
     expect(readFileSync(join(bin, 'calls.log'), 'utf8').trim()).toBe(
-      `storage rm --quiet gs://promise-graph-avatars/${photoKey(gone.userId)}`,
+      `storage rm --quiet gs://promise-graph-avatars/${photoKey(gone.userId)} gs://promise-graph-avatars/${memberKey(gone.userId)}`,
     );
 
     const stuck = await old('stuck');
     await usesProfile(stuck);
     const failed = run(['--days', '30', '--apply'], env({ FAKE_FAIL: '1' }));
     expect(failed.status).toBe(1);
-    expect(JSON.parse(failed.stdout)).toMatchObject({ photos: 1, photosDeleted: 0, deleted: true });
+    expect(JSON.parse(failed.stdout)).toMatchObject({ photos: 2, photosDeleted: 0, deleted: true });
     expect(failed.stderr).toContain('demo_photos_left');
     expect(failed.stderr).toContain(photoKey(stuck.userId));
     rmSync(bin, { recursive: true, force: true });
@@ -188,9 +215,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('scripts/delete-demo-sandboxes.m
     await usesProfile(left);
     const run1 = run(['--days', '30', '--apply']);
     expect(run1.status).toBe(0);
-    expect(JSON.parse(run1.stdout)).toMatchObject({ photos: 1, photosDeleted: 0 });
+    expect(JSON.parse(run1.stdout)).toMatchObject({ photos: 2, photosDeleted: 0 });
     expect(run1.stderr).toContain('demo_photos_left');
     expect(run1.stderr).toContain(photoKey(left.userId));
+    expect(run1.stderr).toContain(memberKey(left.userId));
   });
 
   it('refuses a wrong --days', () => {

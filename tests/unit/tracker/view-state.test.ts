@@ -146,7 +146,7 @@ describe('tracker view state', () => {
       hiddenTeams: ['it', 'nope'],
     });
     expect(list).toEqual({
-      teams: [{ id: 'it', name: 'IT', items: 1 }],
+      teams: [{ id: 'it', name: 'IT', items: 2 }],
       items: [
         { id: 'analyse', title: 'Analyse the CRS and FATCA rules', team: 'Digitization' },
         { id: 'pg203', title: 'PG-203 Country list field type', team: 'Engineering' },
@@ -167,22 +167,22 @@ describe('tracker view state', () => {
 });
 
 describe('row height and team toggles', () => {
-  it('reads Compact when nothing is stored, and round-trips each level per person', () => {
+  it('reads Comfortable when nothing is stored, and round-trips each level per person', () => {
     const store = memoryStore();
-    expect(readDensity(store, 'u1')).toBe('compact');
+    expect(readDensity(store, 'u1')).toBe('comfortable');
     writeDensity(store, 'u1', 'dense');
-    writeDensity(store, 'u2', 'comfortable');
+    writeDensity(store, 'u2', 'compact');
     expect(readDensity(store, 'u1')).toBe('dense');
-    expect(readDensity(store, 'u2')).toBe('comfortable');
+    expect(readDensity(store, 'u2')).toBe('compact');
     expect(densityKey('u1')).not.toBe(densityKey('u2'));
   });
 
-  it('reads Compact from an unknown value or a missing or throwing store', () => {
+  it('reads Comfortable from an unknown value or a missing or throwing store', () => {
     const store = memoryStore();
     store.setItem(densityKey('u1'), 'tiny');
-    expect(readDensity(store, 'u1')).toBe('compact');
-    expect(readDensity(null, 'u1')).toBe('compact');
-    expect(readDensity(throwing, 'u1')).toBe('compact');
+    expect(readDensity(store, 'u1')).toBe('comfortable');
+    expect(readDensity(null, 'u1')).toBe('comfortable');
+    expect(readDensity(throwing, 'u1')).toBe('comfortable');
     expect(() => writeDensity(throwing, 'u1', 'dense')).not.toThrow();
   });
 

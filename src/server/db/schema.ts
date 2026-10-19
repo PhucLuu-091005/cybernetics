@@ -122,6 +122,8 @@ export const agentTokens = pgTable(
     revokedAt: tz('revoked_at'),
     lastUsedAt: tz('last_used_at'),
     revokeKey: text('revoke_key'),
+    // A key made while the visitor of a demo copy acts as a seeded person acts as that member.
+    memberId: uuid('member_id').references(() => trackerMembers.id, { onDelete: 'cascade' }),
   },
   (table) => [
     unique('agent_tokens_creation_key_unique')
@@ -160,6 +162,8 @@ export const trackerMembers = pgTable(
     // A removed member keeps its row, because change requests and history still name it.
     removedAt: tz('removed_at'),
     createdAt: createdAt(),
+    // Only a seeded demo person, who has no user, keeps a photo here; a person's photo is on users.
+    avatarKey: text('avatar_key'),
   },
   (table) => [
     unique('tracker_members_project_id_unique').on(table.projectId, table.id),
