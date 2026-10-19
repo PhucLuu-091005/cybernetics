@@ -212,6 +212,14 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
         code: 'VALIDATION',
       });
       await expect(
+        append({ op: 'msAdd', a: { workItemId: 'dynamics', milestoneId: 'golive' } }),
+      ).rejects.toMatchObject({
+        code: 'VALIDATION',
+        message: expect.stringContaining(
+          'Dynamics CRM sync scope is in CRM integration live already.',
+        ),
+      });
+      await expect(
         append({ op: 'rename', a: { workItemId: 'pg203', title: 'x'.repeat(201) } }),
       ).rejects.toMatchObject({
         extras: { errors: [expect.objectContaining({ message: 'at most 200 characters' })] },

@@ -595,11 +595,14 @@ export function WorkItemDrawer({
               value={item.milestoneId ?? ''}
               disabled={busy}
               onChange={(milestoneId) =>
-                change(
-                  milestoneId
-                    ? { op: 'msAdd', a: { workItemId: item.id, milestoneId } }
-                    : { op: 'msRemove', a: { workItemId: item.id } },
-                )
+                actions.editItem([
+                  ...(item.milestoneId
+                    ? [{ op: 'msRemove' as const, a: { workItemId: item.id } }]
+                    : []),
+                  ...(milestoneId
+                    ? [{ op: 'msAdd' as const, a: { workItemId: item.id, milestoneId } }]
+                    : []),
+                ])
               }
               options={[
                 { value: '', label: 'None' },

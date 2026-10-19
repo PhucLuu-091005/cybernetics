@@ -799,6 +799,10 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await page.getByRole('button', { name: 'New milestone' }).click();
     const dialog = page.getByRole('dialog', { name: 'New milestone' });
     await expect(dialog.getByLabel('Time (optional)')).toBeVisible();
+    await expect(
+      dialog.getByRole('checkbox', { name: 'PG-203 Country list field type' }),
+    ).toBeVisible();
+    await expect(dialog.getByRole('checkbox', { name: 'Dynamics CRM sync scope' })).toHaveCount(0);
   });
 
   test('a selected milestone lights its work items and dims the others until its drawer closes', async ({

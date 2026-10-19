@@ -547,6 +547,27 @@ describe('applyOp', () => {
     );
   });
 
+  it('keeps one milestone per work item: adding one that has a milestone is refused, a move is remove then add', () => {
+    const s = larkspurState();
+    const taken =
+      'Dynamics CRM sync scope is in CRM integration live already. Remove it from that milestone first.';
+    expect(() =>
+      applyOp(s, makeOp('msAdd', { workItemId: 'dynamics', milestoneId: 'golive' })),
+    ).toThrow(taken);
+    expect(() =>
+      applyOp(
+        s,
+        makeOp('newMs', { id: 'm9', name: 'X', planned: '2026-10-20', members: ['dynamics'] }),
+      ),
+    ).toThrow(taken);
+    const removed = applyOp(s, makeOp('msRemove', { workItemId: 'dynamics' })).state;
+    const moved = applyOp(
+      removed,
+      makeOp('msAdd', { workItemId: 'dynamics', milestoneId: 'golive' }),
+    ).state;
+    expect(moved.workItems.find((w) => w.id === 'dynamics')?.milestoneId).toBe('golive');
+  });
+
   it('addTeam appends the team', () => {
     const { state } = applyOp(larkspurState(), CASES[15][1]);
     expect(state.teams.at(-1)).toEqual({ id: 'legal-team', name: 'Legal', leadId: 'priya' });

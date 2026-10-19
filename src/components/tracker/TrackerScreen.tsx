@@ -1175,8 +1175,15 @@ export function TrackerScreen({
         openModal({ mode: 'due', kind: 'ms', id: milestoneId, date, time });
     },
     removeFromMilestone: (workItemId) => commitOps([{ op: 'msRemove', a: { workItemId } }]),
-    addToMilestone: (workItemId, milestoneId) =>
-      commitOps([{ op: 'msAdd', a: { workItemId, milestoneId } }]),
+    addToMilestone: (workItemId, milestoneId) => {
+      const item = state.workItems.find((w) => w.id === workItemId);
+      const now = state.milestones.find((m) => m.id === item?.milestoneId);
+      if (item && now && now.id !== milestoneId)
+        return showToast(
+          `${item.title} is in ${now.name} already. Change its milestone in its details.`,
+        );
+      commitOps([{ op: 'msAdd', a: { workItemId, milestoneId } }]);
+    },
   };
 
   const handlers: ModalHandlers = {

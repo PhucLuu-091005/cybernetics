@@ -829,6 +829,7 @@ function MilestoneModal({ session, state, asOf, busy, on, onClose }: PropsOf<'ms
   const [planned, setPlanned] = useState(weekAfter(asOf, session.tz));
   const [time, setTime] = useState('');
   const [members, setMembers] = useState<string[]>([]);
+  const free = state.workItems.filter((w) => !w.milestoneId);
   const toggle = (id: string, checked: boolean) =>
     setMembers((list) => (checked ? [...list, id] : list.filter((x) => x !== id)));
   const create = () => {
@@ -871,8 +872,9 @@ function MilestoneModal({ session, state, asOf, busy, on, onClose }: PropsOf<'ms
         <p className="tip">Without a time, the deadline is the end of the day.</p>
       </div>
       <p className="q-label">Work items in it</p>
+      <p className="tip">A work item belongs to one milestone, so the list shows the free ones.</p>
       <div className="pick">
-        {state.workItems.map((w) => {
+        {free.map((w) => {
           const checked = members.includes(w.id);
           return (
             <Checkbox
@@ -885,7 +887,7 @@ function MilestoneModal({ session, state, asOf, busy, on, onClose }: PropsOf<'ms
             </Checkbox>
           );
         })}
-        {!state.workItems.length && <p className="tip">No work item yet.</p>}
+        {!free.length && <p className="tip">Every work item is in a milestone already.</p>}
       </div>
       <Foot label="Create milestone" busy={busy} onCancel={onClose} onCreate={create} />
     </ModalFrame>

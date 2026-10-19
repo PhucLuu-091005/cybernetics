@@ -319,6 +319,7 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
     case 'msAdd': {
       const item = find(s.workItems, op.a.workItemId, 'work item');
       const m = find(s.milestones, op.a.milestoneId, 'milestone');
+      if (item.milestoneId !== m.id) assertNoMilestone(s, item);
       const old = item.milestoneId
         ? s.milestones.find((x) => x.id === item.milestoneId)
         : undefined;
@@ -333,6 +334,7 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
     case 'newMs': {
       const { id, name, planned, time, members } = op.a;
       assertNew(s.milestones, id, 'milestone');
+      for (const item of s.workItems) if (members.includes(item.id)) assertNoMilestone(s, item);
       s.milestones.push({
         id,
         name,
@@ -451,6 +453,15 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
     default:
       throw new OpError(`Unknown operation ${(op as { op: unknown }).op}`);
   }
+}
+
+/** A work item belongs to one milestone; a move is an explicit msRemove, then msAdd. */
+function assertNoMilestone(s: TrackerState, item: WorkItem) {
+  const m = item.milestoneId && s.milestones.find((x) => x.id === item.milestoneId);
+  if (m)
+    throw new OpError(
+      `${item.title} is in ${m.name} already. Remove it from that milestone first.`,
+    );
 }
 
 export function applyOp(
