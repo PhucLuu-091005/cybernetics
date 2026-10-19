@@ -125,5 +125,10 @@ test('a new project starts with its teams and an empty graph, and its first chan
   await page.locator('.p-head').getByRole('button', { name: 'History' }).click();
   const history = page.locator('.drawer');
   await expect(history).toContainText('#1 Place the tax ID work');
-  await expect(history).toContainText('Tax ID field on the KYC form: placed → Engineering');
+  await expect(history).not.toContainText('placed → Engineering');
+  await history.getByRole('button', { name: 'Open #1 Place the tax ID work' }).click();
+  await page.waitForURL(/\/changes\/1$/);
+  await expect(page.getByRole('list', { name: 'Changes' })).toContainText(
+    'Tax ID field on the KYC form',
+  );
 });
