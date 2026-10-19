@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import '../../../../../components/tracker/tracker.css';
 import { IdSchema } from '../../../../../contracts';
@@ -11,18 +10,13 @@ import { TokenList } from '../../../../../components/settings/TokenList';
 import { PageHead } from '../../../../../components/shell/PageHead';
 import { getApp, listUserKeys } from '../../../../../server/app';
 import { photosOn } from '../../../../../server/avatars/config';
-import { photoMember } from '../../../../../server/avatars/service';
-import {
-  personalCreator,
-  projectAccount,
-  signedInAccount,
-} from '../../../../../server/domain/account';
+import { personalCreator } from '../../../../../server/domain/account';
 import { getProject } from '../../../../../server/domain/projects';
-import { loadMembers } from '../../../../../server/tracker/store';
 import { readAuthEnvironment } from '../../../../../server/env';
 import {
   notFoundOn,
   notFoundOnCursor,
+  pageOnScreen,
   requireActor,
   searchCursor,
 } from '../../../../../server/http/rsc';
@@ -34,26 +28,20 @@ const KEYS = '/api/v1/me/keys';
 
 async function loadProfile(projectId: string, cursor: string | null) {
   const actor = await requireActor(`/projects/${projectId}/profile`);
-  const actAs = (await cookies()).get(`pg_act_${projectId}`)?.value;
   const db = getApp().db;
-  const [{ timeZone }, page, account, own, creator, seeded] = await Promise.all([
+  const [{ timeZone }, page, seen, creator] = await Promise.all([
     notFoundOn(getProject(db, actor, { projectId })),
     notFoundOnCursor(listUserKeys(actor, { cursor }), cursor),
-    projectAccount(db, actor, projectId, actAs),
-    signedInAccount(db, actor.userId),
+    pageOnScreen(actor, projectId),
     personalCreator(db, actor),
-    photoMember(db, actor, projectId, actAs),
   ]);
-  // As every avatar shows the person: their member name and colour, else the grey of avatar.tsx.
-  const member = (await loadMembers(db, projectId)).find((m) => m.userId === actor.userId);
-  // A demo visitor who acts as a seeded person edits that person's photo, as the account menu shows them.
-  const face = seeded
-    ? { name: account.name, color: account.color ?? '#737373', photo: account.photo ?? null }
-    : {
-        name: member?.name ?? own.name,
-        color: member?.color ?? '#737373',
-        photo: own.photo ?? null,
-      };
+  const { account } = seen;
+  // The face of the person on screen, as every avatar shows them; the grey of avatar.tsx without a member.
+  const face = {
+    name: account.name,
+    color: account.color ?? '#737373',
+    photo: account.photo ?? null,
+  };
   const now = Date.now();
   const expiryOptions = [30, 7].map((days) => ({
     days,
@@ -64,7 +52,7 @@ async function loadProfile(projectId: string, cursor: string | null) {
     page,
     account,
     face,
-    actingAs: seeded ? account.name : undefined,
+    actingAs: seen.seeded ? account.name : undefined,
     creator,
     expiryOptions,
     now: new Date(now).toISOString(),

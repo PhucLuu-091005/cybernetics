@@ -3,11 +3,11 @@ import { browserActor, getApp } from '../app';
 import { AppError, errorResponse, newRequestId, privateJson } from '../errors';
 import { isId } from '../db/tx';
 import type { LimitBucket } from '../http/actors';
+import { personOnScreen } from '../domain/account';
 import { readActAs } from '../http/act-as';
 import { photoStore } from './config';
 import { MAX_PHOTO_BYTES, PHOTO_RULE } from './image';
 import {
-  photoMember,
   readMemberPhoto,
   readPhoto,
   removeMemberPhoto,
@@ -60,7 +60,8 @@ async function memberOnScreen(request: Request, ctx: ActorContext): Promise<stri
   const projectId = new URL(request.url).searchParams.get('project');
   if (projectId === null) return null;
   if (!isId(projectId)) throw new AppError('VALIDATION', 'Unknown project');
-  return photoMember(getApp().db, ctx, projectId, readActAs(request, projectId));
+  const seen = await personOnScreen(getApp().db, ctx, projectId, readActAs(request, projectId));
+  return seen.seeded ? seen.member!.id : null;
 }
 
 export const uploadPhoto = (request: Request) =>

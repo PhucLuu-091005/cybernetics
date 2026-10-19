@@ -2,6 +2,7 @@
 import { can, type RowFilter, type TrackerState } from '../../tracker';
 import { AccountMenu, type Account } from '../shell/AccountMenu';
 import type { Session } from './ContextBar';
+import { Avatar } from './avatar';
 import { Icon } from './icons';
 import { WorkSearch } from './Search';
 import { Select } from './Select';
@@ -98,7 +99,10 @@ export function TopBar(props: Props) {
             label="Demo: act as"
             value={me}
             onChange={onActAs}
-            options={demoPeople(payload.members, props.userId)}
+            options={demoPeople(payload.members, props.userId).map((option) => ({
+              ...option,
+              before: <Avatar id={option.value} dir={dir} sm />,
+            }))}
           />
         </div>
       )}

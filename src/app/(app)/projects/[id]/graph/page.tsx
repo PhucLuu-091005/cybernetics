@@ -1,11 +1,8 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { IdSchema } from '../../../../../contracts';
 import { TrackerScreen } from '../../../../../components/tracker/TrackerScreen';
-import { getApp } from '../../../../../server/app';
-import { signedInAccount } from '../../../../../server/domain/account';
-import { requireActor } from '../../../../../server/http/rsc';
+import { pageOnScreen, requireActor } from '../../../../../server/http/rsc';
 import { NoViewNotice, serverMinute, trackerPayload } from '../tracker-load';
 import { Notice } from '../../../../../components/shell/Notice';
 
@@ -25,7 +22,8 @@ export default async function GraphPage({
   if (typeof search.cr === 'string' && /^\d{1,9}$/.test(search.cr))
     redirect(`/projects/${id}/changes/${search.cr}`);
   const actor = await requireActor(`/projects/${id}/graph`);
-  const payload = await trackerPayload(actor, id, (await cookies()).get(`pg_act_${id}`)?.value);
+  const seen = await pageOnScreen(actor, id);
+  const payload = await trackerPayload(actor, id, seen.actAs);
   if (payload === 'no-view') return <NoViewNotice projectId={id} />;
   if (!payload)
     return (
@@ -38,7 +36,7 @@ export default async function GraphPage({
       payload={payload}
       projectId={id}
       userId={actor.userId}
-      account={await signedInAccount(getApp().db, actor.userId)}
+      account={seen.account}
       serverNow={serverMinute()}
     />
   );

@@ -2,9 +2,11 @@ import { cookies, headers } from 'next/headers';
 import { cache } from 'react';
 import { notFound, redirect } from 'next/navigation';
 import type { ActorContext } from '../../contracts';
-import { browserProjectActor, browserSession } from '../app';
+import { browserProjectActor, browserSession, getApp } from '../app';
+import { personOnScreen, type OnScreen } from '../domain/account';
 import { readAuthEnvironment } from '../env';
 import { AppError } from '../errors';
+import { actAsCookieName } from './act-as';
 import { projectInPath } from './actors';
 import { demoEntryPath } from './demo';
 import { RETURN_PATH_HEADER, returnPath, signinPath } from './return-path';
@@ -56,6 +58,17 @@ export async function requireActor(path: string): Promise<ActorContext> {
   }
   return actor;
 }
+
+/** The person a project page shows as "me"; pages never read the act-as cookie or the user for that. */
+export const pageOnScreen = cache(
+  async (actor: ActorContext, projectId: string): Promise<OnScreen> =>
+    personOnScreen(
+      getApp().db,
+      actor,
+      projectId,
+      (await cookies()).get(actAsCookieName(projectId))?.value,
+    ),
+);
 
 /** Domain reads answer NOT_FOUND for foreign or missing rows; a page shows the same 404 for both. */
 export async function notFoundOn<T>(work: Promise<T>): Promise<T> {

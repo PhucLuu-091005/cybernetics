@@ -4,7 +4,6 @@ import { projects, trackerMembers, users } from '../db/schema';
 import { isId, projectOpenTo, withTransaction, type Db } from '../db/tx';
 import { AppError } from '../errors';
 import { normalizePhoto } from './image';
-import { actingMember } from '../tracker/access';
 import { memberPhotoKey, memberPhotoUrl, photoUrl, type PhotoStore } from './store';
 
 const HASH = /^[0-9a-f]{64}$/;
@@ -66,29 +65,6 @@ export async function removePhoto(
     if (row?.key) await forget(store, row.key);
   });
   return { photo: null };
-}
-
-/**
- * The member whose photo Profile changes, when it is not the person's own: in a demo copy the
- * visitor may act as a seeded person, who has no user. A cookie that the project refuses falls
- * back to the own photo, as the account menu does.
- */
-export async function photoMember(
-  db: Db,
-  ctx: ActorContext,
-  projectId: string,
-  actAs: string | undefined,
-): Promise<string | null> {
-  if (!actAs) return null;
-  try {
-    const member = await db.transaction((tx) => actingMember(tx, ctx, projectId, actAs), {
-      accessMode: 'read only',
-    });
-    return member && member.userId === null ? member.id : null;
-  } catch (error) {
-    if (error instanceof AppError && error.code === 'FORBIDDEN') return null;
-    throw error;
-  }
 }
 
 export async function setMemberPhoto(

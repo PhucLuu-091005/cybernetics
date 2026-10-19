@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import '../../../../../../components/tracker/tracker.css';
 import { IdSchema } from '../../../../../../contracts';
@@ -9,12 +8,13 @@ import { TokenCreate } from '../../../../../../components/settings/TokenCreate';
 import { TokenList } from '../../../../../../components/settings/TokenList';
 import { PageHead } from '../../../../../../components/shell/PageHead';
 import { getApp, listAgentTokens } from '../../../../../../server/app';
-import { projectAccount, tokenCreator } from '../../../../../../server/domain/account';
+import { tokenCreator } from '../../../../../../server/domain/account';
 import { readAuthEnvironment } from '../../../../../../server/env';
 import { getProject } from '../../../../../../server/domain/projects';
 import {
   notFoundOn,
   notFoundOnCursor,
+  pageOnScreen,
   requireActor,
   searchCursor,
 } from '../../../../../../server/http/rsc';
@@ -26,12 +26,11 @@ const DAY = 86_400_000;
 /** The request time belongs to the data load: token expiry and the expiry choices are read at the same instant. */
 async function loadTokens(projectId: string, cursor: string | null) {
   const actor = await requireActor(`/projects/${projectId}/settings/tokens`);
-  const actAs = (await cookies()).get(`pg_act_${projectId}`)?.value;
   const db = getApp().db;
   const [{ project, timeZone }, page, account, creator] = await Promise.all([
     notFoundOn(getProject(db, actor, { projectId })),
     notFoundOnCursor(listAgentTokens(actor, { projectId, cursor }), cursor),
-    projectAccount(db, actor, projectId, actAs),
+    pageOnScreen(actor, projectId).then((seen) => seen.account),
     tokenCreator(db, actor, projectId),
   ]);
   const now = Date.now();

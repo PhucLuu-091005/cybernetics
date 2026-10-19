@@ -273,6 +273,10 @@
   flex: none;
   color: var(--ink-3);
 }
+.sel-pop li > .av {
+  margin-right: 8px;
+  vertical-align: middle;
+}
 .sel-hint {
   margin-left: 8px;
   color: var(--ink-3);

@@ -159,3 +159,28 @@ test('a new photo shows at once in the account menu and on Members, with no relo
     .toBuffer();
   await photoShowsEverywhere(page, { projectId, name: 'Minh Trần', initials: 'MT', png });
 });
+
+test('an act-as cookie grants nothing in a project that is not a demo copy', async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  const larkspur = await signIn(page, 'act-as-real-project');
+  const read = await page.request.get(`/api/v1/projects/${larkspur}/tracker`);
+  const quang = (
+    (await read.json()) as { members: Array<{ id: string; name: string }> }
+  ).members.find((m) => m.name === 'Quang Nguyễn')!.id;
+  const made = await page.request.post('/api/v1/projects', {
+    headers: { origin: baseURL! },
+    data: { title: 'Fund IV onboarding', clientName: 'Larkspur Capital', teams: ['Ops'] },
+  });
+  expect(made.status()).toBe(201);
+  const { id } = (await made.json()) as { id: string };
+  await context.addCookies([{ name: `pg_act_${id}`, value: quang, url: baseURL! }]);
+  for (const path of ['graph', 'members', 'profile']) {
+    await page.goto(`/projects/${id}/${path}`);
+    await expect(page.locator('.p-head details.acct summary b')).not.toHaveText('Quang Nguyễn');
+  }
+  await page.goto(`/projects/${id}/graph`);
+  await expect(page.getByLabel('Demo: act as')).toHaveCount(0);
+});

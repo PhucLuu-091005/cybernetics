@@ -1,12 +1,26 @@
 'use client';
-import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import {
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 import { FieldPop } from './FieldPop';
 import { activeOnOpen, moveActive, typeahead } from './select-keys';
 import { Icon } from './icons';
 import './fields.css';
 
 /** `hint` is quiet text after the label, such as a role; it is a description, not part of the name. */
-export type SelectOption = { value: string; label: string; hint?: string; disabled?: boolean };
+export type SelectOption = {
+  value: string;
+  label: string;
+  hint?: string;
+  /** A face or mark before the label in the list; it adds nothing to the name. */
+  before?: ReactNode;
+  disabled?: boolean;
+};
 
 /** The one select of the app: a button and a list in the same pop as the date and time boxes. */
 export function Select({
@@ -132,6 +146,7 @@ export function Select({
                 aria-describedby={option.hint ? `${id}-${i}-hint` : undefined}
                 onClick={() => pick(option)}
               >
+                {option.before}
                 {option.label}
                 {option.hint && (
                   <small id={`${id}-${i}-hint`} className="sel-hint" aria-hidden="true">

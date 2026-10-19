@@ -1,13 +1,11 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { IdSchema, type ActorContext } from '../../../../../contracts';
 import { MembersScreen } from '../../../../../components/members/MembersScreen';
 import { getApp } from '../../../../../server/app';
-import { projectAccount } from '../../../../../server/domain/account';
 import { getProject } from '../../../../../server/domain/projects';
 import { AppError } from '../../../../../server/errors';
-import { notFoundOn, requireActor } from '../../../../../server/http/rsc';
+import { notFoundOn, pageOnScreen, requireActor } from '../../../../../server/http/rsc';
 import { listProjectMembers, type MembersPayload } from '../../../../../server/tracker';
 import { Notice } from '../../../../../components/shell/Notice';
 
@@ -39,13 +37,12 @@ export default async function MembersPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   if (!IdSchema.safeParse(id).success) notFound();
   const actor = await requireActor(`/projects/${id}/members`);
-  const actAs = (await cookies()).get(`pg_act_${id}`)?.value;
-  const db = getApp().db;
-  const [{ project }, list, account] = await Promise.all([
-    notFoundOn(getProject(db, actor, { projectId: id })),
-    members(actor, id, actAs),
-    projectAccount(db, actor, id, actAs),
+  const seen = await pageOnScreen(actor, id);
+  const [{ project }, list] = await Promise.all([
+    notFoundOn(getProject(getApp().db, actor, { projectId: id })),
+    members(actor, id, seen.actAs),
   ]);
+  const account = seen.account;
   if (!list) return <Notice role="status" title="This project has no tracker yet." />;
   return (
     <MembersScreen

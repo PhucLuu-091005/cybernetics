@@ -5,7 +5,9 @@ import { photoUrl } from '../avatars/store';
 import { users } from '../db/schema';
 import type { Db } from '../db/tx';
 import { AppError } from '../errors';
+import { actingMember } from '../tracker/access';
 import { listProjectMembers } from '../tracker/members';
+import type { Member } from '../../tracker';
 import { listProjects } from './projects';
 
 export type AccountBadge = { name: string; detail?: string; color?: string; photo?: string | null };
@@ -24,33 +26,56 @@ export async function signedInAccount(db: Db, userId: string): Promise<AccountBa
   };
 }
 
-/** The top right of a project page names the acting member, as the graph does; a person with none sees their own name. */
-export async function projectAccount(
+export type OnScreen = {
+  /** The act-as cookie when the project accepts it. */
+  actAs: string | undefined;
+  /** The member a page shows as "me" and acts as; null for a person with no member here. */
+  member: Member | null;
+  /** The visitor of a demo copy acts as a seeded person, who has no user of their own. */
+  seeded: boolean;
+  account: AccountBadge;
+};
+
+/**
+ * The person on screen in a project: in a demo copy the visitor may act as another member through
+ * the act-as cookie; a cookie that the project refuses (any project that is not a demo copy, a
+ * removed member, a person who may not switch) falls back to the own member. Every page and every
+ * /me route resolves "me" here.
+ */
+export async function personOnScreen(
   db: Db,
   ctx: ActorContext,
   projectId: string,
-  actAs: string | undefined,
-): Promise<AccountBadge> {
-  for (const cookie of actAs ? [actAs, undefined] : [undefined]) {
+  cookie: string | undefined,
+): Promise<OnScreen> {
+  const acting = (actAs: string | undefined) =>
+    db.transaction((tx) => actingMember(tx, ctx, projectId, actAs), { accessMode: 'read only' });
+  let actAs = cookie;
+  let member: Member | null;
+  try {
     try {
-      const { members } = await listProjectMembers(db, ctx, {
-        projectId,
-        ...(cookie ? { actAs: cookie } : {}),
-      });
-      const you = members.find((member) => member.you);
-      if (you)
-        return {
-          name: you.name,
-          detail: you.label || undefined,
-          color: you.color,
-          photo: you.photo,
-        };
-      break;
+      member = await acting(actAs);
     } catch (error) {
-      if (!(error instanceof AppError) || error.code === 'RATE_LIMITED') throw error;
+      const refused =
+        error instanceof AppError && (error.code === 'FORBIDDEN' || error.code === 'VALIDATION');
+      if (!actAs || !refused) throw error;
+      actAs = undefined;
+      member = await acting(undefined);
     }
+  } catch (error) {
+    if (!(error instanceof AppError) || error.code !== 'NOT_FOUND') throw error;
+    member = null;
   }
-  return { ...(await signedInAccount(db, ctx.userId)), detail: 'Can view' };
+  if (member?.id !== actAs) actAs = undefined;
+  const account: AccountBadge = member
+    ? {
+        name: member.name,
+        detail: member.roleLabel || undefined,
+        color: member.color,
+        photo: member.photo ?? null,
+      }
+    : { ...(await signedInAccount(db, ctx.userId)), detail: 'Can view' };
+  return { actAs, member, seeded: !!member && member.userId === null, account };
 }
 
 const READER: Creator = {

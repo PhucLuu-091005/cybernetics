@@ -82,6 +82,8 @@ export async function photoShowsEverywhere(
     png: Buffer;
     /** Runs on Members while the photo is set. */
     onMembers?: () => Promise<void>;
+    /** Runs on the graph while the photo is set. */
+    onGraph?: () => Promise<void>;
   },
 ) {
   const { projectId, name, initials, png } = opts;
@@ -109,6 +111,7 @@ export async function photoShowsEverywhere(
   await rail.getByRole('link', { name: 'Graph' }).click();
   await expect(page).toHaveURL(`/projects/${projectId}/graph`);
   await expect(menu.locator('img')).toHaveAttribute('src', PHOTO_SRC);
+  await opts.onGraph?.();
   await rail.getByRole('link', { name: 'Members' }).click();
   await expect(page).toHaveURL(`/projects/${projectId}/members`);
   await expect(memberFace().locator('img')).toHaveAttribute('src', PHOTO_SRC);
