@@ -555,7 +555,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     );
 
     await expect(goLive).toHaveCount(5);
-    await expect(crm).toHaveCount(4);
+    // Legal review routing finished before the board starts, so three member rows show it.
+    await expect(crm).toHaveCount(3);
     await expect(page.locator('svg.pg-rail, svg.tg .ms-chip, svg.tg .goal')).toHaveCount(0);
     await expect(page.locator('svg.tg [data-ms="crm"] .ms-c')).toHaveCount(1);
 
@@ -686,7 +687,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
 
     await expect(
       page.locator('svg.pg .deadline[aria-label^="CRM integration live · deadline 18 Sept 12:00"]'),
-    ).toHaveCount(4);
+    ).toHaveCount(3);
     await expect(page.locator('svg.tg [data-ms="crm"]')).toHaveAttribute(
       'aria-label',
       /CRM integration live · 18 Sept 12:00 · Late \(was 18 Sept\)/,
@@ -817,7 +818,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(dialog).toHaveCount(0);
     await expect(
       page.locator('svg.pg .deadline[aria-label^="CRM integration live · deadline 2 Oct 14:30"]'),
-    ).toHaveCount(4);
+    ).toHaveCount(3);
 
     await page
       .locator('.cr-side')
@@ -882,15 +883,11 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
         return `svg.pg [data-act="${right.getAttribute('data-act')}"]`;
       });
 
-    await expect(fit).toBeEnabled();
+    // The story is five weeks long, so the first view is the whole board at Fit.
+    await expect(fit).toBeDisabled();
     await expect.poll(() => inView('svg.pg-top-time .tpill')).toBe(true);
     expect(await inView(await latest())).toBe(true);
     expect(await labelsApart()).toBe(true);
-
-    await fit.click();
-    await expect(fit).toBeDisabled();
-    await expect.poll(labelsApart).toBe(true);
-    expect(await inView('svg.pg-top-time .tpill')).toBe(true);
   });
 
   test('folding the rail keeps the size of the graph and shows more of the time line', async ({
@@ -908,7 +905,6 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       });
     const lastTick = () => page.locator('svg.pg-top-time .tick').last().textContent();
     const timeLine = async () => (await page.locator('svg.pg').boundingBox())?.width ?? 0;
-    await fit.click();
     await expect(fit).toBeDisabled();
     const open = await measure();
     const openEnd = await lastTick();
@@ -984,7 +980,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await panel.locator('.fchip', { hasText: /^Late$/ }).click();
     await expect(page.getByRole('button', { name: 'Clear filters' })).toBeEnabled();
     await expect(page.locator('summary[aria-label="Filters, 1 on"]')).toHaveCount(1);
-    await expect(panel).toContainText('4 of 14 work items match');
+    await expect(panel).toContainText('4 of 15 work items match');
     await expect(rows).toHaveCount(5);
     const dimmed = page.locator('svg.pg-side .row-label.dim');
     await expect(dimmed).toHaveCount(1);
@@ -1118,7 +1114,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(pop).toContainText('Minh sends the rehearsal report.');
     await page.keyboard.press('Escape');
 
-    await page.getByRole('button', { name: 'Fit to width' }).click();
+    // The first view is Fit already.
+    await expect(page.getByRole('button', { name: 'Fit to width' })).toBeDisabled();
     await expect.poll(overflow).toBe(0);
     const zoomIn = page.getByRole('button', { name: 'Zoom in' });
     for (let i = 0; i < 6; i += 1) await zoomIn.click();
@@ -1171,7 +1168,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await expect(marks).toHaveCount(1);
       const mark = marks.first();
       // The Handoff event icon is the mark: one symbol, with the receiver count on it.
-      await expect(mark).toHaveAttribute('data-stack', /a3/);
+      await expect(mark).toHaveAttribute('data-act', 'a3');
       await expect(mark.locator('.hand-count')).toHaveText('3');
       await expect(page.locator('svg.pg .handoff[data-handoff="analyse"]')).toHaveCount(0);
       await mark.hover();
@@ -1374,9 +1371,9 @@ test.describe('events at their own time', () => {
 
   test('Fit shows the earliest events, and a sideways drag moves nothing', async ({ page }) => {
     const { projectId } = await signIn(page, 'tracker-day');
-    await page.getByRole('button', { name: 'Fit to width' }).click();
-    // At Fit the 2 Jul and 3 Jul events stack, with the later one on top.
-    const g1 = page.locator('svg.pg [data-stack*="g1"]');
+    // The first view is Fit, and the earliest event sits clear of the label column.
+    await expect(page.getByRole('button', { name: 'Fit to width' })).toBeDisabled();
+    const g1 = page.locator('svg.pg [data-act="g1"]');
     await expect(g1).toHaveCount(1);
     await expect(g1).toBeInViewport();
     const side = await page.locator('svg.pg-side').boundingBox();
