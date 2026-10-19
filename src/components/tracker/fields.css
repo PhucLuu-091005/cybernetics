@@ -273,7 +273,8 @@
   flex: none;
   color: var(--ink-3);
 }
-.sel-pop li > .av {
+.tk .sel-pop li > .av {
+  display: inline-grid;
   margin-right: 8px;
   vertical-align: middle;
 }
