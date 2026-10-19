@@ -990,8 +990,21 @@ function deadlinesOf(
   shown: LayoutRow[],
   statusOf: Map<string, MsStatus>,
   busy: Map<string, Span[]>,
+  groups: readonly LayoutEventGroup[],
 ): LayoutDeadline[] {
   const byId = new Map(c.state.milestones.map((m) => [m.id, m]));
+  // Nothing on the graph may hide: a diamond on an event icon moves beside it, on its own time's side.
+  const clear = c.level.r + c.level.diamond;
+  const besideIcons = (rowId: string, x0: number) => {
+    const icons = groups.filter((g) => g.workItemId === rowId).map((g) => g.x);
+    let x = x0;
+    for (let i = 0; i <= icons.length; i += 1) {
+      const hit = icons.find((gx) => Math.abs(gx - x) < clear);
+      if (hit === undefined) break;
+      x = x0 >= hit ? hit + clear : hit - clear;
+    }
+    return x;
+  };
   const named = new Set<string>();
   return shown.flatMap((r): LayoutDeadline[] => {
     const m = r.milestoneId ? byId.get(r.milestoneId) : undefined;
@@ -1005,7 +1018,7 @@ function deadlinesOf(
     const tone = STATUS_TONE[status];
     const changed = !!c.marks?.dates.has(`ms:${m.id}`);
     const reason = makesLate(c, w, m) ? (r.done ? 'finished after it' : 'makes it late') : null;
-    const x = c.deadlineX(m);
+    const x = besideIcons(r.id, c.deadlineX(m));
     const text = `${m.name} · deadline ${formatDeadline(m.planned, m.plannedTime)} · ${STATUS_LABEL[status]}`;
     const placed = first ? placeName(c, m.name, x, busy.get(r.id) ?? []) : null;
     const side = placed?.side ?? null;
@@ -1441,7 +1454,7 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     rows: shown,
     segments,
     eventGroups,
-    deadlines: deadlinesOf(c, shown, statusOf, busy),
+    deadlines: deadlinesOf(c, shown, statusOf, busy, eventGroups),
     handoffs,
     trunk: { x1: X0, x2: x1, y: TRUNK_Y },
     trunkSegments: trunkSegmentsOf(c, statusOf),

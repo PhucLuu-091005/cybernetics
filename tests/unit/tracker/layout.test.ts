@@ -889,6 +889,23 @@ describe('layoutTracker: milestone deadlines on member rows', () => {
   });
 });
 
+describe('layoutTracker: a milestone diamond never sits under an event icon', () => {
+  it('moves the diamond beside the icon, on the side its time lies', () => {
+    for (const density of ['comfortable', 'compact', 'dense'] as const) {
+      const L = layoutTracker(larkspurState(), view({ density }));
+      const { r, diamond } = L.level;
+      for (const d of L.deadlines)
+        for (const g of L.eventGroups.filter((x) => x.workItemId === d.workItemId))
+          expect(Math.abs(d.x - g.x), `${density} ${d.workItemId}`).toBeGreaterThanOrEqual(
+            r + diamond,
+          );
+      const legal = L.deadlines.find((d) => d.workItemId === 'legal')!;
+      const done = L.eventGroups.find((g) => g.eventIds.includes('l3'))!;
+      expect(legal.x).toBeGreaterThan(done.x);
+    }
+  });
+});
+
 describe('layoutTracker: milestone names keep off the T line', () => {
   const main = () => replayOps(larkspurState(), larkspurCrs()[0].ops, TIME_ZONE).state;
   const views = [300, 500, 800, 1000, 1200].flatMap((span) =>
@@ -982,7 +999,14 @@ describe('layoutTracker: a milestone deadline with a time', () => {
   it('puts the diamond and the milestone circle at the time on the project clock', () => {
     const L = layoutTracker(busyDay('17:00'), view({ zoom: 12 }));
     const x = L.x(ms('2026-10-08T17:00'));
-    expect(L.deadlines[0]).toMatchObject({ date: '2026-10-08', time: '17:00', x });
+    expect(L.deadlines[0]).toMatchObject({ date: '2026-10-08', time: '17:00' });
+    // The diamond keeps its time order but moves off the Done icon an hour later.
+    const { r, diamond } = L.level;
+    const dx = L.deadlines[0].x;
+    expect(Math.abs(dx - x)).toBeLessThan(r + diamond);
+    expect(Math.abs(dx - xs(L).e3)).toBeGreaterThanOrEqual(r + diamond);
+    expect(dx).toBeGreaterThan(xs(L).e2);
+    expect(dx).toBeLessThan(xs(L).e3);
     expect(L.milestones[0].x).toBe(x);
     expect(L.milestones[0].label).toBe('Client call · 8 Oct 17:00 · Finished late');
     expect(L.deadlines[0].tooltip).toBe(

@@ -601,7 +601,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(page.locator('svg.pg-rail, svg.tg .ms-chip, svg.tg .goal')).toHaveCount(0);
     await expect(page.locator('svg.tg [data-ms="crm"] .ms-c')).toHaveCount(1);
 
-    await crm.nth(1).locator('.deadline-mark').hover();
+    await crm.first().locator('.deadline-mark').hover();
     await expect(tip).toContainText('CRM integration live · deadline 18 Sept 17:00 · Late');
     await crm.first().focus();
     await page.keyboard.press(' ');
