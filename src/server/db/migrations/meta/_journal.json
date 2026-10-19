@@ -19,15 +19,8 @@
     {
       "idx": 2,
       "version": "7",
-      "when": 1792398275167,
+      "when": 1792402339410,
       "tag": "0002_member_photos",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1792401496005,
-      "tag": "0003_key_members",
       "breakpoints": true
     }
   ]

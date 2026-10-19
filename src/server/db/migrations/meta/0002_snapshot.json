@@ -1,5 +1,5 @@
 {
-  "id": "83f317e5-7d8b-41dd-bdb0-ed8d50ab145d",
+  "id": "00f6d642-aa86-4216-8491-babf47cd3443",
   "prevId": "dae16111-c0db-477d-821d-fb236242db7c",
   "version": "7",
   "dialect": "postgresql",
@@ -106,6 +106,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -152,6 +158,19 @@
             "id"
           ],
           "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "agent_tokens_member_id_tracker_members_id_fk": {
+          "name": "agent_tokens_member_id_tracker_members_id_fk",
+          "tableFrom": "agent_tokens",
+          "tableTo": "tracker_members",
+          "columnsFrom": [
+            "member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         },
         "agent_tokens_project_fk": {
