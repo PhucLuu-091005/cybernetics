@@ -4,12 +4,13 @@ import {
   LARKSPUR_OWNER,
   larkspurCrs,
 } from '../../../src/server/tracker/seed/larkspur';
-import { liveOps, mainState, type Commit } from '../../../src/tracker/clash';
+import { liveOps, mainState, type Commit, type Picks } from '../../../src/tracker/clash';
 import { queueFromRows, replayOps, type Op } from '../../../src/tracker/ops';
 import type { Cr, Member, Resolution, TrackerPayload } from '../../../src/tracker/payload';
 import {
   clashSpot,
   firstUnpicked,
+  keepCrForAll,
   openedReview,
   pickAll,
   pickedCount,
@@ -308,6 +309,23 @@ describe('reviewModel', () => {
     expect(keepMain?.canMerge).toBe(true);
     expect(keepMain?.after.events.find((e) => e.id === 'qe1')?.workItemId).toBe('secret');
     expect(titleOf(keepMain!.after, 'secret')).toBe('Secret renewed');
+  });
+
+  it('keeps the change request for all where it can apply, worked out from every clash on cr', () => {
+    const { crs, commits } = afterTwoMerges();
+    expect(keepCrForAll(payload(crs, commits), 3, { 'loop:pg203:title': 'main' })).toEqual({
+      'loop:pg203:title': 'cr',
+    });
+    const took = mainTookTheSpots();
+    const p = payload(took.crs, took.commits);
+    const starts: Picks[] = [{}, { 'event:qe1': 'main' }, { 'act:p31': 'cr' }];
+    for (const start of starts) {
+      const picks = keepCrForAll(p, 5, start);
+      const model = reviewModel(p, 5, picks)!;
+      for (const clash of model.clashes)
+        expect(picks[clash.key] === 'main' || clash.crApplies, clash.key).toBe(true);
+      expect(model.canMerge).toBe(true);
+    }
   });
 
   it('reports the clash of a draft but never lets the owner merge it', () => {

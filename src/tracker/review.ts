@@ -344,7 +344,7 @@ export function openedReview(
 const counts = (clash: ReviewClash, picks: Picks) =>
   picks[clash.key] === 'main' || (picks[clash.key] === 'cr' && clash.crApplies);
 
-/** One side for every clash; a clash whose change request side cannot apply keeps Main. */
+/** A clash whose change request side cannot apply keeps Main. */
 export const pickAll = (clashes: readonly ReviewClash[], side: 'main' | 'cr'): Picks =>
   Object.fromEntries(
     clashes.map((c) => [c.key, side === 'cr' && c.crApplies ? 'cr' : 'main'] as const),
@@ -369,4 +369,23 @@ export function clashSpot(
     return ev ? { kind: 'item', id: ev.workItemId } : null;
   }
   return null;
+}
+
+/**
+ * Whether a change request side applies depends on the other picks, so this starts from cr for
+ * every clash and keeps Main only where cr cannot apply, until the picks stop changing.
+ */
+export function keepCrForAll(payload: TrackerPayload, num: number, picks: Picks): Picks {
+  const first = reviewModel(payload, num, picks);
+  if (!first) return picks;
+  let next: Picks = { ...picks, ...pickAll(first.clashes, 'main') };
+  for (const clash of first.clashes) next[clash.key] = 'cr';
+  for (let round = 0; round <= first.clashes.length; round += 1) {
+    const model = reviewModel(payload, num, next)!;
+    const fixed: Picks = { ...next };
+    for (const clash of model.clashes) fixed[clash.key] = clash.crApplies ? 'cr' : 'main';
+    if (model.clashes.every((clash) => fixed[clash.key] === next[clash.key])) return fixed;
+    next = fixed;
+  }
+  return next;
 }

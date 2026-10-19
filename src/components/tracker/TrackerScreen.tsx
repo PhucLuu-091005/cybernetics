@@ -44,7 +44,14 @@ import {
   can,
   mergerIds,
 } from '../../tracker';
-import { clashSpot, firstUnpicked, openedReview, pickAll, reviewModel } from '../../tracker/review';
+import {
+  clashSpot,
+  firstUnpicked,
+  keepCrForAll,
+  openedReview,
+  pickAll,
+  reviewModel,
+} from '../../tracker/review';
 import {
   actAs,
   addToQueue,
@@ -1576,7 +1583,13 @@ export function TrackerScreen({
             onTab={setSideTab}
             onSelect={selectChange}
             onPick={(key, value) => setPicks((p) => ({ ...p, [key]: value }))}
-            onPickAll={(side) => setPicks((p) => ({ ...p, ...pickAll(model.clashes, side) }))}
+            onPickAll={(side) =>
+              setPicks((p) =>
+                side === 'cr'
+                  ? keepCrForAll(payload, model.cr.num, p)
+                  : { ...p, ...pickAll(model.clashes, 'main') },
+              )
+            }
             onShowClash={(key) => {
               const spot = clashSpot(key, model.after);
               if (spot?.kind === 'item') showRow(spot.id);
