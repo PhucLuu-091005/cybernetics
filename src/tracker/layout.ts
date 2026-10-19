@@ -850,7 +850,7 @@ type Span = [number, number];
 const LABEL_GAP = 9;
 // At 9.5 px a name letter takes about 5.4 units; smaller rows scale it with their font.
 const LABEL_CHAR = 5.4 / 9.5;
-const WAIT_CHAR = 5.6;
+export const WAIT_CHAR = 5.6;
 
 /**
  * What already sits on each row near the line, so the milestone name goes only where it is free.
@@ -899,7 +899,13 @@ function waitsClearOfMarks(
   const plusSpan: Span = [plus - c.level.plus - 2, plus + c.level.plus + 4];
   return segments.map((s) => {
     if (s.kind !== 'wait') return s;
-    const spans = [...(marks.get(s.workItemId) ?? []), ...(c.view.plusButtons ? [plusSpan] : [])];
+    // The T line runs through every row, so a text that crosses it reads as struck through.
+    const tSpan: Span = [c.xt - 4, c.xt + 4];
+    const spans = [
+      ...(marks.get(s.workItemId) ?? []),
+      tSpan,
+      ...(c.view.plusButtons ? [plusSpan] : []),
+    ];
     const width = s.text.length * WAIT_CHAR;
     let x = s.textX;
     let first: Span | null = null;

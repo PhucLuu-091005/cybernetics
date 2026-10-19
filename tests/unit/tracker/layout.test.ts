@@ -10,6 +10,7 @@ import {
   type LayoutSegment,
   type TrackerLayout,
   type View,
+  WAIT_CHAR,
 } from '../../../src/tracker/layout';
 import type { TrackerState } from '../../../src/tracker/model';
 import { replayOps, type Marks } from '../../../src/tracker/ops';
@@ -519,6 +520,25 @@ describe('layoutTracker: the row tree', () => {
       ['other', 0],
       ['far', 0],
     ]);
+  });
+});
+
+describe('the text of an empty row and the T line', () => {
+  it('never lets the T line cross the text, at any zoom and with or without + buttons', () => {
+    // PG-204 placed today waits for nothing and starts 48 hours before T, like seed #2 does.
+    const placed = replayOps(larkspurState(), larkspurCrs()[1].ops).state;
+    const crossings: string[] = [];
+    for (const dayWidth of [2, 4, 8, 16, 26, 40, 80, 160, 480])
+      for (const plusButtons of [false, true]) {
+        const L = layoutTracker(placed, view({ dayWidth, plusButtons }));
+        for (const s of L.segments) {
+          if (s.kind !== 'wait') continue;
+          const end = s.textX + s.text.length * WAIT_CHAR;
+          if (s.textX < L.tLine.x + 3 && end > L.tLine.x - 3)
+            crossings.push(`${s.workItemId} at ${dayWidth}${plusButtons ? ' +' : ''}`);
+        }
+      }
+    expect(crossings).toEqual([]);
   });
 });
 
