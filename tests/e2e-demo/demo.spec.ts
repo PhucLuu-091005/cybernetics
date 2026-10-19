@@ -231,11 +231,13 @@ test('a new sandbox places its story before now, and T follows the real clock', 
   const latest = Math.max(...tracker.base.events.map((e) => Date.parse(e.at)));
   expect(latest).toBeLessThanOrEqual(Date.now());
   expect(Date.now() - latest).toBeLessThan(4 * 86_400_000);
-  const day = new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    timeZone: 'Asia/Ho_Chi_Minh',
-  }).format(new Date());
-  await expect(page.locator('.tpill text').first()).toHaveText(new RegExp(`^T ${day} `));
+  const dayOf = (ms: number) =>
+    new Intl.DateTimeFormat('en-GB', { day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' }).format(ms);
+  // Near midnight the page may have rendered on the day before the test reads its clock.
+  const days = [...new Set([dayOf(Date.now()), dayOf(Date.now() - 60_000)])];
+  await expect(page.locator('.tpill text').first()).toHaveText(
+    new RegExp(`^T (${days.join('|')}) `),
+  );
 });
 
 test('a visitor who acts as Quang gives Quang the photo, and it shows at once', async ({
