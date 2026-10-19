@@ -342,7 +342,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP tracker tools', () => {
     expect(tracker.workItems.find((w: { id: string }) => w.id === 'test')).toMatchObject({
       plannedFinish: '2026-10-09',
       plannedFinishTime: '09:00',
-      firstPlannedFinishTime: null,
+      firstPlannedFinishTime: '09:30',
       status: 'late',
     });
   });

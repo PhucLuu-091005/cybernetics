@@ -559,7 +559,7 @@ describe('layoutTracker: segments and waits', () => {
   it('shows PG-202 caution after its planned day (finished late)', () => {
     const segs = lines(L, 'pg202');
     expect(segs.map((s) => s.tone)).toEqual(['proceed', 'caution']);
-    expect(segs[1].x1).toBeCloseTo(L.x(dayEnd('2026-10-01')), 9);
+    expect(segs[1].x1).toBeCloseTo(L.x(ms('2026-10-01T17:00')), 9);
     expect(segs[1].x2).toBeCloseTo(L.x(ms('2026-10-03T10:00')), 9);
   });
 
@@ -1335,7 +1335,7 @@ describe('layoutTracker: milestones and trunk', () => {
     const crm = L.milestones.find((m) => m.name === 'CRM integration live')!;
     expect(crm).toMatchObject({
       id: 'crm',
-      x: L.x(dayEnd('2026-09-18')),
+      x: L.x(ms('2026-09-18T17:00')),
       y: TRUNK_Y,
       status: 'late',
       tone: 'danger',
@@ -1344,8 +1344,8 @@ describe('layoutTracker: milestones and trunk', () => {
       filled: true,
       icon: 'bang',
       changed: false,
-      label: 'CRM integration live · 18 Sept · Late',
-      ariaLabel: 'CRM integration live · 18 Sept · Late',
+      label: 'CRM integration live · 18 Sept 17:00 · Late',
+      ariaLabel: 'CRM integration live · 18 Sept 17:00 · Late',
       anchor: 'start',
       level: 0,
       labelY: MS_Y,
@@ -1357,7 +1357,7 @@ describe('layoutTracker: milestones and trunk', () => {
     const xt = L.x(Date.parse(AS_OF));
     expect(L.trunk).toEqual({ x1: X0, x2: X1, y: TRUNK_Y });
     expect(L.trunkSegments).toEqual([
-      { milestoneId: 'crm', x1: L.x(dayEnd('2026-09-18')), x2: xt, y: TRUNK_Y, tone: 'danger' },
+      { milestoneId: 'crm', x1: L.x(ms('2026-09-18T17:00')), x2: xt, y: TRUNK_Y, tone: 'danger' },
       { milestoneId: 'golive', x1: L.x(dayEnd('2026-09-30')), x2: xt, y: TRUNK_Y, tone: 'danger' },
     ]);
   });
@@ -1592,7 +1592,7 @@ describe('layoutTracker: change marks', () => {
       makeOp('msName', { milestoneId: 'crm', name: 'CRM sync live' }),
     ]);
     expect(crm(layoutTracker(renamed.state, view(), renamed.marks)).label).toBe(
-      'CRM sync live · 18 Sept · Late',
+      'CRM sync live · 18 Sept 17:00 · Late',
     );
     const renamedAfterMove = replayOps(replay.state, [
       makeOp('msName', { milestoneId: 'crm', name: 'CRM sync live' }),

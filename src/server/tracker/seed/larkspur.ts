@@ -98,6 +98,8 @@ type Loop = {
   parentId: string | null;
   after: string[];
   plannedFinish: string;
+  /** Most plans end at a time of day; a few keep the whole day, so both forms show. */
+  plannedFinishTime?: string;
   events: Ev[];
 };
 
@@ -135,6 +137,7 @@ const LOOPS: Loop[] = [
     parentId: null,
     after: [],
     plannedFinish: '2026-10-16',
+    plannedFinishTime: '17:00',
     events: [
       [
         'c1',
@@ -169,6 +172,7 @@ const LOOPS: Loop[] = [
     parentId: null,
     after: [],
     plannedFinish: '2026-09-26',
+    plannedFinishTime: '16:00',
     events: [
       ['r1', '2026-09-24T09:20', 'meeting', 'minh', 'Rehearsal call with Fund Operations.'],
       ['r2', '2026-09-24T15:10', 'delivery', 'minh', 'Minh sends the rehearsal report.'],
@@ -185,6 +189,7 @@ const LOOPS: Loop[] = [
     parentId: 'crs',
     after: [],
     plannedFinish: '2026-09-22',
+    plannedFinishTime: '17:00',
     events: [
       [
         'a1',
@@ -220,6 +225,7 @@ const LOOPS: Loop[] = [
     parentId: null,
     after: [],
     plannedFinish: '2026-09-18',
+    plannedFinishTime: '12:00',
     events: [
       ['l1', '2026-09-14T09:20', 'task', 'priya', 'Configure legal review routing.'],
       ['l2', '2026-09-16T10:10', 'delivery', 'lan', 'Legal review routing is live.'],
@@ -258,6 +264,7 @@ const LOOPS: Loop[] = [
     parentId: 'crs',
     after: ['analyse'],
     plannedFinish: '2026-10-01',
+    plannedFinishTime: '17:00',
     events: [
       [
         'p21',
@@ -280,6 +287,7 @@ const LOOPS: Loop[] = [
     parentId: null,
     after: [],
     plannedFinish: '2026-09-18',
+    plannedFinishTime: '12:00',
     events: [
       [
         'd1',
@@ -301,6 +309,7 @@ const LOOPS: Loop[] = [
     parentId: null,
     after: [],
     plannedFinish: '2026-09-18',
+    plannedFinishTime: '12:00',
     events: [
       ['s1', '2026-09-14T09:20', 'task', 'tom', 'Enable sync monitoring.'],
       ['s2', '2026-09-16T10:00', 'delivery', 'quang', 'Sync monitoring is on.'],
@@ -317,6 +326,7 @@ const LOOPS: Loop[] = [
     parentId: null,
     after: [],
     plannedFinish: '2026-09-18',
+    plannedFinishTime: '17:00',
     events: [
       ['m1', '2026-09-14T14:00', 'task', 'tom', 'Enable the CRM integration.'],
       ['m2', '2026-09-16T15:10', 'delivery', 'quang', 'The CRM integration is live.'],
@@ -360,6 +370,7 @@ const LOOPS: Loop[] = [
     parentId: 'crs',
     after: ['pg201', 'pg202', 'pg203'],
     plannedFinish: '2026-10-14',
+    plannedFinishTime: '09:30',
     events: [],
   },
   {
@@ -372,6 +383,7 @@ const LOOPS: Loop[] = [
     parentId: null,
     after: [],
     plannedFinish: '2026-10-03',
+    plannedFinishTime: '12:00',
     events: [
       [
         'i1',
@@ -392,6 +404,7 @@ const LOOPS: Loop[] = [
     parentId: null,
     after: [],
     plannedFinish: '2026-09-24',
+    plannedFinishTime: '17:00',
     events: [
       [
         'x1',
@@ -546,7 +559,9 @@ function storyBase(id: LarkspurIds): TrackerBase {
         id: 'crm',
         name: 'CRM integration live',
         planned: '2026-09-18',
+        plannedTime: '17:00',
         firstPlanned: '2026-09-18',
+        firstPlannedTime: '17:00',
         moves: [],
       },
       {
@@ -569,6 +584,12 @@ function storyBase(id: LarkspurIds): TrackerBase {
         parentId: loop.parentId,
         after: [...loop.after],
         plannedFinish: loop.plannedFinish,
+        ...(loop.plannedFinishTime
+          ? {
+              plannedFinishTime: loop.plannedFinishTime,
+              firstPlannedFinishTime: loop.plannedFinishTime,
+            }
+          : {}),
         firstPlannedFinish: recorded?.firstPlannedFinish ?? loop.plannedFinish,
         moves: (recorded?.moves ?? []).map((move) => ({ ...move, by: id(move.by) })),
         since: null,
@@ -717,7 +738,13 @@ function storyHistory(id: LarkspurIds): LarkspurHistory {
     ...main.teams.map((team) => ({ op: 'addTeam' as const, a: team })),
     ...main.milestones.map((m) => ({
       op: 'newMs' as const,
-      a: { id: m.id, name: m.name, planned: m.planned, members: [] },
+      a: {
+        id: m.id,
+        name: m.name,
+        planned: m.planned,
+        ...(m.plannedTime ? { time: m.plannedTime } : {}),
+        members: [],
+      },
     })),
   ]);
   const plans = PLANS.map((plan, i) => {
@@ -768,6 +795,7 @@ function storyHistory(id: LarkspurIds): LarkspurHistory {
           milestoneId: loop.milestoneId,
           after: null,
           plannedFinish: RECORDED_MOVES[key]?.firstPlannedFinish ?? loop.plannedFinish,
+          ...(loop.plannedFinishTime ? { plannedFinishTime: loop.plannedFinishTime } : {}),
         },
         addedByMember: id(plan.author),
         addedByAgent: false,

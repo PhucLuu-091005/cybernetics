@@ -594,8 +594,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(page.locator('svg.pg-rail, svg.tg .ms-chip, svg.tg .goal')).toHaveCount(0);
     await expect(page.locator('svg.tg [data-ms="crm"] .ms-c')).toHaveCount(1);
 
-    await crm.first().locator('.deadline-mark').hover();
-    await expect(tip).toContainText('CRM integration live · deadline 18 Sept · Late');
+    await crm.nth(1).locator('.deadline-mark').hover();
+    await expect(tip).toContainText('CRM integration live · deadline 18 Sept 17:00 · Late');
     await crm.first().focus();
     await page.keyboard.press(' ');
     await expect(drawer).toContainText('CRM integration live');
@@ -724,9 +724,9 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     ).toHaveCount(4);
     await expect(page.locator('svg.tg [data-ms="crm"]')).toHaveAttribute(
       'aria-label',
-      /CRM integration live · 18 Sept 12:00 · Late \(was 18 Sept\)/,
+      /CRM integration live · 18 Sept 12:00 · Late \(was 18 Sept 17:00\)/,
     );
-    await expect(drawer).toContainText('18 Sept → 18 Sept 12:00');
+    await expect(drawer).toContainText('18 Sept 17:00 → 18 Sept 12:00');
 
     await page.keyboard.press('Escape');
     const zoomIn = page.getByRole('button', { name: 'Zoom in' });
@@ -933,6 +933,9 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(date).toHaveValue('20 Sept 2026');
 
     const time = drawer.getByLabel('Time (optional)');
+    await expect(time).toHaveValue('17:00');
+    await time.fill('');
+    await time.press('Tab');
     await expect(time).toHaveValue('');
     await expect(time).toHaveAttribute('placeholder', 'Time');
     const times = page.getByRole('listbox', { name: 'Times' });
