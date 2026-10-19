@@ -8,6 +8,7 @@ import {
 import type { ActorContext } from '../../contracts';
 import type { Db } from '../db/tx';
 import { AppError } from '../errors';
+import { APP_VERSION } from '../version';
 import { toolError, toolResult } from './results';
 import { isPersonal, MCP_TOOLS } from './tools';
 
@@ -98,7 +99,7 @@ const byName = new Map(MCP_TOOLS.map((tool) => [tool.name, tool]));
 export function createMcpServer(ctx: ActorContext, db: Db): McpServer {
   const personal = isPersonal(ctx);
   const server = new McpServer(
-    { name: 'promise-graph', version: '0.1.0' },
+    { name: 'promise-graph', version: APP_VERSION },
     {
       capabilities: { tools: {} },
       instructions: personal ? PERSONAL_INSTRUCTIONS : INSTRUCTIONS,

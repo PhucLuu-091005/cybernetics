@@ -8,6 +8,8 @@ To put the app online, follow [docs/deploy-cloud-run-neon.md](docs/deploy-cloud-
 
 After the first deploy, each pushed `v*` tag deploys itself through GitHub Actions: see [Deploy from a tag](docs/deploy-cloud-run-neon.md#deploy-from-a-tag).
 
+To release: bump package.json version, merge, then tag v<version>. The deploy fails when the tag and package.json differ. MCP `serverInfo` and `/api/health` report this version.
+
 ![The Larkspur demo project on Main: teams, work items, events, milestones and the legend](docs/screenshots/tracker-main.png)
 
 ## Main screens

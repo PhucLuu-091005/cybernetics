@@ -41,6 +41,17 @@ jobs:
             exit 1
           fi
           echo "name=$tag" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The app reports the package.json version (MCP serverInfo, /api/health), so a tag must match it.
+      - name: Check the tag against the package.json version
+        env:
+          TAG: ${{ steps.tag.outputs.name }}
+        run: |
+          version="$(jq -r .version package.json)"
+          if [ "${TAG#v}" != "$version" ]; then
+            echo "::error::$TAG does not match package.json version $version. Bump package.json, merge, then tag v<version>."
+            exit 1
+          fi
 
   checks:
     needs: tag
