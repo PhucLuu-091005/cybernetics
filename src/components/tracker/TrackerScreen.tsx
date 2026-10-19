@@ -1175,13 +1175,10 @@ export function TrackerScreen({
     requestChanges: (note) => void onRequestChanges(note),
   };
 
+  /** A write still on its way answers for the person before; the switch waits for it in the queue. */
   const onActAs = async (memberId: string) => {
-    const result = await actAs(projectId, memberId);
-    if (!result.ok) {
-      showToast(result.error.message);
-      return;
-    }
-    const next = result.data;
+    const next = await write(() => actAs(projectId, memberId));
+    if (!next) return;
     const nextMe = next.me?.id ?? null;
     const drafts = myDrafts(next.crs, nextMe);
     const draft =
@@ -1190,7 +1187,6 @@ export function TrackerScreen({
         .filter((c) => c.status === 'draft' && roleIn(c, nextMe) !== 'view')
         .sort(byNumDesc)[0];
     const merger = !!nextMe && can(next, 'merge');
-    setPayload(next);
     setPop(null);
     setMoving(null);
     closeModal();

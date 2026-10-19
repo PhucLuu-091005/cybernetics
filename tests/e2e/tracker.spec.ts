@@ -3042,3 +3042,42 @@ test.describe('the Demo select', () => {
       await noHorizontalScroll(page);
     });
 });
+
+test.describe('acting as another member right after a write', () => {
+  test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
+
+  test('waits for the write, then shows the new person and their fresh data', async ({ page }) => {
+    const { projectId, graph } = await signIn(page, 'act-as-after-write');
+    await page.goto(crPath(graph, 4));
+    await hydrated(page);
+    await actAs(page, 'Khoa Lê');
+    await page.goto(crPath(graph, 4));
+    await hydrated(page);
+    const bar = page.locator('.bbar').first();
+    // A slow answer to the ask: the switch to Lan is sent while it is still on its way.
+    await page.route('**/crs/4/actions', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await route.continue();
+    });
+    await bar.getByRole('button', { name: 'Ask to edit' }).click();
+    await choose(page.getByLabel('Demo: act as'), 'Lan Phạm');
+    await expect(page.locator('.me b')).toHaveText('Lan Phạm');
+    await page.waitForTimeout(2500);
+    await expect(page.locator('.me b')).toHaveText('Lan Phạm');
+    await expect(page.getByRole('combobox', { name: 'Demo: act as' })).toContainText('Lan Phạm');
+    const read = await page.request.get(`/api/v1/projects/${projectId}/tracker`);
+    const data = (await read.json()) as {
+      me: { name: string };
+      crs: Array<{ num: number; asks: unknown[] }>;
+    };
+    expect(data.me.name).toBe('Lan Phạm');
+    expect(data.crs.find((c) => c.num === 4)?.asks).toHaveLength(1);
+    await page.unroute('**/crs/4/actions');
+    await expect(page.getByText('This change request changed')).toHaveCount(0);
+
+    await actAs(page, 'Hà Đỗ');
+    await page.goto(crPath(graph, 4));
+    await hydrated(page);
+    await expect(page.locator('.ask-row')).toContainText('Khoa Lê asks to edit #4.');
+  });
+});
