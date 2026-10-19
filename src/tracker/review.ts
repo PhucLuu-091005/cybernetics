@@ -340,3 +340,33 @@ export function openedReview(
   };
   return { payload: { ...live, crs: live.crs.map((c) => (c === now ? kept : c)) }, changed: true };
 }
+
+const counts = (clash: ReviewClash, picks: Picks) =>
+  picks[clash.key] === 'main' || (picks[clash.key] === 'cr' && clash.crApplies);
+
+/** One side for every clash; a clash whose change request side cannot apply keeps Main. */
+export const pickAll = (clashes: readonly ReviewClash[], side: 'main' | 'cr'): Picks =>
+  Object.fromEntries(
+    clashes.map((c) => [c.key, side === 'cr' && c.crApplies ? 'cr' : 'main'] as const),
+  );
+
+export const pickedCount = (clashes: readonly ReviewClash[], picks: Picks) =>
+  clashes.filter((c) => counts(c, picks)).length;
+
+export const firstUnpicked = (clashes: readonly ReviewClash[], picks: Picks) =>
+  clashes.find((c) => !counts(c, picks)) ?? null;
+
+/** Where a clash sits on the graph: a work item row or a milestone; a Queue card has no spot. */
+export function clashSpot(
+  key: string,
+  state: Pick<TrackerState, 'events'>,
+): { kind: 'item' | 'ms'; id: string } | null {
+  const [kind, id] = key.split(':');
+  if (kind === 'loop') return { kind: 'item', id };
+  if (kind === 'ms') return { kind: 'ms', id };
+  if (kind === 'act' || kind === 'event') {
+    const ev = state.events.find((e) => e.id === id);
+    return ev ? { kind: 'item', id: ev.workItemId } : null;
+  }
+  return null;
+}

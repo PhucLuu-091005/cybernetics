@@ -134,3 +134,30 @@ export async function photoShowsEverywhere(
   await rail.getByRole('link', { name: 'Members' }).click();
   await expect(memberFace().locator('img')).toHaveCount(0);
 }
+
+/** Two change requests rename the same five spots; the second merges, so the first has 5 clashes. */
+export async function manyClashes(page: Page, projectId: string): Promise<number> {
+  const origin = new URL(page.url()).origin;
+  const api = `/api/v1/projects/${projectId}/tracker`;
+  const post = async (path: string, data: unknown) => {
+    const response = await page.request.post(`${api}${path}`, { data, headers: { origin } });
+    if (!response.ok()) throw new Error(`${path}: ${response.status()} ${await response.text()}`);
+    return response.json();
+  };
+  const renames = (tag: string) => [
+    { op: 'rename', a: { workItemId: 'pg203', title: `PG-203 ${tag}` } },
+    { op: 'rename', a: { workItemId: 'dynamics', title: `Dynamics ${tag}` } },
+    { op: 'rename', a: { workItemId: 'syncmon', title: `Sync monitoring ${tag}` } },
+    { op: 'rename', a: { workItemId: 'crmlive', title: `CRM live ${tag}` } },
+    { op: 'msName', a: { milestoneId: 'golive', name: `Go-live ${tag}` } },
+  ];
+  const mine = (await post('/crs', { title: 'Many names', ops: renames('mine') })).num as number;
+  const theirs = (await post('/crs', { title: 'Other names', ops: renames('theirs') }))
+    .num as number;
+  await post(`/crs/${theirs}/actions`, { action: 'ready' });
+  const read = await (await page.request.get(api)).json();
+  const revision = read.crs.find((c: { num: number }) => c.num === theirs).revision;
+  await post(`/crs/${theirs}/actions`, { action: 'merge', expectedRevision: revision, picks: {} });
+  await post(`/crs/${mine}/actions`, { action: 'ready' });
+  return mine;
+}

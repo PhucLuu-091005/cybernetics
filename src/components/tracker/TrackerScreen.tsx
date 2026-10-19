@@ -44,7 +44,7 @@ import {
   can,
   mergerIds,
 } from '../../tracker';
-import { openedReview, reviewModel } from '../../tracker/review';
+import { clashSpot, firstUnpicked, openedReview, pickAll, reviewModel } from '../../tracker/review';
 import {
   actAs,
   addToQueue,
@@ -1523,6 +1523,7 @@ export function TrackerScreen({
           ? {
               review: {
                 canMerge: model.canMerge,
+                toPick: firstUnpicked(model.clashes, model.picks)?.label ?? null,
                 changed: frozen.changed,
                 onReviewAgain: reviewAgain,
                 applying: model.applying,
@@ -1568,6 +1569,12 @@ export function TrackerScreen({
             onTab={setSideTab}
             onSelect={selectChange}
             onPick={(key, value) => setPicks((p) => ({ ...p, [key]: value }))}
+            onPickAll={(side) => setPicks((p) => ({ ...p, ...pickAll(model.clashes, side) }))}
+            onShowClash={(key) => {
+              const spot = clashSpot(key, model.after);
+              if (spot?.kind === 'item') showRow(spot.id);
+              if (spot?.kind === 'ms') setDrawer({ mode: 'ms', id: spot.id });
+            }}
             onHide={() => setSideOpen(false)}
           />
         )}

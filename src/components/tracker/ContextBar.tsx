@@ -35,7 +35,8 @@ export const CR_STATUS: Record<CrStatus, { label: string; tone: '' | 'route' | '
   closed: { label: 'Closed', tone: '' },
 };
 
-export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+export const plural = (n: number, word: string) =>
+  `${n} ${word}${n === 1 ? '' : /(s|x|ch|sh)$/.test(word) ? 'es' : 's'}`;
 export const trunc = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 export const isOpen = (c: Cr) => c.status === 'draft' || c.status === 'ready';
 export const byNumDesc = (a: Cr, b: Cr) => b.num - a.num;
@@ -76,6 +77,8 @@ type Props = {
   onDrawer: (mode: 'crs') => void;
   review?: {
     canMerge: boolean;
+    /** The first clash with no pick, so Merge can say what it waits for. */
+    toPick?: string | null;
     changed: boolean;
     onReviewAgain: () => void;
     applying: number;
@@ -361,11 +364,22 @@ export function ContextBar(props: Props) {
             >
               <Icon name="pencil" /> Request changes
             </button>
+            {review?.toPick && (
+              <span className="muted merge-wait">
+                Pick a version for {trunc(review.toPick, 40)}
+              </span>
+            )}
             <button
               className="btn btn-ink"
               type="button"
               disabled={!review?.canMerge || review.changed || busy}
-              title={review?.canMerge ? undefined : 'Pick a version for each clash first.'}
+              title={
+                review?.canMerge
+                  ? undefined
+                  : review?.toPick
+                    ? `Pick a version for ${review.toPick} first.`
+                    : 'Pick a version for each clash first.'
+              }
               onClick={actions.merge}
             >
               <Icon name="merge" /> Merge into Main

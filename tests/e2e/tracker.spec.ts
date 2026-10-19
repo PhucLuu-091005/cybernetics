@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { centerOf, choose, drag, hydrated } from './helpers';
+import { centerOf, choose, drag, hydrated, manyClashes } from './helpers';
 
 type TrackerRead = {
   crs: Array<{
@@ -718,6 +718,46 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     const after = await x(page.locator('svg.pg [data-act="m3"]'));
     expect(before).toBeLessThan(at);
     expect(at).toBeLessThan(after);
+  });
+
+  test('many clashes: a count, keep one side for all, the next to pick, and a jump to each spot', async ({
+    page,
+  }) => {
+    const { projectId, graph } = await signIn(page, 'tracker-many-clashes');
+    const num = await manyClashes(page, projectId);
+    await visit(page, crPath(graph, num));
+    const box = page.getByRole('region', { name: 'Clashes with Main' });
+    const bar = page.locator('.bbar').first();
+    const merge = bar.getByRole('button', { name: 'Merge into Main' });
+    await expect(box).toContainText('5 clashes with Main');
+    await expect(box.locator('.res-count')).toHaveText('0 of 5 picked');
+    await expect(merge).toBeDisabled();
+    await expect(bar.locator('.merge-wait')).toContainText('Pick a version for');
+
+    await box.getByRole('button', { name: /^Next to pick: / }).click();
+    await expect(box.locator('.conf').first().getByRole('radio').first()).toBeFocused();
+    await box.locator('.conf').first().getByRole('radio').first().check();
+    await expect(box.locator('.res-count')).toHaveText('1 of 5 picked');
+
+    await box.getByRole('button', { name: 'Keep this change request for all' }).click();
+    await expect(box.locator('.res-count')).toHaveText('5 of 5 picked');
+    await expect(box.getByRole('button', { name: /^Next to pick/ })).toHaveCount(0);
+    await expect(bar.locator('.merge-wait')).toHaveCount(0);
+    await expect(merge).toBeEnabled();
+    await box.getByRole('button', { name: 'Keep Main for all' }).click();
+    await expect(box.getByRole('radio', { checked: true })).toHaveCount(5);
+    await expect(bar.locator('.merge-wait')).toHaveCount(0);
+
+    await box
+      .getByRole('button', { name: /^Dynamics/ })
+      .first()
+      .click();
+    await expect(page.locator('svg.pg .hit.flash[data-loop="dynamics"]')).toHaveCount(1);
+    await box
+      .getByRole('button', { name: /^Go-live/ })
+      .first()
+      .click();
+    await expect(page.locator('.drawer h4')).toContainText('Go-live');
   });
 
   test('a handoff jump holds its highlight for about 3 s and fades, or holds it still with reduced motion', async ({
