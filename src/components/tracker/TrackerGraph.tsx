@@ -210,7 +210,12 @@ export function TrackerGraph(props: Props) {
   const handByGroup = new Map(L.handoffs.flatMap((h) => (h.groupId ? [[h.groupId, h]] : [])));
   const deadlines = groupBy(L.deadlines);
   const chips = groupBy(L.chips);
-  const dim = new Set(L.rows.filter((r) => r.dimmed).map((r) => r.id));
+  // A selected milestone dims every row outside it, as Focus does, so its own work items stand out.
+  const dim = new Set(
+    L.rows.filter((r) => r.dimmed || (selectedMs && r.milestoneId !== selectedMs)).map((r) => r.id),
+  );
+  const inMs = (id: string) =>
+    !!selectedMs && L.rows.some((r) => r.id === id && r.milestoneId === selectedMs);
   const dimCls = (id: string) => dim.has(id) && 'dim';
   const xt = L.tLine.x;
   const H = L.height + (edit ? TEAM_PILL_ROOM : 0);
@@ -872,7 +877,11 @@ export function TrackerGraph(props: Props) {
   const svgProps = { onClick, onKeyDown };
   const button = (label: string) => ({ role: 'button', tabIndex: 0, 'aria-label': label });
   const rowCls = (id: string) =>
-    cls(focusRow === id && 'focus', flash === id && 'flash', props.selectedRow === id && 'sel');
+    cls(
+      focusRow === id && 'focus',
+      flash === id && 'flash',
+      (props.selectedRow === id || inMs(id)) && 'sel',
+    );
   const bands = (x: number, width: number) =>
     L.lanes.map((lane) => (
       <rect
@@ -1051,9 +1060,10 @@ export function TrackerGraph(props: Props) {
               className={cls(
                 'row-label',
                 r.changed && 'changed',
-                r.dimmed && 'dim',
+                dim.has(r.id) && 'dim',
                 selectedMs && r.milestoneId === selectedMs && 'sel',
               )}
+              data-label={r.id}
               x={28 + indent}
               y={r.y + lv.labelDy}
               style={{ fontSize: lv.font }}

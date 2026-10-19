@@ -712,6 +712,34 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     expect(at).toBeLessThan(after);
   });
 
+  test('a selected milestone lights its work items and dims the others until its drawer closes', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-ms-light');
+    const drawer = page.locator('.drawer');
+    const rowLabel = (id: string) => page.locator(`svg.pg-side .row-label[data-label="${id}"]`);
+    await expect(page.locator('svg.pg-side .row-label.dim')).toHaveCount(0);
+
+    await page.locator('svg.tg [data-ms="crm"] .ms-hit').click();
+    await expect(drawer.locator('h4')).toHaveText('CRM integration live');
+    await expect(rowLabel('dynamics')).toHaveClass(/\bsel\b/);
+    await expect(rowLabel('dynamics')).not.toHaveClass(/\bdim\b/);
+    await expect(rowLabel('golive')).toHaveClass(/\bdim\b/);
+    await expect(page.locator('svg.pg-side .hit.sel[data-rowlabel="dynamics"]')).toHaveCount(1);
+    await expect(page.locator('svg.pg .seg.dim').first()).toBeAttached();
+
+    await page.keyboard.press('Escape');
+    await expect(drawer).toHaveCount(0);
+    await expect(page.locator('svg.pg-side .row-label.dim')).toHaveCount(0);
+    await expect(page.locator('svg.pg .seg.dim')).toHaveCount(0);
+
+    await page.locator('svg.tg [data-ms="crm"] .ms-hit').click();
+    await drawer.getByRole('button', { name: 'Sync monitoring' }).click();
+    await expect(drawer).toHaveAttribute('aria-label', 'Sync monitoring');
+    await expect(page.locator('svg.pg-side .hit.sel[data-rowlabel="syncmon"]')).toHaveCount(1);
+    await expect(page.locator('svg.pg-side .row-label.dim')).toHaveCount(0);
+  });
+
   test('a long name stops at the server limit with a counter, and a bad date keeps its text with an error', async ({
     page,
   }) => {
