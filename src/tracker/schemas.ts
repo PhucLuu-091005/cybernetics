@@ -45,22 +45,22 @@ const Note = noNul(z.string().max(TEXT_MAX.note, atMost(TEXT_MAX.note)));
 export const EventKindSchema = z.enum(EVENT_KINDS);
 
 /** `finishes: false` and no flag must be one change, or a CR op and its Main twin would clash. */
-export function normaliseFinish<T extends { kind: EventKind; finishes?: boolean }>(
+function normaliseFinish<T extends { kind: EventKind; finishes?: boolean }>(
   value: T,
 ): Omit<T, 'finishes'> & { finishes?: boolean } {
   const { finishes, ...rest } = value;
   return value.kind === 'handoff' && finishes === true ? { ...rest, finishes: true } : rest;
 }
 
-export const PersonSchema = z.strictObject({ id: Id, name: Title }) satisfies z.ZodType<Person>;
+const PersonSchema = z.strictObject({ id: Id, name: Title }) satisfies z.ZodType<Person>;
 
-export const TeamSchema = z.strictObject({
+const TeamSchema = z.strictObject({
   id: Id,
   name: Title,
   leadId: Id.nullable(),
 }) satisfies z.ZodType<Team>;
 
-export const DateMoveSchema = z.strictObject({
+const DateMoveSchema = z.strictObject({
   from: DateString,
   fromTime: TimeOfDay.optional(),
   to: DateString,
@@ -138,7 +138,7 @@ export const QueueEventSchema = z
   .strictObject({ id: Id, ...eventFields, ...queued })
   .transform(normaliseFinish) satisfies z.ZodType<QueueEvent>;
 
-export const QueueItemSchema = z.strictObject({
+const QueueItemSchema = z.strictObject({
   id: Id,
   ...QueueItemInputSchema.shape,
   note: Note,
@@ -160,7 +160,7 @@ export const TrackerStateSchema = z.strictObject({
   queue: z.strictObject({ events: z.array(QueueEventSchema), items: z.array(QueueItemSchema) }),
 }) satisfies z.ZodType<TrackerState>;
 
-export const AttachArgsSchema = z.strictObject({ eventId: Id, workItemId: Id });
+const AttachArgsSchema = z.strictObject({ eventId: Id, workItemId: Id });
 export const PlaceArgsSchema = z.strictObject({
   itemId: Id,
   teamId: Id,
@@ -168,7 +168,7 @@ export const PlaceArgsSchema = z.strictObject({
   /** Read only with plannedFinish; absent means the end of that day. */
   plannedFinishTime: TimeOfDay.optional(),
 });
-export const QmsArgsSchema = z.strictObject({ itemId: Id, milestoneId: Id });
+const QmsArgsSchema = z.strictObject({ itemId: Id, milestoneId: Id });
 export const FromEventArgsSchema = z.strictObject({
   id: Id,
   eventId: Id,
@@ -182,20 +182,20 @@ export const FromEventArgsSchema = z.strictObject({
 });
 export const NewEventSchema = z.strictObject({ id: Id, ...eventFields }).transform(normaliseFinish);
 export const AddEventArgsSchema = z.strictObject({ workItemId: Id, ev: NewEventSchema });
-export const MoveArgsSchema = z.strictObject({ eventId: Id, to: Id });
+const MoveArgsSchema = z.strictObject({ eventId: Id, to: Id });
 export const KindArgsSchema = z
   .strictObject({ eventId: Id, kind: EventKindSchema, finishes: z.boolean().optional() })
   .transform(normaliseFinish);
-export const HideArgsSchema = z.strictObject({ eventId: Id });
+const HideArgsSchema = z.strictObject({ eventId: Id });
 const dateMoveArgs = { date: DateString, why: Why, by: Id, at: Instant };
 export const MsDateArgsSchema = z.strictObject({
   milestoneId: Id,
   ...dateMoveArgs,
   time: TimeOfDay.optional(),
 });
-export const MsNameArgsSchema = z.strictObject({ milestoneId: Id, name: Title });
-export const MsRemoveArgsSchema = z.strictObject({ workItemId: Id });
-export const MsAddArgsSchema = z.strictObject({ workItemId: Id, milestoneId: Id });
+const MsNameArgsSchema = z.strictObject({ milestoneId: Id, name: Title });
+const MsRemoveArgsSchema = z.strictObject({ workItemId: Id });
+const MsAddArgsSchema = z.strictObject({ workItemId: Id, milestoneId: Id });
 export const NewMsArgsSchema = z.strictObject({
   id: Id,
   name: Title,
@@ -203,18 +203,18 @@ export const NewMsArgsSchema = z.strictObject({
   time: TimeOfDay.optional(),
   members: z.array(Id).max(500),
 });
-export const RenameArgsSchema = z.strictObject({ workItemId: Id, title: Title });
+const RenameArgsSchema = z.strictObject({ workItemId: Id, title: Title });
 export const DueArgsSchema = z.strictObject({
   workItemId: Id,
   ...dateMoveArgs,
   time: TimeOfDay.optional(),
 });
-export const DoneByArgsSchema = z.strictObject({ workItemId: Id, personId: Id });
-export const RequestedByArgsSchema = z.strictObject({ workItemId: Id, personId: Id });
-export const TeamArgsSchema = z.strictObject({ workItemId: Id, teamId: Id });
-export const ParentArgsSchema = z.strictObject({ workItemId: Id, parentId: Id.nullable() });
-export const AfterArgsSchema = z.strictObject({ workItemId: Id, after: z.array(Id).max(50) });
-export const AddTeamArgsSchema = z.strictObject({ id: Id, name: Title, leadId: Id.nullable() });
+const DoneByArgsSchema = z.strictObject({ workItemId: Id, personId: Id });
+const RequestedByArgsSchema = z.strictObject({ workItemId: Id, personId: Id });
+const TeamArgsSchema = z.strictObject({ workItemId: Id, teamId: Id });
+const ParentArgsSchema = z.strictObject({ workItemId: Id, parentId: Id.nullable() });
+const AfterArgsSchema = z.strictObject({ workItemId: Id, after: z.array(Id).max(50) });
+const AddTeamArgsSchema = z.strictObject({ id: Id, name: Title, leadId: Id.nullable() });
 
 export const OpDescriptionSchema = z.strictObject({
   item: z.string(),

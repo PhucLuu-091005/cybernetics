@@ -2,15 +2,7 @@
 import { useState, type ReactNode } from 'react';
 
 /** The photo route needs the session cookie, so the image optimizer cannot fetch it. */
-export function PhotoImg({
-  src,
-  size,
-  onError,
-}: {
-  src: string;
-  size: number;
-  onError?: () => void;
-}) {
+function PhotoImg({ src, size, onError }: { src: string; size: number; onError?: () => void }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element -- see above; next/image would only add a wrapper
     <img

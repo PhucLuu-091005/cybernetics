@@ -15,7 +15,7 @@ export function errorText(error: ApiError): string {
   return fields.length ? [...new Set(fields)].map(sentence).join(' ') : sentence(error.message);
 }
 
-export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: ApiError };
+type ApiResult<T> = { ok: true; data: T } | { ok: false; error: ApiError };
 
 export async function send<T>(
   path: string,

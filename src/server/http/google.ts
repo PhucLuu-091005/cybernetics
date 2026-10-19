@@ -10,7 +10,7 @@ export type GoogleClient = {
   createAuthorizationURL(state: string, verifier: string): URL;
   exchange(code: string, verifier: string): Promise<unknown>;
 };
-export type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
+type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
 const AUTHORIZATION_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth',
   TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const ISSUERS = ['https://accounts.google.com', 'accounts.google.com'];

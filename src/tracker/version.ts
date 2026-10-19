@@ -2,10 +2,10 @@
  * The light read gives one short hash per part of the payload, joined with dots, so the browser can
  * name what changed without the full payload. Each part holds only what the viewer may see.
  */
-export const VERSION_PARTS = ['main', 'queue', 'crs', 'project'] as const;
-export type VersionPart = (typeof VERSION_PARTS)[number];
+const VERSION_PARTS = ['main', 'queue', 'crs', 'project'] as const;
+type VersionPart = (typeof VERSION_PARTS)[number];
 /** The change request on screen: a touch (ask, share, comment) moves only `updatedAt`. */
-export type CrMark = { num: number; revision: number; updatedAt: string };
+type CrMark = { num: number; revision: number; updatedAt: string };
 /** `cr` is there when the check named a change request: null when the viewer cannot see it. */
 export type TrackerVersion = { version: string; crCount: number; cr?: CrMark | null };
 

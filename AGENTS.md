@@ -18,7 +18,7 @@ Promise Graph is an event tracker for a whole project. Each team has rows of wor
 
 ## Stack and where things live
 
-Next.js 16 (App Router), React 19, TypeScript, PostgreSQL 17 with Drizzle, Zod, Vitest, Playwright, plain CSS with tokens (Tailwind 4 is installed but the UI uses CSS classes).
+Next.js 16 (App Router), React 19, TypeScript, PostgreSQL 17 with Drizzle, Zod, Vitest, Playwright, plain CSS with tokens.
 
 | Path | What it holds |
 |---|---|

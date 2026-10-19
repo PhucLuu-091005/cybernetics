@@ -28,7 +28,7 @@ export type Session = {
   tz: string;
 };
 
-export const CR_STATUS: Record<CrStatus, { label: string; tone: '' | 'route' | 'ok' }> = {
+const CR_STATUS: Record<CrStatus, { label: string; tone: '' | 'route' | 'ok' }> = {
   draft: { label: 'Draft', tone: '' },
   ready: { label: 'Ready to merge', tone: 'route' },
   merged: { label: 'Merged', tone: 'ok' },
@@ -50,7 +50,7 @@ export function roleIn(c: Cr, memberId: string | null): 'author' | CrPermission 
   return c.shares.find((s) => s.memberId === memberId)?.permission ?? 'view';
 }
 // Share gives the right to edit; only the current editor may change the change request.
-export const canEditCr = (c: Cr, memberId: string | null) =>
+const canEditCr = (c: Cr, memberId: string | null) =>
   c.status === 'draft' && !!memberId && c.editor === memberId;
 export const editorsOf = (c: Cr) => [
   c.author,
@@ -60,7 +60,7 @@ export const clashCount = (c: Cr, commits: readonly Commit[]) =>
   isOpen(c) ? clashesOf(c.ops, commits).length : 0;
 export const myDrafts = (crs: readonly Cr[], me: string | null) =>
   crs.filter((c) => canEditCr(c, me)).sort(byNumDesc);
-export const asksForMe = (crs: readonly Cr[], me: string | null) =>
+const asksForMe = (crs: readonly Cr[], me: string | null) =>
   crs.filter((c) => isOpen(c) && !!me && c.editor === me && c.asks.length > 0);
 
 export function StatusChip({ cr }: { cr: Cr }) {
@@ -90,7 +90,7 @@ type Props = {
   fresh?: Fresh | null;
 };
 
-export type Fresh = { label: string; busy: boolean; onRefresh: () => void };
+type Fresh = { label: string; busy: boolean; onRefresh: () => void };
 
 /** One quiet line, as on a pull request page: the screen changes only when the person asks. */
 function FreshNotice({ fresh }: { fresh: Fresh }) {

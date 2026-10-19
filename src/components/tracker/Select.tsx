@@ -13,7 +13,7 @@ import { Icon } from './icons';
 import './fields.css';
 
 /** `hint` is quiet text after the label, such as a role; it is a description, not part of the name. */
-export type SelectOption = {
+type SelectOption = {
   value: string;
   label: string;
   hint?: string;

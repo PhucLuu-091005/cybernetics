@@ -50,7 +50,7 @@ import {
 import { requireScope } from '../http/scopes';
 
 type Shape = Record<string, z.ZodType>;
-export type McpTool = {
+type McpTool = {
   name: string;
   /** Null for list_projects, which only names the projects a personal key can reach. */
   scope: Scope | null;

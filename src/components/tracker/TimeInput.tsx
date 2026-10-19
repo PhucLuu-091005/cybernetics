@@ -12,7 +12,7 @@ const stepAt = (time: string) => {
   return Math.floor((hour * 60 + minute) / 30);
 };
 
-export const TIME_ERROR = 'Not a time. Use e.g. 14:30';
+const TIME_ERROR = 'Not a time. Use e.g. 14:30';
 
 /**
  * Empty in an optional box means no time: the deadline is then the end of the day. Bad text stays

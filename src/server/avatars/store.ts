@@ -9,7 +9,7 @@ export interface PhotoStore {
 }
 
 const KEY = /^avatars\/(members\/)?[0-9a-f-]{36}\/[0-9a-f]{64}\.webp$/;
-export const isPhotoKey = (key: string) => KEY.test(key);
+const isPhotoKey = (key: string) => KEY.test(key);
 export const memberPhotoKey = (memberId: string, hash: string) =>
   `avatars/members/${memberId}/${hash}.webp`;
 /** The hash in the URL changes with the photo, so a browser may keep each URL for good. */

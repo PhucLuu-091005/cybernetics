@@ -9,7 +9,7 @@ import type {
   TrackerVersion,
 } from '../../tracker';
 
-export type ApiError = {
+type ApiError = {
   status: number;
   code: string;
   message: string;

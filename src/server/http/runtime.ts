@@ -28,7 +28,7 @@ const state = globalThis as typeof globalThis & {
 export function configureHttpIdentityStore(store: HttpIdentityStore): void {
   state.promiseIdentityStore = store;
 }
-export function getHttpIdentityStore(): HttpIdentityStore {
+function getHttpIdentityStore(): HttpIdentityStore {
   if (!state.promiseIdentityStore) throw new Error('Identity persistence is unavailable');
   return state.promiseIdentityStore;
 }

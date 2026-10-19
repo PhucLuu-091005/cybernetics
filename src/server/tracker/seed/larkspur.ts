@@ -62,7 +62,7 @@ function shiftStory<T>(value: T, days: number): T {
  * Maps a story key to the id it is stored under. The database seed maps member keys and queue
  * keys to fresh UUIDs, because those rows have global primary keys; tests keep the keys.
  */
-export type LarkspurIds = (key: string) => string;
+type LarkspurIds = (key: string) => string;
 const keep: LarkspurIds = (key) => key;
 
 const PEOPLE: Record<string, string> = {
@@ -659,7 +659,7 @@ export const LARKSPUR_TEAM_PEOPLE: Record<string, { lead: string | null; members
   'digitization-qa': { lead: null, members: ['ha'] },
 };
 
-export type LarkspurCr = {
+type LarkspurCr = {
   title: string;
   author: string;
   status: 'draft' | 'ready' | 'merged';

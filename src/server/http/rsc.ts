@@ -11,10 +11,10 @@ import { projectInPath } from './actors';
 import { demoEntryPath } from './demo';
 import { RETURN_PATH_HEADER, returnPath, signinPath } from './return-path';
 
-export const RATE_LIMITED_DIGEST = 'RATE_LIMITED';
+const RATE_LIMITED_DIGEST = 'RATE_LIMITED';
 
 /** Server components have no Request, so this rebuilds the GET that the browser session check reads for routes. */
-export async function pageRequest(path: string): Promise<Request> {
+async function pageRequest(path: string): Promise<Request> {
   const [headerList, cookieStore] = await Promise.all([headers(), cookies()]);
   const host = headerList.get('host');
   if (!host) throw new AppError('UNAUTHENTICATED', 'Host header required');

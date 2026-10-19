@@ -10,9 +10,9 @@ import { listProjectMembers } from '../tracker/members';
 import type { Member } from '../../tracker';
 import { listProjects } from './projects';
 
-export type AccountBadge = { name: string; detail?: string; color?: string; photo?: string | null };
+type AccountBadge = { name: string; detail?: string; color?: string; photo?: string | null };
 
-export async function signedInAccount(db: Db, userId: string): Promise<AccountBadge> {
+async function signedInAccount(db: Db, userId: string): Promise<AccountBadge> {
   const [row] = await db
     .select({ name: users.name, email: users.email, avatarKey: users.avatarKey })
     .from(users)

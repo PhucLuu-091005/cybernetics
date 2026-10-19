@@ -1,7 +1,7 @@
 import type { Scope } from './identity';
 
 export const SCOPE_GROUPS = ['Read', 'Queue', 'Change requests', 'People and teams'] as const;
-export type ScopeGroup = (typeof SCOPE_GROUPS)[number];
+type ScopeGroup = (typeof SCOPE_GROUPS)[number];
 
 /** A quiet warning under a group whose scopes reach other people. */
 export const SCOPE_GROUP_NOTE: Partial<Record<ScopeGroup, string>> = {
@@ -12,9 +12,9 @@ export const SCOPE_GROUP_NOTE: Partial<Record<ScopeGroup, string>> = {
  * The right of the creator that a scope also needs; the server checks it again at each call. Every
  * scope but project:read also needs a member, as the writes act as the creator's member.
  */
-export type ScopeNeed = 'viewMain' | 'create' | 'merge' | 'manage';
+type ScopeNeed = 'viewMain' | 'create' | 'merge' | 'manage';
 
-export type ScopeInfo = {
+type ScopeInfo = {
   scope: Scope;
   group: ScopeGroup;
   title: string;

@@ -65,7 +65,7 @@ function unknownReferences(entry: Card, main: TrackerState, members: readonly Me
   ];
 }
 
-export type AddQueueEntryInput = z.input<typeof AddQueueEntryInputSchema>;
+type AddQueueEntryInput = z.input<typeof AddQueueEntryInputSchema>;
 
 /** MCP answers with the new card, so this variant also returns its id. */
 export async function addQueueCard(

@@ -1,6 +1,6 @@
 export const DEFAULT_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 
-export const MONTHS = [
+const MONTHS = [
   'Jan',
   'Feb',
   'Mar',

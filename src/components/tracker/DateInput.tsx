@@ -143,7 +143,7 @@ function Calendar({
   );
 }
 
-export const DATE_ERROR = 'Not a date. Use e.g. 12 Oct 2026';
+const DATE_ERROR = 'Not a date. Use e.g. 12 Oct 2026';
 
 /**
  * Bad text keeps the last good day, so a half-typed day never reaches a change request. The text

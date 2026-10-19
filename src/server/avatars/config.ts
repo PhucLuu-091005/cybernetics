@@ -1,6 +1,6 @@
 import { GcsPhotoStore, LocalPhotoStore, metadataToken, type PhotoStore } from './store';
 
-export type PhotoConfig = { driver: 'gcs'; bucket: string } | { driver: 'local'; dir: string };
+type PhotoConfig = { driver: 'gcs'; bucket: string } | { driver: 'local'; dir: string };
 
 const BUCKET = /^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$/;
 

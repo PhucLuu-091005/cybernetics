@@ -4,7 +4,7 @@ import type { KeyKind } from '../../contracts';
 import { useHydrated } from '../shell/hydrated';
 import { KEY_COPY } from './copy';
 
-export const SECRET_PLACEHOLDER = 'inv_...';
+const SECRET_PLACEHOLDER = 'inv_...';
 /** Same shape as docs/mcp-agent-recipe.md, so the page and the recipe never disagree. */
 export const mcpConfig = (endpoint: string, secret: string) =>
   JSON.stringify(

@@ -42,7 +42,7 @@ The theme toggle in the rail cycles system, light and dark. It sets `data-theme`
 | `--scrim` | `rgb(11 12 16 / 0.38)` | `rgb(0 0 0 / 0.62)` | Backdrop behind a modal. |
 | `--mark` | `#ffe770` | `#524202` | Not used today. Use `--change-bg` for a change mark. |
 | `--stripe` | `#f9f9fb` | `#111113` | Not used today. |
-| `--isolated` | `#8b8d98` | `#696e77` | The neutral line of a cancelled work item and its status dot (round 10B). Mapped to the Tailwind colour `isolated`. |
+| `--isolated` | `#8b8d98` | `#696e77` | The neutral line of a cancelled work item and its status dot (round 10B). |
 
 ### 2.2 Status colours
 
