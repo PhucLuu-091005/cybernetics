@@ -25,12 +25,18 @@ type Props = {
 
 /** The demo plays the seeded people and your own member, never another signed-in person. */
 export const demoPeople = (
-  members: readonly { id: string; name: string; active: boolean; userId: string | null }[],
+  members: readonly {
+    id: string;
+    name: string;
+    roleLabel: string;
+    active: boolean;
+    userId: string | null;
+  }[],
   userId: string,
 ) =>
   members
     .filter((m) => m.active && (m.userId === null || m.userId === userId))
-    .map((m) => ({ value: m.id, label: m.name }));
+    .map((m) => ({ value: m.id, label: m.name, hint: m.roleLabel || undefined }));
 
 export function TopBar(props: Props) {
   const { session, state, asOf, drawer, actions, onDrawer, onActAs, onPick } = props;

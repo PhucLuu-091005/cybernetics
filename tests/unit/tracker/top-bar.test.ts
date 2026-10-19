@@ -218,12 +218,23 @@ describe('TopBar', () => {
   it('lists only the seeded members who can act and your own member in the Demo select', () => {
     const html = render(members[1]);
     expect(html).toContain('aria-label="Demo: act as"');
-    expect(html).toContain('<span class="sel-val">Lan Phạm</span>');
+    expect(html).toContain(
+      '<span class="sel-val">Lan Phạm<small class="sel-hint" aria-hidden="true">Lead</small></span>',
+    );
     const names = demoPeople(members, 'u1').map((option) => option.label);
     expect(names).toContain('Lan Phạm');
     expect(names).toContain('Minh Trần');
     expect(names).not.toContain('Bảo Ngô');
     expect(names).not.toContain('Mai Vũ');
+  });
+
+  it('gives each person of the Demo select their project role as a quiet hint', () => {
+    expect(demoPeople(members, 'u1')).toEqual([
+      { value: 'minh', label: 'Minh Trần', hint: 'Owner' },
+      { value: 'lan', label: 'Lan Phạm', hint: 'Lead' },
+    ]);
+    const roleless = demoPeople([{ ...members[3], userId: 'u2' }], 'u2');
+    expect(roleless).toEqual([{ value: 'mai', label: 'Mai Vũ', hint: undefined }]);
   });
 
   it('opens a menu with Profile, the theme and Sign out from the acting member, or from the signed-in person', () => {

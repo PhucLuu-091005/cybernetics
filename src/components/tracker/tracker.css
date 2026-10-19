@@ -386,9 +386,18 @@
   letter-spacing: 0.06em;
 }
 .tk .demo .sel-btn {
-  max-width: 160px;
+  max-width: 260px;
   font-weight: 500;
   box-shadow: var(--shadow-sm);
+}
+/* The role on the closed button needs a wide top bar; the open list always shows it. */
+@media (max-width: 1199px) {
+  .tk .demo .sel-btn {
+    max-width: 160px;
+  }
+  .tk .demo .sel-btn .sel-hint {
+    display: none;
+  }
 }
 /* The search gets the room of the word on a laptop; the select keeps its name and title. */
 @media (min-width: 761px) and (max-width: 1720px) {

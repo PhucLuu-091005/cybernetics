@@ -3012,3 +3012,37 @@ test.describe('new changes wait for Refresh', () => {
     await expect.poll(() => checks).toBe(2);
   });
 });
+
+test.describe('the Demo select', () => {
+  const ROLES = [
+    ['Minh Trần', 'Project lead'],
+    ['Lan Phạm', 'Digitization lead'],
+    ['Quang Nguyễn', 'Engineering lead'],
+    ['Hà Đỗ', 'QA analyst'],
+    ['Khoa Lê', 'Solutions engineer'],
+  ];
+
+  for (const width of [1440, 390])
+    test(`names the project role of each person at ${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`/signin?label=demo-roles-${width}`);
+      await page.getByRole('button', { name: /continue/i }).click();
+      await expect(page.locator('svg.pg')).toBeVisible();
+      const select = page.getByRole('combobox', { name: 'Demo: act as' });
+      const list = page.getByRole('listbox', { name: 'Demo: act as' });
+      // A click before hydration does nothing, so the click repeats until the list opens.
+      await expect(async () => {
+        await select.click();
+        await expect(list).toBeVisible({ timeout: 1000 });
+      }).toPass();
+      const box = (await list.boundingBox())!;
+      for (const [name, role] of ROLES) {
+        const option = list.getByRole('option', { name, exact: true });
+        await expect(option).toHaveAccessibleDescription(role);
+        const hint = (await option.locator('.sel-hint').boundingBox())!;
+        expect(hint.x + hint.width).toBeLessThanOrEqual(box.x + box.width);
+      }
+      await page.keyboard.press('Escape');
+      await noHorizontalScroll(page);
+    });
+});

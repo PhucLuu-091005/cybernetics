@@ -273,6 +273,12 @@
   flex: none;
   color: var(--ink-3);
 }
+.sel-hint {
+  margin-left: 8px;
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+}
 /* Quiet: an inline fact that shows its box only on hover or focus. */
 .sel-in.quiet .sel-btn {
   min-height: 28px;
