@@ -15,6 +15,7 @@ After the first deploy, each pushed `v*` tag deploys itself through GitHub Actio
 - **Graph.** Teams, work items, events, milestones and planned finish dates on one time line. Click a row for its details. Search, filters, focus, hide, zoom and full view change only your view.
 - **Change request.** One page per change request: the Changes list, Before and After, and the Queue when you edit. A person with the Merge right merges it or requests changes, and picks Main or the change request for each clash.
 - **History.** Every merge into Main, and the cancelled change requests with their reasons.
+- **New changes.** The screen does not change by itself when another person or an agent writes. A quiet line in the bar under the top bar says "New changes · Refresh" (or "Main changed", "2 new change requests"). Click **Refresh** to see them. Your own changes show at once.
 - **Members.** The people of the project, their teams and their grants. The project lead edits them.
 - **Settings.** The project facts and the agent tokens.
 - **Profile.** Your photo and your personal keys for every project (account menu, **Profile**).
@@ -86,5 +87,5 @@ The tools and their permissions are in [docs/mcp-agent-recipe.md](docs/mcp-agent
 - **Invites send no email.** An invited person sees the project after they sign in with Google with the invited email. Tell them yourself.
 - **Demo members.** The 5 demo members live only in your sandbox.
 - **No revert.** A merge into Main is final.
-- **One instance.** The rate limits (300 reads and 120 writes a minute for each user, 60 calls a minute for each token) live in process memory, so the app runs as one instance.
+- **One instance.** The rate limits (300 reads and 120 writes a minute for each user, 600 checks for new changes a minute for each user, 60 calls a minute for each token) live in process memory, so the app runs as one instance.
 - **Cold starts.** On the free deploy, Cloud Run and Neon stop when idle. The first request after an idle time waits a few seconds.
