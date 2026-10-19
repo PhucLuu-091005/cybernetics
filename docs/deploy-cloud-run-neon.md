@@ -256,7 +256,7 @@ Deploy:
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
-Watch the run in the **Actions** tab or with `gh run watch`. The job summary shows the service URL after `/api/health` returns `ok`. A failed check stops the run before the deploy.
+Watch the run in the **Actions** tab or with `gh run watch`. The job summary shows the service URL after `/api/health` returns `ok`. A failed check stops the run before the deploy. After a deploy works, the last job creates a GitHub release for the tag, with notes made from the merged pull requests. A second deploy of the same tag keeps the release it has.
 
 One run waits for the run before it, so an older tag never deploys after a newer one.
 

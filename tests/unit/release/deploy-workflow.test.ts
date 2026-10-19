@@ -61,10 +61,23 @@ describe('the deploy workflow', () => {
   it('gives the deploy job alone an ID token, in the production environment', () => {
     const workflow = load(DEPLOY);
     expect(workflow.permissions).toEqual({ contents: 'read' });
-    const { deploy, ...others } = jobs(DEPLOY);
+    const { deploy, release, ...others } = jobs(DEPLOY);
     expect(deploy.permissions).toEqual({ contents: 'read', 'id-token': 'write' });
+    expect(release.permissions).toEqual({ contents: 'write' });
     for (const job of Object.values(others)) expect(job.permissions ?? null).toBeNull();
     expect(deploy.environment).toBe('production');
+  });
+
+  it('creates a GitHub release only after a successful deploy, and keeps an existing one', () => {
+    const { release } = jobs(DEPLOY);
+    expect([release.needs].flat()).toEqual(['tag', 'deploy']);
+    expect(release.environment ?? null).toBeNull();
+    const script = steps(release)
+      .map((step) => String(step.run ?? ''))
+      .join('\n');
+    expect(script).toContain('gh release view "$TAG"');
+    expect(script).toContain('gh release create "$TAG"');
+    expect(script).toContain('--verify-tag');
   });
 
   it('runs one whole workflow at a time, so an older tag never deploys after a newer one', () => {

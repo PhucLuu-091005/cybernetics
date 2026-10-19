@@ -125,3 +125,21 @@ jobs:
             echo "- Image: $IMAGE:$TAG ($GITHUB_SHA)"
           } >> "$GITHUB_STEP_SUMMARY"
           echo "Deployed $TAG to $url"
+
+  # A release per deployed tag; a second deploy of the same tag (a rollback) keeps the release it has.
+  release:
+    needs: [tag, deploy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.tag.outputs.name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Create the GitHub release
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release $TAG exists"
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$TAG" --generate-notes
+          fi
