@@ -28,6 +28,7 @@ import {
   type EventKind,
   type Person,
   type TrackerState,
+  TEXT_MAX,
 } from '../../tracker';
 import type { OpInput, QueueEntry } from './api';
 import { Avatar } from './avatar';
@@ -39,6 +40,7 @@ import { newTeamOp } from './team';
 import { DateInput } from './DateInput';
 import { DateTimeInput } from './DateTimeInput';
 import { TimeInput } from './TimeInput';
+import { TextCount } from './TextCount';
 
 export type ModalState =
   | { mode: 'add'; what: 'event' | 'item' }
@@ -261,9 +263,11 @@ function EventText({
       <textarea
         value={value}
         required={cancel}
+        maxLength={TEXT_MAX.body}
         placeholder={cancel ? 'For example: The client keeps the free text field.' : placeholder}
         onChange={(event) => onChange(event.target.value)}
       />
+      <TextCount value={value} max={TEXT_MAX.body} />
     </label>
   );
 }
@@ -441,17 +445,21 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
             Name
             <input
               value={title}
+              maxLength={TEXT_MAX.title}
               placeholder="For example: PG-205 Tax ID error messages"
               onChange={(event) => setTitle(event.target.value)}
             />
+            <TextCount value={title} max={TEXT_MAX.title} />
           </label>
           <label className="field">
             Note
             <input
               value={note}
+              maxLength={TEXT_MAX.note}
               placeholder="One line about the work"
               onChange={(event) => setNote(event.target.value)}
             />
+            <TextCount value={note} max={TEXT_MAX.note} />
           </label>
           <div className="grid2">
             <label className="field">
@@ -740,7 +748,12 @@ function FromEventModal({ modal, session, state, asOf, busy, on, onClose }: Prop
       <div className="grid2">
         <label className="field">
           Name
-          <input value={title} onChange={(event) => setTitle(event.target.value)} />
+          <input
+            value={title}
+            maxLength={TEXT_MAX.title}
+            onChange={(event) => setTitle(event.target.value)}
+          />
+          <TextCount value={title} max={TEXT_MAX.title} />
         </label>
         <label className="field">
           Team
@@ -823,9 +836,11 @@ function MilestoneModal({ session, state, asOf, busy, on, onClose }: PropsOf<'ms
           Name
           <input
             value={name}
+            maxLength={TEXT_MAX.title}
             placeholder="For example: CRS section live"
             onChange={(event) => setName(event.target.value)}
           />
+          <TextCount value={name} max={TEXT_MAX.title} />
         </label>
         <label className="field">
           Planned date
@@ -879,11 +894,12 @@ function TeamModal({ state, busy, on, onClose }: PropsOf<'team'>) {
         Name
         <input
           value={name}
-          maxLength={200}
+          maxLength={TEXT_MAX.title}
           placeholder="For example: Design"
           onChange={(event) => setName(event.target.value)}
           onKeyDown={(event) => event.key === 'Enter' && create()}
         />
+        <TextCount value={name} max={TEXT_MAX.title} />
       </label>
       <p className="tip">
         The team gets its own lane. After the merge, the project lead picks its lead and people on
@@ -968,9 +984,11 @@ function DueModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'d
         <textarea
           value={why}
           required
+          maxLength={TEXT_MAX.why}
           placeholder="For example: Lan sends the country list on 10 October, so the field ships on 14 October."
           onChange={(event) => setWhy(event.target.value)}
         />
+        <TextCount value={why} max={TEXT_MAX.why} />
       </label>
       <p className="tip">
         Everyone sees this reason in the history of this {isMs ? 'milestone' : 'work item'}, and the
@@ -1001,10 +1019,12 @@ function NewCrModal({ session, busy, on, onClose }: PropsOf<'newcr'>) {
         Name
         <input
           value={title}
+          maxLength={TEXT_MAX.title}
           placeholder="For example: Root cause report for Sarah"
           onChange={(event) => setTitle(event.target.value)}
           onKeyDown={(event) => event.key === 'Enter' && create()}
         />
+        <TextCount value={title} max={TEXT_MAX.title} />
       </label>
       <p className="tip">
         It starts from the latest Main. Only you can edit it until you share it. When you finish,
@@ -1049,11 +1069,12 @@ function NoteModal({
         {label}
         <textarea
           value={text}
-          maxLength={1000}
+          maxLength={TEXT_MAX.why}
           required
           placeholder={placeholder}
           onChange={(event) => setText(event.target.value)}
         />
+        <TextCount value={text} max={TEXT_MAX.why} />
       </label>
       <p className="tip">{tip}</p>
       <div className="m-foot">

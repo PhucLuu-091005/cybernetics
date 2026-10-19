@@ -27,17 +27,20 @@ const Instant = z.preprocess(
 // Postgres refuses NUL in text and jsonb, so a NUL must fail validation instead of the insert.
 export const noNul = <T extends z.ZodType<string>>(schema: T) =>
   schema.refine((value) => !value.includes('\u0000'), 'Remove the NUL character');
+/** The longest text each kind of field takes; the inputs cap at the same numbers. */
+export const TEXT_MAX = { title: 200, body: 4000, why: 1000, note: 2000 } as const;
+export const atMost = (max: number) => `at most ${max} characters`;
 const filled = (max: number) =>
   noNul(
     z
       .string()
-      .max(max)
+      .max(max, atMost(max))
       .refine((value) => value.trim() !== '', 'Must not be empty'),
   );
-const Title = filled(200);
-const Body = filled(4000);
-const Why = filled(1000);
-const Note = noNul(z.string().max(2000));
+const Title = filled(TEXT_MAX.title);
+const Body = filled(TEXT_MAX.body);
+const Why = filled(TEXT_MAX.why);
+const Note = noNul(z.string().max(TEXT_MAX.note, atMost(TEXT_MAX.note)));
 
 export const EventKindSchema = z.enum(EVENT_KINDS);
 

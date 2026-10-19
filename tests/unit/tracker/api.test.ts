@@ -6,6 +6,7 @@ import {
   createCr,
   crAction,
   dismissQueueEntry,
+  errorText,
   getTracker,
   removeOp,
   type CrAction,
@@ -197,5 +198,36 @@ describe('tracker api errors', () => {
     const result = await actAs(PROJECT, 'm-lan');
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error.code).toBe('NETWORK');
+  });
+});
+
+describe('errorText', () => {
+  const validation = (errors: Array<{ path: string; message: string }>) => ({
+    status: 400,
+    code: 'VALIDATION',
+    message: 'Invalid change request',
+    errors,
+  });
+
+  it('names the field of a validation error in the words of its input', () => {
+    expect(errorText(validation([{ path: 'title', message: 'at most 200 characters' }]))).toBe(
+      'Name: at most 200 characters',
+    );
+    expect(errorText(validation([{ path: 'a.ev.text', message: 'at most 4000 characters' }]))).toBe(
+      'What happened: at most 4000 characters',
+    );
+    expect(errorText(validation([{ path: 'a.why', message: 'Must not be empty' }]))).toBe(
+      'Why: Must not be empty',
+    );
+  });
+
+  it('keeps the message of other errors and of fields it does not know', () => {
+    expect(errorText(validation([{ path: 'expectedRevision', message: 'Too small' }]))).toBe(
+      'Invalid change request',
+    );
+    expect(errorText(validation([]))).toBe('Invalid change request');
+    expect(errorText({ status: 409, code: 'CONFLICT', message: 'Main moved.' })).toBe(
+      'Main moved.',
+    );
   });
 });

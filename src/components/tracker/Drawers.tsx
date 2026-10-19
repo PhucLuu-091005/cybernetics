@@ -37,6 +37,7 @@ import {
   type FocusNode,
   type TrackerState,
   type WorkItem,
+  TEXT_MAX,
 } from '../../tracker';
 import type { OpInput } from './api';
 import { Avatar, Avatars, type Directory } from './avatar';
@@ -56,6 +57,7 @@ import { Icon, KIND_COLOR, KindIcon } from './icons';
 import { Select } from './Select';
 import { DateInput } from './DateInput';
 import { TimeInput } from './TimeInput';
+import { TextCount } from './TextCount';
 import { Moves } from './Pops';
 import { focusAction } from './team';
 import type { TrackerActions, TrackerView } from './TrackerScreen';
@@ -170,8 +172,10 @@ export function MilestoneDrawer({
             Name
             <input
               value={name}
+              maxLength={TEXT_MAX.title}
               onChange={(event) => setDraft({ name: event.target.value, date, time })}
             />
+            <TextCount value={name} max={TEXT_MAX.title} />
           </label>
           <label className="field">
             Planned date
@@ -464,6 +468,7 @@ export function WorkItemDrawer({
               className="wi-title"
               aria-label="Name"
               value={name}
+              maxLength={TEXT_MAX.title}
               onChange={(event) => setTitle(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key !== 'Enter') return;
@@ -640,9 +645,11 @@ export function WorkItemDrawer({
                     <textarea
                       value={plan.why}
                       required
+                      maxLength={TEXT_MAX.why}
                       placeholder="For example: Lan sends the country list on 10 October."
                       onChange={(e) => setDates({ ...plan, why: e.target.value })}
                     />
+                    <TextCount value={plan.why} max={TEXT_MAX.why} />
                   </label>
                   <div className="wi-inline">
                     <button className="btn sm" type="button" onClick={() => setDates(null)}>

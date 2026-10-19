@@ -50,6 +50,7 @@ import {
   addToQueue,
   appendOp,
   createCr,
+  errorText,
   crAction,
   dismissQueueEntry,
   getTracker,
@@ -213,7 +214,7 @@ const OUTSIDE_EXEMPT =
   '.p-head, .bbar, .pop, .drawer, .p-side, .empty, .ro-note, svg.tg, .tk-modal, .tk-toast, .zoombar, .gtools';
 // These layers close themselves on Esc, so the screen leaves the rest open.
 const OWN_ESCAPE =
-  'dialog[open], .tk details[open], .tk .tsearch-pop:not([hidden]), .tk .hand-menu, .tk .field-pop, .tk .view-pop, .tk .legend-pop:focus-within';
+  'dialog[open], .tk input[aria-invalid="true"]:focus, .tk details[open], .tk .tsearch-pop:not([hidden]), .tk .hand-menu, .tk .field-pop, .tk .view-pop, .tk .legend-pop:focus-within';
 const PHONE_QUERY = '(max-width: 760px)';
 
 const crByNum = (p: TrackerPayload, num: number) => p.crs.find((c) => c.num === num);
@@ -915,7 +916,7 @@ export function TrackerScreen({
       if (result.error.status === 409) {
         showToast(result.error.message, { refresh: () => void refresh() });
         check();
-      } else showToast(result.error.message);
+      } else showToast(errorText(result.error));
       setToast((t) => t && { ...t, error: true });
       return null;
     }
@@ -1532,6 +1533,7 @@ export function TrackerScreen({
       />
       {showNotice && (
         <MainNotice
+          canCreate={canCreate}
           onClose={() => setNoticeClosed(true)}
           onNeverAgain={() => {
             setNoticeOff(true);

@@ -12,6 +12,7 @@ import {
   goneNamed,
   liveOps,
   mainState,
+  atMost,
   noNul,
   onlyMainNote,
   LoopError,
@@ -56,7 +57,8 @@ import { addComment, loadCommits, loadQueue, lockCr, mainRevision, type CrRow } 
 
 const MAX_OPS = 500;
 const MISSING_CRS = 'You cannot see the change requests of this project';
-const Text = (max: number) => noNul(z.string().trim().min(1, 'Must not be empty').max(max));
+const Text = (max: number) =>
+  noNul(z.string().trim().min(1, 'Must not be empty').max(max, atMost(max)));
 const RouteNumber = z
   .union([
     z.number(),

@@ -712,6 +712,44 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     expect(at).toBeLessThan(after);
   });
 
+  test('a long name stops at the server limit with a counter, and a bad date keeps its text with an error', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-limits');
+    const dialog = page.locator('.m-card');
+    const drawer = page.locator('.drawer');
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
+    const name = dialog.getByLabel('Name');
+    await name.fill('x'.repeat(400));
+    await expect(name).toHaveValue('x'.repeat(200));
+    await expect(dialog.locator('.count')).toHaveText('200/200');
+    await name.fill('Lan changes');
+    await expect(dialog.locator('.count')).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/changes\/\d+$/);
+
+    await page.getByRole('combobox', { name: 'Search work items' }).fill('PG-203');
+    await expect(page.getByRole('option').first()).toContainText('PG-203 Country list field type');
+    await page.keyboard.press('Enter');
+    const planned = drawer.getByLabel('Planned finish');
+    await expect(planned).toHaveValue('6 Oct 2026');
+    const error = drawer.getByText('Not a date. Use e.g. 12 Oct 2026');
+    for (const text of ['31 Feb 2026', 'yesterday']) {
+      await planned.fill(text);
+      await planned.press('Tab');
+      await expect(planned).toHaveValue(text);
+      await expect(planned).toHaveAttribute('aria-invalid', 'true');
+      await expect(error).toBeVisible();
+      await expect(planned).toHaveAccessibleDescription('Not a date. Use e.g. 12 Oct 2026');
+      await planned.focus();
+      await page.keyboard.press('Escape');
+      await expect(drawer).toBeVisible();
+      await expect(planned).toHaveValue('6 Oct 2026');
+      await expect(error).toHaveCount(0);
+    }
+    await expect(drawer.getByLabel(/Why does the date move/)).toHaveCount(0);
+  });
+
   test('date and time boxes use the app format and their own calendar and time list', async ({
     page,
   }) => {
@@ -777,8 +815,14 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await retype('25:00');
     await expect(time).toHaveAttribute('aria-invalid', 'true');
     await time.press('Tab');
+    await expect(time).toHaveValue('25:00');
+    await expect(drawer.getByText('Not a time. Use e.g. 14:30')).toBeVisible();
+    await time.focus();
+    await page.keyboard.press('Escape');
+    await expect(drawer).toBeVisible();
     await expect(time).toHaveValue('17:00');
     await expect(time).not.toHaveAttribute('aria-invalid');
+    await expect(drawer.getByText('Not a time. Use e.g. 14:30')).toHaveCount(0);
     await retype('143');
     await time.press('Tab');
     await expect(time).toHaveValue('01:43');
@@ -790,8 +834,12 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await date.fill('soon');
     await expect(date).toHaveAttribute('aria-invalid', 'true');
     await time.focus();
-    await expect(date).toHaveValue('20 Sept 2026');
+    await expect(date).toHaveValue('soon');
+    await expect(drawer.getByText('Not a date. Use e.g. 12 Oct 2026')).toBeVisible();
+    await date.fill('20 Sept 2026');
+    await time.focus();
     await expect(date).not.toHaveAttribute('aria-invalid');
+    await expect(drawer.getByText('Not a date. Use e.g. 12 Oct 2026')).toHaveCount(0);
 
     await drawer.getByRole('button', { name: 'Save milestone' }).click();
     await expect(dialog).toContainText('Move the milestone date');
@@ -834,7 +882,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await whenDate.press('ControlOrMeta+a');
     await whenDate.pressSequentially('6 Oct 0202');
     await whenDate.press('Tab');
-    await expect(whenDate).toHaveValue('9 Oct 2026');
+    await expect(whenDate).toHaveValue('6 Oct 0202');
+    await expect(when.getByText('Not a date. Use e.g. 12 Oct 2026')).toBeVisible();
     await whenDate.press('ControlOrMeta+a');
     await whenDate.pressSequentially('8 Oct');
     await whenDate.press('Enter');

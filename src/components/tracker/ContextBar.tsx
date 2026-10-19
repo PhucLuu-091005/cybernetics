@@ -463,16 +463,22 @@ export function ContextBar(props: Props) {
 }
 
 export function MainNotice({
+  canCreate,
   onClose,
   onNeverAgain,
 }: {
+  canCreate: boolean;
   onClose: () => void;
   onNeverAgain: () => void;
 }) {
   return (
     <div className="ro-note" role="note" aria-label="Main is read-only">
       <Icon name="lock" size={15} />
-      <p>Main is read-only. To change it, create a change request.</p>
+      <p>
+        {canCreate
+          ? 'Main is read-only. To change it, create a change request.'
+          : 'Main is read-only. You can view it.'}
+      </p>
       <span className="ro-acts">
         <button className="lnk" type="button" onClick={onNeverAgain}>
           Don&apos;t show again

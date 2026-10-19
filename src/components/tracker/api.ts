@@ -36,6 +36,23 @@ export type CrAction =
   | (Reviewed & { action: 'request-changes'; note: string })
   | (Reviewed & { action: 'close'; reason: string });
 
+const FIELD_LABEL: Record<string, string> = {
+  title: 'Name',
+  name: 'Name',
+  text: 'What happened',
+  why: 'Why',
+  note: 'Note',
+  body: 'Comment',
+  reason: 'Reason',
+};
+
+/** A validation error names the field as its input does, e.g. "Name: at most 200 characters". */
+export function errorText(error: ApiError): string {
+  const first = error.code === 'VALIDATION' ? error.errors?.[0] : undefined;
+  const label = first && FIELD_LABEL[first.path.split('.').at(-1) ?? ''];
+  return first && label ? `${label}: ${first.message}` : error.message;
+}
+
 const CODE_BY_STATUS: Record<number, string> = {
   400: 'VALIDATION',
   401: 'UNAUTHENTICATED',

@@ -113,6 +113,12 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       await expect(createCr(t.db, demo.owner, { ...as('lan'), title: '  ' })).rejects.toMatchObject(
         { code: 'VALIDATION' },
       );
+      await expect(
+        createCr(t.db, demo.owner, { ...as('lan'), title: 'x'.repeat(201) }),
+      ).rejects.toMatchObject({
+        code: 'VALIDATION',
+        extras: { errors: [{ path: 'title', message: 'at most 200 characters' }] },
+      });
     });
   });
 
@@ -204,6 +210,11 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       ).rejects.toMatchObject({ code: 'VALIDATION' });
       await expect(append({ op: 'rename', a: { workItemId: 'pg203' } })).rejects.toMatchObject({
         code: 'VALIDATION',
+      });
+      await expect(
+        append({ op: 'rename', a: { workItemId: 'pg203', title: 'x'.repeat(201) } }),
+      ).rejects.toMatchObject({
+        extras: { errors: [expect.objectContaining({ message: 'at most 200 characters' })] },
       });
       await expect(
         append({
