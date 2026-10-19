@@ -42,9 +42,10 @@ async function loadProfile(projectId: string, cursor: string | null) {
     signedInAccount(db, actor.userId),
     personalCreator(db, actor),
   ]);
-  // The person's own member colour, as their avatar has it; the grey of avatar.tsx without one.
-  const members = await loadMembers(db, projectId);
-  const ownColor = members.find((m) => m.userId === actor.userId)?.color ?? '#737373';
+  // As every avatar shows the person: their member name and colour, else the grey of avatar.tsx.
+  const member = (await loadMembers(db, projectId)).find((m) => m.userId === actor.userId);
+  const ownName = member?.name ?? own.name;
+  const ownColor = member?.color ?? '#737373';
   const now = Date.now();
   const expiryOptions = [30, 7].map((days) => ({
     days,
@@ -56,6 +57,7 @@ async function loadProfile(projectId: string, cursor: string | null) {
     page,
     account,
     own,
+    ownName,
     ownColor,
     creator,
     expiryOptions,
@@ -73,7 +75,7 @@ export default async function ProfilePage({
   const [{ id }, search] = await Promise.all([params, searchParams]);
   const cursor = searchCursor(search.cursor);
   if (!IdSchema.safeParse(id).success) notFound();
-  const { project, timeZone, page, account, own, ownColor, creator, expiryOptions, now } =
+  const { project, timeZone, page, account, own, ownName, ownColor, creator, expiryOptions, now } =
     await loadProfile(id, cursor);
   const endpoint = `${readAuthEnvironment().appOrigin}/mcp`;
   return (
@@ -81,9 +83,7 @@ export default async function ProfilePage({
       <PageHead title="Profile" project={project} account={account} />
       <div className="pg-body pg-split">
         <div className="pg-main">
-          {photosOn() && (
-            <PhotoSection name={own.name} color={ownColor} photo={own.photo ?? null} />
-          )}
+          {photosOn() && <PhotoSection name={ownName} color={ownColor} photo={own.photo ?? null} />}
           <TokenList
             kind="personal"
             api={KEYS}
@@ -103,7 +103,7 @@ export default async function ProfilePage({
           />
         </div>
         <aside className="pg-aside">
-          <McpSnippet endpoint={endpoint} />
+          <McpSnippet endpoint={endpoint} kind="personal" />
         </aside>
       </div>
     </div>

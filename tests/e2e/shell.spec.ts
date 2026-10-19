@@ -192,6 +192,7 @@ test('Settings shows plain permission names, and Last call changes from Never af
 
   await expect(page.getByTestId('mcp-endpoint')).toHaveText(/\/mcp$/);
   await expect(page.getByText("Paste this into your agent's MCP settings.")).toBeVisible();
+  await expect(page.getByText('Replace inv_... with the secret of your token.')).toBeVisible();
   await expect(page.getByText('Streamable HTTP')).toHaveCount(0);
 
   const form = page.getByRole('form', { name: 'Create a token' });
@@ -455,4 +456,64 @@ test('the token Label takes typing only after hydration, so a typed label is nev
   await label.fill('After hydration');
   await expect(page.getByRole('button', { name: 'Create token' })).toBeEnabled();
   await expect(label).toHaveValue('After hydration');
+});
+
+test('pages, API routes and /welcome send the security headers, and no site can frame them', async ({
+  page,
+}) => {
+  await page.goto('/signin?label=headers');
+  await page.getByRole('button', { name: /continue/i }).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  const graph = new URL(page.url()).pathname;
+  for (const path of [graph, '/signin', '/welcome', '/api/health', '/api/v1/projects', '/mcp']) {
+    const reply = await page.request.get(path, { maxRedirects: 0 });
+    expect(reply.headers(), path).toMatchObject({
+      'content-security-policy': "frame-ancestors 'none'",
+      'x-frame-options': 'DENY',
+      'x-content-type-options': 'nosniff',
+      'referrer-policy': 'strict-origin-when-cross-origin',
+    });
+  }
+});
+
+test('the MCP config box shows a long service address whole, at 1440 and 390, on Settings and Profile', async ({
+  page,
+}) => {
+  await page.goto('/signin?label=mcp-box');
+  await page.getByRole('button', { name: /continue/i }).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  const projectId = new URL(page.url()).pathname.split('/')[2];
+  // The hosted address is far longer than localhost, so the test puts it in the box itself.
+  const long = 'https://promise-graph-1053551314419.asia-southeast1.run.app/mcp';
+  for (const width of [1440, 390])
+    for (const path of ['settings/tokens', 'profile']) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`/projects/${projectId}/${path}`);
+      const box = page.getByTestId('mcp-snippet');
+      const fit = await box.evaluate((pre, url) => {
+        pre.textContent = (pre.textContent ?? '').replace(/http:\/\/localhost:\d+\/mcp/, url);
+        const root = document.documentElement;
+        return {
+          hidden: pre.scrollWidth - pre.clientWidth,
+          page: root.scrollWidth - root.clientWidth,
+        };
+      }, long);
+      expect(fit, `${path} at ${width}`).toEqual({ hidden: 0, page: 0 });
+      await expect(box).toContainText(long);
+    }
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.reload();
+  await page.getByRole('button', { name: 'Copy config' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Config copied' })).toBeVisible();
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(JSON.parse(copied)).toEqual({
+    mcpServers: {
+      'promise-graph': {
+        type: 'http',
+        url: new URL('/mcp', page.url()).href,
+        headers: { Authorization: 'Bearer inv_...' },
+      },
+    },
+  });
+  expect(copied).toContain('\n    "promise-graph": {\n');
 });

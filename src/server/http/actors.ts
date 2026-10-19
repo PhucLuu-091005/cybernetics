@@ -16,6 +16,7 @@ export type BrowserSession = { userId: string; defaultWorkspaceId: string };
 /** A page of avatars loads many photos at once, so photo reads have their own, larger limit. */
 export type LimitBucket = 'calls' | 'photo';
 const LIMITS = { read: 300, write: 120, photo: 1200 } as const;
+const rateLimited = () => new AppError('RATE_LIMITED', 'Rate limit exceeded');
 export function projectInPath(pathname: string): string | null {
   const match = pathname.match(/\/projects\/([^/]+)/);
   if (!match) return null;
@@ -40,7 +41,7 @@ export function createIdentityServices(options: IdentityOptions) {
     if (!user) throw new AppError('UNAUTHENTICATED', 'Unknown session');
     const write = !['GET', 'HEAD', 'OPTIONS'].includes(request.method);
     const kind = write ? 'write' : bucket === 'photo' ? 'photo' : 'read';
-    limiter.consume(`user:${user.userId}:${kind}`, LIMITS[kind], now());
+    if (!limiter.consume(`user:${user.userId}:${kind}`, LIMITS[kind], now())) throw rateLimited();
     return user;
   }
   /** Current membership decides access on every call, so a cached session never carries project access. */
@@ -99,7 +100,7 @@ export function createIdentityServices(options: IdentityOptions) {
         (requested && requested !== bound)
       )
         throw new AppError('NOT_FOUND', 'Project not found');
-      limiter.consume(`token:${token.id}`, 60, now());
+      if (!limiter.consume(`token:${token.id}`, 60, now())) throw rateLimited();
       const at = now();
       if (!token.lastUsedAt || at - Date.parse(token.lastUsedAt) >= 60_000)
         await store.touchToken(token.id, new Date(at).toISOString());

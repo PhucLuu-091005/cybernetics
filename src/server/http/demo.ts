@@ -58,13 +58,8 @@ async function hasSession(request: Request, { env, store }: DemoDeps): Promise<b
 async function newSandbox(request: Request, deps: DemoDeps, next: string): Promise<DemoAnswer> {
   const { env, store, limiter } = deps;
   const now = Date.now();
-  try {
-    limiter.consume(`demo:${clientAddress(request)}`, DEMO_PER_ADDRESS_PER_HOUR, now, HOUR);
-  } catch (error) {
-    if (error instanceof AppError && error.code === 'RATE_LIMITED')
-      return { location: '/welcome?reason=busy' };
-    throw error;
-  }
+  if (!limiter.consume(`demo:${clientAddress(request)}`, DEMO_PER_ADDRESS_PER_HOUR, now, HOUR))
+    return { location: '/welcome?reason=busy' };
   const { userId } = await store.provisionUser({
     subject: `demo:${randomUUID()}`,
     email: null,

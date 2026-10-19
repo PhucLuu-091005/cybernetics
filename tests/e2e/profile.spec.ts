@@ -24,6 +24,9 @@ test('the account menu opens Profile, where a personal key reaches every project
 }) => {
   const projectId = await signIn(page, 'profile-keys');
   await openProfile(page, projectId);
+  const connect = page.getByRole('region', { name: 'Connect your agent' });
+  await expect(connect).toContainText('Replace inv_... with the secret of your key.');
+  await expect(connect).not.toContainText('token');
 
   const form = page.getByRole('form', { name: 'Create a personal key' });
   const permissions = form.getByRole('group', { name: 'Permissions' });
@@ -68,6 +71,9 @@ test('Profile uploads a photo after a preview, shows it in every avatar, and rem
   await openProfile(page, projectId);
   const section = page.getByRole('region', { name: 'Photo' });
   await expect(section.getByRole('button', { name: 'Remove photo' })).toHaveCount(0);
+  // The initials of the member name that every avatar shows, not of the sign-in account.
+  await expect(section.locator('.pf-face svg')).toContainText('MT');
+  await expect(page.locator('details.acct .acct-av')).toHaveText('MT');
   await section.getByRole('button', { name: 'Upload photo' }).click();
   const dialog = page.getByRole('dialog', { name: 'Upload a photo' });
   const save = dialog.getByRole('button', { name: 'Save photo' });
@@ -107,6 +113,11 @@ test('Profile uploads a photo after a preview, shows it in every avatar, and rem
   const src = await section.locator('.pf-face img').getAttribute('src');
   const served = await page.request.get(src!);
   expect(served.headers()['content-type']).toBe('image/webp');
+  expect(served.headers()).toMatchObject({
+    'content-security-policy': "default-src 'none'; sandbox",
+    'x-frame-options': 'DENY',
+    'x-content-type-options': 'nosniff',
+  });
 
   await page.goto(`/projects/${projectId}/members`);
   const row = page.getByRole('row').filter({ hasText: 'Minh Trần' }).first();
@@ -126,6 +137,6 @@ test('Profile uploads a photo after a preview, shows it in every avatar, and rem
   await hydrated(page);
   await section.getByRole('button', { name: 'Remove photo' }).click();
   await expect(section.getByRole('button', { name: 'Remove photo' })).toHaveCount(0);
-  await expect(section.locator('.pf-face svg')).toContainText('LD');
+  await expect(section.locator('.pf-face svg')).toContainText('MT');
   expect((await page.request.get(src!)).status()).toBe(404);
 });

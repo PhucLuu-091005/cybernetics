@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AppError, errorResponse, statusFor } from '../../../src/server/errors';
 
 describe('error mapping', () => {
@@ -48,5 +48,15 @@ describe('error mapping', () => {
       message: 'Internal error',
       requestId: 'req-3',
     });
+  });
+  it('knows an AppError from another copy of the module, as next dev builds one per route', async () => {
+    vi.resetModules();
+    const other = await import('../../../src/server/errors');
+    expect(other.AppError).not.toBe(AppError);
+    const foreign = new other.AppError('RATE_LIMITED', 'Rate limit exceeded');
+    expect(foreign instanceof AppError).toBe(true);
+    expect(errorResponse(foreign, 'req-4').status).toBe(429);
+    expect(new Error('RATE_LIMITED') instanceof AppError).toBe(false);
+    expect({ code: 'RATE_LIMITED' } instanceof AppError).toBe(false);
   });
 });
