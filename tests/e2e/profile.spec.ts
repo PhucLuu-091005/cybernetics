@@ -36,6 +36,9 @@ test('the account menu opens Profile, where a personal key reaches every project
   await form.getByRole('button', { name: 'Create key' }).click();
   const secret = (await page.getByTestId('token-secret').innerText()).trim();
   expect(secret).toMatch(/^inv_[A-Za-z0-9_-]{43}$/);
+  const reveal = page.getByRole('region', { name: 'New key secret' });
+  await expect(reveal).toContainText('If you lose it, revoke the key and create a new one.');
+  await expect(reveal).not.toContainText('token');
   const keys = page.getByRole('table', { name: 'Your personal keys' });
   const row = keys.getByRole('row').filter({ hasText: 'Laptop agent' });
   await expect(row.getByText('Read, Add to Queue')).toBeVisible();
