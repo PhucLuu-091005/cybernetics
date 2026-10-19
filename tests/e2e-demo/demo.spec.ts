@@ -146,7 +146,9 @@ test('a demo visitor uses Profile in their own copy: a photo and a personal key 
 });
 
 // next dev builds each route on its own, so these prove the limits answer from any route, not 500.
-test('the 31st new copy in an hour from one address gets the busy page', async ({ baseURL }) => {
+test('past 30 new copies in an hour from one address, the next one gets the busy page', async ({
+  baseURL,
+}) => {
   test.setTimeout(180_000);
   const visit = async () => {
     // A fresh client each time: a kept cookie would reopen the first copy instead of making one.
@@ -170,11 +172,21 @@ test('the 31st new copy in an hour from one address gets the busy page', async (
   const rest = await request.newContext({ baseURL });
   await rest.get('/api/v1/projects');
   await rest.dispose();
-  for (let i = 0; i < 30; i++) expect(await visit()).toMatch(/^\/api\/auth\/demo\?check=1/);
-  expect(await visit()).toBe('/welcome?reason=busy');
+  // The window is a clock hour, so a run across the hour mark may need up to 30 more copies.
+  let copies = 0;
+  for (
+    let location = await visit();
+    location !== '/welcome?reason=busy';
+    location = await visit()
+  ) {
+    expect(location).toMatch(/^\/api\/auth\/demo\?check=1/);
+    copies++;
+    expect(copies, 'copies before the busy page').toBeLessThanOrEqual(60);
+  }
+  expect(copies).toBeGreaterThanOrEqual(30);
 });
 
-test('a token gets 429 RATE_LIMITED on its 61st MCP call in a minute', async ({ page }) => {
+test('a token gets 429 RATE_LIMITED past 60 MCP calls in a minute', async ({ page }) => {
   const projectId = await open(page);
   await page.goto(`/projects/${projectId}/settings/tokens`);
   const form = page.getByRole('form', { name: 'Create a token' });
@@ -190,10 +202,14 @@ test('a token gets 429 RATE_LIMITED on its 61st MCP call in a minute', async ({ 
       },
       data: { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} },
     });
-  const statuses: number[] = [];
-  for (let i = 0; i < 60; i++) statuses.push((await list()).status());
-  expect(statuses.every((status) => status === 200)).toBe(true);
-  const refused = await list();
-  expect(refused.status()).toBe(429);
-  expect(await refused.json()).toMatchObject({ code: 'RATE_LIMITED' });
+  // The window is a clock minute, so a run across the minute mark may need up to 60 more calls.
+  let calls = 1;
+  let reply = await list();
+  while (reply.status() === 200 && calls < 121) {
+    calls++;
+    reply = await list();
+  }
+  expect(reply.status(), `status of call ${calls}`).toBe(429);
+  expect(await reply.json()).toMatchObject({ code: 'RATE_LIMITED' });
+  expect(calls).toBeGreaterThanOrEqual(61);
 });
