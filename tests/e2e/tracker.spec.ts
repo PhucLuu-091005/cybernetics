@@ -697,7 +697,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await page.keyboard.press('Escape');
     const zoomIn = page.getByRole('button', { name: 'Zoom in' });
     for (let i = 0; i < 6; i += 1) await zoomIn.click();
-    const mark = page.locator('svg.pg .deadline[data-goal="crm"]').nth(3);
+    // The third member row of CRM integration live is CRM integration live itself.
+    const mark = page.locator('svg.pg .deadline[data-goal="crm"]').nth(2);
     await mark.scrollIntoViewIfNeeded();
     const x = async (locator: ReturnType<typeof page.locator>) => {
       const box = await locator.boundingBox();
@@ -1183,8 +1184,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       const menu = page.getByRole('menu', {
         name: 'Handoffs from Analyse the CRS and FATCA rules',
       });
-      await expect(menu.getByRole('menuitem')).toHaveCount(4);
-      await expect(menu.getByRole('menuitem').last()).toHaveText(/Show the \d events here/);
+      // The Handoff event stands alone, so the list holds the three receivers only.
+      await expect(menu.getByRole('menuitem')).toHaveCount(3);
       await page.keyboard.press('Escape');
       await expect(menu).toHaveCount(0);
       await expect(mark).toBeFocused();
@@ -1223,7 +1224,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       const teamFocus = side.getByRole('button', { name: 'Focus on Digitization', exact: true });
       await teamFocus.click();
       await expect(teamFocus).toHaveAttribute('aria-pressed', 'true');
-      await expect(rows).toHaveCount(6);
+      // Legal review routing finished before the board starts: the panel lists it, the graph does not.
+      await expect(rows).toHaveCount(5);
       const panel = page.getByRole('complementary', { name: 'Focus on Digitization' });
       await expect(panel).toContainText('6 work items');
       await expect(panel).toContainText('Legal review routing');
@@ -1278,7 +1280,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       ).toBeVisible();
       await expect(searchBox).toBeFocused();
       await side.locator('[data-eyeteam="digitization"]').click();
-      await expect(rows).toHaveCount(12);
+      await expect(rows).toHaveCount(13);
       await expect(page.getByRole('complementary')).toHaveCount(0);
       await page.locator('.hid-menu > summary').click();
       await page.getByRole('button', { name: 'Unhide Digitization' }).click();
@@ -2217,7 +2219,7 @@ test.describe('row height and collapsible teams', () => {
         'Cancelled · Test the CRS section end to end no longer gets it from here',
       );
       await expect(receiverWait).toHaveText('PG-203 was cancelled');
-      await expect(page.locator('.lane-count', { hasText: 'cancelled' })).toHaveText(
+      await expect(page.locator('.lane-count', { hasText: /done · 1 cancelled/ })).toHaveText(
         '1 late · 2 done · 1 cancelled',
       );
       await expect(bar).toContainText('1 change');
