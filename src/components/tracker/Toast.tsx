@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import { Icon } from './icons';
 
-export type ToastState = { text: string; at: number; undo?: () => void };
+export type ToastState = { text: string; at: number; undo?: () => void; refresh?: () => void };
 
 export const TOAST_MS = 4500;
 
@@ -35,6 +35,17 @@ export function Toast({
               }}
             >
               <Icon name="undo" size={14} /> Undo
+            </button>
+          )}
+          {toast.refresh && (
+            <button
+              type="button"
+              onClick={() => {
+                toast.refresh?.();
+                onClose();
+              }}
+            >
+              Refresh
             </button>
           )}
         </>

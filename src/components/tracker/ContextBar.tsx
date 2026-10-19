@@ -83,7 +83,23 @@ type Props = {
   };
   /** Without it, the bar has no hidden badge. */
   hidden?: HiddenMenuProps;
+  /** Set when the server has a newer version than the screen shows. */
+  fresh?: Fresh | null;
 };
+
+export type Fresh = { label: string; busy: boolean; onRefresh: () => void };
+
+/** One quiet line, as on a pull request page: the screen changes only when the person asks. */
+function FreshNotice({ fresh }: { fresh: Fresh }) {
+  return (
+    <span className="fresh" role="status">
+      <span>{fresh.label}</span> <span aria-hidden="true">·</span>{' '}
+      <button className="lnk" type="button" disabled={fresh.busy} onClick={fresh.onRefresh}>
+        Refresh
+      </button>
+    </span>
+  );
+}
 
 export const crHref = (projectId: string, num: number) => `/projects/${projectId}/changes/${num}`;
 export const mainHref = (projectId: string) => `/projects/${projectId}/graph`;
@@ -182,6 +198,7 @@ function MainBar(props: Props) {
         <span>Lead: {dir.name(lead)}</span>
       </span>
       <span className="sp" />
+      {props.fresh && <FreshNotice fresh={props.fresh} />}
       {asks.flatMap((c) =>
         c.asks.map((ask) => (
           <button
@@ -273,7 +290,8 @@ export function ContextBar(props: Props) {
             ? `Merged into Main by ${dir.name(c.mergedBy ?? '')}${c.mergedAt ? `, ${formatStamp(c.mergedAt, tz)}` : ''}. Read-only history.`
             : `Cancelled by ${dir.name(c.closedBy ?? '')}${c.closedAt ? `, ${formatStamp(c.closedAt, tz)}` : ''}. Nothing went into Main.`}
         </span>
-        {hiddenBadge && <span className="sp" />}
+        {(hiddenBadge || props.fresh) && <span className="sp" />}
+        {props.fresh && <FreshNotice fresh={props.fresh} />}
         {hiddenBadge}
         {c.status === 'closed' && reason && (
           <p className="bnote">
@@ -412,6 +430,7 @@ export function ContextBar(props: Props) {
         </span>
       )}
       <span className="sp" />
+      {props.fresh && <FreshNotice fresh={props.fresh} />}
       {buttons}
       {hiddenBadge}
       {review?.changed && (

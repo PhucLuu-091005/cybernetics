@@ -5,6 +5,7 @@ type TrackerRead = {
   crs: Array<{
     num: number;
     status: string;
+    revision: number;
     shares: Array<{ memberId: string; permission: string }>;
   }>;
   members: Array<{ id: string; name: string }>;
@@ -2756,5 +2757,140 @@ test.describe('changes that no longer apply', () => {
     await expect(rows).toHaveCount(0);
     await expect(clear).toHaveCount(0);
     await expect(side).toContainText('No changes yet.');
+  });
+});
+
+test.describe('new changes wait for Refresh', () => {
+  test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
+
+  const rename = (title: string) => ({ op: 'rename', a: { workItemId: 'secret', title } });
+  /** A write that this screen did not make, as another tab or another person makes it. */
+  const post = (page: Page, path: string, body: unknown) =>
+    page.evaluate(
+      async ({ path, body }) => {
+        const reply = await fetch(path, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { status: reply.status, body: await reply.json() };
+      },
+      { path, body },
+    );
+  async function writeElsewhere(page: Page, projectId: string, title: string, ready = false) {
+    const crs = `/api/v1/projects/${projectId}/tracker/crs`;
+    const created = await post(page, crs, { title, ops: [rename(title)] });
+    expect(created.status).toBe(201);
+    const num = created.body.num as number;
+    if (ready)
+      expect((await post(page, `${crs}/${num}/actions`, { action: 'ready' })).status).toBe(200);
+    return num;
+  }
+  /** Runs the background check at once instead of after 15 s. */
+  async function check(page: Page) {
+    const answered = page.waitForResponse(/\/tracker\/version$/);
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await answered;
+  }
+
+  test('another write leaves the screen alone; Refresh shows it and keeps the scroll and the drawer', async ({
+    page,
+  }) => {
+    const { projectId } = await signIn(page, 'tracker-fresh', { classic: false });
+    const bar = page.locator('.bbar').first();
+    const notice = bar.locator('.fresh');
+    const drawer = page.locator('.drawer');
+    const requests = page.locator('.p-head .crs-btn');
+    const rows = page.locator('.gscroll .gtime');
+    const viewMenu = async () => {
+      await bar.locator('summary.vsel').click();
+      const text = await bar.locator('.gmenu').innerText();
+      await page.keyboard.press('Escape');
+      return text;
+    };
+    await page.getByRole('combobox', { name: 'Search work items' }).fill('PG-203');
+    await page.keyboard.press('Enter');
+    await expect(drawer).toHaveAttribute('aria-label', 'PG-203 Country list field type');
+    await rows.evaluate((el) => el.scrollTo({ left: 120 }));
+    await expect.poll(() => rows.evaluate((el) => el.scrollLeft)).toBe(120);
+    await expect(requests.locator('.nbadge')).toHaveText('2');
+    await check(page);
+    await expect(notice).toHaveCount(0);
+
+    await writeElsewhere(page, projectId, 'Client secret renewed', true);
+    await check(page);
+    await expect(notice).toHaveText('1 new change request · Refresh');
+    await expect(requests.locator('.nbadge')).toHaveText('2');
+    expect(await viewMenu()).not.toContain('Client secret renewed');
+    await writeElsewhere(page, projectId, 'Client secret rotated');
+    await check(page);
+    await expect(notice).toHaveText('2 new change requests · Refresh');
+
+    await notice.getByRole('button', { name: 'Refresh' }).click();
+    await expect(notice).toHaveCount(0);
+    await expect(requests.locator('.nbadge')).toHaveText('3');
+    expect(await viewMenu()).toContain('Client secret renewed');
+    await expect(drawer).toHaveAttribute('aria-label', 'PG-203 Country list field type');
+    expect(await rows.evaluate((el) => el.scrollLeft)).toBe(120);
+    await check(page);
+    await expect(notice).toHaveCount(0);
+  });
+
+  test('own writes show at once and raise no notice; a 409 offers Refresh', async ({ page }) => {
+    const { projectId, graph } = await signIn(page, 'tracker-fresh-own', { classic: false });
+    const num = await writeElsewhere(page, projectId, 'Client secret renewed');
+    await visit(page, crPath(graph, num));
+    const bar = page.locator('.bbar').first();
+    const toast = page.locator('.tk-toast');
+    await expect(bar).toContainText('1 change');
+
+    await bar.getByRole('button', { name: 'Mark as ready' }).click();
+    await expect(bar).toContainText('Ready to merge');
+    await check(page);
+    await expect(bar.locator('.fresh')).toHaveCount(0);
+
+    await bar.getByRole('button', { name: 'Edit again' }).click();
+    await expect(bar.locator('.chipx').first()).toHaveText('Draft');
+    const crs = `/api/v1/projects/${projectId}/tracker/crs`;
+    const read = await readTracker(page, projectId);
+    const revision = read.crs.find((c) => c.num === num)?.revision;
+    const appended = await post(page, `${crs}/${num}/ops`, {
+      op: rename('Client secret replaced'),
+      expectedRevision: revision,
+    });
+    expect(appended.status).toBe(200);
+    await expect(bar).toContainText('1 change');
+
+    await bar.getByRole('button', { name: 'Mark as ready' }).click();
+    await expect(toast).toContainText(`#${num} changed since you saw it.`);
+    await expect(bar.locator('.chipx').first()).toHaveText('Draft');
+    await expect(bar).toContainText('1 change');
+    await toast.getByRole('button', { name: 'Refresh' }).click();
+    await expect(bar).toContainText('2 changes');
+    await expect(bar.locator('.fresh')).toHaveCount(0);
+  });
+
+  test('a hidden tab does not check, and checks at once when it shows again', async ({ page }) => {
+    await page.clock.install();
+    await signIn(page, 'tracker-fresh-hidden', { classic: false });
+    let checks = 0;
+    page.on('request', (request) => {
+      if (/\/tracker\/version$/.test(request.url())) checks += 1;
+    });
+    await page.clock.runFor(16_000);
+    await expect.poll(() => checks).toBe(1);
+    const show = (state: 'hidden' | 'visible') =>
+      page.evaluate((value) => {
+        Object.defineProperty(document, 'visibilityState', {
+          configurable: true,
+          get: () => value,
+        });
+        document.dispatchEvent(new Event('visibilitychange'));
+      }, state);
+    await show('hidden');
+    await page.clock.runFor(120_000);
+    expect(checks).toBe(1);
+    await show('visible');
+    await expect.poll(() => checks).toBe(2);
   });
 });

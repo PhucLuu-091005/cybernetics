@@ -6,6 +6,7 @@ import type {
   QueueEventInput,
   QueueItemInput,
   TrackerPayload,
+  TrackerVersion,
 } from '../../tracker';
 
 export type ApiError = {
@@ -98,6 +99,9 @@ const tracker = (projectId: string) => `/api/v1/projects/${encodeURIComponent(pr
 const cr = (projectId: string, num: number) => `${tracker(projectId)}/crs/${num}`;
 
 export const getTracker = (projectId: string) => send<TrackerPayload>(tracker(projectId), 'GET');
+
+export const getTrackerVersion = (projectId: string) =>
+  send<TrackerVersion>(`${tracker(projectId)}/version`, 'GET');
 
 export const actAs = (projectId: string, memberId: string) =>
   send<TrackerPayload>(`${tracker(projectId)}/act-as`, 'POST', { memberId });
