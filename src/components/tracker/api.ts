@@ -100,8 +100,8 @@ const cr = (projectId: string, num: number) => `${tracker(projectId)}/crs/${num}
 
 export const getTracker = (projectId: string) => send<TrackerPayload>(tracker(projectId), 'GET');
 
-export const getTrackerVersion = (projectId: string) =>
-  send<TrackerVersion>(`${tracker(projectId)}/version`, 'GET');
+export const getTrackerVersion = (projectId: string, num: number | null = null) =>
+  send<TrackerVersion>(`${tracker(projectId)}/version${num === null ? '' : `?num=${num}`}`, 'GET');
 
 export const actAs = (projectId: string, memberId: string) =>
   send<TrackerPayload>(`${tracker(projectId)}/act-as`, 'POST', { memberId });

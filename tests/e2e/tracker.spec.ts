@@ -2788,7 +2788,7 @@ test.describe('new changes wait for Refresh', () => {
   }
   /** Runs the background check at once instead of after 15 s. */
   async function check(page: Page) {
-    const answered = page.waitForResponse(/\/tracker\/version$/);
+    const answered = page.waitForResponse(/\/tracker\/version(\?|$)/);
     await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
     await answered;
   }
@@ -2845,7 +2845,7 @@ test.describe('new changes wait for Refresh', () => {
     await expect(bar).toContainText('1 change');
 
     await bar.getByRole('button', { name: 'Mark as ready' }).click();
-    await expect(bar).toContainText('Ready to merge');
+    await expect(bar.locator('.chipx').first()).toHaveText('Ready to merge');
     await check(page);
     await expect(bar.locator('.fresh')).toHaveCount(0);
 
@@ -2868,6 +2868,124 @@ test.describe('new changes wait for Refresh', () => {
     await toast.getByRole('button', { name: 'Refresh' }).click();
     await expect(bar).toContainText('2 changes');
     await expect(bar.locator('.fresh')).toHaveCount(0);
+  });
+
+  test('a merger keeps the version they opened: Refresh shows Review again when the change request moved', async ({
+    page,
+  }) => {
+    const { projectId, graph } = await signIn(page, 'tracker-fresh-merger', { classic: false });
+    await visit(page, crPath(graph, 2));
+    const bar = page.locator('.bbar').first();
+    const notice = bar.locator('.fresh');
+    const merge = bar.getByRole('button', { name: 'Merge into Main' });
+    const moved = page.getByText('This change request changed since you opened it.');
+    const actions = `/api/v1/projects/${projectId}/tracker/crs/2/actions`;
+    await expect(merge).toBeEnabled();
+
+    expect((await post(page, actions, { action: 'comment', body: 'Looks fine.' })).status).toBe(
+      200,
+    );
+    await check(page);
+    await expect(notice).toHaveText('This change request changed · Refresh');
+    await notice.getByRole('button', { name: 'Refresh' }).click();
+    await expect(notice).toHaveCount(0);
+    await expect(moved).toHaveCount(0);
+    await expect(merge).toBeEnabled();
+
+    const revision = (await readTracker(page, projectId)).crs.find((c) => c.num === 2)?.revision;
+    const sent = await post(page, actions, {
+      action: 'request-changes',
+      note: 'Name the owner.',
+      expectedRevision: revision,
+    });
+    expect(sent.status).toBe(200);
+    await check(page);
+    await expect(notice).toHaveText('This change request changed · Refresh');
+    await notice.getByRole('button', { name: 'Refresh' }).click();
+    await expect(notice).toHaveCount(0);
+    await expect(moved).toBeVisible();
+    await expect(merge).toBeDisabled();
+    await bar.getByRole('button', { name: 'Review again' }).click();
+    await expect(bar.locator('.chipx').first()).toHaveText('Draft');
+  });
+
+  test('a Refresh that answers after an own write does not roll the write back', async ({
+    page,
+  }) => {
+    const { projectId, graph } = await signIn(page, 'tracker-fresh-race', { classic: false });
+    const num = await writeElsewhere(page, projectId, 'Client secret renewed');
+    await visit(page, crPath(graph, num));
+    const bar = page.locator('.bbar').first();
+    const notice = bar.locator('.fresh');
+    await post(page, `/api/v1/projects/${projectId}/tracker/crs/${num}/actions`, {
+      action: 'comment',
+      body: 'Check the date.',
+    });
+    await check(page);
+    await expect(notice).toHaveText('This change request changed · Refresh');
+    let answered = false;
+    let fetched: () => void = () => {};
+    const read = new Promise<void>((resolve) => (fetched = resolve));
+    let release: () => void = () => {};
+    const hold = new Promise<void>((resolve) => (release = resolve));
+    // The read gets the data from before the write and comes back after the write.
+    await page.route(/\/tracker$/, async (route) => {
+      const response = await route.fetch();
+      fetched();
+      await hold;
+      await route.fulfill({ response });
+      answered = true;
+    });
+    await notice.getByRole('button', { name: 'Refresh' }).click();
+    await read;
+    await bar.getByRole('button', { name: 'Mark as ready' }).click();
+    await expect(bar.locator('.chipx').first()).toHaveText('Ready to merge');
+    release();
+    await expect.poll(() => answered).toBe(true);
+    await page.waitForTimeout(300);
+    await expect(bar.locator('.chipx').first()).toHaveText('Ready to merge');
+  });
+
+  /** A new draft of Minh, open on its own page with the Queue tab. */
+  async function newDraft(page: Page, label: string) {
+    const { projectId } = await signIn(page, label);
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
+    await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/changes\/5$/);
+    await expect(page.locator('.bbar').first()).toContainText('You are editing');
+    return projectId;
+  }
+  const queueEvent = (page: Page, text: string) => page.locator('[data-qevent]', { hasText: text });
+  const row = (page: Page, id: string) => page.locator(`svg.pg [data-loop="${id}"]`);
+
+  test('two drops in quick succession both land', async ({ page }) => {
+    await newDraft(page, 'tracker-fresh-drops');
+    const bar = page.locator('.bbar').first();
+    // A slow server keeps the first append in flight while the second drop happens.
+    await page.route(/\/ops$/, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await route.continue();
+    });
+    await drag(page, queueEvent(page, 'Where is the root cause report'), row(page, 'incident'));
+    await drag(page, queueEvent(page, 'Scope call'), row(page, 'dynamics'));
+    await expect(bar).toContainText('2 changes');
+    await expect(page.locator('.tk-toast')).not.toContainText('changed since you saw it');
+  });
+
+  test("a drop on a draft that the editor's agent changed lands on top of the agent's change", async ({
+    page,
+  }) => {
+    const projectId = await newDraft(page, 'tracker-fresh-agent');
+    const bar = page.locator('.bbar').first();
+    const appended = await post(page, `/api/v1/projects/${projectId}/tracker/crs/5/ops`, {
+      op: rename('Client secret renewed'),
+      expectedRevision: 0,
+    });
+    expect(appended.status).toBe(200);
+    await expect(bar).toContainText('0 changes');
+    await drag(page, queueEvent(page, 'Where is the root cause report'), row(page, 'incident'));
+    await expect(bar).toContainText('2 changes');
+    await expect(page.locator('.tk-toast')).toContainText('added');
   });
 
   test('a hidden tab does not check, and checks at once when it shows again', async ({ page }) => {
