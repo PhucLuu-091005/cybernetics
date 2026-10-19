@@ -916,6 +916,7 @@ export function TrackerScreen({
         showToast(result.error.message, { refresh: () => void refresh() });
         check();
       } else showToast(result.error.message);
+      setToast((t) => t && { ...t, error: true });
       return null;
     }
     const next = withoutNum(result.data);
@@ -1192,8 +1193,15 @@ export function TrackerScreen({
 
   /** A write still on its way answers for the person before; the switch waits for it in the queue. */
   const onActAs = async (memberId: string) => {
+    const asked = Date.now();
+    const before = me ? dir.name(me) : null;
     const next = await write(() => actAs(projectId, memberId));
     if (!next) return;
+    // A write that answered while the switch waited spoke for the person before: their success
+    // note no longer fits the screen, and their error names them.
+    setToast((t) =>
+      !t || t.at < asked ? t : t.error && before ? { ...t, text: `${before}: ${t.text}` } : null,
+    );
     const nextMe = next.me?.id ?? null;
     const drafts = myDrafts(next.crs, nextMe);
     const draft =

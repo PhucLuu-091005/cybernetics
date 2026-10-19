@@ -3068,6 +3068,45 @@ test.describe('the Demo select', () => {
 test.describe('acting as another member right after a write', () => {
   test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
 
+  test('drops the success toast of a write that answers after the person changed, and names the actor of an error', async ({
+    page,
+  }) => {
+    const { graph } = await signIn(page, 'act-as-toast');
+    await actAs(page, 'Lan Phạm');
+    await page.goto(crPath(graph, 4));
+    await hydrated(page);
+    const bar = page.locator('.bbar').first();
+    const toast = page.locator('.tk-toast');
+    const slow = (status?: number) =>
+      page.route('**/crs/4/actions', async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        if (status)
+          await route.fulfill({
+            status,
+            contentType: 'application/json',
+            body: JSON.stringify({ code: 'INTERNAL', message: 'Internal error' }),
+          });
+        else await route.continue();
+      });
+    await slow();
+    await bar.getByRole('button', { name: 'Ask for edit access' }).click();
+    await choose(page.getByLabel('Demo: act as'), 'Quang Nguyễn');
+    await expect(page.locator('.me b')).toHaveText('Quang Nguyễn');
+    await page.waitForTimeout(300);
+    // A retrying check would pass once the toast times out, so the text is read once.
+    expect((await toast.allTextContents()).join(' ')).not.toContain('Asked');
+    await page.unroute('**/crs/4/actions');
+
+    await actAs(page, 'Lan Phạm');
+    await page.goto(crPath(graph, 4));
+    await hydrated(page);
+    await slow(500);
+    await bar.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await choose(page.getByLabel('Demo: act as'), 'Quang Nguyễn');
+    await expect(page.locator('.me b')).toHaveText('Quang Nguyễn');
+    await expect(toast).toContainText('Lan Phạm: Internal error');
+  });
+
   test('waits for the write, then shows the new person and their fresh data', async ({ page }) => {
     const { projectId, graph } = await signIn(page, 'act-as-after-write');
     await page.goto(crPath(graph, 4));
