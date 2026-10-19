@@ -1423,6 +1423,40 @@ describe('layoutTracker: milestones and trunk', () => {
     expect(m.labelBox.x1).toBe(m.x - 14);
   });
 
+  it('keeps a label below the axis off the marker of another milestone', () => {
+    const milestone = (id: string, name: string, planned: string) => ({
+      id,
+      name,
+      planned,
+      firstPlanned: planned,
+      moves: [],
+    });
+    // A moved milestone sits 7 days before the next one: the label of the next one, pushed below
+    // the axis by the first label, would run across the first marker.
+    const s = buildState({
+      milestones: [
+        milestone('crm', 'CRM integration live', '2026-10-08'),
+        milestone('golive', 'Go-live and first close', '2026-10-15'),
+      ],
+    });
+    const L = layoutTracker(s, view());
+    const marker = 8 + 4;
+    for (const m of L.milestones.filter((x) => x.level === 1))
+      for (const other of L.milestones) {
+        if (other === m) continue;
+        const clear = m.labelBox.x1 <= other.x - marker || m.labelBox.x0 >= other.x + marker;
+        expect(clear, `${m.id} label over the ${other.id} marker`).toBe(true);
+      }
+    const [a, b] = L.milestones;
+    expect(a.level === b.level).toBe(false);
+    const apart = a.labelBox.x0 >= b.labelBox.x1 + 8 || a.labelBox.x1 <= b.labelBox.x0 - 8;
+    expect(apart || a.level !== b.level).toBe(true);
+    for (const m of L.milestones) {
+      expect(m.labelBox.x0).toBeGreaterThanOrEqual(X0);
+      expect(m.labelBox.x1).toBeLessThanOrEqual(L.x1);
+    }
+  });
+
   it('never overlaps two labels on the same level', () => {
     const s = larkspurState();
     s.milestones.push(
