@@ -1506,6 +1506,55 @@ describe('layoutTracker: milestones and trunk', () => {
   });
 });
 
+describe('layoutTracker: milestone labels never overlap (QA 19 Oct, M1)', () => {
+  const extra = (n: number) =>
+    [
+      { id: 'crs', name: 'CRS release', planned: '2026-10-28' },
+      { id: 'audit', name: 'First audit sign-off', planned: '2026-10-20' },
+      { id: 'portal', name: 'Investor portal pilot open', planned: '2026-10-23' },
+    ]
+      .slice(0, n)
+      .map((m) => ({ ...m, firstPlanned: m.planned, moves: [] }));
+  const widths = [
+    { name: '390', over: { side: GEOMETRY.NARROW_SIDE, span: 262 } },
+    { name: '1440', over: { span: 1150 } },
+  ];
+
+  for (const n of [1, 2, 3]) {
+    for (const { name, over } of widths) {
+      it(`keeps ${n + 2} close milestones apart at ${name} px`, () => {
+        const s = larkspurState();
+        s.milestones.push(...extra(n));
+        const L = layoutTracker(s, view({ windowEnd: '2026-10-31', ...over }));
+        expect(L.milestones).toHaveLength(n + 2);
+        for (const m of L.milestones) {
+          expect(m.labelBox.x1 - m.labelBox.x0).toBeCloseTo(m.label.length * 5.9, 5);
+          if (m.label !== m.ariaLabel)
+            expect(m.ariaLabel.startsWith(m.label.replace(/…$/, ''))).toBe(true);
+        }
+        for (const a of L.milestones)
+          for (const b of L.milestones) {
+            if (a === b || a.level !== b.level || !a.label || !b.label) continue;
+            const apart = a.labelBox.x0 >= b.labelBox.x1 + 8 || a.labelBox.x1 <= b.labelBox.x0 - 8;
+            expect(apart, `${name}: ${a.label} | ${b.label}`).toBe(true);
+          }
+      });
+    }
+  }
+
+  it('drops the status, then the date, before it cuts a name', () => {
+    const s = larkspurState();
+    s.milestones.push(...extra(3));
+    const L = layoutTracker(
+      s,
+      view({ windowEnd: '2026-10-31', side: GEOMETRY.NARROW_SIDE, span: 262 }),
+    );
+    const short = L.milestones.filter((m) => m.label !== m.ariaLabel);
+    expect(short.length).toBeGreaterThan(0);
+    for (const m of short) expect(m.label).not.toMatch(/ · (Planned|Late|Done|On time)/);
+  });
+});
+
 describe('layoutTracker: change marks', () => {
   it('marks changed rows, events, milestones and milestone dates', () => {
     const marks: Marks = {

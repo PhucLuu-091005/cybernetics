@@ -1165,9 +1165,11 @@ export function TrackerGraph(props: Props) {
       ))}
       {/* One layer under every milestone, so no name box covers a circle. */}
       <g className="label-backs">
-        {L.milestones.map((m) => (
-          <rect key={m.id} className="label-back" data-back={m.id} />
-        ))}
+        {L.milestones
+          .filter((m) => m.label)
+          .map((m) => (
+            <rect key={m.id} className="label-back" data-back={m.id} />
+          ))}
       </g>
       {L.milestones.map((m) => {
         const moved = preview?.kind === 'ms' && preview.id === m.id ? preview : null;
