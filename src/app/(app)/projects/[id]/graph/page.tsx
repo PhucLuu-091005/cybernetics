@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { IdSchema } from '../../../../../contracts';
 import { TrackerScreen } from '../../../../../components/tracker/TrackerScreen';
 import { pageOnScreen, requireActor } from '../../../../../server/http/rsc';
-import { NoViewNotice, serverMinute, trackerPayload } from '../tracker-load';
+import { NoViewNotice, serverHour, trackerPayload } from '../tracker-load';
 import { Notice } from '../../../../../components/shell/Notice';
 
 export const dynamic = 'force-dynamic';
@@ -37,7 +37,7 @@ export default async function GraphPage({
       projectId={id}
       userId={actor.userId}
       account={seen.account}
-      serverNow={serverMinute()}
+      serverNow={serverHour(payload.project.timeZone)}
     />
   );
 }

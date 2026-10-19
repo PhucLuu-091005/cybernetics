@@ -125,6 +125,7 @@ import {
   type ViewState,
 } from './view-state';
 import { useTimeScale } from './scale';
+import { hourNow, subscribeHour } from './clock';
 
 export type TrackerView = 'main' | number;
 export type DrawerMode = 'ms' | 'item' | 'crs' | 'history';
@@ -211,7 +212,6 @@ const OUTSIDE_EXEMPT =
 // These layers close themselves on Esc, so the screen leaves the rest open.
 const OWN_ESCAPE =
   '.tk details[open], .tk .tsearch-pop:not([hidden]), .tk .hand-menu, .tk .field-pop, .tk .view-pop, .tk .legend-pop:focus-within';
-const MINUTE = 60_000;
 const PHONE_QUERY = '(max-width: 760px)';
 
 const crByNum = (p: TrackerPayload, num: number) => p.crs.find((c) => c.num === num);
@@ -323,14 +323,15 @@ export function useTracker(initial: TrackerPayload, projectId: string, num: numb
   };
 }
 
-const everyHalfMinute = (onChange: () => void) => {
-  const timer = setInterval(onChange, MINUTE / 2);
-  return () => clearInterval(timer);
-};
-const minuteNow = () => Math.floor(Date.now() / MINUTE) * MINUTE;
-// Hydration renders with the server's minute, so the T line matches the server HTML; the client clock takes over after.
-export const useNow = (serverNow: number) =>
-  useSyncExternalStore(everyHalfMinute, minuteNow, () => serverNow);
+// Hydration renders with the server's hour, so the T line matches the server HTML; the client clock takes over after.
+export function useNow(serverNow: number, timeZone: string) {
+  const subscribe = useMemo(() => subscribeHour(timeZone), [timeZone]);
+  return useSyncExternalStore(
+    subscribe,
+    () => hourNow(timeZone),
+    () => serverNow,
+  );
+}
 
 const watchPhone = (onChange: () => void) => {
   const query = window.matchMedia(PHONE_QUERY);
@@ -385,7 +386,7 @@ export function TrackerScreen({
   /** The signed-in user, so "Don't show again" on the Main notice holds for that person only. */
   userId: string;
   account: Account;
-  /** The server's time rounded down to the minute, for a project without a fixed clock. */
+  /** The server's time rounded down to the hour, for a project without a fixed clock. */
   serverNow: number;
 }) {
   const {
@@ -410,7 +411,7 @@ export function TrackerScreen({
   const payload = frozen.payload;
   const { project } = payload;
   const tz = project.timeZone;
-  const now = useNow(serverNow);
+  const now = useNow(serverNow, tz);
   const asOf = project.asOf ?? toInstant(now, tz);
   const cr = num === null ? null : (payload.crs.find((c) => c.num === num) ?? null);
   const [picks, setPicks] = useState<Picks>({});
