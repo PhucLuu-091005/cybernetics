@@ -113,7 +113,7 @@ function takePage<T>(entries: readonly T[], limit: number): { taken: T[]; more: 
   return { taken: entries.slice(0, end), more: end < entries.length };
 }
 
-/** The demo clock decides statuses in a demo project, the same as in the browser. */
+/** A project's fixed clock (`asOf`, set only in tests) decides the statuses, else now, as in the browser. */
 export function trackerSummary(payload: TrackerPayload, now = new Date()) {
   const state = main(payload);
   const asOf = payload.project.asOf ?? now.toISOString();

@@ -217,3 +217,23 @@ test('a token gets 429 RATE_LIMITED past 60 MCP calls in a minute', async ({ pag
   expect(await reply.json()).toMatchObject({ code: 'RATE_LIMITED' });
   expect(calls).toBeGreaterThanOrEqual(61);
 });
+
+test('a new sandbox places its story before now, and T follows the real clock', async ({
+  page,
+}) => {
+  const projectId = await open(page);
+  const read = await page.request.get(`/api/v1/projects/${projectId}/tracker`);
+  const tracker = (await read.json()) as {
+    project: { asOf: string | null };
+    base: { events: Array<{ at: string }> };
+  };
+  expect(tracker.project.asOf).toBeNull();
+  const latest = Math.max(...tracker.base.events.map((e) => Date.parse(e.at)));
+  expect(latest).toBeLessThanOrEqual(Date.now());
+  expect(Date.now() - latest).toBeLessThan(4 * 86_400_000);
+  const day = new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    timeZone: 'Asia/Ho_Chi_Minh',
+  }).format(new Date());
+  await expect(page.locator('.tpill text').first()).toHaveText(new RegExp(`^T ${day} `));
+});

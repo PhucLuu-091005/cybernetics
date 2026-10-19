@@ -41,6 +41,8 @@ export default defineConfig({
       AVATAR_STORE: 'local',
       AVATAR_DIR: join(tmpdir(), process.env.E2E_DATABASE_NAME),
       NEXT_TELEMETRY_DISABLED: '1',
+      // The walks read fixed dates and statuses; the demo suite runs on the real clock.
+      TRACKER_DEMO_AS_OF: '2026-10-09T18:00:00+07:00',
     },
   },
 });

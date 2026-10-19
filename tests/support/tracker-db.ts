@@ -3,6 +3,7 @@ import type { ActorContext } from '../../src/contracts';
 import { workspaceMembers } from '../../src/server/db/schema';
 import { withTransaction, type Db } from '../../src/server/db/tx';
 import { seedTrackerDemo } from '../../src/server/tracker';
+import { LARKSPUR_STORY_NOW } from '../../src/server/tracker/seed/larkspur';
 import { testActor } from './db';
 
 export type Demo = {
@@ -13,10 +14,16 @@ export type Demo = {
   ids: Record<string, string>;
 };
 
+/** The story with its clock pinned at the story's own now, so the tests read fixed dates and statuses. */
 export async function seedDemo(db: Db, owner?: ActorContext): Promise<Demo> {
   const ctx = owner ?? (await testActor(db, { name: 'Sandbox User' }));
   const { projectId, ids } = await withTransaction(db, (tx) =>
-    seedTrackerDemo(tx, { workspaceId: ctx.workspaceId, userId: ctx.userId }),
+    seedTrackerDemo(tx, {
+      workspaceId: ctx.workspaceId,
+      userId: ctx.userId,
+      now: new Date(LARKSPUR_STORY_NOW),
+      asOf: LARKSPUR_STORY_NOW,
+    }),
   );
   return { owner: ctx, projectId, workspaceId: ctx.workspaceId, ids };
 }

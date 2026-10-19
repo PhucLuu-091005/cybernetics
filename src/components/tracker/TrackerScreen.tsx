@@ -385,7 +385,7 @@ export function TrackerScreen({
   /** The signed-in user, so "Don't show again" on the Main notice holds for that person only. */
   userId: string;
   account: Account;
-  /** The server's time rounded down to the minute, for a project without a demo clock. */
+  /** The server's time rounded down to the minute, for a project without a fixed clock. */
   serverNow: number;
 }) {
   const {

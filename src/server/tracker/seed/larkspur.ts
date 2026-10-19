@@ -1,4 +1,5 @@
 import { ALL_GRANTS, DEFAULT_GRANTS } from '../../../tracker/permissions';
+import { addDays } from '../../../tracker/time';
 import type {
   CrCommentKind,
   CrPermission,
@@ -18,10 +19,45 @@ export const LARKSPUR_PROJECT = {
   clientName: 'Larkspur Capital',
 };
 export const LARKSPUR_TIME_ZONE = 'Asia/Ho_Chi_Minh';
-export const LARKSPUR_AS_OF = '2026-10-09T18:00:00+07:00';
+/** The moment the story is written for: its last change request comment is at 16:50 that day. */
+export const LARKSPUR_STORY_NOW = '2026-10-09T18:00:00+07:00';
 export const LARKSPUR_WINDOW_START = '2026-09-13';
 
 export const at = (local: string) => `${local}:00+07:00`;
+
+const DAY = 86_400_000;
+
+/**
+ * The whole days a copy made at `now` moves the story, so the story's now lands in the 24 hours
+ * before `now`: every seeded moment is past and the statuses match the story. The seed writes
+ * +07:00, and Asia/Ho_Chi_Minh has no daylight saving, so a day is always 24 hours.
+ */
+export function larkspurShift(now: Date): number {
+  return Math.floor((now.getTime() - Date.parse(LARKSPUR_STORY_NOW)) / DAY);
+}
+
+const longDay = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'long',
+  timeZone: 'UTC',
+});
+
+/** Moves every date and instant by `days`, and writes each `{YYYY-MM-DD}` in a text as "30 September". */
+function shiftStory<T>(value: T, days: number): T {
+  if (typeof value === 'string') {
+    const date = /^(\d{4}-\d{2}-\d{2})(T.*)?$/.exec(value);
+    if (date) return `${addDays(date[1], days)}${date[2] ?? ''}` as T;
+    return value.replace(/\{(\d{4}-\d{2}-\d{2})\}/g, (_, day: string) =>
+      longDay.format(new Date(`${addDays(day, days)}T00:00:00Z`)),
+    ) as T;
+  }
+  if (Array.isArray(value)) return value.map((item) => shiftStory(item, days)) as T;
+  if (value && typeof value === 'object')
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, shiftStory(item, days)]),
+    ) as T;
+  return value;
+}
 
 /**
  * Maps a story key to the id it is stored under. The database seed maps member keys and queue
@@ -78,16 +114,16 @@ const LOOPS: Loop[] = [
     after: [],
     plannedFinish: '2026-10-15',
     events: [
-      ['g1', '2026-09-14T09:20', 'message', 'sarah', 'Can Fund III go live before the end of Q3?'],
-      ['g2', '2026-09-15T10:45', 'decision', 'minh', 'Go-live is set for 30 September.'],
+      ['g1', '2026-09-14T09:20', 'message', 'sarah', 'Can Fund III go live by {2026-09-30}?'],
+      ['g2', '2026-09-15T10:45', 'decision', 'minh', 'Go-live is set for {2026-09-30}.'],
       [
         'g3',
         '2026-09-25T10:40',
         'issue',
         'minh',
-        'Go-live moves to 15 October. The CRS section is not ready.',
+        'Go-live moves to {2026-10-15}. The CRS section is not ready.',
       ],
-      ['g4', '2026-09-26T09:15', 'decision', 'sarah', 'Sarah agrees to go live on 15 October.'],
+      ['g4', '2026-09-26T09:15', 'decision', 'sarah', 'Sarah agrees to go live on {2026-10-15}.'],
     ],
   },
   {
@@ -113,7 +149,7 @@ const LOOPS: Loop[] = [
         '2026-09-15T10:45',
         'task',
         'minh',
-        'Minh plans five parts: rules analysis, form logic, DealCloud mapping, country field and an end-to-end test. Target: 16 October.',
+        'Minh plans five parts: rules analysis, form logic, DealCloud mapping, country field and an end-to-end test. Target: {2026-10-16}.',
       ],
       [
         'c3',
@@ -156,7 +192,7 @@ const LOOPS: Loop[] = [
         '2026-09-15T13:00',
         'task',
         'lan',
-        'Lan starts the rules analysis. Target: 22 September.',
+        'Lan starts the rules analysis. Target: {2026-09-22}.',
       ],
       [
         'a2',
@@ -207,7 +243,7 @@ const LOOPS: Loop[] = [
         '2026-09-23T09:20',
         'task',
         'lan',
-        'Build the show and hide logic from the analysis. Target: 30 September.',
+        'Build the show and hide logic from the analysis. Target: {2026-09-30}.',
       ],
       ['p12', '2026-09-29T15:10', 'delivery', 'khoa', 'The logic is live on staging.'],
       ['p13', '2026-09-30T16:40', 'done', 'lan', 'Lan checks staging. It matches the analysis.'],
@@ -229,7 +265,7 @@ const LOOPS: Loop[] = [
         '2026-09-28T09:20',
         'task',
         'lan',
-        'Map the CRS fields to DealCloud. Target: 1 October.',
+        'Map the CRS fields to DealCloud. Target: {2026-10-01}.',
       ],
       ['p22', '2026-10-01T15:10', 'delivery', 'khoa', 'The CRS fields sync to DealCloud.'],
       ['p23', '2026-10-02T16:40', 'done', 'lan', 'The values match in DealCloud.'],
@@ -304,7 +340,7 @@ const LOOPS: Loop[] = [
         '2026-09-24T09:20',
         'task',
         'lan',
-        'Add a multi-select country list field. Target: 6 October.',
+        'Add a multi-select country list field. Target: {2026-10-06}.',
       ],
       [
         'p32',
@@ -343,7 +379,7 @@ const LOOPS: Loop[] = [
         '2026-10-01T10:45',
         'task',
         'daniel',
-        'Daniel will send the sync root cause report by 3 October.',
+        'Daniel will send the sync root cause report by {2026-10-03}.',
       ],
     ],
   },
@@ -404,7 +440,7 @@ const RECORDED_MOVES: Record<string, { firstPlannedFinish: string; moves: DateMo
       {
         from: '2026-09-30',
         to: '2026-10-15',
-        why: 'The CRS section is not ready. Sarah agreed to 15 October on 26 September.',
+        why: 'The CRS section is not ready. Sarah agreed to {2026-10-15} on {2026-09-26}.',
         by: 'minh',
         at: at('2026-09-26T09:30'),
       },
@@ -416,7 +452,7 @@ const RECORDED_MOVES: Record<string, { firstPlannedFinish: string; moves: DateMo
       {
         from: '2026-09-26',
         to: '2026-09-30',
-        why: 'The analysis finished on 22 September, not 19 September.',
+        why: 'The analysis finished on {2026-09-22}, not {2026-09-19}.',
         by: 'lan',
         at: at('2026-09-22T17:00'),
       },
@@ -498,7 +534,12 @@ const QUEUE_ITEMS: QueueItem[] = [
 
 const orNull = (id: LarkspurIds, key: string | null) => (key === null ? null : id(key));
 
-export function larkspurBase(id: LarkspurIds = keep): TrackerBase {
+/** `days` moves a copy of the story in time (`larkspurShift`); 0 is the story as written. */
+export function larkspurBase(id: LarkspurIds = keep, days = 0): TrackerBase {
+  return shiftStory(storyBase(id), days);
+}
+
+function storyBase(id: LarkspurIds): TrackerBase {
   return {
     people: Object.entries(PEOPLE).map(([key, name]) => ({ id: id(key), name })),
     teams: TEAMS.map(([teamId, name, leadId]) => ({ id: teamId, name, leadId: id(leadId) })),
@@ -550,29 +591,32 @@ export function larkspurBase(id: LarkspurIds = keep): TrackerBase {
   };
 }
 
-export function larkspurState(id: LarkspurIds = keep): TrackerState {
-  return {
-    ...larkspurBase(id),
-    queue: {
-      events: QUEUE_EVENTS.map((q) => ({
-        ...q,
-        id: id(q.id),
-        by: id(q.by),
-        addedBy: orNull(id, q.addedBy),
-      })),
-      items: QUEUE_ITEMS.map((q) => ({
-        ...q,
-        id: id(q.id),
-        doneBy: id(q.doneBy),
-        requestedBy: id(q.requestedBy),
-        addedBy: orNull(id, q.addedBy),
-      })),
+export function larkspurState(id: LarkspurIds = keep, days = 0): TrackerState {
+  return shiftStory(
+    {
+      ...storyBase(id),
+      queue: {
+        events: QUEUE_EVENTS.map((q) => ({
+          ...q,
+          id: id(q.id),
+          by: id(q.by),
+          addedBy: orNull(id, q.addedBy),
+        })),
+        items: QUEUE_ITEMS.map((q) => ({
+          ...q,
+          id: id(q.id),
+          doneBy: id(q.doneBy),
+          requestedBy: id(q.requestedBy),
+          addedBy: orNull(id, q.addedBy),
+        })),
+      },
     },
-  };
+    days,
+  );
 }
 
-export function larkspurQueueRows(id: LarkspurIds = keep): QueueRow[] {
-  const { events, items } = larkspurState(id).queue;
+export function larkspurQueueRows(id: LarkspurIds = keep, days = 0): QueueRow[] {
+  const { events, items } = larkspurState(id, days).queue;
   return [
     ...events.map(({ id: rowId, addedBy, agent, createdAt, ...payload }): QueueRow => ({
       id: rowId,
@@ -629,7 +673,11 @@ export type LarkspurCr = {
 };
 
 /** The change requests of the prototype seed(); #1 is merged as Main revision 1. */
-export function larkspurCrs(id: LarkspurIds = keep): LarkspurCr[] {
+export function larkspurCrs(id: LarkspurIds = keep, days = 0): LarkspurCr[] {
+  return shiftStory(storyCrs(id), days);
+}
+
+function storyCrs(id: LarkspurIds): LarkspurCr[] {
   const minh = id('minh'),
     lan = id('lan'),
     quang = id('quang'),
@@ -652,7 +700,7 @@ export function larkspurCrs(id: LarkspurIds = keep): LarkspurCr[] {
           a: {
             milestoneId: 'golive',
             date: '2026-10-15',
-            why: 'The CRS section is not ready. Sarah agreed on 26 September.',
+            why: 'The CRS section is not ready. Sarah agreed on {2026-09-26}.',
             by: minh,
             at: at('2026-10-08T16:55'),
           },

@@ -188,7 +188,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     'get_tracker',
     'project:read',
     TrackerInputSchema.shape,
-    'Read Main of the event tracker: revision, people (id and name), teams, work items with status and planned finish (plannedFinish, and plannedFinishTime as HH:mm or null for the end of that day; firstPlannedFinish and firstPlannedFinishTime the same for the first plan), milestones with status and deadline (planned and plannedTime; firstPlanned and firstPlannedTime for the first plan), and the open change requests. Statuses and times use the project time zone. Read it before you write, to get the ids.',
+    'Read Main of the event tracker: revision, people (id and name), teams, work items with status and planned finish (plannedFinish, and plannedFinishTime as HH:mm or null for the end of that day; firstPlannedFinish and firstPlannedFinishTime the same for the first plan), milestones with status and deadline (planned and plannedTime; firstPlanned and firstPlannedTime for the first plan), and the open change requests. Statuses and times use the project time zone; asOf is the moment the statuses use. Read it before you write, to get the ids.',
     (db, ctx, input) => getTrackerSummary(db, ctx, typed(input)),
   ),
   tool(
