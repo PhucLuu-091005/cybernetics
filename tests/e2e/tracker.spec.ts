@@ -2983,6 +2983,29 @@ test.describe('new changes wait for Refresh', () => {
     await expect(page.locator('.tk-toast')).toContainText('added');
   });
 
+  test('a slow opening of a new change request shows no notice for the own create, and still opens it', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-fresh-create');
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await page.route(/\/changes\/5(\?|$)/, async (route) => {
+      await held;
+      await route.continue();
+    });
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
+    const created = page.waitForResponse(
+      (r) => r.request().method() === 'POST' && /\/tracker\/crs$/.test(r.url()),
+    );
+    await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
+    expect((await created).status()).toBe(201);
+    await check(page);
+    await expect(page.locator('.bbar .fresh')).toHaveCount(0);
+    release();
+    await page.waitForURL(/\/changes\/5$/);
+    await expect(page.locator('.bbar').first()).toContainText('You are editing');
+  });
+
   test('a hidden tab does not check, and checks at once when it shows again', async ({ page }) => {
     await page.clock.install();
     await signIn(page, 'tracker-fresh-hidden');
