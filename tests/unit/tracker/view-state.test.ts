@@ -8,6 +8,7 @@ import {
   legendKey,
   readLegendOpen,
   readDensity,
+  readIntroSeen,
   readNoticeOff,
   readTeamOpen,
   readViewState,
@@ -18,6 +19,7 @@ import {
   revealRows,
   toggleId,
   viewKey,
+  writeIntroSeen,
   writeNoticeOff,
   writeViewState,
   type KeyValueStore,
@@ -138,6 +140,17 @@ describe('tracker view state', () => {
     expect(() => writeNoticeOff(throwing, 'u1')).not.toThrow();
     expect(readNoticeOff(throwing, 'u1')).toBe(false);
     expect(readNoticeOff(null, 'u1')).toBe(false);
+  });
+
+  it('shows the demo intro once per signed-in user, and never when storage is missing', () => {
+    const store = memoryStore();
+    expect(readIntroSeen(store, 'u1')).toBe(false);
+    writeIntroSeen(store, 'u1');
+    expect(readIntroSeen(store, 'u1')).toBe(true);
+    expect(readIntroSeen(store, 'u2')).toBe(false);
+    expect(() => writeIntroSeen(throwing, 'u1')).not.toThrow();
+    expect(readIntroSeen(throwing, 'u1')).toBe(true);
+    expect(readIntroSeen(null, 'u1')).toBe(true);
   });
 
   it('lists hidden teams and hidden work items that still exist, and counts both', () => {

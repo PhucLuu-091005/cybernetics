@@ -120,6 +120,25 @@ export function writeNoticeOff(store: KeyValueStore | null, userId: string): voi
   }
 }
 
+const introKey = (userId: string) => `promise-graph:demo-intro-seen:v1:${userId}`;
+
+/** Without storage the intro stays away, so a blocked store does not bring it back on each load. */
+export function readIntroSeen(store: KeyValueStore | null, userId: string): boolean {
+  try {
+    return !store || store.getItem(introKey(userId)) === '1';
+  } catch {
+    return true;
+  }
+}
+
+export function writeIntroSeen(store: KeyValueStore | null, userId: string): void {
+  try {
+    store?.setItem(introKey(userId), '1');
+  } catch {
+    // Without storage the intro stays closed for this page view only.
+  }
+}
+
 export const densityKey = (userId: string) => `promise-graph:row-height:v1:${userId}`;
 const DENSITY_VALUES: readonly Density[] = ['comfortable', 'compact', 'dense'];
 

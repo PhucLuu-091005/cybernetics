@@ -5,6 +5,10 @@ import { requireActor } from '../../server/http/rsc';
 export const dynamic = 'force-dynamic';
 
 export default async function AppLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  await requireActor('/');
-  return readAuthEnvironment().mode === 'demo' ? <DemoMode>{children}</DemoMode> : children;
+  const actor = await requireActor('/');
+  return readAuthEnvironment().mode === 'demo' ? (
+    <DemoMode userId={actor.userId}>{children}</DemoMode>
+  ) : (
+    children
+  );
 }

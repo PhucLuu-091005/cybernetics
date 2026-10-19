@@ -12,6 +12,8 @@ export function useDismissibleDetails() {
     const onKeyDown = (event: KeyboardEvent) => {
       const details = ref.current;
       if (event.key !== 'Escape' || !details?.open) return;
+      // A dialog opened from the menu closes on its own Escape and hands focus back to the menu.
+      if (event.target instanceof Element && event.target.closest('dialog[open]')) return;
       details.open = false;
       details.querySelector('summary')?.focus();
     };

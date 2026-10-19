@@ -1,8 +1,19 @@
-import { expect, request, test, type Page } from '@playwright/test';
+import { expect, request, test, type BrowserContext, type Page } from '@playwright/test';
 import sharp from 'sharp';
 import { expectAppIcons, hydrated, photoShowsEverywhere } from '../e2e/helpers';
 
 test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
+
+// Each new sandbox is a new person, so the tests answer "seen" for every intro key up front.
+const skipIntro = (context: BrowserContext) =>
+  context.addInitScript(() => {
+    const get = Storage.prototype.getItem;
+    Storage.prototype.getItem = function (key: string) {
+      return key.startsWith('promise-graph:demo-intro-seen:') ? '1' : get.call(this, key);
+    };
+  });
+
+test.beforeEach(({ context }) => skipIntro(context));
 
 const GRAPH = /\/projects\/([0-9a-f-]{36})\/graph$/;
 
@@ -82,10 +93,80 @@ test('a visitor makes an agent token in Settings and MCP accepts it', async ({ p
   expect(JSON.stringify(await answer.json())).toContain('add_queue_event');
 });
 
-test('Start over opens a fresh sandbox for a new person', async ({ page }) => {
+test('the first visit says what the app is, once per person, and About this demo opens it again', async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    await open(page);
+    const intro = page.getByRole('dialog', { name: 'Promise Graph' });
+    await expect(intro).toBeVisible();
+    await expect(intro).toContainText(
+      'Pull requests for a project plan. Your team and your AI agents propose changes; a lead reviews and merges.',
+    );
+    await expect(intro.getByRole('listitem')).toHaveCount(3);
+    await expect(intro.getByRole('button', { name: 'Explore the demo' })).toBeFocused();
+    await intro.getByRole('button', { name: 'Explore the demo' }).click();
+    await expect(intro).toBeHidden();
+
+    await open(page);
+    await expect(page.locator('.me > summary')).toBeVisible();
+    await expect(intro).toBeHidden();
+
+    await page.locator('.me > summary').click();
+    await page.getByRole('button', { name: 'About this demo' }).click();
+    await expect(intro).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(intro).toBeHidden();
+    await expect(page.locator('.me > summary')).toBeFocused();
+
+    await page.locator('.me > summary').click();
+    await page.getByRole('button', { name: 'About this demo' }).click();
+    await intro.getByRole('link', { name: 'Connect an agent' }).click();
+    await page.waitForURL(/\/settings\/tokens$/);
+    await expect(page.getByRole('form', { name: 'Create a token' })).toBeVisible();
+    await expect(intro).toBeHidden();
+
+    await page.locator('.me > summary').click();
+    await page.getByRole('button', { name: 'Start over' }).click();
+    await page
+      .getByRole('dialog', { name: 'Start over?' })
+      .getByRole('button', { name: 'Start over' })
+      .click();
+    await page.waitForURL(GRAPH);
+    await expect(intro).toBeVisible();
+  } finally {
+    await context.close();
+  }
+});
+
+test('Start over asks first, and Cancel or Escape keep the copy', async ({ page }) => {
   const before = await open(page);
-  await page.locator('.me > summary').click();
-  await page.getByRole('button', { name: 'Start over' }).click();
+  const summary = page.locator('.me > summary');
+  const menuItem = page.locator('.acct-pop').getByRole('button', { name: 'Start over' });
+  const confirm = page.getByRole('dialog', { name: 'Start over?' });
+
+  await summary.click();
+  await menuItem.click();
+  await expect(confirm).toBeVisible();
+  await expect(confirm).toContainText(
+    'Your changes in this demo copy are lost, and you get a fresh copy.',
+  );
+  await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await confirm.getByRole('button', { name: 'Cancel' }).click();
+  await expect(confirm).toBeHidden();
+  await expect(menuItem).toBeFocused();
+
+  await menuItem.click();
+  await expect(confirm).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(confirm).toBeHidden();
+  await expect(menuItem).toBeFocused();
+  expect(new URL(page.url()).pathname).toContain(before);
+
+  await menuItem.click();
+  await confirm.getByRole('button', { name: 'Start over' }).click();
   await page.waitForURL((url) => GRAPH.test(url.pathname) && !url.pathname.includes(before));
   await expect(page.locator('svg.pg')).toBeVisible();
   await page.goto(`/projects/${before}/graph`);

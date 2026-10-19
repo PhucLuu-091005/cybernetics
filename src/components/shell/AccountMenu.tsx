@@ -1,8 +1,8 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useId } from 'react';
-import { useDemoMode } from './demo-mode';
+import { useId, useRef } from 'react';
+import { useDemoIntro, useDemoMode } from './demo-mode';
 import { RailIcon } from './icons';
 import { PhotoOr } from './PhotoImg';
 import { useDismissibleDetails } from './Popover';
@@ -25,6 +25,7 @@ export function AccountMenu({ name, detail, color, photo }: Account) {
   const [theme, setTheme] = useTheme();
   const themeLabel = useId();
   const demo = useDemoMode();
+  const openIntro = useDemoIntro();
   const signOut = async () => {
     await fetch('/api/auth/session', { method: 'DELETE' });
     // A full load drops every cached page, and replace keeps Back off the signed-in page. Plain /signin,
@@ -81,12 +82,23 @@ export function AccountMenu({ name, detail, color, photo }: Account) {
         </div>
         <hr />
         {demo ? (
-          // A form post, so the new cookie and the fresh sandbox arrive in one full page load.
-          <form action="/api/auth/demo" method="post">
-            <button className="acct-item" type="submit">
-              <RailIcon name="restart" /> Start over
-            </button>
-          </form>
+          <>
+            {openIntro && (
+              <button
+                className="acct-item"
+                type="button"
+                onClick={() => {
+                  // The intro sits outside the menu, so the menu closes and its button takes the focus back.
+                  if (ref.current) ref.current.open = false;
+                  ref.current?.querySelector('summary')?.focus();
+                  openIntro();
+                }}
+              >
+                <RailIcon name="info" /> About this demo
+              </button>
+            )}
+            <StartOver />
+          </>
         ) : (
           <button className="acct-item" type="button" onClick={() => void signOut()}>
             <RailIcon name="signOut" /> Sign out
@@ -94,5 +106,42 @@ export function AccountMenu({ name, detail, color, photo }: Account) {
         )}
       </div>
     </details>
+  );
+}
+
+function StartOver() {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const opener = useRef<HTMLButtonElement>(null);
+  return (
+    <>
+      <button
+        ref={opener}
+        className="acct-item"
+        type="button"
+        onClick={() => dialog.current?.showModal()}
+      >
+        <RailIcon name="restart" /> Start over
+      </button>
+      <dialog
+        ref={dialog}
+        className="sheet-dialog"
+        aria-labelledby="start-over-title"
+        onClose={() => opener.current?.focus()}
+      >
+        {/* A form post, so the new cookie and the fresh sandbox arrive in one full page load. */}
+        <form action="/api/auth/demo" method="post">
+          <h2 id="start-over-title">Start over?</h2>
+          <p>Your changes in this demo copy are lost, and you get a fresh copy.</p>
+          <div className="sheet-dialog-actions">
+            <button className="btn big" type="button" onClick={() => dialog.current?.close()}>
+              Cancel
+            </button>
+            <button className="btn btn-stop big" type="submit">
+              Start over
+            </button>
+          </div>
+        </form>
+      </dialog>
+    </>
   );
 }

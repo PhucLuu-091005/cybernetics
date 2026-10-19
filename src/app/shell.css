@@ -208,7 +208,8 @@
 .proj-new button:hover:not(:disabled) {
   background: var(--hover);
 }
-.new-project {
+.new-project,
+.sheet-dialog {
   box-sizing: border-box;
   width: min(420px, calc(100vw - 32px));
   max-width: none;
@@ -219,8 +220,47 @@
   color: var(--ink);
   box-shadow: var(--shadow-lg);
 }
-.new-project::backdrop {
+.new-project::backdrop,
+.sheet-dialog::backdrop {
   background: var(--scrim);
+}
+.sheet-dialog h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.sheet-dialog p,
+.sheet-dialog li {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs);
+  line-height: 1.5;
+}
+.sheet-dialog b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.sheet-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+.demo-intro {
+  width: min(460px, calc(100vw - 32px));
+}
+.demo-intro .demo-intro-lead {
+  color: var(--ink);
+}
+.demo-intro ul {
+  display: grid;
+  gap: 6px;
+  margin: 14px 0 0;
+  padding: 12px 0 0 18px;
+  border-top: 1px solid var(--rule-2);
 }
 .new-project form {
   display: grid;
