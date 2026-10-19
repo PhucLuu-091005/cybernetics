@@ -59,4 +59,14 @@ describe('error mapping', () => {
     expect(new Error('RATE_LIMITED') instanceof AppError).toBe(false);
     expect({ code: 'RATE_LIMITED' } instanceof AppError).toBe(false);
   });
+  it('needs a string code on a branded value, and leaves a subclass to the normal check', () => {
+    const brand = Symbol.for('promise-graph.AppError');
+    expect({ [brand]: true } instanceof AppError).toBe(false);
+    expect({ [brand]: true, code: 7 } instanceof AppError).toBe(false);
+    expect({ [brand]: true, code: 'NOT_FOUND' } instanceof AppError).toBe(true);
+    class Narrow extends AppError {}
+    expect(new Narrow('CONFLICT', 'x') instanceof Narrow).toBe(true);
+    expect(new Narrow('CONFLICT', 'x') instanceof AppError).toBe(true);
+    expect(new AppError('CONFLICT', 'x') instanceof Narrow).toBe(false);
+  });
 });

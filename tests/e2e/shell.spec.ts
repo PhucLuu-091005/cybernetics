@@ -235,6 +235,9 @@ test('Settings shows plain permission names, and Last call changes from Never af
   await form.getByRole('button', { name: 'Create token' }).click();
   const secret = (await page.getByTestId('token-secret').innerText()).trim();
   expect(secret).toMatch(/^inv_[A-Za-z0-9_-]{43}$/);
+  await expect(page.getByRole('region', { name: 'New token secret' })).toContainText(
+    'If you lose it, revoke the token and create a new one.',
+  );
   await expect(
     page.getByText(
       'Ask your agent to list its tools. Then press Check again: Last call shows the time of that call.',

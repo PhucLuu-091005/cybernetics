@@ -1,5 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import type { KeyKind } from '../../contracts';
+import { KEY_COPY } from './copy';
 import { copyText, mcpConfig } from './McpSnippet';
 
 /** The secret lives only in the creating component's state; closing this panel or reloading the page discards it. */
@@ -7,13 +9,16 @@ export function SecretReveal({
   secret,
   label,
   endpoint,
+  kind,
   onClose,
 }: {
   secret: string;
   label: string;
   endpoint: string;
+  kind: KeyKind;
   onClose: () => void;
 }) {
+  const { noun } = KEY_COPY[kind];
   const [status, setStatus] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   // The form is long, so the one-time secret must come into view by itself.
@@ -21,7 +26,7 @@ export function SecretReveal({
     ref.current?.scrollIntoView({ block: 'nearest' });
   }, []);
   return (
-    <div ref={ref} className="pg-secret" role="region" aria-label="New token secret">
+    <div ref={ref} className="pg-secret" role="region" aria-label={`New ${noun} secret`}>
       <p>
         <b>Copy the secret for “{label}” now. It is shown once.</b>
       </p>
@@ -59,7 +64,7 @@ export function SecretReveal({
         <button className="btn btn-ink" type="button" onClick={onClose}>
           I copied it, hide the secret
         </button>
-        <span className="pg-status">If you lose it, revoke the token and create a new one.</span>
+        <span className="pg-status">If you lose it, revoke the {noun} and create a new one.</span>
       </div>
     </div>
   );

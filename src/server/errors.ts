@@ -24,7 +24,13 @@ export class AppError extends Error {
   }
   // next dev bundles this module once per route, and globalThis singletons (limiter, identity store) cross routes.
   static [Symbol.hasInstance](value: unknown): value is AppError {
-    return typeof value === 'object' && value !== null && BRAND in value;
+    if (this !== AppError) return Function.prototype[Symbol.hasInstance].call(this, value);
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      BRAND in value &&
+      typeof (value as { code?: unknown }).code === 'string'
+    );
   }
 }
 export const statusFor = (code: ErrorCode) => STATUS[code];

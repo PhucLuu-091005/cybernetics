@@ -83,6 +83,7 @@ export function TokenCreate({
           secret={created.secret}
           label={created.label}
           endpoint={endpoint}
+          kind={kind}
           onClose={() => setCreated(null)}
         />
       )}
