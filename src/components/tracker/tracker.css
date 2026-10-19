@@ -1232,6 +1232,16 @@
   /* The card floats over the lanes, so a drag still finds the lane under it. */
   pointer-events: none;
 }
+.tk .empty-line {
+  position: absolute;
+  left: 50%;
+  top: 120px;
+  transform: translateX(-50%);
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--fs-s);
+  pointer-events: none;
+}
 .tk .empty button {
   pointer-events: auto;
 }

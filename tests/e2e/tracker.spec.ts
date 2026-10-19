@@ -349,6 +349,13 @@ test.describe('the tracker walkthrough', () => {
       await page.waitForURL(/\/changes\/1$/);
       await expect(bar).toContainText('Read-only history.');
       await expect(page.getByRole('list', { name: 'Changes' })).toContainText('Implementation');
+      // The Main card is for Main only; a change request with no work items says so in one line.
+      const quiet = page.getByRole('note').filter({ hasText: 'No work items in this view.' });
+      for (const side of ['After', 'Before']) {
+        await page.getByRole('button', { name: side, exact: true }).click();
+        await expect(page.locator('.empty')).toHaveCount(0);
+        await expect(quiet).toBeVisible();
+      }
       await page.locator('.p-head').getByRole('button', { name: 'History' }).click();
       await history.getByRole('button', { name: `Open #${storyCr(3)}` }).click();
       await page.waitForURL(crUrl(3));
