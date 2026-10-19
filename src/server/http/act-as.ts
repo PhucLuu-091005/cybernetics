@@ -10,11 +10,11 @@ import { getTrackerPayload } from '../tracker/read';
 import type { Handler, Input } from './route';
 import { cookieValue } from './session';
 
-export const ACT_AS_MAX_AGE = 30 * 86_400;
+const ACT_AS_MAX_AGE = 30 * 86_400;
 
 export const actAsCookieName = (projectId: string) => `pg_act_${projectId}`;
 
-export function actAsCookie(projectId: string, memberId: string): string {
+function actAsCookie(projectId: string, memberId: string): string {
   const secure = readAuthEnvironment().appOrigin.startsWith('https:') ? '; Secure' : '';
   return `${actAsCookieName(projectId)}=${memberId}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${ACT_AS_MAX_AGE}${secure}`;
 }

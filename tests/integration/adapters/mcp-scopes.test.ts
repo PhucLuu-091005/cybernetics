@@ -17,7 +17,7 @@ import { DELETE, GET, POST } from '../../../src/app/mcp/route';
 import { ScopeSchema, type ActorContext, type Scope } from '../../../src/contracts';
 import { DEFAULT_GRANTS } from '../../../src/tracker';
 import { createTestDatabase, testActor, type TestDb } from '../../support/db';
-import { seedDemo, workspaceGuest, type Demo } from '../../support/tracker-db';
+import { type Demo, seedDemo, storyCr, workspaceGuest } from '../../support/tracker-db';
 
 const origin = 'http://localhost:3000';
 type Structured = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -382,8 +382,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP scopes and write tools', ()
       reason: 'Not needed',
     });
     expect(cancelled.structuredContent.changeRequest.status).toBe('closed');
-    const four = (await call(closer, 'get_change_request', { num: 4 })).structuredContent;
-    const args = { num: 4, expectedRevision: four.changeRequest.revision, reason: 'Old' };
+    const four = (await call(closer, 'get_change_request', { num: storyCr(4) })).structuredContent;
+    const args = { num: storyCr(4), expectedRevision: four.changeRequest.revision, reason: 'Old' };
     expect(await call(closer, 'cancel_change_request', args)).toMatchObject({
       isError: true,
       structuredContent: {
@@ -424,9 +424,12 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP scopes and write tools', ()
     }
     const bad: Array<[string, Record<string, unknown>]> = [
       ['create_change_request', { title: 'X', ops: [{ op: 'explode', a: {} }] }],
-      ['add_change', { num: 2, op: { op: 'hide', a: { eventId: 'e1' } } }],
-      ['add_change', { num: 2, expectedRevision: 0, op: { op: 'hide', a: {}, by: 'lan' } }],
-      ['merge_change_request', { num: 2 }],
+      ['add_change', { num: storyCr(2), op: { op: 'hide', a: { eventId: 'e1' } } }],
+      [
+        'add_change',
+        { num: storyCr(2), expectedRevision: 0, op: { op: 'hide', a: {}, by: 'lan' } },
+      ],
+      ['merge_change_request', { num: storyCr(2) }],
       ['set_member_grants', { memberId: demo.ids.lan, grants: { viewMain: true } }],
     ];
     for (const [name, args] of bad)

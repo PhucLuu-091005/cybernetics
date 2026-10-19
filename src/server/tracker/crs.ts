@@ -12,12 +12,14 @@ import {
   goneNamed,
   liveOps,
   mainState,
+  atMost,
   noNul,
   onlyMainNote,
   LoopError,
   OpError,
   OpSchema,
   replayOps,
+  secondMilestone,
   type Commit,
   type Member,
   type Op,
@@ -56,7 +58,8 @@ import { addComment, loadCommits, loadQueue, lockCr, mainRevision, type CrRow } 
 
 const MAX_OPS = 500;
 const MISSING_CRS = 'You cannot see the change requests of this project';
-const Text = (max: number) => noNul(z.string().trim().min(1, 'Must not be empty').max(max));
+const Text = (max: number) =>
+  noNul(z.string().trim().min(1, 'Must not be empty').max(max, atMost(max)));
 const RouteNumber = z
   .union([
     z.number(),
@@ -202,6 +205,8 @@ function admit(
         'VALIDATION',
         `The change does not fit: ${gone.join(' and ')} ${gone.length > 1 ? 'are' : 'is'} no longer in this project`,
       );
+    const taken = secondMilestone(state, op);
+    if (taken) throw new AppError('VALIDATION', `The change does not fit: ${taken}`);
     try {
       const applied = applyOp(state, op, tz);
       state = applied.state;

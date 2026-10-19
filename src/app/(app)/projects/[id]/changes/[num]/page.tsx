@@ -3,8 +3,9 @@ import { notFound } from 'next/navigation';
 import { IdSchema } from '../../../../../../contracts';
 import { TrackerScreen } from '../../../../../../components/tracker/TrackerScreen';
 import { pageOnScreen, requireActor } from '../../../../../../server/http/rsc';
-import { NoViewNotice, serverHour, trackerPayload } from '../../tracker-load';
+import { NoCrsNotice, NoViewNotice, serverHour, trackerPayload } from '../../tracker-load';
 import { Notice } from '../../../../../../components/shell/Notice';
+import { can } from '../../../../../../tracker';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Change request · Promise Graph' };
@@ -22,7 +23,11 @@ export default async function ChangeRequestPage({
   const payload = await trackerPayload(actor, id, seen.actAs);
   if (payload === 'no-view') return <NoViewNotice projectId={id} />;
   if (!payload) return <Notice role="status" title="This project has no tracker yet." />;
-  if (!payload.crs.some((cr) => cr.num === Number(num))) notFound();
+  if (!payload.crs.some((cr) => cr.num === Number(num))) {
+    // Without the right the answer is the same for every number, so it tells nothing about which exist.
+    if (!can(payload, 'viewCrs')) return <NoCrsNotice projectId={id} />;
+    notFound();
+  }
   return (
     <TrackerScreen
       key={num}

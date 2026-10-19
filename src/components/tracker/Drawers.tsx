@@ -21,10 +21,8 @@ import {
   KIND_LABEL,
   kindWithArticle,
   lateBadge,
-  mainState,
   milestoneStatus,
   pickable,
-  replayOps,
   startHint,
   STATUS_LABEL,
   STATUS_TONE,
@@ -37,6 +35,7 @@ import {
   type FocusNode,
   type TrackerState,
   type WorkItem,
+  TEXT_MAX,
 } from '../../tracker';
 import type { OpInput } from './api';
 import { Avatar, Avatars, type Directory } from './avatar';
@@ -56,6 +55,7 @@ import { Icon, KIND_COLOR, KindIcon } from './icons';
 import { Select } from './Select';
 import { DateInput } from './DateInput';
 import { TimeInput } from './TimeInput';
+import { TextCount } from './TextCount';
 import { Moves } from './Pops';
 import { focusAction } from './team';
 import type { TrackerActions, TrackerView } from './TrackerScreen';
@@ -143,7 +143,7 @@ export function MilestoneDrawer({
   const date = edit && draft ? draft.date : m.planned;
   const time = edit && draft ? draft.time : (m.plannedTime ?? '');
   const unchanged = name === m.name && date === m.planned && time === (m.plannedTime ?? '');
-  const outside = state.workItems.filter((w) => w.milestoneId !== m.id);
+  const outside = state.workItems.filter((w) => !w.milestoneId);
   const pick = adding && outside.some((w) => w.id === adding) ? adding : (outside[0]?.id ?? '');
   return (
     <Frame
@@ -170,8 +170,10 @@ export function MilestoneDrawer({
             Name
             <input
               value={name}
+              maxLength={TEXT_MAX.title}
               onChange={(event) => setDraft({ name: event.target.value, date, time })}
             />
+            <TextCount value={name} max={TEXT_MAX.title} />
           </label>
           <label className="field">
             Planned date
@@ -464,6 +466,7 @@ export function WorkItemDrawer({
               className="wi-title"
               aria-label="Name"
               value={name}
+              maxLength={TEXT_MAX.title}
               onChange={(event) => setTitle(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key !== 'Enter') return;
@@ -592,11 +595,14 @@ export function WorkItemDrawer({
               value={item.milestoneId ?? ''}
               disabled={busy}
               onChange={(milestoneId) =>
-                change(
-                  milestoneId
-                    ? { op: 'msAdd', a: { workItemId: item.id, milestoneId } }
-                    : { op: 'msRemove', a: { workItemId: item.id } },
-                )
+                actions.editItem([
+                  ...(item.milestoneId
+                    ? [{ op: 'msRemove' as const, a: { workItemId: item.id } }]
+                    : []),
+                  ...(milestoneId
+                    ? [{ op: 'msAdd' as const, a: { workItemId: item.id, milestoneId } }]
+                    : []),
+                ])
               }
               options={[
                 { value: '', label: 'None' },
@@ -640,9 +646,11 @@ export function WorkItemDrawer({
                     <textarea
                       value={plan.why}
                       required
+                      maxLength={TEXT_MAX.why}
                       placeholder="For example: Lan sends the country list on 10 October."
                       onChange={(e) => setDates({ ...plan, why: e.target.value })}
                     />
+                    <TextCount value={plan.why} max={TEXT_MAX.why} />
                   </label>
                   <div className="wi-inline">
                     <button className="btn sm" type="button" onClick={() => setDates(null)}>
@@ -1015,12 +1023,6 @@ export function RequestsDrawer({
   );
 }
 
-function commitLines(session: Session, commit: Commit) {
-  const { payload, tz } = session;
-  const before = mainState(payload.base, payload.queue, payload.commits, commit.rev - 1);
-  return replayOps(before, commit.ops, tz).entries;
-}
-
 export function HistoryDrawer({
   session,
   onClose,
@@ -1032,10 +1034,6 @@ export function HistoryDrawer({
     [payload.commits],
   );
   const latest = commits[0]?.rev;
-  const lines = useMemo(
-    () => new Map(commits.map((c) => [c.rev, commitLines(session, c)])),
-    [commits, session],
-  );
   const crOf = (commit: Commit) => payload.crs.find((c) => c.id === commit.crId);
   const closed = payload.crs.filter((c) => c.status === 'closed');
   return (
@@ -1052,11 +1050,16 @@ export function HistoryDrawer({
       <ol className="hist">
         {commits.map((commit) => {
           const cr = crOf(commit);
-          const n = commit.resolutions.length;
+          const merger = commit.mergedBy !== cr?.author ? dir.name(commit.mergedBy) : null;
           return (
             <li key={commit.rev}>
               <span className="hdot" />
-              <div className="hcard">
+              <button
+                className="hcard hrow"
+                type="button"
+                aria-label={`Open #${commit.crNum} ${cr?.title ?? ''}`}
+                onClick={() => onView(commit.crNum)}
+              >
                 <header>
                   <b>
                     #{commit.crNum} {cr?.title}
@@ -1064,41 +1067,10 @@ export function HistoryDrawer({
                   {commit.rev === latest && <span className="chipx ok">Latest</span>}
                 </header>
                 <div className="hm">
-                  {cr && <Avatar id={cr.author} dir={dir} sm />} by {cr ? dir.name(cr.author) : ''}{' '}
-                  · merged by {dir.name(commit.mergedBy)} · {formatStamp(commit.mergedAt, tz)}
+                  {cr && <Avatar id={cr.author} dir={dir} sm />} by {cr ? dir.name(cr.author) : ''}
+                  {merger && ` · merged by ${merger}`} · {formatStamp(commit.mergedAt, tz)}
                 </div>
-                <ul>
-                  {(lines.get(commit.rev) ?? []).map((e) => {
-                    const via = commit.ops[e.i]?.via;
-                    return (
-                      <li key={e.i}>
-                        {e.item}: {e.change}
-                        {e.after && ` → ${trunc(e.after, 40)}`}
-                        {via && <small className="via"> · via key {trunc(via, 40)}</small>}
-                      </li>
-                    );
-                  })}
-                </ul>
-                {n > 0 && (
-                  <div className="resolved">
-                    <Icon name="check" size={13} />
-                    <span>
-                      {plural(n, 'clash')} resolved:{' '}
-                      {commit.resolutions
-                        .map(
-                          (x) =>
-                            `${x.label}, kept ${x.chose === 'main' ? `Main from #${x.from}` : 'this change request'}`,
-                        )
-                        .join('; ')}
-                    </span>
-                  </div>
-                )}
-                <div className="row-btns">
-                  <button className="btn sm" type="button" onClick={() => onView(commit.crNum)}>
-                    Open #{commit.crNum}
-                  </button>
-                </div>
-              </div>
+              </button>
             </li>
           );
         })}

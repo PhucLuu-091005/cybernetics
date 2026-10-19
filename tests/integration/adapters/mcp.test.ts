@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -129,6 +130,13 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP adapter', () => {
     });
   });
 
+  it('names the server with the package.json version', async () => {
+    const { version } = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string };
+    expect((await connect(defaultToken.secret)).getServerVersion()).toEqual({
+      name: 'promise-graph',
+      version,
+    });
+  });
   it('lists every tool to every token, and none accepts a projectId argument', async () => {
     const { tools } = await (await connect(defaultToken.secret)).listTools();
     for (const tool of tools)

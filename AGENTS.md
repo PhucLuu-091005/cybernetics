@@ -18,7 +18,7 @@ Promise Graph is an event tracker for a whole project. Each team has rows of wor
 
 ## Stack and where things live
 
-Next.js 16 (App Router), React 19, TypeScript, PostgreSQL 17 with Drizzle, Zod, Vitest, Playwright, plain CSS with tokens (Tailwind 4 is installed but the UI uses CSS classes).
+Next.js 16 (App Router), React 19, TypeScript, PostgreSQL 17 with Drizzle, Zod, Vitest, Playwright, plain CSS with tokens.
 
 | Path | What it holds |
 |---|---|
@@ -29,7 +29,7 @@ Next.js 16 (App Router), React 19, TypeScript, PostgreSQL 17 with Drizzle, Zod, 
 | `src/server/` (other) | `db/` (Drizzle schema, migrations, client), `http/` (route helper, sessions, rate limits, scopes), `domain/` (projects, tokens), `mcp/` (MCP server and tools). |
 | `src/app/` | Routes. Pages under `(app)/projects/[id]/` (`graph`, `changes/[num]`, `settings`). REST under `api/v1/projects/[projectId]/tracker/**`. MCP endpoint at `mcp/route.ts`. Global CSS: `globals.css`, `shell.css`. |
 | `tests/` | `unit/` (pure code), `integration/` (real Postgres), `e2e/` (Playwright), `support/` (test databases and fixtures). |
-| `docs/` | Spec, plans, design option pages (`docs/design/`), design system, MCP recipe, README screenshots. |
+| `docs/` | Spec, design option pages (`docs/design/`), design system, deploy guide, MCP recipe, README screenshot. |
 
 ## Skills
 
@@ -154,8 +154,7 @@ cp -cR <base checkout>/node_modules <scratch dir>/<task>/
 | File | Update it when |
 |---|---|
 | `docs/superpowers/specs/2026-10-16-event-tracker-design.md` | The owner rules a change of behaviour or look. Edit the decision in place. |
-| `docs/superpowers/plans/2026-10-16-event-tracker.md` | The task list changes. |
 | `.superpowers/sdd/2026-10-16-event-tracker/progress.md` | After each task, review or ruling: one line with the branch, commits, gate counts, and each ruling as "Ruling: <decision>, why: <reason>, cost if wrong: <cost>". The folder is gitignored and lives in the controller's checkout; task briefs and reports sit next to the ledger. |
 | `docs/design-system.md` and `docs/design/design-system.html` | A token, a component or a graph mark changes. |
-| `README.md` | A user-visible flow changes. Take the screenshots again when the UI changes. |
+| `README.md` | A user-visible flow changes. Take the README screenshot again when the UI changes. |
 | `docs/mcp-agent-recipe.md` | An MCP tool or scope changes. |

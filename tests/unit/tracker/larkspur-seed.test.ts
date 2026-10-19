@@ -5,13 +5,18 @@ import {
   LARKSPUR_STORY_NOW,
   LARKSPUR_WINDOW_START,
   larkspurCrs,
+  larkspurHistory,
+  larkspurQueueRows,
   larkspurShift,
   larkspurState,
 } from '../../../src/server/tracker/seed/larkspur';
 import {
+  initialState,
   itemStatus,
   layoutTracker,
+  mainState,
   replayOps,
+  type Commit,
   windowStartFor,
   type TrackerState,
   type View,
@@ -66,7 +71,24 @@ describe('the Larkspur seed on the default graph', () => {
     }
     expect([...crowded].sort()).toEqual(CROWDS);
     expect(touching).toEqual([]);
-    expect(layout.rows.length).toBe(14);
+    expect(layout.rows.length).toBe(15);
+  });
+
+  it('shows every work item of Main as a row and every event as a mark, at Fit and at the default view', () => {
+    const state = main();
+    for (const L of Object.values(defaultView(state))) {
+      expect(L.rows.map((r) => r.id).sort()).toEqual(state.workItems.map((w) => w.id).sort());
+      for (const team of state.teams)
+        expect(L.rows.filter((r) => r.teamId === team.id).length, team.id).toBe(
+          state.workItems.filter((w) => w.teamId === team.id).length,
+        );
+      for (const e of state.events) {
+        const mark = L.eventGroups.find((g) => g.eventIds.includes(e.id));
+        expect(mark, e.id).toBeDefined();
+        expect(mark!.x).toBeGreaterThanOrEqual(L.x(Date.parse(`${L.window.start}T00:00:00+07:00`)));
+        expect(mark!.x).toBeLessThanOrEqual(L.x1);
+      }
+    }
   });
 
   it('keeps the mix of statuses and event kinds', () => {
@@ -205,5 +227,46 @@ describe('demo clock start check', () => {
       exit.mockRestore();
       log.mockRestore();
     }
+  });
+});
+
+describe('the Larkspur history', () => {
+  const commitsOf = (crs: ReturnType<typeof larkspurHistory>['crs']): Commit[] =>
+    crs.map((cr, i) => ({
+      rev: i + 1,
+      crId: `h${i + 1}`,
+      crNum: i + 1,
+      mergedBy: cr.merger!,
+      mergedAt: cr.mergedAt!,
+      ops: cr.ops,
+      resolutions: [],
+    }));
+
+  it('replays from an empty project to exactly the seeded Main, at any shift', () => {
+    for (const days of [0, 10]) {
+      const history = larkspurHistory(undefined, days);
+      expect(history.base).toMatchObject({ teams: [], milestones: [], workItems: [], events: [] });
+      const rows = [...history.rows, ...larkspurQueueRows(undefined, days)];
+      const replayed = mainState(history.base, rows, commitsOf(history.crs));
+      expect(replayed).toEqual(larkspurState(undefined, days));
+    }
+  });
+
+  it('applies every op of every history change request, each by a story member', () => {
+    const history = larkspurHistory();
+    let state = initialState(history.base, [...history.rows, ...larkspurQueueRows()]);
+    for (const cr of history.crs) {
+      const replay = replayOps(state, cr.ops);
+      expect(
+        replay.entries.filter((e) => e.skipped),
+        cr.title,
+      ).toEqual([]);
+      state = replay.state;
+      expect(['minh', 'lan', 'quang', 'ha', 'khoa']).toContain(cr.author);
+      expect(cr.merger).not.toBe(cr.author);
+    }
+    expect(history.crs.length).toBeGreaterThanOrEqual(8);
+    const merged = history.crs.map((cr) => cr.mergedAt!);
+    expect([...merged].sort()).toEqual(merged);
   });
 });

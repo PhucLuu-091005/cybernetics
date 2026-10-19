@@ -1,4 +1,4 @@
-export type KeyOption = { value: string; label: string; disabled?: boolean };
+type KeyOption = { value: string; label: string; disabled?: boolean };
 
 const PAGE = 8;
 const canPick = (options: readonly KeyOption[], at: number) =>

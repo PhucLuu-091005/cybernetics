@@ -20,7 +20,7 @@ import { allowedScopes, firstScopes, selectAllState, toggleAll } from './scopes'
 import { KEY_COPY } from './copy';
 import { SecretReveal } from './SecretReveal';
 
-export type ExpiryOption = { days: number; label: string };
+type ExpiryOption = { days: number; label: string };
 
 export function TokenCreate({
   kind = 'project',

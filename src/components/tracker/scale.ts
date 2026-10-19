@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { clampDayWidth, type TrackerLayout, type View } from '../../tracker';
 
-export type TimeScale = Pick<View, 'span' | 'fitSpan' | 'dayWidth'>;
+type TimeScale = Pick<View, 'span' | 'fitSpan' | 'dayWidth'>;
 
 /** The first measured width fixes the fit, so a later wider graph shows more time, not bigger marks. */
 export function useTimeScale() {

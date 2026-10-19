@@ -8,18 +8,18 @@ import type { RateLimiter } from './rate-limit';
 import { returnPath } from './return-path';
 import { DEMO_SESSION_TTL_MS, readSession, sessionCookie, signSession } from './session';
 
-export const DEMO_ENTRY = '/api/auth/demo';
-export const DEMO_PER_ADDRESS_PER_HOUR = 30;
+const DEMO_ENTRY = '/api/auth/demo';
+const DEMO_PER_ADDRESS_PER_HOUR = 30;
 const HOUR = 3_600_000;
 const BOT =
   /bot|crawler|spider|preview|slackbot|facebookexternalhit|whatsapp|telegrambot|discordbot|curl/i;
 
-export type DemoDeps = {
+type DemoDeps = {
   env: AuthEnvironment;
   store: HttpIdentityStore;
   limiter: RateLimiter;
 };
-export type DemoAnswer = { location: string; cookie?: string };
+type DemoAnswer = { location: string; cookie?: string };
 
 export const demoEntryPath = (next: string | null) =>
   next ? `${DEMO_ENTRY}?next=${encodeURIComponent(next)}` : DEMO_ENTRY;
@@ -27,7 +27,7 @@ export const demoEntryPath = (next: string | null) =>
 const checkPath = (next: string) =>
   `${DEMO_ENTRY}?check=1${next === '/' ? '' : `&next=${encodeURIComponent(next)}`}`;
 
-export const isBot = (userAgent: string | null) => !userAgent || BOT.test(userAgent);
+const isBot = (userAgent: string | null) => !userAgent || BOT.test(userAgent);
 
 function isPageVisit(request: Request): boolean {
   const accept = request.headers.get('accept') ?? '';

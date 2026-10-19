@@ -22,10 +22,10 @@ import {
 } from './store';
 
 /** The `pg_act_<projectId>` cookie value; anything that names no member is rejected later. */
-export const ActAsSchema = z.string().max(200).nullish();
+const ActAsSchema = z.string().max(200).nullish();
 export const ProjectScopeSchema = { projectId: IdSchema, actAs: ActAsSchema };
 
-export function resolveActing(
+function resolveActing(
   tracker: Pick<TrackerRow, 'demo'>,
   members: readonly Member[],
   ctx: ActorContext,

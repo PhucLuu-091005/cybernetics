@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { expectAppIcons, hydrated } from './helpers';
+import { expectAppIcons, hydrated, storyCr } from './helpers';
 
 const PROJECT = 'Larkspur Capital';
 
@@ -325,7 +325,7 @@ test('a signed-out person who opens a change request link lands on it after sign
   await page.getByRole('button', { name: /continue/i }).click();
   await expect(page.getByText(PROJECT).first()).toBeVisible();
   const projectId = new URL(page.url()).pathname.split('/')[2];
-  const link = `/projects/${projectId}/changes/2`;
+  const link = `/projects/${projectId}/changes/${storyCr(2)}`;
   await context.clearCookies();
 
   await page.goto(link);
@@ -402,7 +402,7 @@ test('every page has one main landmark and a Skip to content link that shows on 
   await page.getByRole('button', { name: /continue/i }).click();
   await expect(page.getByText(PROJECT).first()).toBeVisible();
   const projectId = new URL(page.url()).pathname.split('/')[2];
-  for (const path of ['graph', 'changes/2', 'members', 'settings/tokens']) {
+  for (const path of ['graph', `changes/${storyCr(2)}`, 'members', 'settings/tokens']) {
     await page.goto(`/projects/${projectId}/${path}`);
     await hydrated(page);
     await check();

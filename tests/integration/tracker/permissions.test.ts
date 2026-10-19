@@ -12,7 +12,7 @@ import {
   removeOp,
 } from '../../../src/server/tracker';
 import { agentActor, createTestDatabase, testActor, type TestDb } from '../../support/db';
-import { seedDemo, workspaceGuest, type Demo } from '../../support/tracker-db';
+import { type Demo, HISTORY, seedDemo, storyCr, workspaceGuest } from '../../support/tracker-db';
 
 const rename = { op: 'rename', a: { workItemId: 'test', title: 'Test plan' } } as const;
 const event = (by: string) => ({
@@ -40,32 +40,44 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker permissions', () => {
   it('lets only the current editor append, undo, share or mark ready', async () => {
     for (const key of ['lan', 'khoa', 'minh']) {
       await expect(
-        appendOp(t.db, demo.owner, { ...as(key), num: 4, expectedRevision: 0, op: rename }),
+        appendOp(t.db, demo.owner, {
+          ...as(key),
+          num: storyCr(4),
+          expectedRevision: 0,
+          op: rename,
+        }),
       ).rejects.toMatchObject(forbidden);
       await expect(
-        removeOp(t.db, demo.owner, { ...as(key), num: 4, index: 'last', expectedRevision: 0 }),
+        removeOp(t.db, demo.owner, {
+          ...as(key),
+          num: storyCr(4),
+          index: 'last',
+          expectedRevision: 0,
+        }),
       ).rejects.toMatchObject(forbidden);
       await expect(
         action(key, 4, { action: 'share', memberId: demo.ids.quang, permission: 'view' }),
       ).rejects.toMatchObject(forbidden);
       await expect(action(key, 4, { action: 'ready' })).rejects.toMatchObject(forbidden);
     }
-    await expect(action('quang', 2, { action: 'unready' })).rejects.toMatchObject(forbidden);
-    await expect(action('lan', 4, { action: 'handover', to: demo.ids.khoa })).rejects.toMatchObject(
+    await expect(action('quang', storyCr(2), { action: 'unready' })).rejects.toMatchObject(
       forbidden,
     );
-    await expect(action('lan', 4, { action: 'decline', who: demo.ids.khoa })).rejects.toMatchObject(
-      forbidden,
-    );
+    await expect(
+      action('lan', storyCr(4), { action: 'handover', to: demo.ids.khoa }),
+    ).rejects.toMatchObject(forbidden);
+    await expect(
+      action('lan', storyCr(4), { action: 'decline', who: demo.ids.khoa }),
+    ).rejects.toMatchObject(forbidden);
   });
 
   it('lets a member without edit right ask for access, and not the editor', async () => {
-    const asked = await action('quang', 4, { action: 'ask' });
-    expect(asked.crs.find((cr) => cr.num === 4)?.asks.map((ask) => ask.memberId)).toContain(
-      demo.ids.quang,
-    );
-    await action('quang', 4, { action: 'cancel-ask' });
-    await expect(action('ha', 4, { action: 'ask' })).rejects.toMatchObject({
+    const asked = await action('quang', storyCr(4), { action: 'ask' });
+    expect(
+      asked.crs.find((cr) => cr.num === storyCr(4))?.asks.map((ask) => ask.memberId),
+    ).toContain(demo.ids.quang);
+    await action('quang', storyCr(4), { action: 'cancel-ask' });
+    await expect(action('ha', storyCr(4), { action: 'ask' })).rejects.toMatchObject({
       code: 'VALIDATION',
     });
   });
@@ -88,7 +100,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker permissions', () => {
       ).rejects.toMatchObject(forbidden);
     }
     const payload = await getTrackerPayload(t.db, demo.owner, as('minh'));
-    expect(payload.crs.find((cr) => cr.num === 2)?.status).toBe('ready');
+    expect(payload.crs.find((cr) => cr.num === storyCr(2))?.status).toBe('ready');
   });
 
   it('needs expectedRevision to merge, close or request changes', async () => {
@@ -97,7 +109,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker permissions', () => {
       { action: 'close', reason: 'Not needed.' },
       { action: 'request-changes', note: 'Please change it.' },
     ])
-      await expect(action('minh', 2, body)).rejects.toMatchObject({ code: 'VALIDATION' });
+      await expect(action('minh', storyCr(2), body)).rejects.toMatchObject({ code: 'VALIDATION' });
   });
 
   it('ignores act-as for a person without a member: reads show no member, writes are forbidden', async () => {
@@ -108,13 +120,19 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker permissions', () => {
       forbidden,
     );
     await expect(
-      crAction(t.db, guest, { ...asMinh, num: 2, action: 'merge', picks: {}, expectedRevision: 0 }),
+      crAction(t.db, guest, {
+        ...asMinh,
+        num: storyCr(2),
+        action: 'merge',
+        picks: {},
+        expectedRevision: 0,
+      }),
     ).rejects.toMatchObject(forbidden);
     await expect(
       appendOp(t.db, guest, {
         projectId: demo.projectId,
         actAs: demo.ids.ha,
-        num: 4,
+        num: storyCr(4),
         expectedRevision: 0,
         op: rename,
       }),
@@ -123,8 +141,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker permissions', () => {
       addQueueEntry(t.db, guest, { ...asMinh, kind: 'event', fields: event('sarah') }),
     ).rejects.toMatchObject(forbidden);
     const after = await getTrackerPayload(t.db, demo.owner, { projectId: demo.projectId });
-    expect(after.crs).toHaveLength(4);
-    expect(after.crs.find((cr) => cr.num === 2)?.status).toBe('ready');
+    expect(after.crs).toHaveLength(HISTORY + 4);
+    expect(after.crs.find((cr) => cr.num === storyCr(2))?.status).toBe('ready');
   });
 
   it('acts as a member only in a demo project and only for its members', async () => {
@@ -168,7 +186,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker permissions', () => {
     const guest = await workspaceGuest(t.db, demo.owner);
     const payload = await getTrackerPayload(t.db, guest, { projectId: demo.projectId });
     expect(payload.me).toBeNull();
-    expect(payload.crs).toHaveLength(4);
+    expect(payload.crs).toHaveLength(HISTORY + 4);
     await expect(
       createCr(t.db, guest, { projectId: demo.projectId, title: 'Guest CR' }),
     ).rejects.toMatchObject(forbidden);
@@ -183,7 +201,12 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker permissions', () => {
       dismissQueueEntry(t.db, guest, { projectId: demo.projectId, queueId: demo.ids.qe1 }),
     ).rejects.toMatchObject(forbidden);
     await expect(
-      crAction(t.db, guest, { projectId: demo.projectId, num: 4, action: 'comment', body: 'Hi' }),
+      crAction(t.db, guest, {
+        projectId: demo.projectId,
+        num: storyCr(4),
+        action: 'comment',
+        body: 'Hi',
+      }),
     ).rejects.toMatchObject(forbidden);
   });
 
@@ -201,7 +224,12 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker permissions', () => {
       createCr(t.db, agent, { projectId: demo.projectId, title: 'Agent CR' }),
     ).rejects.toMatchObject(forbidden);
     await expect(
-      crAction(t.db, agent, { projectId: demo.projectId, num: 4, action: 'comment', body: 'Hi' }),
+      crAction(t.db, agent, {
+        projectId: demo.projectId,
+        num: storyCr(4),
+        action: 'comment',
+        body: 'Hi',
+      }),
     ).rejects.toMatchObject(forbidden);
     await expect(
       getTrackerPayload(t.db, agent, { projectId: demo.projectId, actAs: demo.ids.lan }),

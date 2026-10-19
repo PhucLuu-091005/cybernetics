@@ -8,6 +8,8 @@ To put the app online, follow [docs/deploy-cloud-run-neon.md](docs/deploy-cloud-
 
 After the first deploy, each pushed `v*` tag deploys itself through GitHub Actions: see [Deploy from a tag](docs/deploy-cloud-run-neon.md#deploy-from-a-tag).
 
+To release: bump package.json version, merge, then tag v<version>. The deploy fails when the tag and package.json differ. MCP `serverInfo` and `/api/health` report this version.
+
 ![The Larkspur demo project on Main: teams, work items, events, milestones and the legend](docs/screenshots/tracker-main.png)
 
 ## Main screens
@@ -20,7 +22,7 @@ After the first deploy, each pushed `v*` tag deploys itself through GitHub Actio
 - **Settings.** The project facts and the agent tokens.
 - **Profile.** Your photo and your personal keys for every project (account menu, **Profile**).
 
-Your first visit (or your first sign-in in `local` and `google` modes) creates a private sandbox: the fictional Larkspur Capital project with 7 teams, a Queue and 4 change requests ([fixtures/README.md](fixtures/README.md)). The story covers five weeks and ends just before the moment you open it, so the T line and the statuses follow the real clock. An older sandbox keeps its data; **Start over** in the account menu gives the new story. The **Demo** select at the top right changes who you work as and shows each person's role; while you act as someone, every page, Profile and its photo included, is that person's. The graph opens with Comfortable rows and every team open. The full behaviour is in the [spec](docs/superpowers/specs/2026-10-16-event-tracker-design.md).
+Your first visit (or your first sign-in in `local` and `google` modes) creates a private sandbox: the fictional Larkspur Capital project with 7 teams, a Queue, a Main history of 10 merged change requests that builds the project from empty, and 3 open change requests ([fixtures/README.md](fixtures/README.md)). The story covers five weeks and ends just before the moment you open it, so the T line and the statuses follow the real clock. The first visit opens a short intro that names the app and its two paths, Explore the demo and Connect an agent; **About this demo** in the account menu shows it again. An older sandbox keeps its data; **Start over** in the account menu asks first, then gives a fresh copy with the new story. The **Demo** select at the top right changes who you work as and shows each person's role; while you act as someone, every page, Profile and its photo included, is that person's. The graph opens with Comfortable rows and every team open. The full behaviour is in the [spec](docs/superpowers/specs/2026-10-16-event-tracker-design.md).
 
 ## Run it locally
 

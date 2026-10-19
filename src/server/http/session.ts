@@ -8,10 +8,10 @@ export const SESSION_COOKIE = 'pg_session';
 export const SESSION_TTL_MS = 604_800_000;
 // A demo visitor has no way to sign in again, so the cookie is their only key to the sandbox.
 export const DEMO_SESSION_TTL_MS = 2_592_000_000;
-export const sessionTtl = (env: AuthEnvironment) =>
+const sessionTtl = (env: AuthEnvironment) =>
   env.mode === 'demo' ? DEMO_SESSION_TTL_MS : SESSION_TTL_MS;
 const SessionSchema = z.strictObject({ userId: z.uuid(), expiresAt: z.number().int().positive() });
-export type Session = z.infer<typeof SessionSchema>;
+type Session = z.infer<typeof SessionSchema>;
 const secure = (env: AuthEnvironment) => (env.appOrigin.startsWith('https:') ? '; Secure' : '');
 function signature(payload: string, secret: string): string {
   return createHmac('sha256', secret).update(payload).digest('base64url');

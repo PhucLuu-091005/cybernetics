@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { configureApp, resetApp } from '../../../src/server/app';
 import { SESSION_COOKIE, signSession } from '../../../src/server/http/session';
 import { createTestDatabase, testActor, type TestDb } from '../../support/db';
-import { seedDemo, workspaceGuest, type Demo } from '../../support/tracker-db';
+import { type Demo, HISTORY, seedDemo, storyCr, workspaceGuest } from '../../support/tracker-db';
 
 const origin = 'http://localhost:3000';
 const secret = 'tracker-routes-test-secret-of-32-bytes';
@@ -101,7 +101,9 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
     });
     expect(reply.body.me.id).toBe(demo.ids.minh);
     expect(reply.body.members).toHaveLength(5);
-    expect(reply.body.crs.map((cr: { num: number }) => cr.num)).toEqual([1, 2, 3, 4]);
+    expect(reply.body.crs.map((cr: { num: number }) => cr.num)).toEqual(
+      Array.from({ length: HISTORY + 4 }, (_, i) => i + 1),
+    );
     expect(reply.body.queue.events).toHaveLength(4);
     expect(reply.body).not.toHaveProperty('offsets');
   });
@@ -111,7 +113,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
     const version = await call('GET', `${tracker}/version`, p());
     expect(version.status).toBe(200);
     expect(version.headers.get('cache-control')).toBe('private, no-store');
-    expect(version.body).toEqual({ version: read.body.version, crCount: 4 });
+    expect(version.body).toEqual({ version: read.body.version, crCount: HISTORY + 4 });
     const added = await call('POST', `${tracker}/queue`, p(), event('sarah'));
     expect(added.body.version).not.toBe(read.body.version);
     expect((await call('GET', `${tracker}/version`, p())).body.version).toBe(added.body.version);
@@ -143,20 +145,20 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
   it('creates a change request, appends and undoes changes, then marks it ready', async () => {
     const created = await call('POST', `${tracker}/crs`, p(), { title: 'Name the test plan' });
     expect(created.status).toBe(201);
-    expect(created.body.num).toBe(5);
-    expect(crOf(created, 5)).toMatchObject({
+    expect(created.body.num).toBe(storyCr(5));
+    expect(crOf(created, storyCr(5))).toMatchObject({
       author: demo.ids.minh,
       editor: demo.ids.minh,
       status: 'draft',
       revision: 0,
     });
-    const target = { ...p(), num: '5' };
+    const target = { ...p(), num: String(storyCr(5)) };
     const appended = await call('POST', `${tracker}/crs/[num]/ops`, target, {
       op: rename('Test plan'),
       expectedRevision: 0,
     });
     expect(appended.status).toBe(200);
-    expect(crOf(appended, 5)).toMatchObject({ revision: 1, ops: [{ op: 'rename' }] });
+    expect(crOf(appended, storyCr(5))).toMatchObject({ revision: 1, ops: [{ op: 'rename' }] });
     const stale = await call('POST', `${tracker}/crs/[num]/ops`, target, {
       op: rename('Stale'),
       expectedRevision: 0,
@@ -168,7 +170,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
       { ...target, index: 'last' },
       { expectedRevision: 1 },
     );
-    expect(crOf(undone, 5)).toMatchObject({ revision: 2, ops: [] });
+    expect(crOf(undone, storyCr(5))).toMatchObject({ revision: 2, ops: [] });
     await call('POST', `${tracker}/crs/[num]/ops`, target, {
       op: rename('Test plan v2'),
       expectedRevision: 2,
@@ -185,7 +187,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
     ).toBe(400);
     const ready = await call('POST', `${tracker}/crs/[num]/actions`, target, { action: 'ready' });
     expect(ready.status).toBe(200);
-    expect(crOf(ready, 5).status).toBe('ready');
+    expect(crOf(ready, storyCr(5)).status).toBe('ready');
     expect(
       (
         await call(
@@ -199,7 +201,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
   });
 
   it('merges a ready CR through the actions route only at the revision the owner saw', async () => {
-    const target = { ...p(), num: '2' };
+    const target = { ...p(), num: String(storyCr(2)) };
     const { revision } = crOf(await call('GET', tracker, p()), 2);
     const unseen = await call('POST', `${tracker}/crs/[num]/actions`, target, {
       action: 'merge',
@@ -215,8 +217,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
       expectedRevision: revision,
     });
     expect(merged.status).toBe(200);
-    expect(crOf(merged, 2)).toMatchObject({ status: 'merged', mergedRev: 2 });
-    expect(merged.body.commits.map((commit: { rev: number }) => commit.rev)).toEqual([1, 2]);
+    expect(crOf(merged, storyCr(2))).toMatchObject({ status: 'merged', mergedRev: HISTORY + 2 });
+    expect(merged.body.commits.map((commit: { rev: number }) => commit.rev)).toEqual(
+      Array.from({ length: HISTORY + 2 }, (_, i) => i + 1),
+    );
   });
 
   it('works as Lan after act-as: the cookie is set, and Lan cannot append to the CR of Minh', async () => {
@@ -294,7 +298,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
   });
 
   it('refuses request changes and close through the route without the revision the owner saw', async () => {
-    const target = { ...p(), num: '2' };
+    const target = { ...p(), num: String(storyCr(2)) };
     for (const body of [
       { action: 'request-changes', note: 'Split it.' },
       { action: 'close', reason: 'Not needed.' },
@@ -303,7 +307,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker REST routes', () => {
         status: 400,
         body: { code: 'VALIDATION' },
       });
-    expect(crOf(await call('GET', tracker, p()), 2).status).toBe('ready');
+    expect(crOf(await call('GET', tracker, p()), storyCr(2)).status).toBe('ready');
   });
 
   it('refuses a NUL character in any text with 400', async () => {

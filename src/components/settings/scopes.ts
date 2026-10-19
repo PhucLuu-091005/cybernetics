@@ -6,7 +6,7 @@ import {
   type Scope,
 } from '../../contracts';
 
-export type AllState = 'all' | 'some' | 'none';
+type AllState = 'all' | 'some' | 'none';
 
 export const allowedScopes = (creator: Creator): Scope[] =>
   SCOPE_INFO.filter((info) => scopeBlock(info, creator) === null).map((info) => info.scope);

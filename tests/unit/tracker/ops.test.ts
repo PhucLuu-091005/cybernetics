@@ -8,7 +8,9 @@ import {
   sameOp,
   type Op,
   type OpDescription,
+  secondMilestone,
 } from '../../../src/tracker/ops';
+import { mainState, type Commit } from '../../../src/tracker/clash';
 import { OpSchema, QueueEventInputSchema, TrackerStateSchema } from '../../../src/tracker/schemas';
 import {
   at,
@@ -545,6 +547,41 @@ describe('applyOp', () => {
     expect(applyOp(s, CASES[9][1]).state.milestones.find((m) => m.id === 'crm')?.name).toBe(
       'CRM sync live',
     );
+  });
+
+  it('refuses a new change that puts a work item in a second milestone; a move is remove then add', () => {
+    const s = larkspurState();
+    const taken =
+      'Dynamics CRM sync scope is in CRM integration live already. Remove it from that milestone first.';
+    const add = (workItemId: string, milestoneId: string) =>
+      makeOp('msAdd', { workItemId, milestoneId });
+    expect(secondMilestone(s, add('dynamics', 'golive'))).toBe(taken);
+    expect(
+      secondMilestone(
+        s,
+        makeOp('newMs', { id: 'm9', name: 'X', planned: '2026-10-20', members: ['dynamics'] }),
+      ),
+    ).toBe(taken);
+    expect(secondMilestone(s, add('pg203', 'golive'))).toBeNull();
+    expect(secondMilestone(s, add('dynamics', 'crm'))).toBeNull();
+    const removed = applyOp(s, makeOp('msRemove', { workItemId: 'dynamics' })).state;
+    expect(secondMilestone(removed, add('dynamics', 'golive'))).toBeNull();
+  });
+
+  it('replays an old merged single msAdd as a move, so history keeps its result', () => {
+    const commits: Commit[] = [
+      {
+        rev: 1,
+        crId: 'old',
+        crNum: 1,
+        mergedBy: 'minh',
+        mergedAt: at('2026-10-01T10:00'),
+        ops: [makeOp('msAdd', { workItemId: 'dynamics', milestoneId: 'golive' })],
+        resolutions: [],
+      },
+    ];
+    const main = mainState(larkspurBase(), larkspurQueueRows(), commits);
+    expect(main.workItems.find((w) => w.id === 'dynamics')?.milestoneId).toBe('golive');
   });
 
   it('addTeam appends the team', () => {

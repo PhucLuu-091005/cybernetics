@@ -90,7 +90,7 @@ export type QueueRow = {
   createdAt: string;
 } & ({ kind: 'event'; payload: QueueEventInput } | { kind: 'item'; payload: QueueItemInput });
 
-export type TrackerProject = {
+type TrackerProject = {
   id: string;
   title: string;
   clientName: string;

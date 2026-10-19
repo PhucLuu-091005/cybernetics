@@ -3,7 +3,7 @@ import type { ActorContext } from '../../src/contracts';
 import { workspaceMembers } from '../../src/server/db/schema';
 import { withTransaction, type Db } from '../../src/server/db/tx';
 import { seedTrackerDemo } from '../../src/server/tracker';
-import { LARKSPUR_STORY_NOW } from '../../src/server/tracker/seed/larkspur';
+import { LARKSPUR_STORY_NOW, larkspurHistory } from '../../src/server/tracker/seed/larkspur';
 import { testActor } from './db';
 
 export type Demo = {
@@ -36,3 +36,8 @@ export async function workspaceGuest(db: Db, owner: ActorContext): Promise<Actor
     .values({ workspaceId: owner.workspaceId, userId: guest.userId });
   return { ...guest, workspaceId: owner.workspaceId, requestId: randomUUID() };
 }
+
+/** The merged history change requests take the low numbers; the story's own ones follow. */
+export const HISTORY = larkspurHistory().crs.length;
+/** The stored number of the story's change request #n (1 is "Explain the go-live slip"). */
+export const storyCr = (n: number) => HISTORY + n;

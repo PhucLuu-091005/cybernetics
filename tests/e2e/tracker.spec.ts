@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { centerOf, choose, drag, hydrated } from './helpers';
+import { centerOf, choose, crUrl, drag, HISTORY, hydrated, manyClashes, storyCr } from './helpers';
 
 type TrackerRead = {
   crs: Array<{
@@ -147,8 +147,8 @@ test.describe('the tracker walkthrough', () => {
       await actAs(page, 'Lan Phạm');
       await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
       await dialog.getByRole('button', { name: 'Create', exact: true }).click();
-      await page.waitForURL(/\/changes\/5$/);
-      await expect(bar).toContainText('#5');
+      await page.waitForURL(crUrl(5));
+      await expect(bar).toContainText(`#${storyCr(5)}`);
       await expect(bar).toContainText('You are editing');
       await expect(side.getByRole('button', { name: /^Queue/ })).toHaveAttribute(
         'aria-pressed',
@@ -195,21 +195,23 @@ test.describe('the tracker walkthrough', () => {
       await expect(undo).toBeVisible();
     });
 
-    await test.step('4. Lan shares #5 with Khoa, Can edit', async () => {
+    await test.step(`4. Lan shares #${storyCr(5)} with Khoa, Can edit`, async () => {
       await bar.getByRole('button', { name: 'Share' }).click();
-      await expect(dialog.getByLabel('Link')).toHaveValue(/\/projects\/[0-9a-f-]{36}\/changes\/5$/);
+      await expect(dialog.getByLabel('Link')).toHaveValue(
+        new RegExp(`/projects/[0-9a-f-]{36}/changes/${storyCr(5)}$`),
+      );
       await choose(dialog.getByLabel('Person'), 'Khoa Lê');
       await choose(dialog.getByLabel('Access', { exact: true }), 'Can edit');
       await dialog.getByRole('button', { name: 'Add', exact: true }).click();
-      await expect(toast).toContainText('Khoa Lê can edit #5. Send them the link.');
+      await expect(toast).toContainText(`Khoa Lê can edit #${storyCr(5)}. Send them the link.`);
       await expect(dialog.getByLabel('Access for Khoa Lê')).toHaveText('Can edit');
       await dialog.getByRole('button', { name: 'Done' }).click();
       await expect(dialog).toHaveCount(0);
     });
 
-    await test.step('5. Khoa opens #5 while Lan edits and asks to edit', async () => {
+    await test.step(`5. Khoa opens #${storyCr(5)} while Lan edits and asks to edit`, async () => {
       await actAs(page, 'Khoa Lê');
-      await expect(page).toHaveURL(/\/changes\/5$/);
+      await expect(page).toHaveURL(crUrl(5));
       await expect(bar).toContainText('Lan is editing');
       await bar.getByRole('button', { name: 'Ask to edit' }).click();
       await expect(bar).toContainText('Waiting for Lan');
@@ -218,7 +220,7 @@ test.describe('the tracker walkthrough', () => {
     await test.step('6. Lan sees the ask and hands over', async () => {
       await actAs(page, 'Lan Phạm');
       const ask = page.locator('.ask-row');
-      await expect(ask).toContainText('Khoa Lê asks to edit #5.');
+      await expect(ask).toContainText(`Khoa Lê asks to edit #${storyCr(5)}.`);
       await ask.getByRole('button', { name: 'Hand over' }).click();
       await expect(bar).toContainText('Khoa is editing');
     });
@@ -233,17 +235,19 @@ test.describe('the tracker walkthrough', () => {
       await expect(bar).toContainText('3 changes');
     });
 
-    await test.step('8. Khoa marks #5 as ready, which locks it', async () => {
+    await test.step(`8. Khoa marks #${storyCr(5)} as ready, which locks it`, async () => {
       await bar.getByRole('button', { name: 'Mark as ready' }).click();
-      await expect(toast).toContainText('#5 is ready. Minh Trần or Quang Nguyễn can merge it now.');
+      await expect(toast).toContainText(
+        `#${storyCr(5)} is ready. Minh Trần or Quang Nguyễn can merge it now.`,
+      );
       await expect(bar).toContainText('Ready to merge');
       await expect(bar).toContainText('Locked. Waiting for Minh or Quang.');
       await expect(bar.getByRole('button', { name: 'Edit again' })).toBeVisible();
     });
 
-    await test.step('9. Minh opens #2 from the Change requests button and merges it into Main', async () => {
+    await test.step(`9. Minh opens #${storyCr(2)} from the Change requests button and merges it into Main`, async () => {
       await actAs(page, 'Minh Trần');
-      await expect(page).toHaveURL(/\/changes\/5$/);
+      await expect(page).toHaveURL(crUrl(5));
       const requests = page.getByRole('button', { name: 'Change requests, 3 ready to merge' });
       await expect(requests.locator('.nbadge')).toHaveText('3');
       await requests.click();
@@ -252,8 +256,8 @@ test.describe('the tracker walkthrough', () => {
         .getByRole('button', { name: 'Review and merge' })
         .last()
         .click();
-      await page.waitForURL(/\/changes\/2$/);
-      await expect(bar).toContainText('#2');
+      await page.waitForURL(crUrl(2));
+      await expect(bar).toContainText(`#${storyCr(2)}`);
       await expect(page.getByRole('button', { name: 'After', exact: true })).toHaveAttribute(
         'aria-pressed',
         'true',
@@ -263,14 +267,14 @@ test.describe('the tracker walkthrough', () => {
       await expect(page.getByRole('tab')).toHaveCount(0);
       await bar.getByRole('button', { name: 'Merge into Main' }).click();
       await expect(bar).toContainText('Merged into Main by Minh Trần');
-      await expect(toast).toContainText('#2 is in Main now.');
+      await expect(toast).toContainText(`#${storyCr(2)} is in Main now.`);
       const tracker = await readTracker(page, projectId);
-      expect(tracker.crs.find((c) => c.num === 2)?.status).toBe('merged');
-      expect(tracker.commits).toHaveLength(2);
+      expect(tracker.crs.find((c) => c.num === storyCr(2))?.status).toBe('merged');
+      expect(tracker.commits).toHaveLength(HISTORY + 2);
     });
 
-    await test.step('10. Minh resolves the PG-203 name clash in #3 and merges', async () => {
-      await openCr(3);
+    await test.step(`10. Minh resolves the PG-203 name clash in #${storyCr(3)} and merges`, async () => {
+      await openCr(storyCr(3));
       await expect(bar).toContainText('1 clash with Main');
       const merge = bar.getByRole('button', { name: 'Merge into Main' });
       await expect(page.locator('.res-box')).toBeVisible();
@@ -278,14 +282,16 @@ test.describe('the tracker walkthrough', () => {
       await page.locator('.res-box input[type=radio][value="cr"]').first().check();
       await expect(merge).toBeEnabled();
       await merge.click();
-      await expect(bar).toContainText('#3');
+      await expect(bar).toContainText(`#${storyCr(3)}`);
       await expect(bar).toContainText('Merged into Main by Minh Trần');
-      const commit = (await readTracker(page, projectId)).commits.find((c) => c.crNum === 3);
+      const commit = (await readTracker(page, projectId)).commits.find(
+        (c) => c.crNum === storyCr(3),
+      );
       expect(commit?.resolutions.map((r) => r.chose)).toEqual(['cr']);
     });
 
-    await test.step('11. Minh asks for changes on #5; Khoa reads the note and marks it ready again', async () => {
-      await openCr(5);
+    await test.step(`11. Minh asks for changes on #${storyCr(5)}; Khoa reads the note and marks it ready again`, async () => {
+      await openCr(storyCr(5));
       await expect(changes).toContainText('Why: Lan sends the country list on 10 October');
       await bar.getByRole('button', { name: 'Request changes' }).click();
       const send = dialog.getByRole('button', { name: 'Send back to draft' });
@@ -294,40 +300,76 @@ test.describe('the tracker walkthrough', () => {
         .getByLabel('What should change?')
         .fill('Add the date Lan promised for the country list.');
       await send.click();
-      await expect(toast).toContainText('#5 is a draft again. Khoa Lê sees your note.');
+      await expect(toast).toContainText(`#${storyCr(5)} is a draft again. Khoa Lê sees your note.`);
       await expect(bar.locator('.chipx').first()).toHaveText('Draft');
       await expect(page.getByText('This change request changed since you opened it.')).toHaveCount(
         0,
       );
       await expect
-        .poll(async () => (await readTracker(page, projectId)).crs.find((c) => c.num === 5)?.status)
+        .poll(
+          async () =>
+            (await readTracker(page, projectId)).crs.find((c) => c.num === storyCr(5))?.status,
+        )
         .toBe('draft');
 
       await visit(page, graph);
       await actAs(page, 'Khoa Lê');
-      await page.waitForURL(/\/changes\/5$/);
+      await page.waitForURL(crUrl(5));
       await expect(bar).toContainText(
         'Minh Trần asked for changes: Add the date Lan promised for the country list.',
       );
       await bar.getByRole('button', { name: 'Mark as ready' }).click();
-      await expect(toast).toContainText('#5 is ready');
+      await expect(toast).toContainText(`#${storyCr(5)} is ready`);
     });
 
     await test.step('12. History lists the merges, and Open goes to the change request page', async () => {
       await page.locator('.p-head').getByRole('button', { name: 'History' }).click();
       const history = page.locator('.drawer');
-      for (const text of ['#3', '#2', '#1', '1 clash resolved'])
+      for (const text of [`#${storyCr(3)}`, `#${storyCr(2)}`, `#${storyCr(1)}`])
         await expect(history).toContainText(text);
-      await history.getByRole('button', { name: 'Open #3' }).click();
-      await page.waitForURL(/\/changes\/3$/);
-      await expect(bar).toContainText('#3');
+      const rows = history.locator('.hist > li');
+      await expect(rows.first()).toHaveText(
+        new RegExp(
+          `^#${storyCr(3)} PG-203 is on staging\\s*Latest\\s*QN\\s*by Quang Nguyễn · merged by Minh Trần · \\d+ \\w+ \\d{2}:\\d{2}$`,
+        ),
+      );
+      await expect(rows.filter({ hasText: `#${storyCr(1)} Explain the go-live slip` })).toHaveText(
+        new RegExp(
+          `^#${storyCr(1)} Explain the go-live slip\\s*MT\\s*by Minh Trần · \\d+ \\w+ \\d{2}:\\d{2}$`,
+        ),
+      );
+      await expect(history.locator('.hist ul')).toHaveCount(0);
+      await expect(history).not.toContainText('clash resolved');
+      // Every merge from the empty project, newest first, then the Start row.
+      await expect(rows).toHaveCount(HISTORY + 3 + 1);
+      await expect(rows.nth(HISTORY + 2)).toContainText('#1 Set up teams and milestones');
+      await expect(rows.nth(HISTORY + 2)).toContainText('by Minh Trần · merged by Quang Nguyễn');
+      await expect(rows.last()).toContainText('Start');
+      await history.getByRole('button', { name: 'Open #1 Set up teams and milestones' }).click();
+      await page.waitForURL(/\/changes\/1$/);
+      await expect(bar).toContainText('Read-only history.');
+      await expect(page.getByRole('list', { name: 'Changes' })).toContainText('Implementation');
+      // The Main card is for Main only; a change request with no work items says so in one line.
+      const quiet = page.getByRole('note').filter({ hasText: 'No work items in this view.' });
+      for (const side of ['After', 'Before']) {
+        await page.getByRole('button', { name: side, exact: true }).click();
+        await expect(page.locator('.empty')).toHaveCount(0);
+        await expect(quiet).toBeVisible();
+      }
+      await page.locator('.p-head').getByRole('button', { name: 'History' }).click();
+      await history.getByRole('button', { name: `Open #${storyCr(3)}` }).click();
+      await page.waitForURL(crUrl(3));
+      await expect(bar).toContainText(`#${storyCr(3)}`);
     });
 
-    await test.step('13. Merged #1 is read-only history: no Queue and no drag', async () => {
+    await test.step(`13. Merged #${storyCr(1)} is read-only history: no Queue and no drag`, async () => {
       await visit(page, graph);
       await page.locator('.p-head').getByRole('button', { name: 'History' }).click();
-      await page.locator('.drawer').getByRole('button', { name: 'Open #1' }).click();
-      await page.waitForURL(/\/changes\/1$/);
+      await page
+        .locator('.drawer')
+        .getByRole('button', { name: `Open #${storyCr(1)}` })
+        .click();
+      await page.waitForURL(crUrl(1));
       await expect(bar).toContainText('Read-only history.');
       await expect(
         page.locator('.p-head').getByRole('button', { name: 'New change request' }),
@@ -340,33 +382,33 @@ test.describe('the tracker walkthrough', () => {
       await expect(page.locator('svg.pg [data-act][data-in="test"]')).toHaveCount(0);
     });
 
-    await test.step('14. Quang asks Hà for edit access to #4, and Hà grants Can edit', async () => {
-      await openCr(4);
+    await test.step(`14. Quang asks Hà for edit access to #${storyCr(4)}, and Hà grants Can edit`, async () => {
+      await openCr(storyCr(4));
       await actAs(page, 'Quang Nguyễn');
       await expect(bar).toContainText('View only.');
       await bar.getByRole('button', { name: 'Ask for edit access' }).click();
       await expect(bar).toContainText('Waiting for Hà');
       await actAs(page, 'Hà Đỗ');
       const ask = page.locator('.ask-row');
-      await expect(ask).toContainText('Quang Nguyễn asks for edit access to #4.');
+      await expect(ask).toContainText(`Quang Nguyễn asks for edit access to #${storyCr(4)}.`);
       await ask.getByRole('button', { name: 'Grant Can edit' }).click();
-      await expect(toast).toContainText('Quang Nguyễn can edit #4 now.');
+      await expect(toast).toContainText(`Quang Nguyễn can edit #${storyCr(4)} now.`);
       await expect(ask).toHaveCount(0);
       const tracker = await readTracker(page, projectId);
       const quang = tracker.members.find((m) => m.name === 'Quang Nguyễn')?.id;
-      expect(tracker.crs.find((c) => c.num === 4)?.shares).toContainEqual({
+      expect(tracker.crs.find((c) => c.num === storyCr(4))?.shares).toContainEqual({
         memberId: quang,
         permission: 'edit',
       });
     });
 
-    await test.step('15. Hà cancels #4 with a reason; the header and History show it', async () => {
+    await test.step(`15. Hà cancels #${storyCr(4)} with a reason; the header and History show it`, async () => {
       await bar.getByRole('button', { name: 'Cancel change request' }).click();
       const confirm = dialog.getByRole('button', { name: 'Cancel change request' });
       await expect(confirm).toBeDisabled();
       await dialog.getByLabel('Reason').fill('Main has these test dates already.');
       await confirm.click();
-      await expect(toast).toContainText('#4 is cancelled. Nothing went into Main.');
+      await expect(toast).toContainText(`#${storyCr(4)} is cancelled. Nothing went into Main.`);
       await expect(bar).toContainText('Closed');
       await expect(bar).toContainText('Cancelled by Hà Đỗ');
       await expect(bar).toContainText('Reason: Main has these test dates already.');
@@ -396,7 +438,7 @@ test.describe('a drag right after a change', () => {
     await actAs(page, 'Lan Phạm');
     await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
     await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
-    await page.waitForURL(/\/changes\/5$/);
+    await page.waitForURL(crUrl(5));
     const card = (text: string) => page.locator('[data-qevent]', { hasText: text });
     await drag(
       page,
@@ -475,13 +517,13 @@ test.describe('the top bar', () => {
     await view.click();
     await page
       .locator('.gmenu')
-      .getByRole('button', { name: /#4 Test plan/ })
+      .getByRole('button', { name: new RegExp(`#${storyCr(4)} Test plan`) })
       .click();
-    await page.waitForURL(/\/changes\/4$/);
-    await expect(view).toContainText('#4 Test plan for the CRS section');
+    await page.waitForURL(crUrl(4));
+    await expect(view).toContainText(`#${storyCr(4)} Test plan for the CRS section`);
 
     await actAs(page, 'Hà Đỗ');
-    await expect(page).toHaveURL(/\/changes\/4$/);
+    await expect(page).toHaveURL(crUrl(4));
     await expect(bar).toContainText('You are editing');
     for (const name of ['Share', 'Mark as ready', 'Cancel change request'])
       await expect(bar.getByRole('button', { name })).toBeVisible();
@@ -492,22 +534,22 @@ test.describe('the top bar', () => {
     await expect(bar.getByRole('button', { name: /^Open #/ })).toHaveCount(0);
     await head.getByRole('button', { name: /^Change requests/ }).click();
     await page
-      .locator('.drawer .req', { hasText: '#4 Test plan for the CRS section' })
+      .locator('.drawer .req', { hasText: `#${storyCr(4)} Test plan for the CRS section` })
       .getByRole('button', { name: 'Open' })
       .click();
-    await page.waitForURL(/\/changes\/4$/);
+    await page.waitForURL(crUrl(4));
     await visit(page, graph);
     await actAs(page, 'Minh Trần');
     await head.getByRole('button', { name: 'New change request' }).click();
     const dialog = page.locator('.m-card');
     await dialog.getByRole('button', { name: 'Create', exact: true }).click();
-    await page.waitForURL(/\/changes\/5$/);
-    await expect(bar).toContainText('#5');
+    await page.waitForURL(crUrl(5));
+    await expect(bar).toContainText(`#${storyCr(5)}`);
 
-    await page.goto(`${graph}?cr=2`);
-    await page.waitForURL(/\/changes\/2$/);
-    await page.goto(`/projects/${projectId}/changes/2?tab=talk`);
-    await expect(bar).toContainText('#2');
+    await page.goto(`${graph}?cr=${storyCr(2)}`);
+    await page.waitForURL(crUrl(2));
+    await page.goto(`/projects/${projectId}/changes/${storyCr(2)}?tab=talk`);
+    await expect(bar).toContainText(`#${storyCr(2)}`);
     await expect(page.getByRole('tab')).toHaveCount(0);
     await expect(page.getByText('Conversation')).toHaveCount(0);
     await expect(page.locator('.p-head details.acct summary b')).toHaveText('Minh Trần');
@@ -555,13 +597,12 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     );
 
     await expect(goLive).toHaveCount(5);
-    // Legal review routing finished before the board starts, so three member rows show it.
-    await expect(crm).toHaveCount(3);
+    await expect(crm).toHaveCount(4);
     await expect(page.locator('svg.pg-rail, svg.tg .ms-chip, svg.tg .goal')).toHaveCount(0);
     await expect(page.locator('svg.tg [data-ms="crm"] .ms-c')).toHaveCount(1);
 
     await crm.first().locator('.deadline-mark').hover();
-    await expect(tip).toContainText('CRM integration live · deadline 18 Sept · Late');
+    await expect(tip).toContainText('CRM integration live · deadline 18 Sept 17:00 · Late');
     await crm.first().focus();
     await page.keyboard.press(' ');
     await expect(drawer).toContainText('CRM integration live');
@@ -687,12 +728,12 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
 
     await expect(
       page.locator('svg.pg .deadline[aria-label^="CRM integration live · deadline 18 Sept 12:00"]'),
-    ).toHaveCount(3);
+    ).toHaveCount(4);
     await expect(page.locator('svg.tg [data-ms="crm"]')).toHaveAttribute(
       'aria-label',
-      /CRM integration live · 18 Sept 12:00 · Late \(was 18 Sept\)/,
+      /CRM integration live · 18 Sept 12:00 · Late \(was 18 Sept 17:00\)/,
     );
-    await expect(drawer).toContainText('18 Sept → 18 Sept 12:00');
+    await expect(drawer).toContainText('18 Sept 17:00 → 18 Sept 12:00');
 
     await page.keyboard.press('Escape');
     const zoomIn = page.getByRole('button', { name: 'Zoom in' });
@@ -710,6 +751,163 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     const after = await x(page.locator('svg.pg [data-act="m3"]'));
     expect(before).toBeLessThan(at);
     expect(at).toBeLessThan(after);
+  });
+
+  test('many clashes: a count, keep one side for all, the next to pick, and a jump to each spot', async ({
+    page,
+  }) => {
+    const { projectId, graph } = await signIn(page, 'tracker-many-clashes');
+    const num = await manyClashes(page, projectId);
+    await visit(page, crPath(graph, num));
+    const box = page.getByRole('region', { name: 'Clashes with Main' });
+    const bar = page.locator('.bbar').first();
+    const merge = bar.getByRole('button', { name: 'Merge into Main' });
+    await expect(box).toContainText('5 clashes with Main');
+    await expect(box.locator('.res-count')).toHaveText('0 of 5 picked');
+    await expect(merge).toBeDisabled();
+    await expect(bar.locator('.merge-wait')).toContainText('Pick a version for');
+
+    await box.getByRole('button', { name: /^Next to pick: / }).click();
+    await expect(box.locator('.conf').first().getByRole('radio').first()).toBeFocused();
+    await box.locator('.conf').first().getByRole('radio').first().check();
+    await expect(box.locator('.res-count')).toHaveText('1 of 5 picked');
+
+    await box.getByRole('button', { name: 'Keep this change request for all' }).click();
+    await expect(box.locator('.res-count')).toHaveText('5 of 5 picked');
+    await expect(box.getByRole('button', { name: /^Next to pick/ })).toHaveCount(0);
+    await expect(bar.locator('.merge-wait')).toHaveCount(0);
+    await expect(merge).toBeEnabled();
+    await box.getByRole('button', { name: 'Keep Main for all' }).click();
+    await expect(box.getByRole('radio', { checked: true })).toHaveCount(5);
+    await expect(bar.locator('.merge-wait')).toHaveCount(0);
+
+    await box
+      .getByRole('button', { name: /^Dynamics/ })
+      .first()
+      .click();
+    await expect(page.locator('svg.pg .hit.flash[data-loop="dynamics"]')).toHaveCount(1);
+    await box
+      .getByRole('button', { name: /^Go-live/ })
+      .first()
+      .click();
+    await expect(page.locator('.drawer h4')).toContainText('Go-live');
+  });
+
+  test('a handoff jump holds its highlight for about 3 s and fades, or holds it still with reduced motion', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-hand-flash');
+    const handoff = page.getByRole('button', {
+      name: 'Hands over to Digitization QA when done · received in Test the CRS section end to end',
+    });
+    const flash = page.locator('svg.pg .hit.flash[data-loop="test"]');
+    await handoff.click();
+    await expect(flash).toHaveCount(1);
+    expect(await flash.evaluate((el) => getComputedStyle(el).animationName)).toBe('row-flash');
+    await page.waitForTimeout(2200);
+    await expect(flash).toHaveCount(1);
+    await expect(flash).toHaveCount(0, { timeout: 2000 });
+
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await handoff.click();
+    await expect(flash).toHaveCount(1);
+    expect(await flash.evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
+    await expect(flash).toHaveCount(0, { timeout: 4000 });
+  });
+
+  test('a milestone deadline time shows on the axis, in its drawer and in the New milestone form', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-ms-time');
+    const drawer = page.locator('.drawer');
+    await expect(page.locator('svg.tg [data-ms="golive"] .ms-label')).toContainText(
+      'Go-live and first close · 15 Oct 17:00',
+    );
+    await page.locator('svg.tg [data-ms="golive"] .ms-hit').click();
+    await expect(drawer.locator('dd').filter({ hasText: '15 Oct 17:00' })).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
+    await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/changes\/\d+$/);
+    await page.getByRole('button', { name: 'New milestone' }).click();
+    const dialog = page.getByRole('dialog', { name: 'New milestone' });
+    await expect(dialog.getByLabel('Time (optional)')).toBeVisible();
+    await expect(
+      dialog.getByRole('checkbox', { name: 'PG-203 Country list field type' }),
+    ).toBeVisible();
+    await expect(dialog.getByRole('checkbox', { name: 'Dynamics CRM sync scope' })).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await page.locator('svg.tg [data-ms="crm"] .ms-hit').click();
+    await page.locator('.drawer').getByLabel('Work item to add').click();
+    const options = page.getByRole('option');
+    await expect(options.filter({ hasText: 'PG-203 Country list field type' })).toHaveCount(1);
+    await expect(options.filter({ hasText: 'Go-live date' })).toHaveCount(0);
+  });
+
+  test('a selected milestone lights its work items and dims the others until its drawer closes', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-ms-light');
+    const drawer = page.locator('.drawer');
+    const rowLabel = (id: string) => page.locator(`svg.pg-side .row-label[data-label="${id}"]`);
+    await expect(page.locator('svg.pg-side .row-label.dim')).toHaveCount(0);
+
+    await page.locator('svg.tg [data-ms="crm"] .ms-hit').click();
+    await expect(drawer.locator('h4')).toHaveText('CRM integration live');
+    await expect(rowLabel('dynamics')).toHaveClass(/\bsel\b/);
+    await expect(rowLabel('dynamics')).not.toHaveClass(/\bdim\b/);
+    await expect(rowLabel('golive')).toHaveClass(/\bdim\b/);
+    await expect(page.locator('svg.pg-side .hit.sel[data-rowlabel="dynamics"]')).toHaveCount(1);
+    await expect(page.locator('svg.pg .seg.dim').first()).toBeAttached();
+
+    await page.keyboard.press('Escape');
+    await expect(drawer).toHaveCount(0);
+    await expect(page.locator('svg.pg-side .row-label.dim')).toHaveCount(0);
+    await expect(page.locator('svg.pg .seg.dim')).toHaveCount(0);
+
+    await page.locator('svg.tg [data-ms="crm"] .ms-hit').click();
+    await drawer.getByRole('button', { name: 'Sync monitoring' }).click();
+    await expect(drawer).toHaveAttribute('aria-label', 'Sync monitoring');
+    await expect(page.locator('svg.pg-side .hit.sel[data-rowlabel="syncmon"]')).toHaveCount(1);
+    await expect(page.locator('svg.pg-side .row-label.dim')).toHaveCount(0);
+  });
+
+  test('a long name stops at the server limit with a counter, and a bad date keeps its text with an error', async ({
+    page,
+  }) => {
+    await signIn(page, 'tracker-limits');
+    const dialog = page.locator('.m-card');
+    const drawer = page.locator('.drawer');
+    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
+    const name = dialog.getByLabel('Name');
+    await name.fill('x'.repeat(400));
+    await expect(name).toHaveValue('x'.repeat(200));
+    await expect(dialog.locator('.count')).toHaveText('200/200');
+    await name.fill('Lan changes');
+    await expect(dialog.locator('.count')).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/changes\/\d+$/);
+
+    await page.getByRole('combobox', { name: 'Search work items' }).fill('PG-203');
+    await expect(page.getByRole('option').first()).toContainText('PG-203 Country list field type');
+    await page.keyboard.press('Enter');
+    const planned = drawer.getByLabel('Planned finish');
+    await expect(planned).toHaveValue('6 Oct 2026');
+    const error = drawer.getByText('Not a date. Use e.g. 12 Oct 2026');
+    for (const text of ['31 Feb 2026', 'yesterday']) {
+      await planned.fill(text);
+      await planned.press('Tab');
+      await expect(planned).toHaveValue(text);
+      await expect(planned).toHaveAttribute('aria-invalid', 'true');
+      await expect(error).toBeVisible();
+      await expect(planned).toHaveAccessibleDescription('Not a date. Use e.g. 12 Oct 2026');
+      await planned.focus();
+      await page.keyboard.press('Escape');
+      await expect(drawer).toBeVisible();
+      await expect(planned).toHaveValue('6 Oct 2026');
+      await expect(error).toHaveCount(0);
+    }
+    await expect(drawer.getByLabel(/Why does the date move/)).toHaveCount(0);
   });
 
   test('date and time boxes use the app format and their own calendar and time list', async ({
@@ -742,6 +940,9 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(date).toHaveValue('20 Sept 2026');
 
     const time = drawer.getByLabel('Time (optional)');
+    await expect(time).toHaveValue('17:00');
+    await time.fill('');
+    await time.press('Tab');
     await expect(time).toHaveValue('');
     await expect(time).toHaveAttribute('placeholder', 'Time');
     const times = page.getByRole('listbox', { name: 'Times' });
@@ -777,8 +978,14 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await retype('25:00');
     await expect(time).toHaveAttribute('aria-invalid', 'true');
     await time.press('Tab');
+    await expect(time).toHaveValue('25:00');
+    await expect(drawer.getByText('Not a time. Use e.g. 14:30')).toBeVisible();
+    await time.focus();
+    await page.keyboard.press('Escape');
+    await expect(drawer).toBeVisible();
     await expect(time).toHaveValue('17:00');
     await expect(time).not.toHaveAttribute('aria-invalid');
+    await expect(drawer.getByText('Not a time. Use e.g. 14:30')).toHaveCount(0);
     await retype('143');
     await time.press('Tab');
     await expect(time).toHaveValue('01:43');
@@ -790,8 +997,12 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await date.fill('soon');
     await expect(date).toHaveAttribute('aria-invalid', 'true');
     await time.focus();
-    await expect(date).toHaveValue('20 Sept 2026');
+    await expect(date).toHaveValue('soon');
+    await expect(drawer.getByText('Not a date. Use e.g. 12 Oct 2026')).toBeVisible();
+    await date.fill('20 Sept 2026');
+    await time.focus();
     await expect(date).not.toHaveAttribute('aria-invalid');
+    await expect(drawer.getByText('Not a date. Use e.g. 12 Oct 2026')).toHaveCount(0);
 
     await drawer.getByRole('button', { name: 'Save milestone' }).click();
     await expect(dialog).toContainText('Move the milestone date');
@@ -819,7 +1030,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(dialog).toHaveCount(0);
     await expect(
       page.locator('svg.pg .deadline[aria-label^="CRM integration live · deadline 2 Oct 14:30"]'),
-    ).toHaveCount(3);
+    ).toHaveCount(4);
 
     await page
       .locator('.cr-side')
@@ -834,7 +1045,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await whenDate.press('ControlOrMeta+a');
     await whenDate.pressSequentially('6 Oct 0202');
     await whenDate.press('Tab');
-    await expect(whenDate).toHaveValue('9 Oct 2026');
+    await expect(whenDate).toHaveValue('6 Oct 0202');
+    await expect(when.getByText('Not a date. Use e.g. 12 Oct 2026')).toBeVisible();
     await whenDate.press('ControlOrMeta+a');
     await whenDate.pressSequentially('8 Oct');
     await whenDate.press('Enter');
@@ -974,7 +1186,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     const rows = page.locator('svg.pg [data-loop]');
     const control = page.locator('.tfilter-btn');
     const search = page.getByRole('combobox', { name: 'Search work items' });
-    await expect(rows).toHaveCount(14);
+    await expect(rows).toHaveCount(15);
 
     await control.click();
     const panel = page.getByRole('group', { name: 'Filter the graph' });
@@ -999,7 +1211,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(rows).toHaveCount(5);
     await control.click();
     await page.getByRole('button', { name: 'Clear filters' }).click();
-    await expect(rows).toHaveCount(14);
+    await expect(rows).toHaveCount(15);
     await expect(page.locator('summary[aria-label="Filters"]')).toHaveCount(1);
     await page.keyboard.press('Escape');
 
@@ -1011,7 +1223,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(drawer).toBeFocused();
     expect(await drawer.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('none');
     await expect(search).toHaveValue('');
-    await expect(rows).toHaveCount(14);
+    await expect(rows).toHaveCount(15);
   });
 
   test('the axis stays pinned while the rows scroll, and follows the sideways scroll', async ({
@@ -1155,7 +1367,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     const side = page.locator('svg.pg-side');
     const tip = page.getByRole('tooltip');
     const fit = page.getByRole('button', { name: 'Fit to width' });
-    await expect(rows).toHaveCount(14);
+    await expect(rows).toHaveCount(15);
 
     await test.step('one mark per source lists every handoff, and a click on a receiver shows it', async () => {
       await expect(page.locator('svg.tg path.link, svg.tg path.stem')).toHaveCount(0);
@@ -1223,13 +1435,12 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       const teamFocus = side.getByRole('button', { name: 'Focus on Digitization', exact: true });
       await teamFocus.click();
       await expect(teamFocus).toHaveAttribute('aria-pressed', 'true');
-      // Legal review routing finished before the board starts: the panel lists it, the graph does not.
-      await expect(rows).toHaveCount(5);
+      await expect(rows).toHaveCount(6);
       const panel = page.getByRole('complementary', { name: 'Focus on Digitization' });
       await expect(panel).toContainText('6 work items');
       await expect(panel).toContainText('Legal review routing');
       await page.keyboard.press('Escape');
-      await expect(rows).toHaveCount(14);
+      await expect(rows).toHaveCount(15);
       await expect(teamFocus).toHaveAttribute('aria-pressed', 'false');
     });
 
@@ -1254,17 +1465,17 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
         }),
       ).toBeVisible();
       await page.keyboard.press('Escape');
-      await expect(rows).toHaveCount(14);
+      await expect(rows).toHaveCount(15);
       const focusPg201 = side.getByRole('button', { name: 'Focus on PG-201 CRS form logic' });
       await focusPg201.click();
       await expect(rows).toHaveCount(2);
       await expect(focusPg201).toHaveAttribute('aria-pressed', 'true');
       await focusPg201.click();
-      await expect(rows).toHaveCount(14);
+      await expect(rows).toHaveCount(15);
       await expect(focusPg201).toHaveAttribute('aria-pressed', 'false');
       await focusPg201.click();
       await page.getByRole('complementary').getByRole('button', { name: 'Leave focus' }).click();
-      await expect(rows).toHaveCount(14);
+      await expect(rows).toHaveCount(15);
     });
 
     await test.step('hiding the team of the focused row ends the focus, and the parent link shows a hidden parent', async () => {
@@ -1283,7 +1494,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await expect(page.getByRole('complementary')).toHaveCount(0);
       await page.locator('.hid-menu > summary').click();
       await page.getByRole('button', { name: 'Unhide Digitization' }).click();
-      await expect(rows).toHaveCount(14);
+      await expect(rows).toHaveCount(15);
       // The badge goes away with the last hidden row, so the focus moves to the control before it.
       await expect(page.locator('.bbar .gpick > summary')).toBeFocused();
 
@@ -1297,7 +1508,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await expect(row('crs')).toHaveCount(1);
       await expect(rows).toHaveCount(6);
       await page.keyboard.press('Escape');
-      await expect(rows).toHaveCount(14);
+      await expect(rows).toHaveCount(15);
       await expect(page.locator('.hid-menu')).toHaveCount(0);
     });
 
@@ -1307,7 +1518,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await side.locator('[data-eyeteam="engineering"]').click();
       await side.locator('[data-eyerow="pg201"]').click();
       await side.locator('[data-eyerow="pg202"]').click();
-      await expect(rows).toHaveCount(8);
+      await expect(rows).toHaveCount(9);
       await expect(side.locator('[data-eyeteam="engineering"]')).toHaveCount(0);
       await expect(side.locator('[data-eyeteam="solutions-engineering"]')).toHaveCount(0);
       await expect(side.getByText(/hidden/)).toHaveCount(0);
@@ -1329,7 +1540,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await expect(row('pg201')).toHaveCount(1);
       await expect(badge).toContainText('2 hidden');
       await list.getByRole('button', { name: 'Unhide all' }).click();
-      await expect(rows).toHaveCount(14);
+      await expect(rows).toHaveCount(15);
       await expect(page.locator('.hid-menu')).toHaveCount(0);
       await expect(page.locator('.bbar .gpick > summary')).toBeFocused();
     });
@@ -1467,7 +1678,7 @@ test.describe('the tracker at phone width', () => {
         ),
       );
 
-    await page.goto(crPath(graph, 4));
+    await page.goto(crPath(graph, storyCr(4)));
     const changed = page.locator('svg.pg .halo').first();
     await expect(changed).toBeVisible();
     await expect
@@ -1481,7 +1692,7 @@ test.describe('the tracker at phone width', () => {
     const b = await barBox();
     expect(item.y + item.height <= b.y || item.y >= b.y + b.height).toBe(true);
 
-    for (const path of [crPath(graph, 4), graph]) {
+    for (const path of [crPath(graph, storyCr(4)), graph]) {
       await page.goto(path);
       await expect(page.locator('svg.pg')).toBeVisible();
       await page.evaluate(() => window.scrollTo(0, 0));
@@ -1577,7 +1788,7 @@ test.describe('the tracker at phone width', () => {
     await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
     await expect(page.locator('svg.pg')).toBeVisible();
     await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Expand all' }).click());
-    await page.goto(new URL(page.url()).pathname.replace(/graph$/, 'changes/4'));
+    await page.goto(new URL(page.url()).pathname.replace(/graph$/, `changes/${storyCr(4)}`));
     const changed = page.locator('svg.pg .halo').first();
     await expect(changed).toBeVisible();
     const place = () =>
@@ -1603,7 +1814,7 @@ test.describe('the tracker at phone width', () => {
     await page.goto('/signin?label=tracker-phone-early-scroll');
     await page.getByRole('button', { name: /continue/i }).click();
     await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
-    const path = new URL(page.url()).pathname.replace(/graph$/, 'changes/4');
+    const path = new URL(page.url()).pathname.replace(/graph$/, `changes/${storyCr(4)}`);
     let release = () => {};
     const scripts = new Promise<void>((resolve) => (release = resolve));
     await page.route(/\/_next\/static\/chunks\/.*\.js/, async (route) => {
@@ -1857,9 +2068,9 @@ test.describe('the tracker at phone width', () => {
     // The phone rail hides the fold button, so the first picks may land before hydration.
     await expect(async () => {
       await choose(page.getByLabel('Demo: act as'), 'Hà Đỗ', 2_000);
-      await expect(page).toHaveURL(/\/changes\/4$/, { timeout: 2_000 });
+      await expect(page).toHaveURL(crUrl(4), { timeout: 2_000 });
     }).toPass();
-    await expect(page.locator('.bbar').first()).toContainText('#4');
+    await expect(page.locator('.bbar').first()).toContainText(`#${storyCr(4)}`);
     await noHorizontalScroll(page);
 
     const add = page.getByRole('dialog', { name: 'Add to the queue' });
@@ -1875,12 +2086,12 @@ test.describe('the tracker at phone width', () => {
     await page.keyboard.press('Escape');
 
     await page.locator('.bbar').getByRole('button', { name: 'Cancel change request' }).click();
-    await expect(page.getByRole('dialog', { name: 'Cancel #4?' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: `Cancel #${storyCr(4)}?` })).toBeVisible();
     await noHorizontalScroll(page);
     await page.keyboard.press('Escape');
 
-    await page.goto(graph.replace(/graph$/, 'changes/2'));
-    await expect(page.locator('.bbar').first()).toContainText('#2');
+    await page.goto(graph.replace(/graph$/, `changes/${storyCr(2)}`));
+    await expect(page.locator('.bbar').first()).toContainText(`#${storyCr(2)}`);
     await noHorizontalScroll(page);
 
     for (const path of ['members', 'settings/tokens']) {
@@ -1997,7 +2208,7 @@ test.describe('row height and collapsible teams', () => {
     await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Collapse all' }).click());
     await expect(page.locator('svg.pg [data-loop]')).toHaveCount(0);
     await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Expand all' }).click());
-    await expect(page.locator('svg.pg [data-loop]')).toHaveCount(14);
+    await expect(page.locator('svg.pg [data-loop]')).toHaveCount(15);
   });
 
   test('the view and zoom buttons show a ring for the keyboard only', async ({ page }) => {
@@ -2131,7 +2342,7 @@ test.describe('row height and collapsible teams', () => {
 
   test('an event added to a work item of a collapsed team opens that team', async ({ page }) => {
     const { graph } = await signIn(page, 'tracker-collapse-attach');
-    await page.goto(crPath(graph, 4));
+    await page.goto(crPath(graph, storyCr(4)));
     await hydrated(page);
     await actAs(page, 'Hà Đỗ');
     const implementation = page
@@ -2189,7 +2400,7 @@ test.describe('row height and collapsible teams', () => {
     await actAs(page, 'Lan Phạm');
     await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
     await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
-    await page.waitForURL(/\/changes\/5$/);
+    await page.waitForURL(crUrl(5));
     const bar = page.locator('.bbar').first();
     const mark = page.locator('svg.pg [data-handoff="pg203"]');
     const receiverWait = page.locator('svg.pg text', { hasText: /^(Waiting for|PG-203 was)/ });
@@ -2258,7 +2469,7 @@ test.describe('row height and collapsible teams', () => {
     await actAs(page, 'Lan Phạm');
     await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
     await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
-    await page.waitForURL(/\/changes\/5$/);
+    await page.waitForURL(crUrl(5));
     const drawer = page.locator('.drawer');
     const search = page.getByRole('combobox', { name: 'Search work items' });
     const details = async (text: string, title: string) => {
@@ -2275,12 +2486,14 @@ test.describe('row height and collapsible teams', () => {
       await expect(hint).toHaveCount(0);
       await drawer.getByRole('button', { name: 'Add an event' }).click();
       const dialog = page.getByRole('dialog', { name: 'Add an event' });
-      await expect(dialog.getByLabel('Who')).toHaveText('Minh Trần');
-      await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-      await expect(dialog.getByLabel('Who')).toHaveText('Hà Đỗ');
-      await choose(dialog.getByLabel('Who'), 'Lan Phạm');
-      await dialog.getByRole('button', { name: 'Message', exact: true }).click();
       await expect(dialog.getByLabel('Who')).toHaveText('Lan Phạm');
+      await expect(dialog.getByLabel('Date')).toHaveValue('9 Oct 2026');
+      await expect(dialog.getByLabel('Time')).toHaveValue('18:00');
+      await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+      await expect(dialog.getByLabel('Who')).toHaveText('Lan Phạm');
+      await choose(dialog.getByLabel('Who'), 'Minh Trần');
+      await dialog.getByRole('button', { name: 'Message', exact: true }).click();
+      await expect(dialog.getByLabel('Who')).toHaveText('Minh Trần');
       const group = (name: string) => dialog.getByRole('group', { name, exact: true });
       await expect(group('Start').getByRole('button')).toHaveText(['Idea', 'Message', 'Issue']);
       await expect(group('Progress').getByRole('button')).toHaveText([
@@ -2316,12 +2529,12 @@ test.describe('row height and collapsible teams', () => {
       await expect(drawer).not.toContainText(/late \d/);
       await drawer.getByRole('button', { name: 'Mark done' }).click();
       const done = page.getByRole('dialog', { name: 'Add an event' });
-      await expect(done.getByLabel('Who')).toHaveText('Quang Nguyễn');
+      await expect(done.getByLabel('Who')).toHaveText('Lan Phạm');
       await done.getByRole('button', { name: 'Cancel', exact: true }).click();
       await expect(done).toHaveCount(0);
       await drawer.getByRole('button', { name: 'Cancel work item' }).click();
       const dialog = page.getByRole('dialog', { name: 'Cancel this work item' });
-      await expect(dialog.getByLabel('Who')).toHaveText('Quang Nguyễn');
+      await expect(dialog.getByLabel('Who')).toHaveText('Lan Phạm');
       await expect(dialog.getByRole('button', { name: 'Cancelled', exact: true })).toHaveAttribute(
         'aria-pressed',
         'true',
@@ -2520,7 +2733,7 @@ test.describe('the legend popover beside a drawer', () => {
     page,
   }) => {
     const { graph } = await signIn(page, 'legend-drawer');
-    await visit(page, crPath(graph, 4));
+    await visit(page, crPath(graph, storyCr(4)));
     await actAs(page, 'Hà Đỗ');
     const legend = page.getByRole('dialog', { name: 'Legend' });
     const bar = page.getByRole('group', { name: 'View controls' });
@@ -2869,12 +3082,12 @@ test.describe('new changes wait for Refresh', () => {
     page,
   }) => {
     const { projectId, graph } = await signIn(page, 'tracker-fresh-merger');
-    await visit(page, crPath(graph, 2));
+    await visit(page, crPath(graph, storyCr(2)));
     const bar = page.locator('.bbar').first();
     const notice = bar.locator('.fresh');
     const merge = bar.getByRole('button', { name: 'Merge into Main' });
     const moved = page.getByText('This change request changed since you opened it.');
-    const actions = `/api/v1/projects/${projectId}/tracker/crs/2/actions`;
+    const actions = `/api/v1/projects/${projectId}/tracker/crs/${storyCr(2)}/actions`;
     await expect(merge).toBeEnabled();
 
     expect((await post(page, actions, { action: 'comment', body: 'Looks fine.' })).status).toBe(
@@ -2887,7 +3100,9 @@ test.describe('new changes wait for Refresh', () => {
     await expect(moved).toHaveCount(0);
     await expect(merge).toBeEnabled();
 
-    const revision = (await readTracker(page, projectId)).crs.find((c) => c.num === 2)?.revision;
+    const revision = (await readTracker(page, projectId)).crs.find(
+      (c) => c.num === storyCr(2),
+    )?.revision;
     const sent = await post(page, actions, {
       action: 'request-changes',
       note: 'Name the owner.',
@@ -2946,7 +3161,7 @@ test.describe('new changes wait for Refresh', () => {
     const { projectId } = await signIn(page, label);
     await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
     await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
-    await page.waitForURL(/\/changes\/5$/);
+    await page.waitForURL(crUrl(5));
     await expect(page.locator('.bbar').first()).toContainText('You are editing');
     return projectId;
   }
@@ -2972,10 +3187,14 @@ test.describe('new changes wait for Refresh', () => {
   }) => {
     const projectId = await newDraft(page, 'tracker-fresh-agent');
     const bar = page.locator('.bbar').first();
-    const appended = await post(page, `/api/v1/projects/${projectId}/tracker/crs/5/ops`, {
-      op: rename('Client secret renewed'),
-      expectedRevision: 0,
-    });
+    const appended = await post(
+      page,
+      `/api/v1/projects/${projectId}/tracker/crs/${storyCr(5)}/ops`,
+      {
+        op: rename('Client secret renewed'),
+        expectedRevision: 0,
+      },
+    );
     expect(appended.status).toBe(200);
     await expect(bar).toContainText('0 changes');
     await drag(page, queueEvent(page, 'Where is the root cause report'), row(page, 'incident'));
@@ -2989,7 +3208,7 @@ test.describe('new changes wait for Refresh', () => {
     await signIn(page, 'tracker-fresh-create');
     let release = () => {};
     const held = new Promise<void>((resolve) => (release = resolve));
-    await page.route(/\/changes\/5(\?|$)/, async (route) => {
+    await page.route(new RegExp(`/changes/${storyCr(5)}(\\?|$)`), async (route) => {
       await held;
       await route.continue();
     });
@@ -3002,7 +3221,7 @@ test.describe('new changes wait for Refresh', () => {
     await check(page);
     await expect(page.locator('.bbar .fresh')).toHaveCount(0);
     release();
-    await page.waitForURL(/\/changes\/5$/);
+    await page.waitForURL(crUrl(5));
     await expect(page.locator('.bbar').first()).toContainText('You are editing');
   });
 
@@ -3096,12 +3315,12 @@ test.describe('acting as another member right after a write', () => {
   }) => {
     const { graph } = await signIn(page, 'act-as-toast');
     await actAs(page, 'Lan Phạm');
-    await page.goto(crPath(graph, 4));
+    await page.goto(crPath(graph, storyCr(4)));
     await hydrated(page);
     const bar = page.locator('.bbar').first();
     const toast = page.locator('.tk-toast');
     const slow = (status?: number) =>
-      page.route('**/crs/4/actions', async (route) => {
+      page.route(`**/crs/${storyCr(4)}/actions`, async (route) => {
         await new Promise((resolve) => setTimeout(resolve, 2000));
         if (status)
           await route.fulfill({
@@ -3118,10 +3337,10 @@ test.describe('acting as another member right after a write', () => {
     await page.waitForTimeout(300);
     // A retrying check would pass once the toast times out, so the text is read once.
     expect((await toast.allTextContents()).join(' ')).not.toContain('Asked');
-    await page.unroute('**/crs/4/actions');
+    await page.unroute(`**/crs/${storyCr(4)}/actions`);
 
     await actAs(page, 'Lan Phạm');
-    await page.goto(crPath(graph, 4));
+    await page.goto(crPath(graph, storyCr(4)));
     await hydrated(page);
     await slow(500);
     await bar.getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -3132,14 +3351,14 @@ test.describe('acting as another member right after a write', () => {
 
   test('waits for the write, then shows the new person and their fresh data', async ({ page }) => {
     const { projectId, graph } = await signIn(page, 'act-as-after-write');
-    await page.goto(crPath(graph, 4));
+    await page.goto(crPath(graph, storyCr(4)));
     await hydrated(page);
     await actAs(page, 'Khoa Lê');
-    await page.goto(crPath(graph, 4));
+    await page.goto(crPath(graph, storyCr(4)));
     await hydrated(page);
     const bar = page.locator('.bbar').first();
     // A slow answer to the ask: the switch to Lan is sent while it is still on its way.
-    await page.route('**/crs/4/actions', async (route) => {
+    await page.route(`**/crs/${storyCr(4)}/actions`, async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 2000));
       await route.continue();
     });
@@ -3155,13 +3374,13 @@ test.describe('acting as another member right after a write', () => {
       crs: Array<{ num: number; asks: unknown[] }>;
     };
     expect(data.me.name).toBe('Lan Phạm');
-    expect(data.crs.find((c) => c.num === 4)?.asks).toHaveLength(1);
-    await page.unroute('**/crs/4/actions');
+    expect(data.crs.find((c) => c.num === storyCr(4))?.asks).toHaveLength(1);
+    await page.unroute(`**/crs/${storyCr(4)}/actions`);
     await expect(page.getByText('This change request changed')).toHaveCount(0);
 
     await actAs(page, 'Hà Đỗ');
-    await page.goto(crPath(graph, 4));
+    await page.goto(crPath(graph, storyCr(4)));
     await hydrated(page);
-    await expect(page.locator('.ask-row')).toContainText('Khoa Lê asks to edit #4.');
+    await expect(page.locator('.ask-row')).toContainText(`Khoa Lê asks to edit #${storyCr(4)}.`);
   });
 });

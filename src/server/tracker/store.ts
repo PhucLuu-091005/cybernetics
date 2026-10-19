@@ -21,7 +21,7 @@ import { toIso, type Db, type Tx } from '../db/tx';
 export type Reader = Db | Tx;
 export type TrackerRow = typeof trackerProjects.$inferSelect;
 export type CrRow = typeof trackerCrs.$inferSelect;
-export type QueueDbRow = typeof trackerQueue.$inferSelect;
+type QueueDbRow = typeof trackerQueue.$inferSelect;
 /**
  * byAgent and viaKey ride along with every tenant spread; only tables with those columns keep them,
  * so each change request comment records the key that wrote it for its person.
@@ -148,7 +148,7 @@ export const grantsOf = (row: typeof trackerMembers.$inferSelect): Grants => ({
 export const isInvite = (row: { userId: string | null; email: string | null }) =>
   row.userId === null && row.email !== null;
 
-export function toQueueRow(row: QueueDbRow): QueueRow {
+function toQueueRow(row: QueueDbRow): QueueRow {
   const meta = {
     id: row.id,
     addedByMember: row.addedByMember,

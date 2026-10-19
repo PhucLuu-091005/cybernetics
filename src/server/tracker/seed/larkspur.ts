@@ -62,7 +62,7 @@ function shiftStory<T>(value: T, days: number): T {
  * Maps a story key to the id it is stored under. The database seed maps member keys and queue
  * keys to fresh UUIDs, because those rows have global primary keys; tests keep the keys.
  */
-export type LarkspurIds = (key: string) => string;
+type LarkspurIds = (key: string) => string;
 const keep: LarkspurIds = (key) => key;
 
 const PEOPLE: Record<string, string> = {
@@ -98,6 +98,8 @@ type Loop = {
   parentId: string | null;
   after: string[];
   plannedFinish: string;
+  /** Most plans end at a time of day; a few keep the whole day, so both forms show. */
+  plannedFinishTime?: string;
   events: Ev[];
 };
 
@@ -135,6 +137,7 @@ const LOOPS: Loop[] = [
     parentId: null,
     after: [],
     plannedFinish: '2026-10-16',
+    plannedFinishTime: '17:00',
     events: [
       [
         'c1',
@@ -169,6 +172,7 @@ const LOOPS: Loop[] = [
     parentId: null,
     after: [],
     plannedFinish: '2026-09-26',
+    plannedFinishTime: '16:00',
     events: [
       ['r1', '2026-09-24T09:20', 'meeting', 'minh', 'Rehearsal call with Fund Operations.'],
       ['r2', '2026-09-24T15:10', 'delivery', 'minh', 'Minh sends the rehearsal report.'],
@@ -185,6 +189,7 @@ const LOOPS: Loop[] = [
     parentId: 'crs',
     after: [],
     plannedFinish: '2026-09-22',
+    plannedFinishTime: '17:00',
     events: [
       [
         'a1',
@@ -219,11 +224,12 @@ const LOOPS: Loop[] = [
     milestoneId: 'crm',
     parentId: null,
     after: [],
-    plannedFinish: '2026-09-09',
+    plannedFinish: '2026-09-18',
+    plannedFinishTime: '12:00',
     events: [
-      ['l1', '2026-09-09T09:20', 'task', 'priya', 'Configure legal review routing.'],
-      ['l2', '2026-09-09T15:10', 'delivery', 'lan', 'Legal review routing is live.'],
-      ['l3', '2026-09-09T16:40', 'done', 'priya', 'Priya accepts the routing.'],
+      ['l1', '2026-09-14T09:20', 'task', 'priya', 'Configure legal review routing.'],
+      ['l2', '2026-09-16T10:10', 'delivery', 'lan', 'Legal review routing is live.'],
+      ['l3', '2026-09-18T10:40', 'done', 'priya', 'Priya accepts the routing.'],
     ],
   },
   {
@@ -258,6 +264,7 @@ const LOOPS: Loop[] = [
     parentId: 'crs',
     after: ['analyse'],
     plannedFinish: '2026-10-01',
+    plannedFinishTime: '17:00',
     events: [
       [
         'p21',
@@ -280,6 +287,7 @@ const LOOPS: Loop[] = [
     parentId: null,
     after: [],
     plannedFinish: '2026-09-18',
+    plannedFinishTime: '12:00',
     events: [
       [
         'd1',
@@ -301,6 +309,7 @@ const LOOPS: Loop[] = [
     parentId: null,
     after: [],
     plannedFinish: '2026-09-18',
+    plannedFinishTime: '12:00',
     events: [
       ['s1', '2026-09-14T09:20', 'task', 'tom', 'Enable sync monitoring.'],
       ['s2', '2026-09-16T10:00', 'delivery', 'quang', 'Sync monitoring is on.'],
@@ -317,6 +326,7 @@ const LOOPS: Loop[] = [
     parentId: null,
     after: [],
     plannedFinish: '2026-09-18',
+    plannedFinishTime: '17:00',
     events: [
       ['m1', '2026-09-14T14:00', 'task', 'tom', 'Enable the CRM integration.'],
       ['m2', '2026-09-16T15:10', 'delivery', 'quang', 'The CRM integration is live.'],
@@ -360,6 +370,7 @@ const LOOPS: Loop[] = [
     parentId: 'crs',
     after: ['pg201', 'pg202', 'pg203'],
     plannedFinish: '2026-10-14',
+    plannedFinishTime: '09:30',
     events: [],
   },
   {
@@ -372,6 +383,7 @@ const LOOPS: Loop[] = [
     parentId: null,
     after: [],
     plannedFinish: '2026-10-03',
+    plannedFinishTime: '12:00',
     events: [
       [
         'i1',
@@ -392,6 +404,7 @@ const LOOPS: Loop[] = [
     parentId: null,
     after: [],
     plannedFinish: '2026-09-24',
+    plannedFinishTime: '17:00',
     events: [
       [
         'x1',
@@ -546,7 +559,9 @@ function storyBase(id: LarkspurIds): TrackerBase {
         id: 'crm',
         name: 'CRM integration live',
         planned: '2026-09-18',
+        plannedTime: '17:00',
         firstPlanned: '2026-09-18',
+        firstPlannedTime: '17:00',
         moves: [],
       },
       {
@@ -569,25 +584,234 @@ function storyBase(id: LarkspurIds): TrackerBase {
         parentId: loop.parentId,
         after: [...loop.after],
         plannedFinish: loop.plannedFinish,
+        ...(loop.plannedFinishTime
+          ? {
+              plannedFinishTime: loop.plannedFinishTime,
+              firstPlannedFinishTime: loop.plannedFinishTime,
+            }
+          : {}),
         firstPlannedFinish: recorded?.firstPlannedFinish ?? loop.plannedFinish,
         moves: (recorded?.moves ?? []).map((move) => ({ ...move, by: id(move.by) })),
         since: null,
       };
     }),
-    events: LOOPS.flatMap((loop) =>
-      loop.events.map(([eventId, local, kind, by, text]) => ({
-        id: eventId,
-        workItemId: loop.id,
-        kind,
-        at: at(local),
-        by: id(by),
-        text,
-        addedBy: null,
-        hidden: false,
-      })),
-    ),
+    // In the order the weekly change requests add them, by the person who records each week.
+    events: storyEvents().map(({ loop, ev: [eventId, local, kind, by, text] }) => ({
+      id: eventId,
+      workItemId: loop.id,
+      kind,
+      at: at(local),
+      by: id(by),
+      text,
+      addedBy: id(weekOf(local).author),
+      hidden: false,
+    })),
   };
 }
+
+const storyEvents = () =>
+  LOOPS.flatMap((loop) => loop.events.map((ev) => ({ loop, ev })))
+    .map((x, i) => ({ ...x, i }))
+    .sort((a, b) => a.ev[1].localeCompare(b.ev[1]) || a.i - b.i);
+
+type Step = { title: string; author: string; created: string; merged: string; merger: string };
+
+const SETUP: Step = {
+  title: 'Set up teams and milestones',
+  author: 'minh',
+  created: '2026-09-13T09:00',
+  merged: '2026-09-13T09:30',
+  merger: 'quang',
+};
+
+const PLANS: Array<Step & { items: string[] }> = [
+  {
+    title: 'Plan the go-live work',
+    author: 'lan',
+    created: '2026-09-13T10:00',
+    merged: '2026-09-13T10:30',
+    merger: 'minh',
+    items: ['golive', 'crs', 'rehearsal'],
+  },
+  {
+    title: 'Plan the CRS work',
+    author: 'lan',
+    created: '2026-09-13T11:00',
+    merged: '2026-09-13T11:30',
+    merger: 'minh',
+    items: ['analyse', 'legal', 'pg201', 'pg202'],
+  },
+  {
+    title: 'Plan the CRM sync',
+    author: 'quang',
+    created: '2026-09-13T14:00',
+    merged: '2026-09-13T14:30',
+    merger: 'minh',
+    items: ['dynamics', 'syncmon', 'crmlive', 'pg203'],
+  },
+  {
+    title: 'Plan the CRS test, support and IT',
+    author: 'ha',
+    created: '2026-09-13T15:00',
+    merged: '2026-09-13T15:30',
+    merger: 'minh',
+    items: ['test', 'incident', 'secret', 'sso'],
+  },
+];
+
+/** Each story week ends with one change request that records its events and date moves. */
+const WEEKS: Array<Step & { from: string }> = [
+  {
+    title: 'Updates, week of 14 Sept',
+    author: 'lan',
+    from: '2026-09-14',
+    created: '2026-09-20T13:00',
+    merged: '2026-09-20T14:00',
+    merger: 'minh',
+  },
+  {
+    title: 'Updates, week of 21 Sept',
+    author: 'khoa',
+    from: '2026-09-21',
+    created: '2026-09-26T10:00',
+    merged: '2026-09-26T11:00',
+    merger: 'minh',
+  },
+  {
+    title: 'Updates, week of 28 Sept',
+    author: 'ha',
+    from: '2026-09-28',
+    created: '2026-10-03T11:00',
+    merged: '2026-10-03T12:00',
+    merger: 'minh',
+  },
+  {
+    title: 'Updates, week of 5 Oct',
+    author: 'quang',
+    from: '2026-10-05',
+    created: '2026-10-07T11:00',
+    merged: '2026-10-07T12:00',
+    merger: 'minh',
+  },
+];
+
+const weekOf = (local: string) =>
+  [...WEEKS].reverse().find((w) => w.from <= local.slice(0, 10)) ?? WEEKS[0];
+
+const planKey = (workItemId: string) => `plan-${workItemId}`;
+
+type LarkspurHistory = { base: TrackerBase; rows: QueueRow[]; crs: LarkspurCr[] };
+
+/**
+ * Main from an empty project: every team, milestone, work item, link, date move and event reaches
+ * Main through these merged change requests, before the story's own change requests.
+ */
+export function larkspurHistory(id: LarkspurIds = keep, days = 0): LarkspurHistory {
+  return shiftStory(storyHistory(id), days);
+}
+
+function storyHistory(id: LarkspurIds): LarkspurHistory {
+  const main = storyBase(id);
+  const loopOf = (key: string) => LOOPS.find((loop) => loop.id === key)!;
+  const note = (by: string, kind: CrCommentKind, local: string) => ({
+    by: id(by),
+    kind,
+    at: at(local),
+    body: null,
+  });
+  const cr = (step: Step, rev: number, ops: Array<Pick<Op, 'op' | 'a'>>): LarkspurCr => ({
+    title: step.title,
+    author: id(step.author),
+    merger: id(step.merger),
+    status: 'merged',
+    ops: ops.map((op) => ({ ...op, rev, by: id(step.author) }) as Op),
+    shares: [],
+    comments: [
+      note(step.author, 'created', step.created),
+      note(step.author, 'ready', step.created),
+      note(step.merger, 'merged', step.merged),
+    ],
+    createdAt: at(step.created),
+    mergedAt: at(step.merged),
+  });
+  const setup = cr(SETUP, 0, [
+    ...main.teams.map((team) => ({ op: 'addTeam' as const, a: team })),
+    ...main.milestones.map((m) => ({
+      op: 'newMs' as const,
+      a: {
+        id: m.id,
+        name: m.name,
+        planned: m.planned,
+        ...(m.plannedTime ? { time: m.plannedTime } : {}),
+        members: [],
+      },
+    })),
+  ]);
+  const plans = PLANS.map((plan, i) => {
+    const items = plan.items.map((key) => main.workItems.find((w) => w.id === key)!);
+    return cr(plan, i + 1, [
+      ...items.map((w) => ({
+        op: 'place' as const,
+        a: { itemId: id(planKey(w.id)), teamId: w.teamId, id: w.id, since: null },
+      })),
+      ...items.flatMap((w) => [
+        ...(w.parentId
+          ? [{ op: 'parent' as const, a: { workItemId: w.id, parentId: w.parentId } }]
+          : []),
+        ...(w.after.length
+          ? [{ op: 'after' as const, a: { workItemId: w.id, after: w.after } }]
+          : []),
+      ]),
+    ]);
+  });
+  const weeks = WEEKS.map((week, i) => {
+    const inWeek = (local: string) => weekOf(local) === week;
+    const events = storyEvents().filter(({ ev }) => inWeek(ev[1]));
+    const moves = Object.entries(RECORDED_MOVES).flatMap(([workItemId, { moves }]) =>
+      moves.filter((m) => inWeek(m.at.slice(0, 16))).map((m) => ({ workItemId, m })),
+    );
+    return cr(week, PLANS.length + 1 + i, [
+      ...events.map(({ loop, ev: [eventId, local, kind, by, text] }) => ({
+        op: 'addEvent' as const,
+        a: { workItemId: loop.id, ev: { id: eventId, kind, at: at(local), by: id(by), text } },
+      })),
+      ...moves.map(({ workItemId, m }) => ({
+        op: 'due' as const,
+        a: { workItemId, date: m.to, why: m.why, by: id(m.by), at: m.at },
+      })),
+    ]);
+  });
+  const rows = PLANS.flatMap((plan) =>
+    plan.items.map((key): QueueRow => {
+      const loop = loopOf(key);
+      return {
+        id: id(planKey(key)),
+        kind: 'item',
+        payload: {
+          title: loop.title,
+          note: '',
+          doneBy: id(loop.doneBy),
+          requestedBy: id(loop.requestedBy),
+          milestoneId: loop.milestoneId,
+          after: null,
+          plannedFinish: RECORDED_MOVES[key]?.firstPlannedFinish ?? loop.plannedFinish,
+          ...(loop.plannedFinishTime ? { plannedFinishTime: loop.plannedFinishTime } : {}),
+        },
+        addedByMember: id(plan.author),
+        addedByAgent: false,
+        createdAt: at(plan.created),
+      };
+    }),
+  );
+  return {
+    base: { people: main.people, teams: [], milestones: [], workItems: [], events: [] },
+    rows,
+    crs: [setup, ...plans, ...weeks],
+  };
+}
+
+/** The story keys of the history queue, so the database seed gives them fresh ids. */
+export const larkspurHistoryKeys = () => PLANS.flatMap((plan) => plan.items.map(planKey));
 
 export function larkspurState(id: LarkspurIds = keep, days = 0): TrackerState {
   return shiftStory(
@@ -659,9 +883,11 @@ export const LARKSPUR_TEAM_PEOPLE: Record<string, { lead: string | null; members
   'digitization-qa': { lead: null, members: ['ha'] },
 };
 
-export type LarkspurCr = {
+type LarkspurCr = {
   title: string;
   author: string;
+  /** The member who merged it; the project lead when absent. */
+  merger?: string;
   status: 'draft' | 'ready' | 'merged';
   ops: Op[];
   shares: Array<{ memberId: string; permission: CrPermission }>;
@@ -698,6 +924,7 @@ function storyCrs(id: LarkspurIds): LarkspurCr[] {
           a: {
             milestoneId: 'golive',
             date: '2026-10-15',
+            time: '17:00',
             why: 'The CRS section is not ready. Sarah agreed on {2026-09-26}.',
             by: minh,
             at: at('2026-10-08T16:55'),

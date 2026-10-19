@@ -38,8 +38,8 @@ const EmptyProjectInputSchema = CreateProjectInputSchema.extend({
   teams: ProjectTeamsSchema,
   milestone: FirstMilestoneSchema,
 });
-export type CreateProjectInput = z.input<typeof CreateProjectInputSchema>;
-export const toProject = (row: ProjectRow): Project => ({
+type CreateProjectInput = z.input<typeof CreateProjectInputSchema>;
+const toProject = (row: ProjectRow): Project => ({
   id: row.id,
   workspaceId: row.workspaceId,
   title: row.title,

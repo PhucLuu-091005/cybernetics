@@ -18,7 +18,7 @@ import {
   revokePersonalKey,
   revokeToken,
 } from './http/runtime';
-export type App = { db: Db; identity: HttpIdentityStore; pool: Pool };
+type App = { db: Db; identity: HttpIdentityStore; pool: Pool };
 const state = globalThis as typeof globalThis & { promiseApp?: App };
 /** Loaded on first sign-in only, so routes do not carry the demo seed. */
 export const seedOnUserCreated: UserCreatedHook = async (tx, { userId, workspaceId }) => {

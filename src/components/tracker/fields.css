@@ -38,7 +38,15 @@
   transform: translateY(-50%);
 }
 .dt-in {
+  flex-wrap: wrap;
   gap: 6px;
+}
+.field-err {
+  flex-basis: 100%;
+  order: 1;
+  color: var(--danger-ink);
+  font-size: var(--fs-xs);
+  font-weight: 400;
 }
 .dt-in .date-in {
   flex: 1 1 auto;

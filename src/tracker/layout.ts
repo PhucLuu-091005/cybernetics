@@ -442,6 +442,30 @@ const baseTone = (info: ItemInfo): Tone =>
 const lateTone = (info: ItemInfo): Tone =>
   info.cancelled ? 'isolated' : info.done ? 'caution' : 'danger';
 
+/** The first and last day that the payload on screen touches: events, work item lives, plans and milestones. */
+function spanDays(
+  state: TrackerState,
+  infos: Map<string, ItemInfo>,
+  asOf: string,
+  tz: string,
+): { first: string | null; last: string | null } {
+  const times = state.events.map((e) => Date.parse(e.at));
+  for (const w of state.workItems) times.push(itemStartMs(w, infos, asOf));
+  const days = [
+    ...state.workItems.map((w) => w.plannedFinish),
+    ...state.milestones.map((m) => m.planned),
+    ...(times.length ? [dayOf(new Date(Math.max(...times)).toISOString(), tz)] : []),
+  ];
+  return {
+    first: times.length ? dayOf(new Date(Math.min(...times)).toISOString(), tz) : null,
+    last: days.length ? days.reduce(later) : null,
+  };
+}
+
+/**
+ * Owner rule (round 24): the range always covers every event, work item and milestone on screen, so
+ * nothing is ever missing from the graph; a given window only widens, with a margin, to reach them.
+ */
 function windowDays(
   state: TrackerState,
   view: View,
@@ -449,30 +473,18 @@ function windowDays(
 ): { start: string; end: string } {
   const tz = view.timeZone;
   const today = dayOf(view.asOf, tz);
-  const recent = addDays(today, -60);
-  const starts = state.workItems.flatMap((w) => {
-    const info = infos.get(w.id);
-    if (!info?.start) return [];
-    if (info.finishedAt && compareDay(dayOf(info.finishedAt, tz), recent) < 0) return [];
-    return [Date.parse(info.start)];
-  });
-  const start =
-    view.windowStart ??
-    addDays(starts.length ? dayOf(new Date(Math.min(...starts)).toISOString(), tz) : today, -3);
-  const plans = [
-    ...state.workItems.map((w) => w.plannedFinish),
-    ...state.milestones.map((m) => m.planned),
-  ];
-  const end = view.windowEnd ?? plans.map((p) => addDays(p, 3)).reduce(later, addDays(today, 7));
+  const { first, last } = spanDays(state, infos, view.asOf, tz);
+  let start = view.windowStart ?? addDays(first ?? today, -START_MARGIN_DAYS);
+  if (first && compareDay(first, start) < 0) start = addDays(first, -START_MARGIN_DAYS);
+  let end =
+    view.windowEnd ?? (last ? later(addDays(last, 3), addDays(today, 7)) : addDays(today, 7));
+  if (last && compareDay(last, end) >= 0) end = addDays(last, 3);
   return { start, end: compareDay(end, start) > 0 ? end : addDays(start, 1) };
 }
 
 const START_MARGIN_DAYS = 3;
 
-/**
- * The project's window start, moved earlier when a work item on the board starts before it, so every
- * event of the board shows at Fit. Work items that finished before the project's start stay off the board.
- */
+/** The project's window start, moved earlier when a work item or an event lies before it. */
 export function windowStartFor(
   state: Pick<TrackerState, 'workItems' | 'events'>,
   windowStart: string | null | undefined,
@@ -483,11 +495,8 @@ export function windowStartFor(
   const startMs = Date.parse(startOfDayInstant(windowStart, timeZone));
   const infos = new Map(state.workItems.map((w) => [w.id, itemInfo(w, state.events, asOf)]));
   let earliest = Infinity;
-  for (const w of state.workItems) {
-    const info = infos.get(w.id)!;
-    if (info.finishedAt && Date.parse(info.finishedAt) < startMs) continue;
-    earliest = Math.min(earliest, itemStartMs(w, infos, asOf));
-  }
+  for (const w of state.workItems) earliest = Math.min(earliest, itemStartMs(w, infos, asOf));
+  for (const e of state.events) earliest = Math.min(earliest, Date.parse(e.at));
   if (!(earliest < startMs)) return windowStart;
   return addDays(dayOf(new Date(earliest).toISOString(), timeZone), -START_MARGIN_DAYS);
 }
@@ -981,8 +990,21 @@ function deadlinesOf(
   shown: LayoutRow[],
   statusOf: Map<string, MsStatus>,
   busy: Map<string, Span[]>,
+  groups: readonly LayoutEventGroup[],
 ): LayoutDeadline[] {
   const byId = new Map(c.state.milestones.map((m) => [m.id, m]));
+  // Nothing on the graph may hide: a diamond on an event icon moves beside it, on its own time's side.
+  const clear = c.level.r + c.level.diamond;
+  const besideIcons = (rowId: string, x0: number) => {
+    const icons = groups.filter((g) => g.workItemId === rowId).map((g) => g.x);
+    let x = x0;
+    for (let i = 0; i <= icons.length; i += 1) {
+      const hit = icons.find((gx) => Math.abs(gx - x) < clear);
+      if (hit === undefined) break;
+      x = x0 >= hit ? hit + clear : hit - clear;
+    }
+    return x;
+  };
   const named = new Set<string>();
   return shown.flatMap((r): LayoutDeadline[] => {
     const m = r.milestoneId ? byId.get(r.milestoneId) : undefined;
@@ -996,7 +1018,7 @@ function deadlinesOf(
     const tone = STATUS_TONE[status];
     const changed = !!c.marks?.dates.has(`ms:${m.id}`);
     const reason = makesLate(c, w, m) ? (r.done ? 'finished after it' : 'makes it late') : null;
-    const x = c.deadlineX(m);
+    const x = besideIcons(r.id, c.deadlineX(m));
     const text = `${m.name} · deadline ${formatDeadline(m.planned, m.plannedTime)} · ${STATUS_LABEL[status]}`;
     const placed = first ? placeName(c, m.name, x, busy.get(r.id) ?? []) : null;
     const side = placed?.side ?? null;
@@ -1144,9 +1166,7 @@ function ticksOf(c: Ctx, start: string, endMs: number): LayoutTick[] {
 function groupsOf(c: Ctx, w: WorkItem, r: LayoutRow, info: ItemInfo): LayoutEventGroup[] {
   const groups: Array<{ x: number; events: TrackerEvent[] }> = [];
   for (const e of info.events) {
-    const at = Date.parse(e.at);
-    if (at < c.startMs) continue;
-    const ex = c.x(at);
+    const ex = c.x(Date.parse(e.at));
     const last = groups.at(-1);
     if (last && ex - last.x < c.level.gap) {
       last.events.push(e);
@@ -1182,82 +1202,97 @@ const MS_GAP = 14;
 const MS_MARKER = 12;
 const MS_LABEL_GAP = 8;
 
-type MsSpot = { level: 0 | 1; right: boolean; x0: number; x1: number };
-type MsDraft = { m: Milestone; mx: number; w: number; preferRight: boolean };
+type MsSpot = { level: 0 | 1; right: boolean; x0: number; x1: number; text: string };
+/** `texts` runs from the whole label to the name alone (QA 19 Oct, M1: drop the status, then the date). */
+type MsDraft = { m: Milestone; mx: number; texts: string[]; preferRight: boolean };
+
+const MS_CHAR = 5.9;
+const msWidth = (text: string) => text.length * MS_CHAR;
+
+function* cutNames(name: string) {
+  for (let n = name.length - 1; n > 0; n -= 1) yield `${name.slice(0, n).trimEnd()}…`;
+}
 
 /**
  * Each label tries, in order: above the axis on its usual side, below it, then the other side. A
- * spot is free when no label on its line is near and, below the axis, no marker is under it. The
- * deadline order and the reverse order both run; the one with fewer covered markers wins.
+ * spot is free when no label on its line is near and, below the axis, no marker is under it. When
+ * no spot is free the label gets shorter (no status, then no date, then a cut name) and, with no
+ * room at all, it shows no text; the full label stays in its accessible name. Labels never overlap.
+ * The deadline order and the reverse order both run; the one that shortens less wins.
  */
 function placeMilestoneLabels(c: Ctx, drafts: readonly MsDraft[]): Map<string, MsSpot> {
   const markers = drafts.map((d) => d.mx);
-  const spotOf = (d: MsDraft, level: 0 | 1, right: boolean): MsSpot => {
-    const x0 = right ? d.mx - MS_GAP - d.w : d.mx + MS_GAP;
-    return { level, right, x0, x1: x0 + d.w };
+  const spotOf = (d: MsDraft, level: 0 | 1, right: boolean, text: string): MsSpot => {
+    const w = msWidth(text);
+    const x0 = right ? d.mx - MS_GAP - w : d.mx + MS_GAP;
+    return { level, right, x0, x1: x0 + w, text };
   };
   const covers = (spot: MsSpot, own: number) =>
     spot.level === 1 &&
     markers.some((x) => x !== own && spot.x0 < x + MS_MARKER && spot.x1 > x - MS_MARKER);
+  const inside = (spot: MsSpot) => spot.x0 >= X0 && spot.x1 <= c.x1;
   const run = (order: readonly MsDraft[]) => {
     const placed = new Map<string, MsSpot>();
-    let covered = 0;
+    let cost = 0;
     for (const d of order) {
       const near = (spot: MsSpot) =>
         [...placed.values()].some(
           (p) =>
+            p.text !== '' &&
             p.level === spot.level &&
             spot.x0 < p.x1 + MS_LABEL_GAP &&
             spot.x1 > p.x0 - MS_LABEL_GAP,
         );
-      const inside = (spot: MsSpot) => spot.x0 >= X0 && spot.x1 <= c.x1;
-      const candidates = [
-        spotOf(d, 0, d.preferRight),
-        spotOf(d, 1, d.preferRight),
-        spotOf(d, 0, !d.preferRight),
-        spotOf(d, 1, !d.preferRight),
-      ];
-      const free = candidates.find(
-        (spot, i) => (i < 2 || inside(spot)) && !near(spot) && !covers(spot, d.mx),
-      );
-      const spot = free ?? (near(candidates[0]) ? candidates[1] : candidates[0]);
-      if (covers(spot, d.mx)) covered += 1;
-      placed.set(d.m.id, spot);
+      // A label never starts under the pinned names or runs past the edge, as nothing may be hidden.
+      const fits = (text: string) =>
+        [
+          spotOf(d, 0, d.preferRight, text),
+          spotOf(d, 1, d.preferRight, text),
+          spotOf(d, 0, !d.preferRight, text),
+          spotOf(d, 1, !d.preferRight, text),
+        ].find((spot) => inside(spot) && !near(spot) && !covers(spot, d.mx));
+      let spot: MsSpot | undefined;
+      let step = 0;
+      for (const text of [...d.texts, ...cutNames(d.m.name)]) {
+        spot = fits(text);
+        if (spot) break;
+        step += 1;
+      }
+      cost += step;
+      placed.set(d.m.id, spot ?? { ...spotOf(d, 0, d.preferRight, ''), text: '' });
     }
-    return { placed, covered };
+    return { placed, cost };
   };
   const forward = run(drafts);
-  if (!forward.covered) return forward.placed;
+  if (!forward.cost) return forward.placed;
   const backward = run([...drafts].reverse());
-  return backward.covered < forward.covered ? backward.placed : forward.placed;
+  return backward.cost < forward.cost ? backward.placed : forward.placed;
 }
 
 function placeMilestones(c: Ctx, statusOf: Map<string, MsStatus>): LayoutMilestone[] {
   const sorted = [...c.state.milestones].sort(
     (a, b) => milestoneDeadline(a, c.tz) - milestoneDeadline(b, c.tz),
   );
-  const labels = new Map(
-    sorted.map((m) => {
-      const { status } = statusOf.get(m.id)!;
-      const previous = c.marks?.dates.has(`ms:${m.id}`) ? m.moves.at(-1) : undefined;
-      const was = previous ? ` (was ${formatDeadline(previous.from, previous.fromTime)})` : '';
-      return [
-        m.id,
-        `${m.name} · ${formatDeadline(m.planned, m.plannedTime)} · ${STATUS_LABEL[status]}${was}`,
-      ];
-    }),
-  );
   const drafts = sorted.map((m): MsDraft => {
+    const { status } = statusOf.get(m.id)!;
+    const previous = c.marks?.dates.has(`ms:${m.id}`) ? m.moves.at(-1) : undefined;
+    const was = previous ? ` (was ${formatDeadline(previous.from, previous.fromTime)})` : '';
+    const date = formatDeadline(m.planned, m.plannedTime);
     const mx = c.deadlineX(m);
-    return { m, mx, w: labels.get(m.id)!.length * 5.9, preferRight: mx > c.x1 - 280 };
+    const full = `${m.name} · ${date} · ${STATUS_LABEL[status]}${was}`;
+    return {
+      m,
+      mx,
+      texts: [full, `${m.name} · ${date}${was}`, m.name],
+      preferRight: mx > c.x1 - 280,
+    };
   });
   const spots = placeMilestoneLabels(c, drafts);
-  return drafts.map(({ m, mx }): LayoutMilestone => {
+  return drafts.map(({ m, mx, texts }): LayoutMilestone => {
     const { status } = statusOf.get(m.id)!;
     const tone = STATUS_TONE[status];
     const changed = !!c.marks?.milestones.has(m.id);
-    const label = labels.get(m.id)!;
-    const { level, right, x0, x1 } = spots.get(m.id)!;
+    const { level, right, x0, x1, text } = spots.get(m.id)!;
     return {
       id: m.id,
       name: m.name,
@@ -1270,8 +1305,8 @@ function placeMilestones(c: Ctx, statusOf: Map<string, MsStatus>): LayoutMilesto
       filled: status !== 'planned',
       icon: status === 'planned' ? null : status === 'late' ? 'bang' : 'tick',
       changed,
-      label,
-      ariaLabel: label,
+      label: text,
+      ariaLabel: texts[0],
       labelX: right ? mx - MS_GAP : mx + MS_GAP,
       labelY: level ? TRUNK_Y + 13 : MS_Y,
       anchor: right ? 'end' : 'start',
@@ -1297,11 +1332,7 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
   const dayStart = (date: string) => Date.parse(startOfDayInstant(date, tz));
   const startMs = dayStart(start);
   const endMs = dayStart(end);
-  const inWindow = new Set(
-    [...infos]
-      .filter(([, i]) => !(i.finishedAt && Date.parse(i.finishedAt) < startMs))
-      .map(([id]) => id),
-  );
+  const inWindow = new Set(infos.keys());
   const items = new Map(state.workItems.map((w) => [w.id, w]));
   const hidden = new Set(
     [...inWindow].filter((id) => {
@@ -1423,7 +1454,7 @@ export function layoutTracker(state: TrackerState, view: View, marks?: Marks): T
     rows: shown,
     segments,
     eventGroups,
-    deadlines: deadlinesOf(c, shown, statusOf, busy),
+    deadlines: deadlinesOf(c, shown, statusOf, busy, eventGroups),
     handoffs,
     trunk: { x1: X0, x2: x1, y: TRUNK_Y },
     trunkSegments: trunkSegmentsOf(c, statusOf),

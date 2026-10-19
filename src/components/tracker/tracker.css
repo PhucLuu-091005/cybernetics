@@ -1232,6 +1232,16 @@
   /* The card floats over the lanes, so a drag still finds the lane under it. */
   pointer-events: none;
 }
+.tk .empty-line {
+  position: absolute;
+  left: 50%;
+  top: 120px;
+  transform: translateX(-50%);
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--fs-s);
+  pointer-events: none;
+}
 .tk .empty button {
   pointer-events: auto;
 }
@@ -1665,9 +1675,27 @@ svg.tg .row-label.dim {
   opacity: 0.5;
 }
 /* Yellow marks changes and blue is the Open line, so a revealed row flashes a neutral band. */
-svg.tg .hit.flash,
 svg.tg .hit.focus {
   fill: color-mix(in srgb, var(--ink) 8%, transparent) !important;
+}
+/* A jump target stays marked long enough to find, then fades out calmly. */
+svg.tg .hit.flash {
+  animation: row-flash 2800ms ease-in forwards;
+}
+@keyframes row-flash {
+  0%,
+  70% {
+    fill: color-mix(in srgb, var(--ink) 8%, transparent);
+  }
+  100% {
+    fill: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  svg.tg .hit.flash {
+    animation: none;
+    fill: color-mix(in srgb, var(--ink) 8%, transparent) !important;
+  }
 }
 svg.tg .lane-drop {
   fill: transparent;
@@ -2277,6 +2305,14 @@ svg.tg .deadline-name {
   font-weight: 500;
   color: var(--ink-2);
 }
+.tk .field .count {
+  justify-self: end;
+  margin-top: -2px;
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
 .tk .field input:disabled {
   color: var(--ink-3);
   background: var(--sunk);
@@ -2609,6 +2645,10 @@ svg.tg .deadline-name {
 .tk .chg-row.skipped {
   color: var(--ink-3);
 }
+.tk .chg-by .via {
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+}
 .tk .chg-by {
   display: inline-flex;
   gap: 5px;
@@ -2713,15 +2753,22 @@ svg.tg .deadline-name {
   margin-top: 3px;
   flex-wrap: wrap;
 }
-.tk .hist .hcard ul {
-  margin: 6px 0;
-  padding-left: 18px;
+.tk .hist .hrow {
+  display: block;
+  width: calc(100% + 12px);
+  margin: -4px -6px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--ink);
+  font: inherit;
   font-size: var(--fs-s);
-  color: var(--ink-2);
+  text-align: left;
+  cursor: pointer;
 }
-.tk .hist .hcard .via {
-  color: var(--ink-3);
-  font-size: var(--fs-xs);
+.tk .hist .hrow:hover {
+  background: var(--hover);
 }
 .tk .resolved {
   display: flex;

@@ -5,7 +5,7 @@ import { AppError } from '../errors';
 import { MAX_PHOTO_BYTES, PHOTO_RULE } from '../../contracts/photo';
 
 export { MAX_PHOTO_BYTES, PHOTO_RULE };
-export const PHOTO_SIZE = 256;
+const PHOTO_SIZE = 256;
 
 type Kind = 'png' | 'jpeg' | 'webp';
 

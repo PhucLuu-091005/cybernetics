@@ -133,12 +133,13 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
       const a = op.a;
       const team = find(s.teams, a.teamId, 'team');
       const q = takeFromQueue(s.queue.items, a.itemId);
-      assertNew(s.workItems, q.id, 'work item');
+      const id = a.id ?? q.id;
+      assertNew(s.workItems, id, 'work item');
       const milestone = q.milestoneId ? find(s.milestones, q.milestoneId, 'milestone') : null;
       const after = q.after ? find(s.workItems, q.after, 'work item') : null;
       s.workItems.push(
         newItem({
-          id: q.id,
+          id,
           title: q.title,
           teamId: team.id,
           doneBy: q.doneBy,
@@ -148,7 +149,7 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
           after: after ? [after.id] : [],
           plannedFinish: a.plannedFinish ?? q.plannedFinish,
           plannedFinishTime: a.plannedFinish ? a.plannedFinishTime : q.plannedFinishTime,
-          since: q.createdAt,
+          since: a.since === undefined ? q.createdAt : a.since,
         }),
       );
       const bits = [team.name];
@@ -453,6 +454,22 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
   }
 }
 
+/**
+ * A new change may not put a work item in a second milestone; a move is msRemove, then msAdd.
+ * Replay still reads an old single msAdd as a move, so merged history keeps its result.
+ */
+export function secondMilestone(s: TrackerState, op: Op): string | null {
+  const ids =
+    op.op === 'msAdd' ? [op.a.workItemId] : op.op === 'newMs' ? op.a.members : ([] as string[]);
+  for (const item of s.workItems) {
+    if (!ids.includes(item.id) || !item.milestoneId) continue;
+    if (op.op === 'msAdd' && item.milestoneId === op.a.milestoneId) continue;
+    const m = s.milestones.find((x) => x.id === item.milestoneId);
+    if (m) return `${item.title} is in ${m.name} already. Remove it from that milestone first.`;
+  }
+  return null;
+}
+
 export function applyOp(
   state: TrackerState,
   op: Op,
@@ -479,7 +496,7 @@ function mark(marks: Marks, op: Op, state: TrackerState) {
       marks.events.add(op.a.eventId);
       break;
     case 'place':
-      marks.workItems.add(op.a.itemId);
+      marks.workItems.add(op.a.id ?? op.a.itemId);
       break;
     case 'msDate':
       marks.milestones.add(op.a.milestoneId);

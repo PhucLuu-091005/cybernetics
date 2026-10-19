@@ -24,7 +24,7 @@ export type NewProjectForm = {
   /** HH:mm, or empty for the end of the day. */
   milestoneTime?: string;
 };
-export type NewProjectBody = {
+type NewProjectBody = {
   title: string;
   clientName: string;
   teams: string[];

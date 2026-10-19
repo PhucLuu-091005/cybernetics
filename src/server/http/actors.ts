@@ -6,7 +6,7 @@ import { browserScopes, type HttpIdentityStore } from './identity-store';
 import { assertTokenTransport } from './origin';
 import { MemoryRateLimiter, type RateLimiter } from './rate-limit';
 import { readSession } from './session';
-export type IdentityOptions = {
+type IdentityOptions = {
   store: HttpIdentityStore;
   env: AuthEnvironment;
   now?: () => number;
@@ -27,7 +27,7 @@ export function projectInPath(pathname: string): string | null {
   if (!result.success) throw new AppError('NOT_FOUND', 'Project not found');
   return result.data;
 }
-export function requestedProject(request: Request): string | null {
+function requestedProject(request: Request): string | null {
   return projectInPath(new URL(request.url).pathname);
 }
 export function createIdentityServices(options: IdentityOptions) {

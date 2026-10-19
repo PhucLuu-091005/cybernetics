@@ -3,7 +3,7 @@ import type { ActorContext, DomainError } from '../../contracts';
 import { AppError } from '../errors';
 import { withEnvelope } from '../http/envelope';
 
-export const MAX_RESULT_CHARS = 50_000;
+const MAX_RESULT_CHARS = 50_000;
 
 export function toolResult(ctx: ActorContext, result: object): CallToolResult {
   const structured = withEnvelope(ctx, result),

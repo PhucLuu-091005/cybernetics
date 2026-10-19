@@ -44,12 +44,20 @@ import {
   can,
   mergerIds,
 } from '../../tracker';
-import { openedReview, reviewModel } from '../../tracker/review';
+import {
+  clashSpot,
+  firstUnpicked,
+  keepCrForAll,
+  openedReview,
+  pickAll,
+  reviewModel,
+} from '../../tracker/review';
 import {
   actAs,
   addToQueue,
   appendOp,
   createCr,
+  errorText,
   crAction,
   dismissQueueEntry,
   getTracker,
@@ -213,7 +221,7 @@ const OUTSIDE_EXEMPT =
   '.p-head, .bbar, .pop, .drawer, .p-side, .empty, .ro-note, svg.tg, .tk-modal, .tk-toast, .zoombar, .gtools';
 // These layers close themselves on Esc, so the screen leaves the rest open.
 const OWN_ESCAPE =
-  '.tk details[open], .tk .tsearch-pop:not([hidden]), .tk .hand-menu, .tk .field-pop, .tk .view-pop, .tk .legend-pop:focus-within';
+  'dialog[open], .tk input[aria-invalid="true"]:focus, .tk details[open], .tk .tsearch-pop:not([hidden]), .tk .hand-menu, .tk .field-pop, .tk .view-pop, .tk .legend-pop:focus-within';
 const PHONE_QUERY = '(max-width: 760px)';
 
 const crByNum = (p: TrackerPayload, num: number) => p.crs.find((c) => c.num === num);
@@ -915,7 +923,7 @@ export function TrackerScreen({
       if (result.error.status === 409) {
         showToast(result.error.message, { refresh: () => void refresh() });
         check();
-      } else showToast(result.error.message);
+      } else showToast(errorText(result.error));
       setToast((t) => t && { ...t, error: true });
       return null;
     }
@@ -1174,8 +1182,15 @@ export function TrackerScreen({
         openModal({ mode: 'due', kind: 'ms', id: milestoneId, date, time });
     },
     removeFromMilestone: (workItemId) => commitOps([{ op: 'msRemove', a: { workItemId } }]),
-    addToMilestone: (workItemId, milestoneId) =>
-      commitOps([{ op: 'msAdd', a: { workItemId, milestoneId } }]),
+    addToMilestone: (workItemId, milestoneId) => {
+      const item = state.workItems.find((w) => w.id === workItemId);
+      const now = state.milestones.find((m) => m.id === item?.milestoneId);
+      if (item && now && now.id !== milestoneId)
+        return showToast(
+          `${item.title} is in ${now.name} already. Change its milestone in its details.`,
+        );
+      commitOps([{ op: 'msAdd', a: { workItemId, milestoneId } }]);
+    },
   };
 
   const handlers: ModalHandlers = {
@@ -1522,6 +1537,7 @@ export function TrackerScreen({
           ? {
               review: {
                 canMerge: model.canMerge,
+                toPick: firstUnpicked(model.clashes, model.picks)?.label ?? null,
                 changed: frozen.changed,
                 onReviewAgain: reviewAgain,
                 applying: model.applying,
@@ -1532,6 +1548,7 @@ export function TrackerScreen({
       />
       {showNotice && (
         <MainNotice
+          canCreate={canCreate}
           onClose={() => setNoticeClosed(true)}
           onNeverAgain={() => {
             setNoticeOff(true);
@@ -1566,6 +1583,18 @@ export function TrackerScreen({
             onTab={setSideTab}
             onSelect={selectChange}
             onPick={(key, value) => setPicks((p) => ({ ...p, [key]: value }))}
+            onPickAll={(side) =>
+              setPicks((p) =>
+                side === 'cr'
+                  ? keepCrForAll(payload, model.cr.num, p)
+                  : { ...p, ...pickAll(model.clashes, 'main') },
+              )
+            }
+            onShowClash={(key) => {
+              const spot = clashSpot(key, model.after);
+              if (spot?.kind === 'item') showRow(spot.id);
+              if (spot?.kind === 'ms') setDrawer({ mode: 'ms', id: spot.id });
+            }}
             onHide={() => setSideOpen(false)}
           />
         )}
@@ -1683,57 +1712,32 @@ export function TrackerScreen({
                 onDetails={(id) => openItem(id, { find: false })}
               />
             )}
-            {state.workItems.length === 0 && (
-              <div className="empty">
-                <h4>This project has no work yet.</h4>
-                {edit ? (
-                  <>
-                    <ol>
-                      <li>Add work items and events. They wait in the Queue on the left.</li>
-                      <li>Drag a work item onto a team, then drag events onto the work item.</li>
-                      <li>Mark the change request as ready, and {mergerName} merges it.</li>
-                    </ol>
+            {state.workItems.length === 0 &&
+              (!cr ? (
+                <div className="empty">
+                  <h4>This project has no work yet.</h4>
+                  <ol>
+                    <li>Press New change request. Main stays read-only.</li>
+                    <li>
+                      In the change request, add work items and events, then drag them onto the
+                      graph.
+                    </li>
+                    <li>Mark the change request as ready, and {mergerName} merges it.</li>
+                  </ol>
+                  {canCreate && (
                     <div className="row-btns">
-                      <button
-                        className="btn btn-ink big"
-                        type="button"
-                        onClick={() => actions.addToQueue('item')}
-                      >
-                        <Icon name="plus" /> Add a work item
-                      </button>
-                      <button
-                        className="btn big"
-                        type="button"
-                        onClick={() => actions.addToQueue('event')}
-                      >
-                        <Icon name="plus" /> Add an event
-                      </button>
-                      <button className="btn big" type="button" onClick={actions.newTeam}>
-                        <Icon name="plus" /> New team
+                      <button className="btn btn-ink big" type="button" onClick={actions.newCr}>
+                        <Icon name="plus" /> New change request
                       </button>
                     </div>
-                  </>
-                ) : (
-                  <>
-                    <ol>
-                      <li>Press New change request. Main stays read-only.</li>
-                      <li>
-                        In the change request, add work items and events, then drag them onto the
-                        graph.
-                      </li>
-                      <li>Mark the change request as ready, and {mergerName} merges it.</li>
-                    </ol>
-                    {!cr && canCreate && (
-                      <div className="row-btns">
-                        <button className="btn btn-ink big" type="button" onClick={actions.newCr}>
-                          <Icon name="plus" /> New change request
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              ) : (
+                // The Main card would read as an instruction on a change request, so it gets a quiet line.
+                <p className="empty-line" role="note">
+                  No work items in this view.
+                </p>
+              ))}
           </div>
           {drawer?.mode === 'item' && (
             <WorkItemDrawer

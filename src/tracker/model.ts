@@ -100,6 +100,14 @@ export type WorkItem = {
 export const whoDid = (item: Pick<WorkItem, 'doneBy' | 'requestedBy'>, kind: EventKind) =>
   kind === 'done' || kind === 'cancelled' ? item.doneBy : item.requestedBy;
 
+/** QA 19 Oct, L4: the person on screen wrote the event, so Who starts with them when the list has them. */
+export const defaultWho = (
+  item: Pick<WorkItem, 'doneBy' | 'requestedBy'>,
+  kind: EventKind,
+  me: string | null,
+  pickable: readonly string[],
+) => (me && pickable.includes(me) ? me : whoDid(item, kind));
+
 export type TrackerEvent = {
   id: string;
   workItemId: string;

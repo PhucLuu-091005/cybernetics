@@ -127,6 +127,21 @@ describe('the deploy workflow', () => {
     expect(scripts).toContain('GITHUB_STEP_SUMMARY');
   });
 
+  it('fails the tag job when the tag without its v differs from the package.json version', () => {
+    const { tag } = jobs(DEPLOY);
+    const all = steps(tag);
+    const checkout = all.findIndex((step) => String(step.uses).startsWith('actions/checkout@'));
+    const check = all.findIndex((step) => String(step.run ?? '').includes('package.json'));
+    expect(checkout).toBeGreaterThan(0);
+    expect(check).toBeGreaterThan(checkout);
+    expect(all[checkout].with ?? null).toBeNull();
+    expect((all[check].env as Node).TAG).toBe('${{ steps.tag.outputs.name }}');
+    const script = String(all[check].run);
+    expect(script).toContain('jq -r .version package.json');
+    expect(script).toContain('"${TAG#v}" != "$version"');
+    expect(script).toContain('exit 1');
+  });
+
   it('never puts an expression straight into a shell script', () => {
     for (const job of Object.values(jobs(DEPLOY)))
       for (const step of steps(job)) expect(String(step.run ?? '')).not.toContain('${{');

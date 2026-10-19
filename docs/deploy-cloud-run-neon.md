@@ -165,7 +165,7 @@ Why these settings:
 
 ## 7. Check the deploy
 
-1. Open `<NEXT_PUBLIC_APP_URL>/api/health`. It returns `{"status":"ok"}`.
+1. Open `<NEXT_PUBLIC_APP_URL>/api/health`. It returns `{"status":"ok","version":"<package.json version>"}`.
 2. Read the logs of the start, in the console (**Cloud Run → promise-graph → Logs**) or with:
 
    ```sh
@@ -250,10 +250,10 @@ Set it up once:
 
 2. The script prints two `gh variable set` commands. Run them. They set the repository variables `GCP_WIF_PROVIDER` and `GCP_DEPLOYER_SA`. Neither value is secret, so they are variables, not secrets.
 
-Deploy:
+Deploy: bump package.json version, merge, then tag v<version>. The `tag` job stops the run when the tag without its `v` differs from package.json `version`.
 
 ```sh
-git tag v0.1.0 && git push origin v0.1.0
+git tag v0.1.6 && git push origin v0.1.6
 ```
 
 Watch the run in the **Actions** tab or with `gh run watch`. The job summary shows the service URL after `/api/health` returns `ok`. A failed check stops the run before the deploy. After a deploy works, the last job creates a GitHub release for the tag, with notes made from the merged pull requests. A second deploy of the same tag keeps the release it has.

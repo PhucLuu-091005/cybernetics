@@ -102,6 +102,7 @@ function workItemIdOf(op: Op, after: TrackerState): string | null {
     case 'after':
       return op.a.workItemId;
     case 'place':
+      return op.a.id ?? op.a.itemId;
     case 'qms':
       return op.a.itemId;
     case 'fromEvent':
@@ -127,7 +128,7 @@ function createdIds(op: Op): string[] {
     case 'attach':
       return [op.a.eventId];
     case 'place':
-      return [op.a.itemId];
+      return [op.a.id ?? op.a.itemId];
     case 'fromEvent':
       return [op.a.id, op.a.eventId];
     case 'addEvent':
@@ -339,4 +340,53 @@ export function openedReview(
     updatedAt: now.updatedAt,
   };
   return { payload: { ...live, crs: live.crs.map((c) => (c === now ? kept : c)) }, changed: true };
+}
+
+const counts = (clash: ReviewClash, picks: Picks) =>
+  picks[clash.key] === 'main' || (picks[clash.key] === 'cr' && clash.crApplies);
+
+/** A clash whose change request side cannot apply keeps Main. */
+export const pickAll = (clashes: readonly ReviewClash[], side: 'main' | 'cr'): Picks =>
+  Object.fromEntries(
+    clashes.map((c) => [c.key, side === 'cr' && c.crApplies ? 'cr' : 'main'] as const),
+  );
+
+export const pickedCount = (clashes: readonly ReviewClash[], picks: Picks) =>
+  clashes.filter((c) => counts(c, picks)).length;
+
+export const firstUnpicked = (clashes: readonly ReviewClash[], picks: Picks) =>
+  clashes.find((c) => !counts(c, picks)) ?? null;
+
+/** Where a clash sits on the graph: a work item row or a milestone; a Queue card has no spot. */
+export function clashSpot(
+  key: string,
+  state: Pick<TrackerState, 'events'>,
+): { kind: 'item' | 'ms'; id: string } | null {
+  const [kind, id] = key.split(':');
+  if (kind === 'loop') return { kind: 'item', id };
+  if (kind === 'ms') return { kind: 'ms', id };
+  if (kind === 'act' || kind === 'event') {
+    const ev = state.events.find((e) => e.id === id);
+    return ev ? { kind: 'item', id: ev.workItemId } : null;
+  }
+  return null;
+}
+
+/**
+ * Whether a change request side applies depends on the other picks, so this starts from cr for
+ * every clash and keeps Main only where cr cannot apply, until the picks stop changing.
+ */
+export function keepCrForAll(payload: TrackerPayload, num: number, picks: Picks): Picks {
+  const first = reviewModel(payload, num, picks);
+  if (!first) return picks;
+  let next: Picks = { ...picks, ...pickAll(first.clashes, 'main') };
+  for (const clash of first.clashes) next[clash.key] = 'cr';
+  for (let round = 0; round <= first.clashes.length; round += 1) {
+    const model = reviewModel(payload, num, next)!;
+    const fixed: Picks = { ...next };
+    for (const clash of model.clashes) fixed[clash.key] = clash.crApplies ? 'cr' : 'main';
+    if (model.clashes.every((clash) => fixed[clash.key] === next[clash.key])) return fixed;
+    next = fixed;
+  }
+  return next;
 }

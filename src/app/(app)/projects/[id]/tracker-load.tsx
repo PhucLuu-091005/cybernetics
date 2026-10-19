@@ -38,3 +38,20 @@ export function NoViewNotice({ projectId }: { projectId: string }) {
     </Notice>
   );
 }
+
+export function NoCrsNotice({ projectId }: { projectId: string }) {
+  return (
+    <Notice
+      role="status"
+      title="You cannot view change requests in this project."
+      actions={
+        <Link className="btn btn-ink" href={`/projects/${projectId}/graph`}>
+          Back to Main
+        </Link>
+      }
+    >
+      The project lead decides who has View change requests. The{' '}
+      <Link href={`/projects/${projectId}/members`}>Members page</Link> names the project lead.
+    </Notice>
+  );
+}

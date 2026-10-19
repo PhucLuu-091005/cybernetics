@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 
 export const THEMES = ['system', 'light', 'dark'] as const;
-export type Theme = (typeof THEMES)[number];
+type Theme = (typeof THEMES)[number];
 export const THEME_KEY = 'pg-theme';
 
 export function storedTheme(): 'light' | 'dark' | null {

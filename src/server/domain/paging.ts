@@ -4,7 +4,7 @@ import { canonicalHash } from '../../lib/canonical-json';
 import { AppError } from '../errors';
 
 const CursorSchema = z.strictObject({ view: z.string(), o: RevisionSchema });
-export type PageCursor = z.infer<typeof CursorSchema>;
+type PageCursor = z.infer<typeof CursorSchema>;
 
 /** Binds a cursor to the listing it came from, so a cursor from another project or user fails. */
 export const viewKey = (binding: Record<string, unknown>) => canonicalHash(binding);

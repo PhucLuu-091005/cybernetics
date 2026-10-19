@@ -10,7 +10,7 @@ export type ToastState = {
   error?: true;
 };
 
-export const TOAST_MS = 4500;
+const TOAST_MS = 4500;
 
 /** While `paused` the toast is out of sight but still announced, and its time starts again after. */
 export function Toast({

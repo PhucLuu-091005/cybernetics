@@ -11,7 +11,7 @@ const S = {
 } as const;
 const S24 = { ...S, strokeWidth: 2.4 } as const;
 
-export const KIND_ICON: Record<EventKind, ReactNode> = {
+const KIND_ICON: Record<EventKind, ReactNode> = {
   message: (
     <g {...S}>
       <rect width="20" height="16" x="2" y="4" rx="2" />

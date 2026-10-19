@@ -1,7 +1,7 @@
 import type { TrackerState } from '../../tracker';
 import type { OpInput } from './api';
 
-export type NewTeam = { id: string; name: string };
+type NewTeam = { id: string; name: string };
 
 const sameName = (a: string, b: string) =>
   a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase();
@@ -23,7 +23,7 @@ export function focusAction(name: string, focused: boolean): { text: string; lab
   return { text, label: `${text} on ${name}` };
 }
 
-export type TeamAction = 'collapse' | 'focus' | 'hide';
+type TeamAction = 'collapse' | 'focus' | 'hide';
 
 /** On a phone the pinned name column has no room for the row buttons, so a menu holds them. */
 export function teamMenuItems(team: {

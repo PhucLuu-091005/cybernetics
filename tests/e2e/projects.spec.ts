@@ -90,8 +90,13 @@ test('a new project starts with its teams and an empty graph, and its first chan
   await expect(bar).toContainText('You are editing');
   await expect(bar.getByRole('button', { name: 'Mark as ready' })).toBeDisabled();
 
-  await page.locator('.empty').getByRole('button', { name: 'Add a work item' }).click();
+  await expect(page.locator('.empty')).toHaveCount(0);
+  await expect(
+    page.getByRole('note').filter({ hasText: 'No work items in this view.' }),
+  ).toBeVisible();
+  await page.locator('.qpanel').getByRole('button', { name: 'Add' }).click();
   const add = page.getByRole('dialog', { name: 'Add to the queue' });
+  await add.getByRole('button', { name: 'Work item' }).click();
   await add.getByLabel('Name').fill('Tax ID field on the KYC form');
   await add.getByLabel('Note').fill('Country formats for the tax ID');
   await add.getByRole('button', { name: 'Add work item' }).click();
@@ -125,5 +130,10 @@ test('a new project starts with its teams and an empty graph, and its first chan
   await page.locator('.p-head').getByRole('button', { name: 'History' }).click();
   const history = page.locator('.drawer');
   await expect(history).toContainText('#1 Place the tax ID work');
-  await expect(history).toContainText('Tax ID field on the KYC form: placed → Engineering');
+  await expect(history).not.toContainText('placed → Engineering');
+  await history.getByRole('button', { name: 'Open #1 Place the tax ID work' }).click();
+  await page.waitForURL(/\/changes\/1$/);
+  await expect(page.getByRole('list', { name: 'Changes' })).toContainText(
+    'Tax ID field on the KYC form',
+  );
 });

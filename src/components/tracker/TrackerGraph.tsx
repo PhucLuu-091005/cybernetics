@@ -38,7 +38,7 @@ const ZOOM_STEP = 1.5;
 // Below this the pop is a sliver of its own padding, so it steps aside until the graph scrolls up.
 const LEGEND_MIN_ROOM = 48;
 const REVEAL_ZOOM = 2;
-const REVEAL_FLASH_MS = 1500;
+const REVEAL_FLASH_MS = 2800;
 const REVEAL_PAD = 40;
 const TIP_ROOM = 180;
 /** The space between a menu and its anchor; `.hand-menu` moves by the same 6 px. */
@@ -210,7 +210,12 @@ export function TrackerGraph(props: Props) {
   const handByGroup = new Map(L.handoffs.flatMap((h) => (h.groupId ? [[h.groupId, h]] : [])));
   const deadlines = groupBy(L.deadlines);
   const chips = groupBy(L.chips);
-  const dim = new Set(L.rows.filter((r) => r.dimmed).map((r) => r.id));
+  // A selected milestone dims every row outside it, as Focus does, so its own work items stand out.
+  const dim = new Set(
+    L.rows.filter((r) => r.dimmed || (selectedMs && r.milestoneId !== selectedMs)).map((r) => r.id),
+  );
+  const inMs = (id: string) =>
+    !!selectedMs && L.rows.some((r) => r.id === id && r.milestoneId === selectedMs);
   const dimCls = (id: string) => dim.has(id) && 'dim';
   const xt = L.tLine.x;
   const H = L.height + (edit ? TEAM_PILL_ROOM : 0);
@@ -872,7 +877,11 @@ export function TrackerGraph(props: Props) {
   const svgProps = { onClick, onKeyDown };
   const button = (label: string) => ({ role: 'button', tabIndex: 0, 'aria-label': label });
   const rowCls = (id: string) =>
-    cls(focusRow === id && 'focus', flash === id && 'flash', props.selectedRow === id && 'sel');
+    cls(
+      focusRow === id && 'focus',
+      flash === id && 'flash',
+      (props.selectedRow === id || inMs(id)) && 'sel',
+    );
   const bands = (x: number, width: number) =>
     L.lanes.map((lane) => (
       <rect
@@ -1051,9 +1060,10 @@ export function TrackerGraph(props: Props) {
               className={cls(
                 'row-label',
                 r.changed && 'changed',
-                r.dimmed && 'dim',
+                dim.has(r.id) && 'dim',
                 selectedMs && r.milestoneId === selectedMs && 'sel',
               )}
+              data-label={r.id}
               x={28 + indent}
               y={r.y + lv.labelDy}
               style={{ fontSize: lv.font }}
@@ -1165,9 +1175,11 @@ export function TrackerGraph(props: Props) {
       ))}
       {/* One layer under every milestone, so no name box covers a circle. */}
       <g className="label-backs">
-        {L.milestones.map((m) => (
-          <rect key={m.id} className="label-back" data-back={m.id} />
-        ))}
+        {L.milestones
+          .filter((m) => m.label)
+          .map((m) => (
+            <rect key={m.id} className="label-back" data-back={m.id} />
+          ))}
       </g>
       {L.milestones.map((m) => {
         const moved = preview?.kind === 'ms' && preview.id === m.id ? preview : null;

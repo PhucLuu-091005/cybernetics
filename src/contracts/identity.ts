@@ -29,7 +29,7 @@ export const knownScopes = (stored: readonly string[]): Scope[] =>
   stored.filter((scope): scope is Scope => ScopeSchema.safeParse(scope).success);
 export const DEFAULT_AGENT_SCOPES: readonly Scope[] = ['project:read', 'queue:add'];
 /** A project key works in one project; a personal key works in every project of its person. */
-export const KeyKindSchema = z.enum(['project', 'personal']);
+const KeyKindSchema = z.enum(['project', 'personal']);
 export type KeyKind = z.infer<typeof KeyKindSchema>;
 const KeyLabelSchema = z.string().min(1).max(200);
 const verified = {
@@ -119,5 +119,4 @@ export type TokenCreated = z.infer<typeof TokenCreatedSchema>;
 export type RevokeAgentTokenInput = z.infer<typeof RevokeAgentTokenInputSchema>;
 export type RevokePersonalKeyInput = z.infer<typeof RevokePersonalKeyInputSchema>;
 export type RevokeAgentTokenResult = z.infer<typeof RevokeAgentTokenResultSchema>;
-export type ListAgentTokensInput = z.infer<typeof ListAgentTokensInputSchema>;
 export type ListAgentTokensResult = z.infer<typeof ListAgentTokensResultSchema>;
