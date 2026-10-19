@@ -21,10 +21,8 @@ import {
   KIND_LABEL,
   kindWithArticle,
   lateBadge,
-  mainState,
   milestoneStatus,
   pickable,
-  replayOps,
   startHint,
   STATUS_LABEL,
   STATUS_TONE,
@@ -1022,12 +1020,6 @@ export function RequestsDrawer({
   );
 }
 
-function commitLines(session: Session, commit: Commit) {
-  const { payload, tz } = session;
-  const before = mainState(payload.base, payload.queue, payload.commits, commit.rev - 1);
-  return replayOps(before, commit.ops, tz).entries;
-}
-
 export function HistoryDrawer({
   session,
   onClose,
@@ -1039,10 +1031,6 @@ export function HistoryDrawer({
     [payload.commits],
   );
   const latest = commits[0]?.rev;
-  const lines = useMemo(
-    () => new Map(commits.map((c) => [c.rev, commitLines(session, c)])),
-    [commits, session],
-  );
   const crOf = (commit: Commit) => payload.crs.find((c) => c.id === commit.crId);
   const closed = payload.crs.filter((c) => c.status === 'closed');
   return (
@@ -1059,11 +1047,16 @@ export function HistoryDrawer({
       <ol className="hist">
         {commits.map((commit) => {
           const cr = crOf(commit);
-          const n = commit.resolutions.length;
+          const merger = commit.mergedBy !== cr?.author ? dir.name(commit.mergedBy) : null;
           return (
             <li key={commit.rev}>
               <span className="hdot" />
-              <div className="hcard">
+              <button
+                className="hcard hrow"
+                type="button"
+                aria-label={`Open #${commit.crNum} ${cr?.title ?? ''}`}
+                onClick={() => onView(commit.crNum)}
+              >
                 <header>
                   <b>
                     #{commit.crNum} {cr?.title}
@@ -1071,41 +1064,10 @@ export function HistoryDrawer({
                   {commit.rev === latest && <span className="chipx ok">Latest</span>}
                 </header>
                 <div className="hm">
-                  {cr && <Avatar id={cr.author} dir={dir} sm />} by {cr ? dir.name(cr.author) : ''}{' '}
-                  · merged by {dir.name(commit.mergedBy)} · {formatStamp(commit.mergedAt, tz)}
+                  {cr && <Avatar id={cr.author} dir={dir} sm />} by {cr ? dir.name(cr.author) : ''}
+                  {merger && ` · merged by ${merger}`} · {formatStamp(commit.mergedAt, tz)}
                 </div>
-                <ul>
-                  {(lines.get(commit.rev) ?? []).map((e) => {
-                    const via = commit.ops[e.i]?.via;
-                    return (
-                      <li key={e.i}>
-                        {e.item}: {e.change}
-                        {e.after && ` → ${trunc(e.after, 40)}`}
-                        {via && <small className="via"> · via key {trunc(via, 40)}</small>}
-                      </li>
-                    );
-                  })}
-                </ul>
-                {n > 0 && (
-                  <div className="resolved">
-                    <Icon name="check" size={13} />
-                    <span>
-                      {plural(n, 'clash')} resolved:{' '}
-                      {commit.resolutions
-                        .map(
-                          (x) =>
-                            `${x.label}, kept ${x.chose === 'main' ? `Main from #${x.from}` : 'this change request'}`,
-                        )
-                        .join('; ')}
-                    </span>
-                  </div>
-                )}
-                <div className="row-btns">
-                  <button className="btn sm" type="button" onClick={() => onView(commit.crNum)}>
-                    Open #{commit.crNum}
-                  </button>
-                </div>
-              </div>
+              </button>
             </li>
           );
         })}

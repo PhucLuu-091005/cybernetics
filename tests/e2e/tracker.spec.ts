@@ -316,8 +316,16 @@ test.describe('the tracker walkthrough', () => {
     await test.step('12. History lists the merges, and Open goes to the change request page', async () => {
       await page.locator('.p-head').getByRole('button', { name: 'History' }).click();
       const history = page.locator('.drawer');
-      for (const text of ['#3', '#2', '#1', '1 clash resolved'])
-        await expect(history).toContainText(text);
+      for (const text of ['#3', '#2', '#1']) await expect(history).toContainText(text);
+      const rows = history.locator('.hist > li');
+      await expect(rows.first()).toHaveText(
+        /^#3 PG-203 is on staging\s*Latest\s*QN\s*by Quang Nguyễn · merged by Minh Trần · \d+ \w+ \d{2}:\d{2}$/,
+      );
+      await expect(rows.filter({ hasText: '#1 Explain the go-live slip' })).toHaveText(
+        /^#1 Explain the go-live slip\s*MT\s*by Minh Trần · \d+ \w+ \d{2}:\d{2}$/,
+      );
+      await expect(history.locator('.hist ul')).toHaveCount(0);
+      await expect(history).not.toContainText('clash resolved');
       await history.getByRole('button', { name: 'Open #3' }).click();
       await page.waitForURL(/\/changes\/3$/);
       await expect(bar).toContainText('#3');

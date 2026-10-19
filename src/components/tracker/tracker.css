@@ -2635,6 +2635,10 @@ svg.tg .deadline-name {
 .tk .chg-row.skipped {
   color: var(--ink-3);
 }
+.tk .chg-by .via {
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+}
 .tk .chg-by {
   display: inline-flex;
   gap: 5px;
@@ -2739,15 +2743,22 @@ svg.tg .deadline-name {
   margin-top: 3px;
   flex-wrap: wrap;
 }
-.tk .hist .hcard ul {
-  margin: 6px 0;
-  padding-left: 18px;
+.tk .hist .hrow {
+  display: block;
+  width: calc(100% + 12px);
+  margin: -4px -6px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--ink);
+  font: inherit;
   font-size: var(--fs-s);
-  color: var(--ink-2);
+  text-align: left;
+  cursor: pointer;
 }
-.tk .hist .hcard .via {
-  color: var(--ink-3);
-  font-size: var(--fs-xs);
+.tk .hist .hrow:hover {
+  background: var(--hover);
 }
 .tk .resolved {
   display: flex;

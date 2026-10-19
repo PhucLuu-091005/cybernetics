@@ -150,6 +150,7 @@ function ChangeRow({
           {d.why && <small>Why: {d.why}</small>}
           <span className="chg-by">
             <Avatar id={op.by} dir={dir} sm /> {dir.name(op.by)}
+            {op.via && <small className="via">via key {trunc(op.via, 40)}</small>}
             {clash && <span className="chipx warn">Clash with #{clash.commit.crNum}</span>}
           </span>
         </span>
