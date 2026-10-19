@@ -164,6 +164,9 @@ const AttachArgsSchema = z.strictObject({ eventId: Id, workItemId: Id });
 export const PlaceArgsSchema = z.strictObject({
   itemId: Id,
   teamId: Id,
+  /** The seed history keeps the story ids and its open start; a person's place takes the card's. */
+  id: Id.optional(),
+  since: Instant.nullable().optional(),
   plannedFinish: DateString.optional(),
   /** Read only with plannedFinish; absent means the end of that day. */
   plannedFinishTime: TimeOfDay.optional(),

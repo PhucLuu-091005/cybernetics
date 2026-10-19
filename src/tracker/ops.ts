@@ -133,12 +133,13 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
       const a = op.a;
       const team = find(s.teams, a.teamId, 'team');
       const q = takeFromQueue(s.queue.items, a.itemId);
-      assertNew(s.workItems, q.id, 'work item');
+      const id = a.id ?? q.id;
+      assertNew(s.workItems, id, 'work item');
       const milestone = q.milestoneId ? find(s.milestones, q.milestoneId, 'milestone') : null;
       const after = q.after ? find(s.workItems, q.after, 'work item') : null;
       s.workItems.push(
         newItem({
-          id: q.id,
+          id,
           title: q.title,
           teamId: team.id,
           doneBy: q.doneBy,
@@ -148,7 +149,7 @@ function run(s: TrackerState, op: Op, c: Ctx): OpDescription {
           after: after ? [after.id] : [],
           plannedFinish: a.plannedFinish ?? q.plannedFinish,
           plannedFinishTime: a.plannedFinish ? a.plannedFinishTime : q.plannedFinishTime,
-          since: q.createdAt,
+          since: a.since === undefined ? q.createdAt : a.since,
         }),
       );
       const bits = [team.name];
@@ -495,7 +496,7 @@ function mark(marks: Marks, op: Op, state: TrackerState) {
       marks.events.add(op.a.eventId);
       break;
     case 'place':
-      marks.workItems.add(op.a.itemId);
+      marks.workItems.add(op.a.id ?? op.a.itemId);
       break;
     case 'msDate':
       marks.milestones.add(op.a.milestoneId);

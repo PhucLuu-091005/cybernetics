@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { choose, hydrated } from './helpers';
+import { choose, hydrated, storyCr } from './helpers';
 
 test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
 
@@ -237,7 +237,7 @@ test('an invited person with no grant sees why the graph is closed', async ({ pa
   await other.getByRole('button', { name: /continue/i }).click();
   await other.waitForURL(new RegExp(`/projects/${projectId}/graph$`));
   await expect(other.getByRole('status')).toContainText('You cannot see Main of this project yet.');
-  await other.goto(`/projects/${projectId}/changes/2`);
+  await other.goto(`/projects/${projectId}/changes/${storyCr(2)}`);
   await expect(other.getByRole('status')).toContainText('You cannot see Main of this project yet.');
   await other.getByRole('link', { name: 'Members page' }).click();
   await other.waitForURL(/\/members$/);
@@ -267,7 +267,7 @@ test('a member without Create or View change requests reads Main and gets a plai
   await expect(note).toHaveText(/Main is read-only\. You can view it\./);
   await expect(note).not.toContainText('create a change request');
 
-  await page.goto(`/projects/${projectId}/changes/2`);
+  await page.goto(`/projects/${projectId}/changes/${storyCr(2)}`);
   const refusal = page.getByRole('status');
   await expect(refusal).toContainText('You cannot view change requests in this project.');
   await expect(refusal).not.toContainText('cannot open');

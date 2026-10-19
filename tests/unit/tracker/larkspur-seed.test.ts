@@ -5,13 +5,18 @@ import {
   LARKSPUR_STORY_NOW,
   LARKSPUR_WINDOW_START,
   larkspurCrs,
+  larkspurHistory,
+  larkspurQueueRows,
   larkspurShift,
   larkspurState,
 } from '../../../src/server/tracker/seed/larkspur';
 import {
+  initialState,
   itemStatus,
   layoutTracker,
+  mainState,
   replayOps,
+  type Commit,
   windowStartFor,
   type TrackerState,
   type View,
@@ -222,5 +227,46 @@ describe('demo clock start check', () => {
       exit.mockRestore();
       log.mockRestore();
     }
+  });
+});
+
+describe('the Larkspur history', () => {
+  const commitsOf = (crs: ReturnType<typeof larkspurHistory>['crs']): Commit[] =>
+    crs.map((cr, i) => ({
+      rev: i + 1,
+      crId: `h${i + 1}`,
+      crNum: i + 1,
+      mergedBy: cr.merger!,
+      mergedAt: cr.mergedAt!,
+      ops: cr.ops,
+      resolutions: [],
+    }));
+
+  it('replays from an empty project to exactly the seeded Main, at any shift', () => {
+    for (const days of [0, 10]) {
+      const history = larkspurHistory(undefined, days);
+      expect(history.base).toMatchObject({ teams: [], milestones: [], workItems: [], events: [] });
+      const rows = [...history.rows, ...larkspurQueueRows(undefined, days)];
+      const replayed = mainState(history.base, rows, commitsOf(history.crs));
+      expect(replayed).toEqual(larkspurState(undefined, days));
+    }
+  });
+
+  it('applies every op of every history change request, each by a story member', () => {
+    const history = larkspurHistory();
+    let state = initialState(history.base, [...history.rows, ...larkspurQueueRows()]);
+    for (const cr of history.crs) {
+      const replay = replayOps(state, cr.ops);
+      expect(
+        replay.entries.filter((e) => e.skipped),
+        cr.title,
+      ).toEqual([]);
+      state = replay.state;
+      expect(['minh', 'lan', 'quang', 'ha', 'khoa']).toContain(cr.author);
+      expect(cr.merger).not.toBe(cr.author);
+    }
+    expect(history.crs.length).toBeGreaterThanOrEqual(8);
+    const merged = history.crs.map((cr) => cr.mergedAt!);
+    expect([...merged].sort()).toEqual(merged);
   });
 });

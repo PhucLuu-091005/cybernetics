@@ -8,7 +8,7 @@ import { createCr, crAction, getTrackerPayload } from '../../../src/server/track
 import { DELETE, GET, POST } from '../../../src/app/mcp/route';
 import type { Scope } from '../../../src/contracts';
 import { createTestDatabase, type TestDb } from '../../support/db';
-import { seedDemo, type Demo } from '../../support/tracker-db';
+import { type Demo, HISTORY, seedDemo, storyCr } from '../../support/tracker-db';
 
 const origin = 'http://localhost:3000';
 type Structured = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -131,7 +131,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP tracker tools', () => {
       projectId: demo.projectId,
       asOf: '2026-10-09T11:00:00.000Z',
       timeZone: 'Asia/Ho_Chi_Minh',
-      revision: 1,
+      revision: HISTORY + 1,
     });
     expect(tracker.people).toContainEqual({ id: 'sarah', name: 'Sarah Kim' });
     expect(tracker.people).toContainEqual({ id: demo.ids.lan, name: 'Lan Phạm' });
@@ -171,9 +171,9 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP tracker tools', () => {
     expect(
       tracker.openChangeRequests.map((cr: { num: number; status: string }) => [cr.num, cr.status]),
     ).toEqual([
-      [2, 'ready'],
-      [3, 'ready'],
-      [4, 'draft'],
+      [storyCr(2), 'ready'],
+      [storyCr(3), 'ready'],
+      [storyCr(4), 'draft'],
     ]);
     expect(tracker.openChangeRequests[0]).toMatchObject({
       title: 'Place PG-204 in Engineering',
@@ -185,19 +185,24 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP tracker tools', () => {
   it('lists change requests by status and reads one with its changes and comments', async () => {
     const agent = await connect();
     const all = await call(agent, 'list_change_requests');
-    expect(all.structuredContent.items.map((cr: { num: number }) => cr.num)).toEqual([4, 3, 2, 1]);
+    expect(all.structuredContent.items.map((cr: { num: number }) => cr.num)).toEqual(
+      Array.from({ length: HISTORY + 4 }, (_, i) => HISTORY + 4 - i),
+    );
     expect(all.structuredContent.nextBefore).toBeNull();
     const merged = await call(agent, 'list_change_requests', { status: 'merged' });
-    expect(merged.structuredContent.items).toMatchObject([
-      { num: 1, status: 'merged', author: { id: demo.ids.minh, name: 'Minh Trần' } },
-    ]);
-    const one = await call(agent, 'get_change_request', { num: 1 });
+    expect(merged.structuredContent.items).toHaveLength(HISTORY + 1);
+    expect(merged.structuredContent.items[0]).toMatchObject({
+      num: storyCr(1),
+      status: 'merged',
+      author: { id: demo.ids.minh, name: 'Minh Trần' },
+    });
+    const one = await call(agent, 'get_change_request', { num: storyCr(1) });
     expect(one.isError).toBeFalsy();
     expect(one.structuredContent.changeRequest).toMatchObject({
-      num: 1,
+      num: storyCr(1),
       title: 'Explain the go-live slip',
       status: 'merged',
-      mergedRev: 1,
+      mergedRev: HISTORY + 1,
       mergedBy: { id: demo.ids.minh, name: 'Minh Trần' },
     });
     expect(one.structuredContent.changeRequest).toMatchObject({ changeCount: 2 });
@@ -476,14 +481,15 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP tracker tools', () => {
   it('pages change requests by number, newest first', async () => {
     const agent = await connect(['project:read']);
     const first = (await call(agent, 'list_change_requests', { limit: 2 })).structuredContent;
-    expect(first.items.map((cr: { num: number }) => cr.num)).toEqual([4, 3]);
-    expect(first.nextBefore).toBe(3);
-    const rest = (await call(agent, 'list_change_requests', { limit: 2, before: 3 }))
+    expect(first.items.map((cr: { num: number }) => cr.num)).toEqual([storyCr(4), storyCr(3)]);
+    expect(first.nextBefore).toBe(storyCr(3));
+    const rest = (await call(agent, 'list_change_requests', { limit: 2, before: storyCr(3) }))
       .structuredContent;
-    expect(rest.items.map((cr: { num: number }) => cr.num)).toEqual([2, 1]);
-    expect(rest.nextBefore).toBeNull();
-    const ready = (await call(agent, 'list_change_requests', { status: 'ready', before: 3 }))
-      .structuredContent;
-    expect(ready.items.map((cr: { num: number }) => cr.num)).toEqual([2]);
+    expect(rest.items.map((cr: { num: number }) => cr.num)).toEqual([storyCr(2), storyCr(1)]);
+    expect(rest.nextBefore).toBe(storyCr(1));
+    const ready = (
+      await call(agent, 'list_change_requests', { status: 'ready', before: storyCr(3) })
+    ).structuredContent;
+    expect(ready.items.map((cr: { num: number }) => cr.num)).toEqual([storyCr(2)]);
   });
 });

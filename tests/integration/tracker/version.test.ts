@@ -20,7 +20,7 @@ import {
 import type { TrackerPayload } from '../../../src/tracker';
 import { changedParts } from '../../../src/tracker';
 import { createTestDatabase, type TestDb } from '../../support/db';
-import { seedDemo, type Demo } from '../../support/tracker-db';
+import { type Demo, seedDemo, storyCr } from '../../support/tracker-db';
 
 describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker version', () => {
   let t: TestDb, demo: Demo;
@@ -78,11 +78,11 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker version', () => {
   it('changes the Main part on a merge and the Queue part on a new card', async () => {
     demo = await seedDemo(t.db);
     const payload = await getTrackerPayload(t.db, demo.owner, as('minh'));
-    const two = payload.crs.find((cr) => cr.num === 2)!;
+    const two = payload.crs.find((cr) => cr.num === storyCr(2))!;
     const merged = await changedBy(() =>
       crAction(t.db, demo.owner, {
         ...as('quang'),
-        num: 2,
+        num: storyCr(2),
         action: 'merge',
         expectedRevision: two.revision,
       }),
@@ -159,17 +159,24 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker version', () => {
     expect(merged.base.teams.map((team) => team.id)).toContain('legal');
     await sameAsCheck(merged, 'minh');
     await sameAsCheck(
-      await action('ha', 4, { action: 'share', memberId: demo.ids.lan, permission: 'edit' }),
+      await action('ha', storyCr(4), {
+        action: 'share',
+        memberId: demo.ids.lan,
+        permission: 'edit',
+      }),
       'ha',
     );
-    await sameAsCheck(await action('khoa', 4, { action: 'ask' }), 'khoa');
-    await sameAsCheck(await action('ha', 4, { action: 'handover', to: demo.ids.khoa }), 'ha');
+    await sameAsCheck(await action('khoa', storyCr(4), { action: 'ask' }), 'khoa');
+    await sameAsCheck(
+      await action('ha', storyCr(4), { action: 'handover', to: demo.ids.khoa }),
+      'ha',
+    );
     await sameAsCheck(
       await removeOp(t.db, demo.owner, {
         ...as('khoa'),
-        num: 4,
+        num: storyCr(4),
         index: 'last',
-        expectedRevision: await revisionOf(4),
+        expectedRevision: await revisionOf(storyCr(4)),
       }),
       'khoa',
     );
@@ -181,19 +188,19 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker version', () => {
       changedBy(write).then((changed) => changed.parts);
     expect(
       await crs(() =>
-        action('ha', 4, { action: 'share', memberId: demo.ids.lan, permission: 'view' }),
+        action('ha', storyCr(4), { action: 'share', memberId: demo.ids.lan, permission: 'view' }),
       ),
     ).toEqual(['crs']);
-    expect(await crs(() => action('khoa', 4, { action: 'ask' }))).toEqual(['crs']);
-    expect(await crs(() => action('ha', 4, { action: 'handover', to: demo.ids.khoa }))).toEqual([
-      'crs',
-    ]);
-    const revision = await revisionOf(4);
+    expect(await crs(() => action('khoa', storyCr(4), { action: 'ask' }))).toEqual(['crs']);
+    expect(
+      await crs(() => action('ha', storyCr(4), { action: 'handover', to: demo.ids.khoa })),
+    ).toEqual(['crs']);
+    const revision = await revisionOf(storyCr(4));
     expect(
       await crs(() =>
         removeOp(t.db, demo.owner, {
           ...as('khoa'),
-          num: 4,
+          num: storyCr(4),
           index: 'last',
           expectedRevision: revision,
         }),
@@ -240,13 +247,13 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker version', () => {
 
   it('gives the revision of the change request on screen, when asked', async () => {
     demo = await seedDemo(t.db);
-    const before = await getTrackerVersion(t.db, demo.owner, { ...as('minh'), num: 4 });
+    const before = await getTrackerVersion(t.db, demo.owner, { ...as('minh'), num: storyCr(4) });
     const cr = (await getTrackerPayload(t.db, demo.owner, as('minh'))).crs.find(
-      (c) => c.num === 4,
+      (c) => c.num === storyCr(4),
     )!;
-    expect(before.cr).toEqual({ num: 4, revision: cr.revision, updatedAt: cr.updatedAt });
-    await action('khoa', 4, { action: 'ask' });
-    const after = await getTrackerVersion(t.db, demo.owner, { ...as('minh'), num: 4 });
+    expect(before.cr).toEqual({ num: storyCr(4), revision: cr.revision, updatedAt: cr.updatedAt });
+    await action('khoa', storyCr(4), { action: 'ask' });
+    const after = await getTrackerVersion(t.db, demo.owner, { ...as('minh'), num: storyCr(4) });
     expect(after.cr?.revision).toBe(cr.revision);
     expect(after.cr?.updatedAt).not.toBe(cr.updatedAt);
     expect((await getTrackerVersion(t.db, demo.owner, { ...as('minh'), num: 99 })).cr).toBeNull();

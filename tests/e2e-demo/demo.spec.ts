@@ -1,6 +1,6 @@
 import { expect, request, test, type BrowserContext, type Page } from '@playwright/test';
 import sharp from 'sharp';
-import { expectAppIcons, hydrated, photoShowsEverywhere } from '../e2e/helpers';
+import { expectAppIcons, hydrated, photoShowsEverywhere, storyCr } from '../e2e/helpers';
 
 test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
 
@@ -364,7 +364,7 @@ test('while the visitor acts as Quang, every page shows Quang and acts as Quang'
     await expect(menu.locator('summary b')).toHaveText('Quang Nguyễn');
     await expect(menu.locator('.acct-av')).toHaveText('QN');
   };
-  const pages = ['graph', 'changes/2', 'members', 'settings/tokens', 'profile'];
+  const pages = ['graph', `changes/${storyCr(2)}`, 'members', 'settings/tokens', 'profile'];
   for (const path of pages) {
     await page.goto(`/projects/${projectId}/${path}`);
     await hydrated(page);
@@ -394,7 +394,7 @@ test('while the visitor acts as Quang, every page shows Quang and acts as Quang'
   );
 
   const reply = await page.evaluate(async (pid) => {
-    const sent = await fetch(`/api/v1/projects/${pid}/tracker/crs/2/actions`, {
+    const sent = await fetch(`/api/v1/projects/${pid}/tracker/crs/${storyCr(2)}/actions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ action: 'comment', body: 'Quang checks the mapping.' }),
@@ -402,6 +402,6 @@ test('while the visitor acts as Quang, every page shows Quang and acts as Quang'
     return sent.json();
   }, projectId);
   const quang = reply.members.find((m: { name: string }) => m.name === 'Quang Nguyễn').id;
-  const comments = reply.crs.find((c: { num: number }) => c.num === 2).comments;
+  const comments = reply.crs.find((c: { num: number }) => c.num === storyCr(2)).comments;
   expect(comments.at(-1)).toMatchObject({ memberId: quang, body: 'Quang checks the mapping.' });
 });

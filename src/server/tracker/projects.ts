@@ -29,8 +29,9 @@ import {
   LARKSPUR_PROJECT,
   LARKSPUR_TEAM_PEOPLE,
   LARKSPUR_WINDOW_START,
-  larkspurBase,
   larkspurCrs,
+  larkspurHistory,
+  larkspurHistoryKeys,
   larkspurQueueRows,
   larkspurShift,
 } from './seed/larkspur';
@@ -149,14 +150,18 @@ export async function seedTrackerDemo(
     .returning({ id: projects.id });
   const queueRows = larkspurQueueRows();
   const ids: Record<string, string> = Object.fromEntries(
-    [...LARKSPUR_MEMBERS.map((member) => member.key), ...queueRows.map((row) => row.id)].map(
-      (key) => [key, randomUUID()],
-    ),
+    [
+      ...LARKSPUR_MEMBERS.map((member) => member.key),
+      ...queueRows.map((row) => row.id),
+      ...larkspurHistoryKeys(),
+    ].map((key) => [key, randomUUID()]),
   );
   const id = (key: string) => ids[key] ?? key;
   const tenant = { workspaceId: input.workspaceId, projectId: project.id };
   const owner = LARKSPUR_MEMBERS.find((member) => member.key === LARKSPUR_OWNER)!;
-  const base = larkspurBase(id, days);
+  // Main starts empty; the merged history change requests bring every team, item and event.
+  const history = larkspurHistory(id, days);
+  const base = history.base;
   await createTrackerProject(tx, {
     ...tenant,
     userId: input.userId,
@@ -178,6 +183,13 @@ export async function seedTrackerDemo(
       ...member.grants,
     })),
   );
+  await insertTeams(
+    tx,
+    tenant,
+    history.crs[0].ops.flatMap((op) =>
+      op.op === 'addTeam' ? [{ id: op.a.id, name: op.a.name, leadId: null, memberIds: [] }] : [],
+    ),
+  );
   for (const [teamId, people] of Object.entries(LARKSPUR_TEAM_PEOPLE)) {
     const key = and(eq(trackerTeams.projectId, project.id), eq(trackerTeams.id, teamId));
     if (people.lead)
@@ -189,7 +201,7 @@ export async function seedTrackerDemo(
       .insert(trackerTeamMembers)
       .values(people.members.map((key) => ({ ...tenant, teamId, memberId: id(key) })));
   }
-  const rows = larkspurQueueRows(id, days);
+  const rows = [...history.rows, ...larkspurQueueRows(id, days)];
   await tx.insert(trackerQueue).values(
     rows.map((row) => ({
       ...tenant,
@@ -202,7 +214,11 @@ export async function seedTrackerDemo(
     })),
   );
   const commits: Commit[] = [];
-  for (const [index, seed] of larkspurCrs(id, days).entries()) {
+  const story = larkspurCrs(id, days).map((cr) => ({
+    ...cr,
+    ops: cr.ops.map((op) => ({ ...op, rev: op.rev + history.crs.length })),
+  }));
+  for (const [index, seed] of [...history.crs, ...story].entries()) {
     const num = index + 1;
     const ops: Op[] = replayOps(
       mainState(base, rows, commits, seed.ops[0].rev),
@@ -226,14 +242,16 @@ export async function seedTrackerDemo(
         ops,
         createdAt: seed.createdAt,
         updatedAt,
-        ...(merged ? { mergedRev: merged.rev, mergedBy: id(owner.key), mergedAt: merged.at } : {}),
+        ...(merged
+          ? { mergedRev: merged.rev, mergedBy: seed.merger ?? id(owner.key), mergedAt: merged.at }
+          : {}),
       })
       .returning({ id: trackerCrs.id });
     if (merged) {
       const commit = {
         rev: merged.rev,
         crId: cr.id,
-        mergedBy: id(owner.key),
+        mergedBy: seed.merger ?? id(owner.key),
         mergedAt: merged.at,
         ops,
         resolutions: [],

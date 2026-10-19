@@ -25,7 +25,7 @@ import {
   type Grants,
 } from '../../../src/tracker/permissions';
 import { agentActor, createTestDatabase, testActor, type TestDb } from '../../support/db';
-import { seedDemo, workspaceGuest, type Demo } from '../../support/tracker-db';
+import { type Demo, HISTORY, seedDemo, storyCr, workspaceGuest } from '../../support/tracker-db';
 
 const VIEW_MAIN: Grants = { ...NO_GRANTS, viewMain: true };
 const VIEW_ALL: Grants = { ...VIEW_MAIN, viewCrs: true };
@@ -210,7 +210,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
     const payload = await getTrackerPayload(t.db, person, own());
     expect(payload.me).toMatchObject({ id: row.id, name: 'Mai Vũ', active: true });
     const { num } = await createCr(t.db, person, { ...own(), title: 'From Mai' });
-    expect(num).toBe(5);
+    expect(num).toBe(storyCr(5));
     const after = await listProjectMembers(t.db, demo.owner, own());
     expect(after.members.find((m) => m.id === row.id)).toMatchObject({
       name: 'Mai Vũ',
@@ -320,8 +320,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
     expect(viewer.me?.name).toBe('Khoa Lê');
     // Hà shared #4 with Khoa, so it stays; the other open ones do not show without the list.
     expect(viewer.crs.map((cr) => [cr.num, cr.status])).toEqual([
-      [1, 'merged'],
-      [4, 'draft'],
+      ...Array.from({ length: HISTORY + 1 }, (_, i) => [i + 1, 'merged']),
+      [storyCr(4), 'draft'],
     ]);
     await expect(createCr(t.db, demo.owner, { ...as('khoa'), title: 'No' })).rejects.toMatchObject({
       code: 'FORBIDDEN',
@@ -343,10 +343,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
       mergeCrs: true,
     });
     const before = await getTrackerPayload(t.db, demo.owner, own());
-    const ready = before.crs.find((cr) => cr.num === 2)!;
+    const ready = before.crs.find((cr) => cr.num === storyCr(2))!;
     await crAction(t.db, demo.owner, {
       ...as('lan'),
-      num: 2,
+      num: storyCr(2),
       action: 'close',
       reason: 'Not needed.',
       expectedRevision: ready.revision,
@@ -354,10 +354,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
     await expect(
       crAction(t.db, demo.owner, {
         ...as('ha'),
-        num: 3,
+        num: storyCr(3),
         action: 'close',
         reason: 'Not needed.',
-        expectedRevision: before.crs.find((cr) => cr.num === 3)!.revision,
+        expectedRevision: before.crs.find((cr) => cr.num === storyCr(3))!.revision,
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
@@ -366,7 +366,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
     await fresh();
     await grant('lan', VIEW_MAIN);
     const { num } = await createCr(t.db, demo.owner, { ...as('lan'), title: 'Lead work' });
-    expect(num).toBe(5);
+    expect(num).toBe(storyCr(5));
     const payload = await getTrackerPayload(t.db, demo.owner, as('lan'));
     expect(payload.crs.map((cr) => cr.num)).toContain(3);
     await updateTeam(t.db, demo.owner, { ...own(), teamId: 'digitization', leadId: null });
@@ -393,7 +393,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
     const guest = await workspaceGuest(t.db, demo.owner);
     const payload = await getTrackerPayload(t.db, guest, own());
     expect(payload.me).toBeNull();
-    expect(payload.crs).toHaveLength(4);
+    expect(payload.crs).toHaveLength(HISTORY + 4);
     await expect(createCr(t.db, guest, { ...own(), title: 'No' })).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
@@ -402,10 +402,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
   it('removes a member: their open drafts go back to the author or the lead, teams drop them, history keeps the name', async () => {
     await fresh();
     const before = await getTrackerPayload(t.db, demo.owner, own());
-    expect(before.crs.find((c) => c.num === 4)!.editor).toBe(demo.ids.ha);
+    expect(before.crs.find((c) => c.num === storyCr(4))!.editor).toBe(demo.ids.ha);
     await removeMember(t.db, demo.owner, { ...own(), memberId: demo.ids.ha });
     const after = await getTrackerPayload(t.db, demo.owner, own());
-    expect(after.crs.find((c) => c.num === 4)?.editor).toBe(demo.ids.minh);
+    expect(after.crs.find((c) => c.num === storyCr(4))?.editor).toBe(demo.ids.minh);
     expect(after.members.find((m) => m.id === demo.ids.ha)).toMatchObject({
       name: 'Hà Đỗ',
       active: false,
@@ -545,7 +545,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
     await expect(
       crAction(t.db, demo.owner, {
         ...as('ha'),
-        num: 4,
+        num: storyCr(4),
         action: 'share',
         memberId: demo.ids.lan,
         permission: 'edit',
@@ -553,7 +553,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
     ).rejects.toMatchObject({ code: 'VALIDATION' });
     await crAction(t.db, demo.owner, {
       ...as('ha'),
-      num: 4,
+      num: storyCr(4),
       action: 'share',
       memberId: demo.ids.lan,
       permission: 'view',
@@ -611,7 +611,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
     const id = invited.members.find((m) => m.email === address)!.id;
     await crAction(t.db, demo.owner, {
       ...as('ha'),
-      num: 4,
+      num: storyCr(4),
       action: 'share',
       memberId: id,
       permission: 'edit',
@@ -642,20 +642,20 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('project members', () => {
     await fresh();
     await crAction(t.db, demo.owner, {
       ...as('ha'),
-      num: 4,
+      num: storyCr(4),
       action: 'share',
       memberId: demo.ids.khoa,
       permission: 'edit',
     });
     await crAction(t.db, demo.owner, {
       ...as('ha'),
-      num: 4,
+      num: storyCr(4),
       action: 'handover',
       to: demo.ids.khoa,
     });
     await grant('khoa', VIEW_ALL);
     const payload = await getTrackerPayload(t.db, demo.owner, own());
-    expect(payload.crs.find((c) => c.num === 4)!.editor).toBe(demo.ids.ha);
+    expect(payload.crs.find((c) => c.num === storyCr(4))!.editor).toBe(demo.ids.ha);
   });
 
   it('links a new email of a person who was removed, by bringing back their old member with the new grants and teams', async () => {

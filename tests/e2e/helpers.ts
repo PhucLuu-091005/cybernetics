@@ -1,4 +1,5 @@
 import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
+import { larkspurHistory } from '../../src/server/tracker/seed/larkspur';
 
 export type Point = { x: number; y: number };
 
@@ -161,3 +162,9 @@ export async function manyClashes(page: Page, projectId: string): Promise<number
   await post(`/crs/${mine}/actions`, { action: 'ready' });
   return mine;
 }
+
+/** The merged history change requests take the low numbers; the story's own ones follow. */
+export const HISTORY = larkspurHistory().crs.length;
+/** The stored number of the story's change request #n (1 is "Explain the go-live slip"). */
+export const storyCr = (n: number) => HISTORY + n;
+export const crUrl = (n: number) => new RegExp(`/changes/${storyCr(n)}$`);

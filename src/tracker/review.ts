@@ -102,6 +102,7 @@ function workItemIdOf(op: Op, after: TrackerState): string | null {
     case 'after':
       return op.a.workItemId;
     case 'place':
+      return op.a.id ?? op.a.itemId;
     case 'qms':
       return op.a.itemId;
     case 'fromEvent':
@@ -127,7 +128,7 @@ function createdIds(op: Op): string[] {
     case 'attach':
       return [op.a.eventId];
     case 'place':
-      return [op.a.itemId];
+      return [op.a.id ?? op.a.itemId];
     case 'fromEvent':
       return [op.a.id, op.a.eventId];
     case 'addEvent':
