@@ -104,6 +104,34 @@ test('the project switcher closes on Escape', async ({ page }) => {
   await expect(switcher.locator('summary')).toBeFocused();
 });
 
+for (const width of [1440, 390])
+  test(`the project switcher shows whole above the main area at ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`/signin?label=shell-pop-${width}`);
+    await page.getByRole('button', { name: /continue/i }).click();
+    await expect(page.locator('svg.pg')).toBeVisible();
+    // A phone has no fold button; the switcher is a plain details element there.
+    if (width > 760) await hydrated(page);
+
+    const menu = page.getByRole('list', { name: 'Projects' });
+    const hitsMenu = () =>
+      menu.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const inside = (x: number, y: number) => el.contains(document.elementFromPoint(x, y));
+        return [r.left + 6, r.left + r.width / 2, r.right - 6].every((x) =>
+          [r.top + 6, r.top + r.height / 2, r.bottom - 6].every((y) => inside(x, y)),
+        );
+      });
+    await page.locator('.proj-switch > summary').click();
+    await expect(menu).toBeVisible();
+    expect(await hitsMenu()).toBe(true);
+    await page.keyboard.press('Escape');
+    if (width <= 760) return;
+    await page.getByRole('button', { name: 'Collapse sidebar' }).click();
+    await page.locator('.proj-switch > summary').click();
+    expect(await hitsMenu()).toBe(true);
+  });
+
 test('the project switcher creates a project, opens its graph and lists both projects', async ({
   page,
 }) => {
