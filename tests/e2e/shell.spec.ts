@@ -1,11 +1,6 @@
-import { expect, test, type Page } from '@playwright/test';
-import { expectAppIcons, hydrated, storyCr } from './helpers';
+import { expect, test } from '@playwright/test';
 
 const PROJECT = 'Larkspur Capital';
-
-test('the app icon serves without a session', async ({ request }) => {
-  await expectAppIcons(request, '/signin');
-});
 
 test('the rail folds to icons, keeps the state after a reload, and opens again', async ({
   page,
@@ -108,34 +103,6 @@ test('the project switcher closes on Escape', async ({ page }) => {
   await expect(switcher.locator('summary')).toBeFocused();
 });
 
-for (const width of [1440, 390])
-  test(`the project switcher shows whole above the main area at ${width}`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 900 });
-    await page.goto(`/signin?label=shell-pop-${width}`);
-    await page.getByRole('button', { name: /continue/i }).click();
-    await expect(page.locator('svg.pg')).toBeVisible();
-    // A phone has no fold button; the switcher is a plain details element there.
-    if (width > 760) await hydrated(page);
-
-    const menu = page.getByRole('list', { name: 'Projects' });
-    const hitsMenu = () =>
-      menu.evaluate((el) => {
-        const r = el.getBoundingClientRect();
-        const inside = (x: number, y: number) => el.contains(document.elementFromPoint(x, y));
-        return [r.left + 6, r.left + r.width / 2, r.right - 6].every((x) =>
-          [r.top + 6, r.top + r.height / 2, r.bottom - 6].every((y) => inside(x, y)),
-        );
-      });
-    await page.locator('.proj-switch > summary').click();
-    await expect(menu).toBeVisible();
-    expect(await hitsMenu()).toBe(true);
-    await page.keyboard.press('Escape');
-    if (width <= 760) return;
-    await page.getByRole('button', { name: 'Collapse sidebar' }).click();
-    await page.locator('.proj-switch > summary').click();
-    expect(await hitsMenu()).toBe(true);
-  });
-
 test('the project switcher creates a project, opens its graph and lists both projects', async ({
   page,
 }) => {
@@ -224,52 +191,19 @@ test('Settings shows plain permission names, and Last call changes from Never af
 
   await expect(page.getByTestId('mcp-endpoint')).toHaveText(/\/mcp$/);
   await expect(page.getByText("Paste this into your agent's MCP settings.")).toBeVisible();
-  await expect(page.getByText('Replace inv_... with the secret of your token.')).toBeVisible();
   await expect(page.getByText('Streamable HTTP')).toHaveCount(0);
 
   const form = page.getByRole('form', { name: 'Create a token' });
   const permissions = form.getByRole('group', { name: 'Permissions' });
-  await expect(permissions.getByRole('checkbox')).toHaveCount(11);
+  await expect(permissions.getByRole('checkbox')).toHaveCount(2);
   await expect(permissions.getByRole('checkbox', { name: /Read the project/ })).toBeChecked();
   await expect(permissions.getByRole('checkbox', { name: /Add to the Queue/ })).toBeChecked();
-  await expect(permissions.getByRole('checkbox', { name: /Merge into Main/ })).not.toBeChecked();
-  await expect(permissions).toContainText('The agent can invite people and give them rights.');
-  const all = permissions.getByRole('checkbox', { name: 'Select all' });
-  await expect(all).toHaveJSProperty('indeterminate', true);
-  await hydrated(page);
-  await all.focus();
-  await page.keyboard.press('Space');
-  await expect(permissions.locator('input:checked')).toHaveCount(11);
-  await expect(all).toHaveJSProperty('indeterminate', false);
-  await page.keyboard.press('Space');
-  await expect(permissions.locator('input:checked')).toHaveCount(0);
-  await permissions.getByRole('checkbox', { name: /Read the project/ }).check();
-  await permissions.getByRole('checkbox', { name: /Add to the Queue/ }).check();
-
-  const expires = page.getByRole('combobox', { name: 'Expires' });
-  await expect(expires).toHaveText(/In 30 days/);
-  await expires.focus();
-  await page.keyboard.press('ArrowDown');
-  const list = page.getByRole('listbox', { name: 'Expires' });
-  await expect(list).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(list).toHaveCount(0);
-  await page.keyboard.press('i');
-  await page.keyboard.press('Enter');
-  await expect(expires).toHaveText(/In 7 days/);
-  await page.keyboard.press('ArrowDown');
-  await page.keyboard.press('PageUp');
-  await page.keyboard.press('Enter');
-  await expect(expires).toHaveText(/In 30 days/);
 
   await expect(form.getByRole('button', { name: 'Create token' })).toBeDisabled();
   await form.getByLabel('Label').fill('Last call agent');
   await form.getByRole('button', { name: 'Create token' }).click();
   const secret = (await page.getByTestId('token-secret').innerText()).trim();
   expect(secret).toMatch(/^inv_[A-Za-z0-9_-]{43}$/);
-  await expect(page.getByRole('region', { name: 'New token secret' })).toContainText(
-    'If you lose it, revoke the token and create a new one.',
-  );
   await expect(
     page.getByText(
       'Ask your agent to list its tools. Then press Check again: Last call shows the time of that call.',
@@ -278,7 +212,7 @@ test('Settings shows plain permission names, and Last call changes from Never af
 
   const row = page.getByRole('row').filter({ hasText: 'Last call agent' });
   await expect(row.getByTestId('last-call')).toHaveText('Never');
-  await expect(row.getByText('Read, Add to Queue')).toBeVisible();
+  await expect(row.getByText('Read the project, Add to the Queue')).toBeVisible();
 
   const response = await page.request.post('/mcp', {
     headers: {
@@ -292,263 +226,4 @@ test('Settings shows plain permission names, and Last call changes from Never af
 
   await page.getByRole('button', { name: 'Check again' }).click();
   await expect(row.getByTestId('last-call')).toHaveText(/^\d{1,2} [A-Z][a-z]{2} \d{2}:\d{2}$/);
-});
-
-test('a missing page keeps the stored theme and logs no console error', async ({ page }) => {
-  const problems: string[] = [];
-  page.on('console', (message) => {
-    if (message.type() === 'error' && !/Failed to load resource/.test(message.text()))
-      problems.push(message.text());
-  });
-  page.on('pageerror', (error) => problems.push(error.message));
-  await page.goto('/signin?label=shell-missing');
-  await page.evaluate(() => localStorage.setItem('pg-theme', 'dark'));
-  await page.getByRole('button', { name: /continue/i }).click();
-  await expect(page.getByText(PROJECT).first()).toBeVisible();
-  for (const path of ['/no-such-page', '/projects/00000000-0000-4000-8000-000000000000/graph']) {
-    const response = await page.goto(path);
-    expect(response?.status()).toBe(404);
-    await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  }
-  await page.getByRole('link', { name: 'Go to your projects' }).click();
-  await expect(page.getByText(PROJECT).first()).toBeVisible();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  expect(problems).toEqual([]);
-});
-
-test('a signed-out person who opens a change request link lands on it after sign-in', async ({
-  page,
-  context,
-}) => {
-  await page.goto('/signin?label=shell-return');
-  await page.getByRole('button', { name: /continue/i }).click();
-  await expect(page.getByText(PROJECT).first()).toBeVisible();
-  const projectId = new URL(page.url()).pathname.split('/')[2];
-  const link = `/projects/${projectId}/changes/${storyCr(2)}`;
-  await context.clearCookies();
-
-  await page.goto(link);
-  await page.waitForURL(/\/signin\?/);
-  expect(new URL(page.url()).searchParams.get('next')).toBe(link);
-  await page.goto(`/signin?label=shell-return&next=${encodeURIComponent(link)}`);
-  await page.getByRole('button', { name: /continue/i }).click();
-  await page.waitForURL((url) => url.pathname === link);
-  await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
-
-  await page.goto(`/signin?next=${encodeURIComponent(`/projects/${projectId}/members`)}`);
-  await page.waitForURL((url) => url.pathname === `/projects/${projectId}/members`);
-
-  await context.clearCookies();
-  await page.goto('/signin?label=shell-return&next=%2F%2Fevil.example%2Fx');
-  await page.getByRole('button', { name: /continue/i }).click();
-  await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
-  expect(new URL(page.url()).host).toBe(new URL(link, page.url()).host);
-});
-
-test('Revoke shows Revoking until the table shows the token as revoked', async ({ page }) => {
-  await page.goto('/signin?label=settings-revoke');
-  await page.getByRole('button', { name: /continue/i }).click();
-  await expect(page.getByText(PROJECT).first()).toBeVisible();
-  const projectId = new URL(page.url()).pathname.split('/')[2];
-  await page.goto(`/projects/${projectId}/settings/tokens`);
-  const form = page.getByRole('form', { name: 'Create a token' });
-  await form.getByLabel('Label').fill('Revoke agent');
-  await form.getByRole('button', { name: 'Create token' }).click();
-  await expect(page.getByTestId('token-secret')).toBeVisible();
-  const row = page.getByRole('row').filter({ hasText: 'Revoke agent' });
-
-  const later = () => new Promise((resolve) => setTimeout(resolve, 800));
-  await page.route('**/agent-tokens/*', async (route) => {
-    if (route.request().method() === 'DELETE') await later();
-    await route.continue();
-  });
-  await page.route('**/settings/tokens**', async (route) => {
-    if (route.request().headers()['rsc'] === '1') await later();
-    await route.continue();
-  });
-  await row.getByRole('button', { name: 'Revoke' }).click();
-  const answered = page.waitForResponse(
-    (response) => response.request().method() === 'DELETE' && response.ok(),
-  );
-  await row.getByRole('button', { name: 'Confirm revoke' }).click();
-  await expect(row.getByRole('status')).toHaveText('Revoking…');
-  await expect(row.getByRole('button')).toHaveCount(0);
-  await answered;
-  await expect(row.getByRole('status')).toHaveText('Revoking…');
-  await expect(row.getByRole('button')).toHaveCount(0);
-  await expect(row).toContainText(/Revoked \d{1,2} [A-Z][a-z]{2}/);
-  await expect(row.getByRole('status')).toHaveCount(0);
-});
-
-test('every page has one main landmark and a Skip to content link that shows on keyboard focus', async ({
-  page,
-}) => {
-  const skip = page.getByRole('link', { name: 'Skip to content' });
-  const main = page.getByRole('main');
-  const check = async () => {
-    await expect(main).toHaveCount(1);
-    await expect(skip).toHaveCount(1);
-    const hidden = (await skip.boundingBox())!;
-    expect(hidden.y + hidden.height).toBeLessThanOrEqual(0);
-    await page.keyboard.press('Tab');
-    await expect(skip).toBeFocused();
-    expect((await skip.boundingBox())!.y).toBeGreaterThanOrEqual(0);
-    await page.keyboard.press('Enter');
-    await expect(main).toBeFocused();
-  };
-  await page.goto('/signin?label=shell-main');
-  await check();
-  await page.getByRole('button', { name: /continue/i }).click();
-  await expect(page.getByText(PROJECT).first()).toBeVisible();
-  const projectId = new URL(page.url()).pathname.split('/')[2];
-  for (const path of ['graph', `changes/${storyCr(2)}`, 'members', 'settings/tokens']) {
-    await page.goto(`/projects/${projectId}/${path}`);
-    await hydrated(page);
-    await check();
-  }
-  await page.goto('/no-such-page');
-  await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
-  await check();
-});
-
-test('a missing change request, No projects yet and the error page each have one main', async ({
-  page,
-  browser,
-}) => {
-  const main = page.getByRole('main');
-  await page.goto('/signin?label=shell-one-main');
-  await page.getByRole('button', { name: /continue/i }).click();
-  await expect(page.getByText(PROJECT).first()).toBeVisible();
-  const projectId = new URL(page.url()).pathname.split('/')[2];
-
-  const missing = await page.goto(`/projects/${projectId}/changes/999`);
-  expect(missing?.status()).toBe(404);
-  await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
-  await expect(main).toHaveCount(1);
-
-  // A second person becomes the lead of the sandbox and removes its first person.
-  const api = `/api/v1/projects/${projectId}`;
-  const call = async (on: Page, method: string, url: string, body?: object) => {
-    const origin = new URL(on.url()).origin;
-    const response = await on.request.fetch(url, {
-      method,
-      headers: { origin },
-      ...(body ? { data: body } : {}),
-    });
-    expect(response.ok()).toBe(true);
-    return response.json();
-  };
-  await call(page, 'POST', `${api}/members`, { email: 'shell-one-main-b@local.test' });
-  const other = await browser.newPage();
-  await other.goto('/signin?label=shell-one-main-b');
-  await other.getByRole('button', { name: /continue/i }).click();
-  await expect(other.getByText(PROJECT).first()).toBeVisible();
-  const list = await call(page, 'GET', `${api}/members`);
-  const id = (email: string) =>
-    list.members.find((m: { email: string | null }) => m.email === email).id;
-  await call(page, 'PATCH', `${api}/members/${id('shell-one-main-b@local.test')}`, {
-    projectLead: true,
-  });
-  const after = await call(other, 'DELETE', `${api}/members/${id('shell-one-main@local.test')}`);
-  expect(after.leadId).toBe(id('shell-one-main-b@local.test'));
-  await other.close();
-  await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'No projects yet' })).toBeVisible();
-  await expect(main).toHaveCount(1);
-
-  // 300 reads a minute is the limit of one person; the limit counts in clock minutes, so a burst
-  // that crosses a minute starts again.
-  const again = page.getByRole('button', { name: 'Try again' });
-  for (let attempt = 0; attempt < 3 && !(await again.isVisible()); attempt++) {
-    await page.evaluate(async () => {
-      for (let i = 0; i < 700; i++) if ((await fetch('/api/v1/projects')).status === 429) return;
-    });
-    await page.goto('/');
-  }
-  await expect(again).toBeVisible();
-  await expect(main).toHaveCount(1);
-});
-
-test('the token Label takes typing only after hydration, so a typed label is never reset', async ({
-  page,
-}) => {
-  await page.goto('/signin?label=settings-label-race');
-  await page.getByRole('button', { name: /continue/i }).click();
-  await expect(page.getByText(PROJECT).first()).toBeVisible();
-  const projectId = new URL(page.url()).pathname.split('/')[2];
-  let release = () => {};
-  const scripts = new Promise<void>((resolve) => (release = resolve));
-  await page.route(/\/_next\/static\/chunks\/.*\.js/, async (route) => {
-    await scripts;
-    await route.continue();
-  });
-  await page.goto(`/projects/${projectId}/settings/tokens`, { waitUntil: 'domcontentloaded' });
-  const label = page.getByRole('textbox', { name: 'Label' });
-  await expect(label).toBeDisabled();
-  release();
-  await hydrated(page);
-  await label.fill('After hydration');
-  await expect(page.getByRole('button', { name: 'Create token' })).toBeEnabled();
-  await expect(label).toHaveValue('After hydration');
-});
-
-test('pages, API routes and /welcome send the security headers, and no site can frame them', async ({
-  page,
-}) => {
-  await page.goto('/signin?label=headers');
-  await page.getByRole('button', { name: /continue/i }).click();
-  await expect(page.getByText(PROJECT).first()).toBeVisible();
-  const graph = new URL(page.url()).pathname;
-  for (const path of [graph, '/signin', '/welcome', '/api/health', '/api/v1/projects', '/mcp']) {
-    const reply = await page.request.get(path, { maxRedirects: 0 });
-    expect(reply.headers(), path).toMatchObject({
-      'content-security-policy': "frame-ancestors 'none'",
-      'x-frame-options': 'DENY',
-      'x-content-type-options': 'nosniff',
-      'referrer-policy': 'strict-origin-when-cross-origin',
-    });
-  }
-});
-
-test('the MCP config box shows a long service address whole, at 1440 and 390, on Settings and Profile', async ({
-  page,
-}) => {
-  await page.goto('/signin?label=mcp-box');
-  await page.getByRole('button', { name: /continue/i }).click();
-  await expect(page.getByText(PROJECT).first()).toBeVisible();
-  const projectId = new URL(page.url()).pathname.split('/')[2];
-  // The hosted address is far longer than localhost, so the test puts it in the box itself.
-  const long = 'https://promise-graph-1053551314419.asia-southeast1.run.app/mcp';
-  for (const width of [1440, 390])
-    for (const path of ['settings/tokens', 'profile']) {
-      await page.setViewportSize({ width, height: 900 });
-      await page.goto(`/projects/${projectId}/${path}`);
-      const box = page.getByTestId('mcp-snippet');
-      const fit = await box.evaluate((pre, url) => {
-        pre.textContent = (pre.textContent ?? '').replace(/http:\/\/localhost:\d+\/mcp/, url);
-        const root = document.documentElement;
-        return {
-          hidden: pre.scrollWidth - pre.clientWidth,
-          page: root.scrollWidth - root.clientWidth,
-        };
-      }, long);
-      expect(fit, `${path} at ${width}`).toEqual({ hidden: 0, page: 0 });
-      await expect(box).toContainText(long);
-    }
-  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
-  await page.reload();
-  await page.getByRole('button', { name: 'Copy config' }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Config copied' })).toBeVisible();
-  const copied = await page.evaluate(() => navigator.clipboard.readText());
-  expect(JSON.parse(copied)).toEqual({
-    mcpServers: {
-      'promise-graph': {
-        type: 'http',
-        url: new URL('/mcp', page.url()).href,
-        headers: { Authorization: 'Bearer inv_...' },
-      },
-    },
-  });
-  expect(copied).toContain('\n    "promise-graph": {\n');
 });

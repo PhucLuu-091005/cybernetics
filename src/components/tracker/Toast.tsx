@@ -2,33 +2,18 @@
 import { useEffect } from 'react';
 import { Icon } from './icons';
 
-export type ToastState = {
-  text: string;
-  at: number;
-  undo?: () => void;
-  refresh?: () => void;
-  error?: true;
-};
+export type ToastState = { text: string; at: number; undo?: () => void };
 
-const TOAST_MS = 4500;
+export const TOAST_MS = 4500;
 
-/** While `paused` the toast is out of sight but still announced, and its time starts again after. */
-export function Toast({
-  toast,
-  onClose,
-  paused = false,
-}: {
-  toast: ToastState | null;
-  onClose: () => void;
-  paused?: boolean;
-}) {
+export function Toast({ toast, onClose }: { toast: ToastState | null; onClose: () => void }) {
   useEffect(() => {
-    if (!toast || paused) return;
+    if (!toast) return;
     const timer = setTimeout(onClose, TOAST_MS);
     return () => clearTimeout(timer);
-  }, [toast, onClose, paused]);
+  }, [toast, onClose]);
   return (
-    <div className="tk-toast" role="status" aria-live="polite" data-paused={paused || undefined}>
+    <div className="tk-toast" role="status" aria-live="polite">
       {toast && (
         <>
           <span>{toast.text}</span>
@@ -41,17 +26,6 @@ export function Toast({
               }}
             >
               <Icon name="undo" size={14} /> Undo
-            </button>
-          )}
-          {toast.refresh && (
-            <button
-              type="button"
-              onClick={() => {
-                toast.refresh?.();
-                onClose();
-              }}
-            >
-              Refresh
             </button>
           )}
         </>

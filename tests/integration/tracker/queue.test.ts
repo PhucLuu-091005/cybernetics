@@ -11,7 +11,7 @@ import {
 } from '../../../src/server/tracker';
 import { mainState } from '../../../src/tracker';
 import { agentActor, createTestDatabase, testActor, type TestDb } from '../../support/db';
-import { seedDemo, storyCr, workspaceGuest } from '../../support/tracker-db';
+import { seedDemo, workspaceGuest } from '../../support/tracker-db';
 
 describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker queue', () => {
   let t: TestDb;
@@ -198,11 +198,11 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker queue', () => {
       dismissQueueEntry(t.db, demo.owner, { ...scope('khoa'), queueId: demo.ids[card] });
     await expect(dismiss('qe4')).rejects.toMatchObject({
       code: 'CONFLICT',
-      message: expect.stringContaining(`Used in #${storyCr(4)}`),
+      message: expect.stringContaining('Used in #4'),
     });
     await expect(dismiss('q1')).rejects.toMatchObject({
       code: 'CONFLICT',
-      message: expect.stringContaining(`Used in #${storyCr(2)}`),
+      message: expect.stringContaining('Used in #2'),
     });
     const qms = await createCr(t.db, demo.owner, {
       ...scope('lan'),

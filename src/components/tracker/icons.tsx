@@ -11,7 +11,7 @@ const S = {
 } as const;
 const S24 = { ...S, strokeWidth: 2.4 } as const;
 
-const KIND_ICON: Record<EventKind, ReactNode> = {
+export const KIND_ICON: Record<EventKind, ReactNode> = {
   message: (
     <g {...S}>
       <rect width="20" height="16" x="2" y="4" rx="2" />
@@ -351,17 +351,6 @@ const SHAPES = {
       <path d="M16 2v4" />
       <rect width="18" height="18" x="3" y="4" rx="2" />
       <path d="M3 10h18" />
-    </g>
-  ),
-  legend: (
-    <g {...S}>
-      <rect width="18" height="18" x="3" y="3" rx="2" />
-      <path d="M7 8h2" />
-      <path d="M12 8h5" />
-      <path d="M7 12h2" />
-      <path d="M12 12h5" />
-      <path d="M7 16h2" />
-      <path d="M12 16h5" />
     </g>
   ),
 } satisfies Record<string, ReactNode>;

@@ -15,13 +15,13 @@ import {
 } from 'react';
 import {
   collapsedTeams,
+  changedTeams,
   openTeams as openTeamsPlan,
   teamsOfOps,
   descendantsOf,
   formatDay,
   formatDeadline,
   KIND_LABEL,
-  GEOMETRY,
   layoutTracker,
   matchRows,
   NO_FILTER,
@@ -40,28 +40,18 @@ import {
   type TrackerLayout,
   type TrackerPayload,
   type TrackerState,
-  type TrackerVersion,
   can,
   mergerIds,
 } from '../../tracker';
-import {
-  clashSpot,
-  firstUnpicked,
-  keepCrForAll,
-  openedReview,
-  pickAll,
-  reviewModel,
-} from '../../tracker/review';
+import { openedReview, reviewModel } from '../../tracker/review';
 import {
   actAs,
   addToQueue,
   appendOp,
   createCr,
-  errorText,
   crAction,
   dismissQueueEntry,
   getTracker,
-  getTrackerVersion,
   removeOp,
   type ApiResult,
   type CrAction,
@@ -69,7 +59,6 @@ import {
   type QueueEntry,
 } from './api';
 import { makeDirectory } from './avatar';
-import { freshLabel, onlyAppended } from './fresh';
 import {
   byNumDesc,
   ContextBar,
@@ -112,28 +101,25 @@ import { QueuePanel, type QueueTab } from './QueuePanel';
 import { Toast, type ToastState } from './Toast';
 import { TopBar } from './TopBar';
 import type { Account } from '../shell/AccountMenu';
-import { TrackerGraph, type DatePreview, type Reveal } from './TrackerGraph';
+import { Legend, TrackerGraph, type DatePreview, type Reveal } from './TrackerGraph';
 import {
   browserStore,
   EMPTY_VIEW,
   hiddenList,
   keepFocus,
   readDensity,
-  readLegendOpen,
   readNoticeOff,
   readTeamOpen,
   readViewState,
   revealRows,
   toggleId,
   writeDensity,
-  writeLegendOpen,
   writeNoticeOff,
   writeTeamOpen,
   writeViewState,
   type ViewState,
 } from './view-state';
 import { useTimeScale } from './scale';
-import { hourNow, subscribeHour } from './clock';
 
 export type TrackerView = 'main' | number;
 export type DrawerMode = 'ms' | 'item' | 'crs' | 'history';
@@ -155,7 +141,6 @@ export type TrackerActions = {
   merge: () => void;
   undo: () => void;
   removeChange: (index: number) => void;
-  clearStale: () => void;
   addToQueue: (what: 'event' | 'item') => void;
   openQueueEvent: (id: string) => void;
   openQueueItem: (id: string) => void;
@@ -192,7 +177,6 @@ export const NO_ACTIONS: TrackerActions = {
   merge: noop,
   undo: noop,
   removeChange: noop,
-  clearStale: noop,
   addToQueue: noop,
   openQueueEvent: noop,
   openQueueItem: noop,
@@ -213,45 +197,27 @@ export const NO_ACTIONS: TrackerActions = {
   addToMilestone: noop,
 };
 
-// The owner wants no frequent polling; a person who comes back sees news through the checks on return.
-export const CHECK_MS = 5 * 60_000;
-const AWAY_MS = 60_000;
+export const POLL_MS = 5000;
 // The prototype keeps a pop open for clicks in these areas; the graph closes it on its own background.
 const OUTSIDE_EXEMPT =
   '.p-head, .bbar, .pop, .drawer, .p-side, .empty, .ro-note, svg.tg, .tk-modal, .tk-toast, .zoombar, .gtools';
 // These layers close themselves on Esc, so the screen leaves the rest open.
 const OWN_ESCAPE =
-  'dialog[open], .tk input[aria-invalid="true"]:focus, .tk details[open], .tk .tsearch-pop:not([hidden]), .tk .hand-menu, .tk .field-pop, .tk .view-pop, .tk .legend-pop:focus-within';
-const PHONE_QUERY = '(max-width: 760px)';
+  '.tk details[open], .tk .tsearch-pop:not([hidden]), .tk .hand-menu, .tk .field-pop, .tk .view-pop';
+const MINUTE = 60_000;
 
-const crByNum = (p: TrackerPayload, num: number) => p.crs.find((c) => c.num === num);
+const samePayload = (a: TrackerPayload, b: TrackerPayload) =>
+  JSON.stringify(a) === JSON.stringify(b);
 
-/**
- * Main and each change request have their own page, so a view switch is a navigation. The screen
- * changes only on the person's own writes and on Refresh: a light check in the background finds a
- * newer version and offers Refresh, as a pull request page does.
- */
+/** Main and each change request have their own page, so a view switch is a navigation. */
 export function useTracker(initial: TrackerPayload, projectId: string, num: number | null) {
   const [payload, setPayloadState] = useState(initial);
-  // A check that overlaps a write compares an old payload, so its answer is dropped.
+  // A poll that started before a write must not overwrite the payload the write returned.
   const writes = useRef(0);
-  const inFlight = useRef(0);
-  const shown = useRef(initial);
   const setPayload = useCallback((next: TrackerPayload) => {
     writes.current += 1;
-    shown.current = next;
     setPayloadState(next);
   }, []);
-  const startWrite = useCallback(() => {
-    writes.current += 1;
-    inFlight.current += 1;
-  }, []);
-  const endWrite = useCallback(() => {
-    writes.current += 1;
-    inFlight.current -= 1;
-  }, []);
-  const writeMark = useCallback(() => writes.current, []);
-  const [seen, setSeen] = useState<{ against: string; next: TrackerVersion } | null>(null);
   const router = useRouter();
   const view: TrackerView = num ?? 'main';
   const setView = useCallback(
@@ -262,108 +228,51 @@ export function useTracker(initial: TrackerPayload, projectId: string, num: numb
     [router, projectId, view],
   );
 
-  const checkNow = useRef<() => void>(noop);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let stopped = false;
-    let checking = false;
+    let inFlight = false;
     const schedule = () => {
       clearTimeout(timer);
-      timer = setTimeout(check, CHECK_MS);
+      timer = setTimeout(poll, POLL_MS);
     };
-    // A hidden tab schedules nothing, so it sends no request until it shows again.
-    async function check() {
-      if (stopped || checking) return;
+    async function poll() {
+      if (stopped || inFlight) return;
       if (document.visibilityState !== 'visible') return;
-      checking = true;
-      const before = writes.current;
-      const against = shown.current.version;
-      const result = await getTrackerVersion(projectId, num);
-      checking = false;
+      inFlight = true;
+      const seen = writes.current;
+      const result = await getTracker(projectId);
+      inFlight = false;
       if (stopped) return;
-      if (result.ok && before === writes.current && inFlight.current === 0)
-        setSeen({ against, next: result.data });
+      if (result.ok && seen === writes.current)
+        setPayloadState((prev) => (samePayload(prev, result.data) ? prev : result.data));
       schedule();
     }
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') void check();
+      if (document.visibilityState === 'visible') void poll();
     };
-    let blurredAt: number | null = null;
-    const onBlur = () => {
-      blurredAt = Date.now();
-    };
-    const onFocus = () => {
-      if (blurredAt !== null && Date.now() - blurredAt >= AWAY_MS) void check();
-      blurredAt = null;
-    };
-    checkNow.current = () => void check();
     schedule();
     document.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('blur', onBlur);
-    window.addEventListener('focus', onFocus);
     return () => {
       stopped = true;
       clearTimeout(timer);
-      checkNow.current = noop;
       document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('blur', onBlur);
-      window.removeEventListener('focus', onFocus);
     };
-  }, [projectId, num]);
+  }, [projectId]);
 
-  const onScreen = num === null ? undefined : crByNum(payload, num);
-  const label =
-    seen && seen.against === payload.version
-      ? freshLabel(
-          {
-            version: payload.version,
-            crCount: payload.crs.length,
-            ...(onScreen
-              ? {
-                  cr: {
-                    num: onScreen.num,
-                    revision: onScreen.revision,
-                    updatedAt: onScreen.updatedAt,
-                  },
-                }
-              : {}),
-          },
-          seen.next,
-        )
-      : null;
-  const check = useCallback(() => checkNow.current(), []);
-  return {
-    payload,
-    view,
-    setPayload,
-    setView,
-    fresh: label,
-    check,
-    startWrite,
-    endWrite,
-    writeMark,
-  };
+  return { payload, view, setPayload, setView };
 }
 
-// Hydration renders with the server's hour, so the T line matches the server HTML; the client clock takes over after.
-export function useNow(serverNow: number, timeZone: string) {
-  const subscribe = useMemo(() => subscribeHour(timeZone), [timeZone]);
-  return useSyncExternalStore(
-    subscribe,
-    () => hourNow(timeZone),
-    () => serverNow,
-  );
-}
-
-const watchPhone = (onChange: () => void) => {
-  const query = window.matchMedia(PHONE_QUERY);
-  query.addEventListener('change', onChange);
-  return () => query.removeEventListener('change', onChange);
+const everyHalfMinute = (onChange: () => void) => {
+  const timer = setInterval(onChange, MINUTE / 2);
+  return () => clearInterval(timer);
 };
-const isPhone = () => window.matchMedia(PHONE_QUERY).matches;
-// CSS sets the phone column width before this flag arrives, so the first measured span is already right.
-const usePhone = () => useSyncExternalStore(watchPhone, isPhone, () => false);
+const minuteNow = () => Math.floor(Date.now() / MINUTE) * MINUTE;
+// Hydration renders with the server's minute, so the T line matches the server HTML; the client clock takes over after.
+export const useNow = (serverNow: number) =>
+  useSyncExternalStore(everyHalfMinute, minuteNow, () => serverNow);
 
+const crByNum = (p: TrackerPayload, num: number) => p.crs.find((c) => c.num === num);
 const withoutNum = (data: TrackerPayload & { num?: number }): TrackerPayload => {
   const copy = { ...data };
   delete copy.num;
@@ -408,20 +317,10 @@ export function TrackerScreen({
   /** The signed-in user, so "Don't show again" on the Main notice holds for that person only. */
   userId: string;
   account: Account;
-  /** The server's time rounded down to the hour, for a project without a fixed clock. */
+  /** The server's time rounded down to the minute, for a project without a demo clock. */
   serverNow: number;
 }) {
-  const {
-    payload: latest,
-    view,
-    setPayload,
-    setView,
-    fresh,
-    check,
-    startWrite,
-    endWrite,
-    writeMark,
-  } = useTracker(initial, projectId, num);
+  const { payload: latest, view, setPayload, setView } = useTracker(initial, projectId, num);
   const latestCr = num === null ? null : (latest.crs.find((c) => c.num === num) ?? null);
   const mayEdit = !!latestCr && can(latest, 'edit', latestCr);
   // A merger decides on the version they opened; a newer revision waits behind Review again.
@@ -433,7 +332,7 @@ export function TrackerScreen({
   const payload = frozen.payload;
   const { project } = payload;
   const tz = project.timeZone;
-  const now = useNow(serverNow, tz);
+  const now = useNow(serverNow);
   const asOf = project.asOf ?? toInstant(now, tz);
   const cr = num === null ? null : (payload.crs.find((c) => c.num === num) ?? null);
   const [picks, setPicks] = useState<Picks>({});
@@ -500,7 +399,7 @@ export function TrackerScreen({
     writeViewState(browserStore(), projectId, next);
   };
 
-  const [density, setDensity] = useState<Density>('comfortable');
+  const [density, setDensity] = useState<Density>('compact');
   const [teamOpen, setTeamOpen] = useState<TeamToggles>(new Map());
   useLayoutEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -513,17 +412,6 @@ export function TrackerScreen({
   const changeDensity = (next: Density) => {
     setDensity(next);
     writeDensity(browserStore(), userId, next);
-  };
-  // Null until the browser storage and width are read, so the server HTML holds no legend.
-  const [legend, setLegend] = useState<boolean | null>(null);
-  useLayoutEffect(() => {
-    const phone = window.matchMedia(PHONE_QUERY).matches;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLegend(readLegendOpen(browserStore(), userId, { phone }));
-  }, [userId]);
-  const changeLegend = (open: boolean) => {
-    setLegend(open);
-    writeLegendOpen(browserStore(), userId, open);
   };
   const changeTeamOpen = (next: TeamToggles) => {
     setTeamOpen(next);
@@ -585,12 +473,8 @@ export function TrackerScreen({
   useEffect(() => () => stopDrag.current?.(), []);
 
   const showToast = useCallback(
-    (text: string, act?: (() => void) | { refresh: () => void }) =>
-      setToast({
-        text,
-        at: Date.now(),
-        ...(typeof act === 'function' ? { undo: act } : act),
-      }),
+    (text: string, undo?: () => void) =>
+      setToast({ text, at: Date.now(), ...(undo ? { undo } : {}) }),
     [],
   );
   const closeToast = useCallback(() => setToast(null), []);
@@ -656,20 +540,23 @@ export function TrackerScreen({
     map: new Map(),
   });
   if (activeToggles.key !== narrowKey) setActiveToggles({ key: narrowKey, map: new Map() });
+  const changed = useMemo(() => changedTeams(state, current.marks), [state, current.marks]);
   const collapsed = useMemo(
     () =>
       collapsedTeams(state, {
+        asOf,
+        timeZone: tz,
         toggles: teamOpen,
+        changed,
         active: narrowed,
         activeToggles: activeToggles.map,
       }),
-    [state, teamOpen, narrowed, activeToggles.map],
+    [state, asOf, tz, teamOpen, changed, narrowed, activeToggles.map],
   );
   const windowStart = useMemo(
     () => windowStartFor(state, project.windowStart, asOf, tz),
     [state, project.windowStart, asOf, tz],
   );
-  const phone = usePhone();
   const layout = useMemo(
     () =>
       layoutTracker(
@@ -687,7 +574,6 @@ export function TrackerScreen({
           density,
           collapsedTeams: collapsed,
           plusButtons: edit,
-          ...(phone ? { side: GEOMETRY.NARROW_SIDE } : {}),
           ...(windowStart ? { windowStart } : {}),
         },
         current.marks,
@@ -706,10 +592,9 @@ export function TrackerScreen({
       density,
       collapsed,
       edit,
-      phone,
     ],
   );
-  // Pointer handlers outlive the render that started a drag, and a Refresh can land in between.
+  // Pointer handlers outlive the render that started a drag, and a poll can land in between.
   const live = useRef<{
     payload: TrackerPayload;
     state: TrackerState;
@@ -759,7 +644,12 @@ export function TrackerScreen({
     hide({ ...hidden, hiddenTeams: toggleId(hidden.hiddenTeams, id) });
   /** `narrowedAfter`: the graph stays narrowed after this action, so the opening is temporary. */
   const openTeams = (teams: string[], narrowedAfter = narrowed) => {
-    const plan = openTeamsPlan(state, { toggles: teamOpen }, teams, narrowedAfter);
+    const plan = openTeamsPlan(
+      state,
+      { asOf, timeZone: tz, toggles: teamOpen, changed },
+      teams,
+      narrowedAfter,
+    );
     if (plan.toggles) changeTeamOpen(plan.toggles);
     if (plan.active.length)
       setActiveToggles((a) => ({
@@ -856,83 +746,38 @@ export function TrackerScreen({
     setPopFor({ kind: 'act', id: eventId });
   };
 
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshed, setRefreshed] = useState(0);
   /**
-   * The merger keeps the version they opened, as a pull request keeps a review: a moved change
-   * request waits behind Review again. A write during the read wins over the read.
+   * A 409 means someone wrote first, so the screen reads again. Only an append retries: it adds to
+   * whatever is there, while every other write acted on what the person saw and must not repeat.
    */
-  const refresh = async () => {
-    setRefreshing(true);
-    const mark = writeMark();
-    const result = await getTracker(projectId);
-    setRefreshing(false);
-    if (!result.ok) {
-      showToast(result.error.message);
-      return;
-    }
-    if (mark !== writeMark()) return;
-    setPayload(result.data);
-    live.current = { ...live.current, payload: result.data };
-    setRefreshed((n) => n + 1);
-  };
-
-  // A drawer whose item went away with a Refresh closes, so the focus panel can come back.
-  const [drawerChecked, setDrawerChecked] = useState(0);
-  if (drawerChecked !== refreshed) {
-    setDrawerChecked(refreshed);
-    const gone =
-      (drawer?.mode === 'item' && !state.workItems.some((w) => w.id === drawer.id)) ||
-      (drawer?.mode === 'ms' && !state.milestones.some((m) => m.id === drawer.id));
-    if (gone) setDrawer(null);
-  }
-
-  const queue = useRef<Promise<unknown>>(Promise.resolve());
-  /**
-   * Writes run one after another, so each one sends the revision of the reply before it. A 409
-   * keeps the screen as it was and offers Refresh; only an append retries once, when the draft on
-   * the server only gained changes after the ones on screen (the editor's own agent).
-   */
-  const write = <T extends TrackerPayload>(
+  const write = async <T extends TrackerPayload>(
     run: (p: TrackerPayload) => Promise<ApiResult<T>>,
-    { append }: { append?: number } = {},
+    { retry = false }: { retry?: boolean } = {},
   ): Promise<T | null> => {
     setWriting((n) => n + 1);
-    startWrite();
-    const job = queue.current
-      .then(() => send(run, append))
-      .finally(() => {
-        setWriting((n) => n - 1);
-        endWrite();
-      });
-    queue.current = job.catch(() => null);
-    return job;
-  };
-  const send = async <T extends TrackerPayload>(
-    run: (p: TrackerPayload) => Promise<ApiResult<T>>,
-    append: number | undefined,
-  ): Promise<T | null> => {
-    let result = await run(live.current.payload);
-    if (!result.ok && result.error.status === 409 && append !== undefined) {
-      const shownCr = crByNum(live.current.payload, append);
-      const fresh = await getTracker(projectId);
-      if (shownCr && fresh.ok && onlyAppended(shownCr, crByNum(fresh.data, append)))
-        result = await run(fresh.data);
+    try {
+      let result = await run(live.current.payload);
+      if (!result.ok && result.error.status === 409) {
+        const fresh = await getTracker(projectId);
+        if (fresh.ok) {
+          setPayload(fresh.data);
+          live.current = { ...live.current, payload: fresh.data };
+          if (retry) result = await run(fresh.data);
+        }
+      }
+      if (!result.ok) {
+        showToast(result.error.message);
+        return null;
+      }
+      const next = withoutNum(result.data);
+      setPayload(next);
+      live.current = { ...live.current, payload: next };
+      // The person acted on the latest version, so it becomes the one they review.
+      if (num !== null) setOpened(next.crs.find((c) => c.num === num) ?? null);
+      return result.data;
+    } finally {
+      setWriting((n) => n - 1);
     }
-    if (!result.ok) {
-      if (result.error.status === 409) {
-        showToast(result.error.message, { refresh: () => void refresh() });
-        check();
-      } else showToast(errorText(result.error));
-      setToast((t) => t && { ...t, error: true });
-      return null;
-    }
-    const next = withoutNum(result.data);
-    setPayload(next);
-    live.current = { ...live.current, payload: next };
-    // The person acted on the latest version, so it becomes the one they review.
-    if (num !== null) setOpened(next.crs.find((c) => c.num === num) ?? null);
-    return result.data;
   };
   const revisionOf = (p: TrackerPayload, num: number) => crByNum(p, num)?.revision ?? 0;
   /** `seen` sends the revision the editor sees, so ready and edit again act on the changes on screen. */
@@ -947,15 +792,13 @@ export function TrackerScreen({
     void write((p) => removeOp(projectId, num, index, revisionOf(p, num)));
   };
   const undoLast = (num: number) => removeAt(num, 'last');
-  const removeAll = async (num: number, indexes: readonly number[]) => {
-    for (const index of indexes)
-      if (!(await write((p) => removeOp(projectId, num, index, revisionOf(p, num))))) return;
-  };
 
   const appendAll = async (num: number, ops: readonly OpInput[]) => {
     let last: TrackerPayload | null = null;
     for (const op of ops) {
-      last = await write((p) => appendOp(projectId, num, op, revisionOf(p, num)), { append: num });
+      last = await write((p) => appendOp(projectId, num, op, revisionOf(p, num)), {
+        retry: true,
+      });
       if (!last) return null;
     }
     const d = last && crByNum(last, num)?.ops.at(-1)?.d;
@@ -1128,9 +971,6 @@ export function TrackerScreen({
     removeChange: (index) => {
       if (cr && edit) removeAt(cr.num, index);
     },
-    clearStale: () => {
-      if (cr && edit && model) void removeAll(cr.num, model.stale);
-    },
     addToQueue: (what) => openModal({ mode: 'add', what }),
     openQueueEvent: (id) =>
       state.workItems.length
@@ -1182,15 +1022,8 @@ export function TrackerScreen({
         openModal({ mode: 'due', kind: 'ms', id: milestoneId, date, time });
     },
     removeFromMilestone: (workItemId) => commitOps([{ op: 'msRemove', a: { workItemId } }]),
-    addToMilestone: (workItemId, milestoneId) => {
-      const item = state.workItems.find((w) => w.id === workItemId);
-      const now = state.milestones.find((m) => m.id === item?.milestoneId);
-      if (item && now && now.id !== milestoneId)
-        return showToast(
-          `${item.title} is in ${now.name} already. Change its milestone in its details.`,
-        );
-      commitOps([{ op: 'msAdd', a: { workItemId, milestoneId } }]);
-    },
+    addToMilestone: (workItemId, milestoneId) =>
+      commitOps([{ op: 'msAdd', a: { workItemId, milestoneId } }]),
   };
 
   const handlers: ModalHandlers = {
@@ -1206,17 +1039,13 @@ export function TrackerScreen({
     requestChanges: (note) => void onRequestChanges(note),
   };
 
-  /** A write still on its way answers for the person before; the switch waits for it in the queue. */
   const onActAs = async (memberId: string) => {
-    const asked = Date.now();
-    const before = me ? dir.name(me) : null;
-    const next = await write(() => actAs(projectId, memberId));
-    if (!next) return;
-    // A write that answered while the switch waited spoke for the person before: their success
-    // note no longer fits the screen, and their error names them.
-    setToast((t) =>
-      !t || t.at < asked ? t : t.error && before ? { ...t, text: `${before}: ${t.text}` } : null,
-    );
+    const result = await actAs(projectId, memberId);
+    if (!result.ok) {
+      showToast(result.error.message);
+      return;
+    }
+    const next = result.data;
     const nextMe = next.me?.id ?? null;
     const drafts = myDrafts(next.crs, nextMe);
     const draft =
@@ -1225,6 +1054,7 @@ export function TrackerScreen({
         .filter((c) => c.status === 'draft' && roleIn(c, nextMe) !== 'view')
         .sort(byNumDesc)[0];
     const merger = !!nextMe && can(next, 'merge');
+    setPayload(next);
     setPop(null);
     setMoving(null);
     closeModal();
@@ -1284,7 +1114,7 @@ export function TrackerScreen({
     else if (done.kind === 'dismiss') void onDismiss(done.id);
     else if (done.kind === 'hint') showToast(done.text);
   };
-  // A Refresh during the drag can change who edits, so the drop must use this render's handlers.
+  // A poll during the drag can change who edits, so the drop must use this render's handlers.
   const onDrop = useRef(drop);
   useLayoutEffect(() => {
     onDrop.current = drop;
@@ -1523,9 +1353,6 @@ export function TrackerScreen({
         busy={busy}
         onView={openView}
         onDrawer={toggleDrawer}
-        fresh={
-          fresh ? { label: fresh, busy: refreshing || busy, onRefresh: () => void refresh() } : null
-        }
         hidden={{
           hidden: hiddenNow,
           onUnhideTeam: (id) =>
@@ -1537,18 +1364,14 @@ export function TrackerScreen({
           ? {
               review: {
                 canMerge: model.canMerge,
-                toPick: firstUnpicked(model.clashes, model.picks)?.label ?? null,
                 changed: frozen.changed,
                 onReviewAgain: reviewAgain,
-                applying: model.applying,
-                inMain: model.inMain,
               },
             }
           : {})}
       />
       {showNotice && (
         <MainNotice
-          canCreate={canCreate}
           onClose={() => setNoticeClosed(true)}
           onNeverAgain={() => {
             setNoticeOff(true);
@@ -1583,18 +1406,6 @@ export function TrackerScreen({
             onTab={setSideTab}
             onSelect={selectChange}
             onPick={(key, value) => setPicks((p) => ({ ...p, [key]: value }))}
-            onPickAll={(side) =>
-              setPicks((p) =>
-                side === 'cr'
-                  ? keepCrForAll(payload, model.cr.num, p)
-                  : { ...p, ...pickAll(model.clashes, 'main') },
-              )
-            }
-            onShowClash={(key) => {
-              const spot = clashSpot(key, model.after);
-              if (spot?.kind === 'item') showRow(spot.id);
-              if (spot?.kind === 'ms') setDrawer({ mode: 'ms', id: spot.id });
-            }}
             onHide={() => setSideOpen(false)}
           />
         )}
@@ -1611,7 +1422,7 @@ export function TrackerScreen({
                   onClick={() => setSideOpen(true)}
                 >
                   <Icon name="sidebar" size={14} /> {mayEdit ? 'Changes and Queue' : 'Changes'}{' '}
-                  <span className="cnt">{model.applying}</span>
+                  <span className="cnt">{model.changes.length}</span>
                 </button>
               )}
               <span className="seg" role="group" aria-label="Graph state">
@@ -1688,8 +1499,6 @@ export function TrackerScreen({
               onDensity={changeDensity}
               onExpandAll={() => setAllTeams(true)}
               onCollapseAll={() => setAllTeams(false)}
-              legend={legend}
-              onLegend={changeLegend}
             />
             {edit && (
               <div className="bin" aria-hidden="true">
@@ -1712,32 +1521,57 @@ export function TrackerScreen({
                 onDetails={(id) => openItem(id, { find: false })}
               />
             )}
-            {state.workItems.length === 0 &&
-              (!cr ? (
-                <div className="empty">
-                  <h4>This project has no work yet.</h4>
-                  <ol>
-                    <li>Press New change request. Main stays read-only.</li>
-                    <li>
-                      In the change request, add work items and events, then drag them onto the
-                      graph.
-                    </li>
-                    <li>Mark the change request as ready, and {mergerName} merges it.</li>
-                  </ol>
-                  {canCreate && (
+            {state.workItems.length === 0 && (
+              <div className="empty">
+                <h4>This project has no work yet.</h4>
+                {edit ? (
+                  <>
+                    <ol>
+                      <li>Add work items and events. They wait in the Queue on the left.</li>
+                      <li>Drag a work item onto a team, then drag events onto the work item.</li>
+                      <li>Mark the change request as ready, and {mergerName} merges it.</li>
+                    </ol>
                     <div className="row-btns">
-                      <button className="btn btn-ink big" type="button" onClick={actions.newCr}>
-                        <Icon name="plus" /> New change request
+                      <button
+                        className="btn btn-ink big"
+                        type="button"
+                        onClick={() => actions.addToQueue('item')}
+                      >
+                        <Icon name="plus" /> Add a work item
+                      </button>
+                      <button
+                        className="btn big"
+                        type="button"
+                        onClick={() => actions.addToQueue('event')}
+                      >
+                        <Icon name="plus" /> Add an event
+                      </button>
+                      <button className="btn big" type="button" onClick={actions.newTeam}>
+                        <Icon name="plus" /> New team
                       </button>
                     </div>
-                  )}
-                </div>
-              ) : (
-                // The Main card would read as an instruction on a change request, so it gets a quiet line.
-                <p className="empty-line" role="note">
-                  No work items in this view.
-                </p>
-              ))}
+                  </>
+                ) : (
+                  <>
+                    <ol>
+                      <li>Press New change request. Main stays read-only.</li>
+                      <li>
+                        In the change request, add work items and events, then drag them onto the
+                        graph.
+                      </li>
+                      <li>Mark the change request as ready, and {mergerName} merges it.</li>
+                    </ol>
+                    {!cr && canCreate && (
+                      <div className="row-btns">
+                        <button className="btn btn-ink big" type="button" onClick={actions.newCr}>
+                          <Icon name="plus" /> New change request
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
           {drawer?.mode === 'item' && (
             <WorkItemDrawer
@@ -1754,8 +1588,6 @@ export function TrackerScreen({
                 setDrawer({ mode: 'ms', id });
               }}
               onToggleRow={(id) => (isHidden(id) ? reveal([id]) : toggleRow(id))}
-              focused={focused === drawer.id}
-              onFocus={toggleFocus}
             />
           )}
           {drawer?.mode === 'ms' && (
@@ -1787,6 +1619,7 @@ export function TrackerScreen({
           )}
         </div>
       </div>
+      <Legend />
       {modal && (
         <Modal
           key={modal.key}
@@ -1805,7 +1638,7 @@ export function TrackerScreen({
           {drag.ghost}
         </div>
       )}
-      <Toast toast={toast} onClose={closeToast} paused={!!drag?.items} />
+      <Toast toast={toast} onClose={closeToast} />
     </div>
   );
 }

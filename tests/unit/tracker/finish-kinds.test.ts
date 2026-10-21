@@ -4,9 +4,6 @@ import {
   KIND_GROUPS,
   KIND_LABEL,
   kindText,
-  kindWithArticle,
-  whoDid,
-  defaultWho,
   STATUS_LABEL,
   type Milestone,
   type TrackerEvent,
@@ -68,30 +65,6 @@ describe('event kinds', () => {
       ['Finish', ['handoff', 'done', 'cancelled']],
     ]);
     expect(KIND_GROUPS.flatMap((g) => g.kinds).sort()).toEqual([...EVENT_KINDS].sort());
-  });
-
-  it('puts the right article before each kind', () => {
-    expect(kindWithArticle('issue')).toBe('an Issue');
-    expect(kindWithArticle('idea')).toBe('an Idea');
-    expect(kindWithArticle('meeting')).toBe('a Meeting');
-    expect(kindWithArticle('handoff')).toBe('a Handoff');
-    expect(kindWithArticle('done')).toBe('a Done');
-  });
-
-  it('picks the Done by person for a Done or a Cancelled, and the Requested by person else', () => {
-    const item = { doneBy: 'ha', requestedBy: 'sarah' };
-    expect(whoDid(item, 'done')).toBe('ha');
-    expect(whoDid(item, 'cancelled')).toBe('ha');
-    expect(whoDid(item, 'message')).toBe('sarah');
-    expect(whoDid(item, 'idea')).toBe('sarah');
-  });
-
-  it('fills Who with the person on screen, and with the item person only when they cannot be picked', () => {
-    const item = { doneBy: 'ha', requestedBy: 'lan' };
-    expect(defaultWho(item, 'message', 'quang', ['lan', 'quang', 'ha'])).toBe('quang');
-    expect(defaultWho(item, 'done', 'quang', ['lan', 'quang', 'ha'])).toBe('quang');
-    expect(defaultWho(item, 'message', 'reader', ['lan', 'quang', 'ha'])).toBe('lan');
-    expect(defaultWho(item, 'done', null, ['lan', 'quang', 'ha'])).toBe('ha');
   });
 
   it('has a Cancelled status with a neutral tone', () => {
@@ -365,11 +338,9 @@ describe('layout and filters for a cancelled work item', () => {
     expect([...match!.match]).toEqual(['w']);
   });
 
-  it('has one cancelled work item in the Larkspur demo, in IT', () => {
-    const L = layoutTracker(larkspurState(), { ...view, windowStart: '2026-09-13' });
-    expect(L.lanes.map((l) => [l.teamId, l.summary.cancelled]).filter(([, n]) => n)).toEqual([
-      ['it', 1],
-    ]);
+  it('keeps the Larkspur demo free of cancelled work items', () => {
+    const L = layoutTracker(larkspurState(), { ...view, windowStart: '2026-09-10' });
+    expect(L.lanes.every((l) => l.summary.cancelled === 0)).toBe(true);
   });
 });
 

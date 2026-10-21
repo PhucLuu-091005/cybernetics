@@ -11,14 +11,13 @@ import {
   type MouseEvent,
 } from 'react';
 import {
+  EVENT_KINDS,
   GEOMETRY,
-  KIND_GROUPS,
   KIND_LABEL,
   PLUS_GAP,
   STATUS_LABEL,
   STATUS_TONE,
   type Density,
-  type EventKind,
   type LayoutHandoff,
   type LayoutMilestone,
   type Status,
@@ -27,61 +26,16 @@ import {
 } from '../../tracker';
 import { svgPoint } from './drag';
 import { gestureFactor, openScale, wheelZoomFactor, zoomTarget } from './scale';
-import { changeScroll, cutToFit, keepInView, menuPlace } from './in-view';
 import { Icon, KIND_COLOR, KindIcon, SvgIcon } from './icons';
-import { teamMenuItems } from './team';
 
 const { X0, SIDE, AXIS_Y, TRUNK_Y, TOP, INDENT, MAX_DAY_WIDTH } = GEOMETRY;
 // The bin floats over the bottom of the graph, so the New team pill needs room above it.
 const TEAM_PILL_ROOM = 28;
 const ZOOM_STEP = 1.5;
-// Below this the pop is a sliver of its own padding, so it steps aside until the graph scrolls up.
-const LEGEND_MIN_ROOM = 48;
 const REVEAL_ZOOM = 2;
-const REVEAL_FLASH_MS = 2800;
+const REVEAL_FLASH_MS = 1500;
 const REVEAL_PAD = 40;
 const TIP_ROOM = 180;
-/** The space between a menu and its anchor; `.hand-menu` moves by the same 6 px. */
-const MENU_GAP = 6;
-const OPEN_QUIET_MS = 300;
-/** The page scroll that shows the first change of a change request above the zoom bar, or null. */
-function changeInView(
-  graph: HTMLElement | null,
-  bar: HTMLElement,
-  axis: HTMLElement | null,
-): number | null {
-  const marks = Array.from(graph?.querySelectorAll('svg.pg .halo') ?? []).map((mark) =>
-    mark.getBoundingClientRect(),
-  );
-  if (!marks.length) return null;
-  const board = graph?.closest('.tk.board');
-  const stops = Array.from(
-    board?.querySelectorAll(
-      ':scope > .p-head > *, :scope > .bbar, :scope > .ro-note, .p-side, .gwrap',
-    ) ?? [],
-  ).map((el) => el.getBoundingClientRect().top);
-  return changeScroll({
-    scrollY: window.scrollY,
-    viewport: window.innerHeight,
-    scrollHeight: document.documentElement.scrollHeight,
-    first: marks.reduce((a, b) => (b.top < a.top ? b : a)),
-    barHeight: bar.offsetHeight,
-    stickyTop:
-      parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tk-top')) || 0,
-    axisHeight: axis?.offsetHeight ?? 0,
-    stops,
-  });
-}
-
-type MenuPlace = { up: boolean; maxHeight: number | null };
-
-const menuStyle = (m: { x: number; y: number; top: number; place?: MenuPlace }) => ({
-  left: m.x,
-  top: m.place?.up ? m.top : m.y,
-  ...(m.place?.maxHeight != null
-    ? { maxHeight: m.place.maxHeight, overflowY: 'auto' as const }
-    : {}),
-});
 
 export type PopKind = 'act' | 'stack';
 export type DatePreview = { kind: 'item' | 'ms'; id: string; x: number; label?: string };
@@ -135,10 +89,6 @@ type Props = {
   onDensity?: (density: Density) => void;
   onExpandAll?: () => void;
   onCollapseAll?: () => void;
-  /** Null until the browser storage is read; the popover then stays out of the page. */
-  legend?: boolean | null;
-  /** Without it, the zoom corner has no Legend button. */
-  onLegend?: (open: boolean) => void;
 };
 
 const DENSITY_LABEL: Record<Density, string> = {
@@ -175,7 +125,7 @@ function groupBy<T extends { workItemId: string }>(list: readonly T[]): Map<stri
 }
 
 const TARGETS =
-  '[data-teamsum],[data-teammenu],[data-eyerow],[data-eyeteam],[data-focusitem],[data-focusteam],[data-show],[data-handoff],[data-act],[data-ms],[data-goal],[data-plus],[data-newms],[data-newteam],[data-rowlabel],[data-loop]';
+  '[data-teamsum],[data-eyerow],[data-eyeteam],[data-focusitem],[data-focusteam],[data-show],[data-handoff],[data-act],[data-ms],[data-goal],[data-plus],[data-newms],[data-newteam],[data-rowlabel],[data-loop]';
 const HAND_ICON = { up: 'cornerUp', down: 'cornerDown', both: 'upDown' } as const;
 const diamond = (s: number) => `M0 ${-s} L${s} 0 L0 ${s} L${-s} 0 Z`;
 const DIAMOND = diamond(6);
@@ -200,8 +150,6 @@ function MilestoneMark({ m }: { m: LayoutMilestone }) {
   );
 }
 
-const BACK_PAD = 3;
-
 export function TrackerGraph(props: Props) {
   const { layout: L, edit, selectedMs, focusRow, focusMs, lifted, preview } = props;
   const lv = L.level;
@@ -210,12 +158,7 @@ export function TrackerGraph(props: Props) {
   const handByGroup = new Map(L.handoffs.flatMap((h) => (h.groupId ? [[h.groupId, h]] : [])));
   const deadlines = groupBy(L.deadlines);
   const chips = groupBy(L.chips);
-  // A selected milestone dims every row outside it, as Focus does, so its own work items stand out.
-  const dim = new Set(
-    L.rows.filter((r) => r.dimmed || (selectedMs && r.milestoneId !== selectedMs)).map((r) => r.id),
-  );
-  const inMs = (id: string) =>
-    !!selectedMs && L.rows.some((r) => r.id === id && r.milestoneId === selectedMs);
+  const dim = new Set(L.rows.filter((r) => r.dimmed).map((r) => r.id));
   const dimCls = (id: string) => dim.has(id) && 'dim';
   const xt = L.tLine.x;
   const H = L.height + (edit ? TEAM_PILL_ROOM : 0);
@@ -226,7 +169,6 @@ export function TrackerGraph(props: Props) {
   const head = useRef<HTMLDivElement>(null);
   const headTime = useRef<HTMLDivElement>(null);
   const timeSvg = useRef<SVGSVGElement>(null);
-  const headSvg = useRef<SVGSVGElement>(null);
   const latest = useRef({
     L,
     onZoom: props.onZoom,
@@ -283,83 +225,9 @@ export function TrackerGraph(props: Props) {
     anchor.current = null;
     const scale = svg.getBoundingClientRect().width / (L.width - SIDE);
     el.scrollLeft = (L.x(a.t) - SIDE) * scale - (a.clientX - el.getBoundingClientRect().left);
-    // A frame wider than its box (a narrow window, not a phone) scrolls too, so T needs both.
+    // On a phone the whole graph is wider than the screen and scrolls as well, so T needs both.
     if (a.open && body.current) body.current.scrollLeft = body.current.scrollWidth;
   }, [L]);
-
-  // The T line and the grid run through the axis row, so each milestone name gets the panel behind it.
-  const fitBacks = useCallback(() => {
-    const svg = headSvg.current;
-    if (!svg) return;
-    for (const back of Array.from(svg.querySelectorAll<SVGRectElement>('.label-back'))) {
-      const id = CSS.escape(back.dataset.back ?? '');
-      const label = svg.querySelector<SVGTextElement>(`[data-ms="${id}"] .ms-label`);
-      const group = label?.parentNode;
-      if (!label || !(group instanceof SVGGElement) || typeof label.getBBox !== 'function')
-        continue;
-      const box = label.getBBox();
-      const at = group.transform.baseVal.consolidate()?.matrix;
-      back.setAttribute('x', String(box.x + (at?.e ?? 0) - BACK_PAD));
-      back.setAttribute('y', String(box.y + (at?.f ?? 0)));
-      back.setAttribute('width', String(box.width + 2 * BACK_PAD));
-      back.setAttribute('height', String(box.height));
-    }
-  }, []);
-  useLayoutEffect(fitBacks, [L, preview, fitBacks]);
-
-  // A row name that the sideways scroll pushes under the pinned names starts again after them.
-  const fitRowNames = useCallback(() => {
-    const svg = timeSvg.current;
-    const el = scroller.current;
-    if (!svg || !el) return;
-    const left = SIDE + el.scrollLeft;
-    for (const g of Array.from(svg.querySelectorAll<SVGGElement>('.deadline'))) {
-      const label = g.querySelector<SVGTextElement>('.deadline-name:not(.deadline-stuck)');
-      const stuck = g.querySelector<SVGTextElement>('.deadline-stuck');
-      if (!label || !stuck || typeof label.getBBox !== 'function') continue;
-      const gx = g.transform.baseVal.consolidate()?.matrix.e ?? 0;
-      const box = label.getBBox();
-      const place = keepInView({ x0: gx + box.x, x1: gx + box.x + box.width }, left);
-      let text: string | null = null;
-      if (place && place !== 'whole') {
-        stuck.setAttribute('x', String(place.x - gx));
-        text = cutToFit(label.textContent ?? '', place.room, (t) => {
-          stuck.textContent = t;
-          return stuck.getComputedTextLength();
-        });
-      }
-      stuck.textContent = text ?? '';
-      if (place === 'whole') label.removeAttribute('visibility');
-      else label.setAttribute('visibility', 'hidden');
-    }
-  }, []);
-  useLayoutEffect(fitRowNames, [L, fitRowNames]);
-  useEffect(() => {
-    const el = scroller.current;
-    if (!el) return;
-    let frame = 0;
-    const onScroll = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(fitRowNames);
-    };
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      cancelAnimationFrame(frame);
-      el.removeEventListener('scroll', onScroll);
-    };
-  }, [fitRowNames]);
-  useEffect(() => {
-    let mounted = true;
-    // A web font that arrives later changes the width of the names.
-    void document.fonts?.ready.then(() => {
-      if (!mounted) return;
-      fitBacks();
-      fitRowNames();
-    });
-    return () => {
-      mounted = false;
-    };
-  }, [fitBacks, fitRowNames]);
 
   useEffect(() => {
     const el = root.current;
@@ -413,7 +281,7 @@ export function TrackerGraph(props: Props) {
   // The pinned axis sits outside the scrolling graph, so it copies the sideways scroll of the rows.
   const syncHead = useCallback(() => {
     if (head.current && body.current) head.current.scrollLeft = body.current.scrollLeft;
-    // When the whole graph scrolls too, the lane counts also move past the hidden labels.
+    // On a phone the whole graph scrolls too, so the lane counts also move past the hidden labels.
     if (body.current && scroller.current)
       scroller.current.style.setProperty(
         '--lane-shift',
@@ -536,18 +404,12 @@ export function TrackerGraph(props: Props) {
     setTip({ text, x, y: r.top - box.top, align });
   };
   const hideTip = () => setTip(null);
-  const [menu, setMenu] = useState<{
-    fromId: string;
-    x: number;
-    y: number;
-    top: number;
-    align: string;
-    place?: MenuPlace;
-  } | null>(null);
+  const [menu, setMenu] = useState<{ fromId: string; x: number; y: number; align: string } | null>(
+    null,
+  );
   const menuRef = useRef<HTMLDivElement>(null);
-  const quietUntil = useRef(0);
   const menuMark = menu ? L.handoffs.find((h) => h.fromId === menu.fromId) : undefined;
-  // A Refresh, a hide or a filter can take the source mark away while its list is open.
+  // A poll, a hide or a filter can take the source mark away while its list is open.
   if (menu && !menuMark) setMenu(null);
   const menuGroup = menuMark?.groupId
     ? L.eventGroups.find((g) => g.topId === menuMark.groupId)
@@ -565,148 +427,30 @@ export function TrackerGraph(props: Props) {
     const r = el.getBoundingClientRect();
     const x = r.left + r.width / 2 - box.left;
     const align = x < TIP_ROOM ? 'start' : x > box.width - TIP_ROOM ? 'end' : 'mid';
-    quietUntil.current = performance.now() + OPEN_QUIET_MS;
-    setMenu({ fromId: h.fromId, x, y: r.bottom - box.top, top: r.top - box.top, align });
+    setMenu({ fromId: h.fromId, x, y: r.bottom - box.top, align });
   };
-  const [teamMenu, setTeamMenu] = useState<{
-    teamId: string;
-    x: number;
-    y: number;
-    top: number;
-    place?: MenuPlace;
-  } | null>(null);
-  const teamMenuRef = useRef<HTMLDivElement>(null);
-  // A hidden team takes its name away, so the focus moves to the badge that unhides it.
-  const hiddenByMenu = useRef(false);
-  useEffect(() => {
-    if (!hiddenByMenu.current) return;
-    hiddenByMenu.current = false;
-    root.current?.closest('.tk')?.querySelector<HTMLElement>('.hid-menu > summary')?.focus();
-  });
-  const teamMenuLane = teamMenu ? L.lanes.find((l) => l.teamId === teamMenu.teamId) : undefined;
-  if (teamMenu && (!teamMenuLane || L.side >= SIDE)) setTeamMenu(null);
-  const closeTeamMenu = (refocus: boolean) => {
-    const teamId = teamMenu?.teamId;
-    setTeamMenu(null);
-    if (teamId && refocus)
-      root.current?.querySelector<SVGElement>(`svg.pg-side [data-teammenu="${teamId}"]`)?.focus();
-  };
-  const toggleTeamMenu = (el: Element, teamId: string) => {
-    if (teamMenu?.teamId === teamId) return setTeamMenu(null);
-    const box = root.current?.getBoundingClientRect();
-    if (!box) return;
-    const r = el.getBoundingClientRect();
-    quietUntil.current = performance.now() + OPEN_QUIET_MS;
-    setTeamMenu({ teamId, x: r.left - box.left + 12, y: r.bottom - box.top, top: r.top - box.top });
-  };
-  /** The room below the anchor reaches down to the sticky zoom bar, above it up to the pinned axis. */
-  const placeOf = (pop: HTMLElement | null, anchor: { y: number; top: number }): MenuPlace => {
-    const box = root.current?.getBoundingClientRect();
-    if (!pop || !box) return { up: false, maxHeight: null };
-    const bar = barRef.current?.getBoundingClientRect();
-    const bottom = box.top + anchor.y;
-    const floor = Math.min(innerHeight, bar && bar.top >= bottom ? bar.top : Infinity) - 4;
-    const ceiling = Math.max(0, head.current?.getBoundingClientRect().bottom ?? 0);
-    return menuPlace({
-      below: floor - bottom - MENU_GAP,
-      above: box.top + anchor.top - MENU_GAP - ceiling,
-      height: pop.scrollHeight,
-    });
-  };
-  useLayoutEffect(() => {
-    if (menu && !menu.place) setMenu({ ...menu, place: placeOf(menuRef.current, menu) });
-    if (teamMenu && !teamMenu.place)
-      setTeamMenu({ ...teamMenu, place: placeOf(teamMenuRef.current, teamMenu) });
-  }, [menu, teamMenu]);
-  // The opening may still move the page in its quiet time, so the menu then measures its anchor and
-  // its room again.
-  const replace = useCallback(
-    <M extends { y: number; top: number; place?: MenuPlace }>(
-      open: M,
-      selector: string,
-      pop: HTMLElement | null,
-    ): M | null => {
-      const box = root.current?.getBoundingClientRect();
-      const el = root.current?.querySelector(selector);
-      if (!box || !el) return null;
-      const r = el.getBoundingClientRect();
-      const at = { y: r.bottom - box.top, top: r.top - box.top };
-      const place = placeOf(pop, at);
-      const same =
-        Math.abs(at.y - open.y) <= 2 &&
-        place.up === open.place?.up &&
-        place.maxHeight === open.place?.maxHeight;
-      return same ? null : { ...open, ...at, place };
-    },
-    [],
-  );
-  const floating = !!tip || !!menu || !!teamMenu;
+  const floating = !!tip || !!menu;
   useEffect(() => {
     if (!floating) return;
     const hide = (event: Event) => {
-      // Opening a menu can move the page by a pixel; only a scroll of the person closes it.
-      if (performance.now() < quietUntil.current) return;
       if (menuRef.current?.contains(event.target as Node)) return;
-      if (teamMenuRef.current?.contains(event.target as Node)) return;
       setTip(null);
       setMenu(null);
-      setTeamMenu(null);
-    };
-    const close = () => {
-      setTip(null);
-      setMenu(null);
-      setTeamMenu(null);
     };
     // Capture sees the scroll of every container, and any of them moves the mark away from its tip.
     document.addEventListener('scroll', hide, { capture: true, passive: true });
-    window.addEventListener('resize', close);
-    window.addEventListener('orientationchange', close);
-    return () => {
-      document.removeEventListener('scroll', hide, { capture: true });
-      window.removeEventListener('resize', close);
-      window.removeEventListener('orientationchange', close);
-    };
+    return () => document.removeEventListener('scroll', hide, { capture: true });
   }, [floating]);
-  const recheck = useRef<() => void>(() => {});
-  useLayoutEffect(() => {
-    recheck.current = () => {
-      const handoff =
-        menu && replace(menu, `svg.pg [data-handoff="${menu.fromId}"]`, menuRef.current);
-      if (handoff) setMenu(handoff);
-      const team =
-        teamMenu &&
-        replace(teamMenu, `svg.pg-side [data-teammenu="${teamMenu.teamId}"]`, teamMenuRef.current);
-      if (team) setTeamMenu(team);
-    };
-  });
-  const openKey = `${menu?.fromId ?? ''}/${teamMenu?.teamId ?? ''}`;
   useEffect(() => {
-    if (openKey === '/') return;
-    const timer = setTimeout(() => recheck.current(), OPEN_QUIET_MS + 20);
-    return () => clearTimeout(timer);
-  }, [openKey]);
-  const menuFrom = menu?.fromId;
-  useEffect(() => {
-    if (!menuFrom) return;
-    menuRef.current?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
+    if (!menu) return;
+    menuRef.current?.querySelector<HTMLElement>('button')?.focus();
     const onDown = (event: PointerEvent) => {
       const t = event.target as Element;
       if (!menuRef.current?.contains(t) && !t.closest?.('[data-handoff]')) setMenu(null);
     };
     document.addEventListener('pointerdown', onDown);
     return () => document.removeEventListener('pointerdown', onDown);
-  }, [menuFrom]);
-  const teamMenuId = teamMenu?.teamId;
-  useEffect(() => {
-    if (!teamMenuId) return;
-    teamMenuRef.current?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
-    const onDown = (event: PointerEvent) => {
-      const t = event.target as Element;
-      if (!teamMenuRef.current?.contains(t) && !t.closest?.('[data-teammenu]')) setTeamMenu(null);
-    };
-    document.addEventListener('pointerdown', onDown);
-    return () => document.removeEventListener('pointerdown', onDown);
-  }, [teamMenuId]);
+  }, [menu]);
   const [viewMenu, setViewMenu] = useState(false);
   const viewRef = useRef<HTMLSpanElement>(null);
   // A menu opened with the mouse gives the focus back to its button without a ring, even on Esc.
@@ -736,105 +480,14 @@ export function TrackerGraph(props: Props) {
       document.removeEventListener('keydown', onKey);
     };
   }, [viewMenu]);
-  const legendOpen = !!props.onLegend && props.legend === true;
-  const barRef = useRef<HTMLDivElement>(null);
-  const legendRef = useRef<HTMLDivElement>(null);
-  const legendBtn = useRef<HTMLButtonElement>(null);
-  const legendId = `legend-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
-  // The pop hangs above the controls and gets the room between them and the top of the visible
-  // graph (on a phone, below the sticky top bar), scrolling inside when that is short. A drawer
-  // moves the controls without a resize, so every render measures again.
-  const fitLegend = useCallback(() => {
-    const bar = barRef.current;
-    const pop = legendRef.current;
-    if (!bar || !pop) return;
-    const box = bar.getBoundingClientRect();
-    const area = (bar.closest('.gcanvas') ?? bar.parentElement)!.getBoundingClientRect();
-    const stickyTop =
-      parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tk-top')) || 0;
-    const top = Math.max(area.top, stickyTop, 0);
-    const room = Math.floor(box.top - 8 - top);
-    const h = `${Math.max(0, room)}px`;
-    const w = `${Math.max(0, Math.floor(box.right - Math.max(area.left, 0) - 12))}px`;
-    pop.toggleAttribute('data-no-room', room < LEGEND_MIN_ROOM);
-    if (pop.style.getPropertyValue('--lg-room-h') !== h) pop.style.setProperty('--lg-room-h', h);
-    if (pop.style.getPropertyValue('--lg-room-w') !== w) pop.style.setProperty('--lg-room-w', w);
-  }, []);
-  useLayoutEffect(fitLegend);
-  // On a phone the page scrolls under the sticky controls, so the first change of a change request
-  // would open under them. Until the person scrolls or touches the page, every new layout (the saved
-  // fold loads after the first one) places the change above the bar again.
-  const touched = useRef(false);
-  const placedAt = useRef<number | null>(null);
-  const pageChecked = useRef(false);
-  useEffect(() => {
-    const stop = () => {
-      touched.current = true;
-    };
-    // A scroll before hydration and the scroll that Back restores belong to the person. The check
-    // runs once, as a remount (Strict Mode, for one) finds the page's own scroll.
-    if (!pageChecked.current) {
-      pageChecked.current = true;
-      const nav = performance.getEntriesByType('navigation')[0] as
-        PerformanceNavigationTiming | undefined;
-      if (window.scrollY > 2 || nav?.type === 'back_forward') stop();
-    }
-    const onScroll = () => {
-      if (placedAt.current === null || Math.abs(window.scrollY - placedAt.current) > 2) stop();
-    };
-    const kinds = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
-    for (const kind of kinds) window.addEventListener(kind, stop, { capture: true, passive: true });
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      for (const kind of kinds) window.removeEventListener(kind, stop, { capture: true });
-      window.removeEventListener('scroll', onScroll);
-    };
-  }, []);
-  useEffect(() => {
-    const bar = barRef.current;
-    if (touched.current || !bar || !L.rows.length) return;
-    if (!window.matchMedia('(max-width: 760px)').matches) return;
-    const target = changeInView(root.current, bar, head.current);
-    if (target === null) return;
-    const first = placedAt.current === null;
-    if (first && target <= window.scrollY) {
-      placedAt.current = window.scrollY;
-      return;
-    }
-    if (Math.abs(window.scrollY - target) > 1) window.scrollTo(0, target);
-    placedAt.current = window.scrollY;
-  }, [L]);
-  useEffect(() => {
-    if (!legendOpen) return;
-    const bar = barRef.current;
-    const sizes = new ResizeObserver(fitLegend);
-    sizes.observe(bar?.closest('.gcanvas') ?? document.body);
-    if (bar) sizes.observe(bar);
-    window.addEventListener('resize', fitLegend);
-    document.addEventListener('scroll', fitLegend, { capture: true, passive: true });
-    return () => {
-      sizes.disconnect();
-      window.removeEventListener('resize', fitLegend);
-      document.removeEventListener('scroll', fitLegend, { capture: true });
-    };
-  }, [legendOpen, fitLegend]);
-  const closeLegend = (refocus: boolean) => {
-    props.onLegend?.(false);
-    if (refocus) legendBtn.current?.focus();
-  };
   // Label text measures differ by glyph, so a clip keeps a long label off the buttons.
   const clipId = `labels-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
-  const sideW = L.side;
-  const narrow = sideW < SIDE;
-  const labelEnd = narrow ? sideW - 4 : X0 - (props.onFocusItem ? 54 : 36);
-  const focusItem = narrow ? undefined : props.onFocusItem;
-  const focusTeam = narrow ? undefined : props.onFocusTeam;
+  const labelEnd = X0 - (props.onFocusItem ? 54 : 36);
 
   const run = (target: Element) => {
     const el = target.closest<SVGElement>(TARGETS);
     const d = el?.dataset;
     if (d?.teamsum) return props.onCollapse?.(d.teamsum);
-    if (d?.teammenu && el) return toggleTeamMenu(el, d.teammenu);
     if (d?.eyerow) return props.onToggleRow(d.eyerow);
     if (d?.eyeteam) return props.onToggleTeam(d.eyeteam);
     if (d?.focusitem) return props.onFocusItem?.(d.focusitem);
@@ -877,11 +530,7 @@ export function TrackerGraph(props: Props) {
   const svgProps = { onClick, onKeyDown };
   const button = (label: string) => ({ role: 'button', tabIndex: 0, 'aria-label': label });
   const rowCls = (id: string) =>
-    cls(
-      focusRow === id && 'focus',
-      flash === id && 'flash',
-      (props.selectedRow === id || inMs(id)) && 'sel',
-    );
+    cls(focusRow === id && 'focus', flash === id && 'flash', props.selectedRow === id && 'sel');
   const bands = (x: number, width: number) =>
     L.lanes.map((lane) => (
       <rect
@@ -897,22 +546,20 @@ export function TrackerGraph(props: Props) {
   const sideHead = (
     <svg
       className="tg pg-top pg-top-side"
-      viewBox={`0 0 ${sideW} ${TOP}`}
-      width={sideW}
-      style={{ height: TOP }}
-      preserveAspectRatio="xMinYMin slice"
+      viewBox={`0 0 ${SIDE} ${TOP}`}
+      style={{ width: SIDE }}
       role="group"
       aria-label="Milestones"
       {...svgProps}
     >
-      <text className="lane-name" x={12} y={narrow && edit ? AXIS_Y + 4 : TRUNK_Y + 4}>
+      <text className="lane-name" x={12} y={TRUNK_Y + 4}>
         MILESTONES
       </text>
       {edit && (
         <g
           className="pill"
           data-newms="1"
-          transform={`translate(${narrow ? 12 : 112} ${TRUNK_Y - 8})`}
+          transform={`translate(112 ${TRUNK_Y - 8})`}
           {...button('New milestone')}
         >
           <rect width={104} height={16} rx={8} />
@@ -921,23 +568,20 @@ export function TrackerGraph(props: Props) {
           </text>
         </g>
       )}
-      <line className="divider" x1={sideW - 0.5} x2={sideW - 0.5} y1={0} y2={TOP} />
+      <line className="divider" x1={SIDE - 0.5} x2={SIDE - 0.5} y1={0} y2={TOP} />
     </svg>
   );
 
   const side = (
     <svg
       className="tg pg-side"
-      viewBox={`0 ${TOP} ${sideW} ${BODY}`}
-      width={sideW}
-      // Until the phone flag arrives, CSS already narrows a wide view box; slice keeps the scale and crops it.
-      style={{ height: BODY }}
-      preserveAspectRatio="xMinYMin slice"
+      viewBox={`0 ${TOP} ${SIDE} ${BODY}`}
+      style={{ width: SIDE }}
       role="group"
       aria-label="Teams and work items"
       {...svgProps}
     >
-      {bands(0, sideW)}
+      {bands(0, SIDE)}
       <clipPath id={clipId}>
         <rect x={0} y={0} width={labelEnd} height={H} />
       </clipPath>
@@ -953,27 +597,13 @@ export function TrackerGraph(props: Props) {
         const toggles = summary.count > 0;
         return (
           <Fragment key={lane.teamId}>
-            {narrow ? (
-              <rect
-                className="sum-hit"
-                data-teammenu={lane.teamId}
-                x={0.5}
-                y={top + 0.5}
-                width={sideW - 1}
-                height={head - 1}
-                aria-haspopup="menu"
-                aria-expanded={teamMenu?.teamId === lane.teamId}
-                {...button(`${summary.ariaLabel}${lane.collapsed ? ', collapsed' : ''}`)}
-              >
-                <title>{`${summary.ariaLabel}. Team actions`}</title>
-              </rect>
-            ) : toggles ? (
+            {toggles ? (
               <rect
                 className="sum-hit"
                 data-teamsum={lane.teamId}
                 x={0.5}
                 y={top + 0.5}
-                width={sideW - 1}
+                width={SIDE - 1}
                 height={head - 1}
                 aria-expanded={!lane.collapsed}
                 {...button(summary.ariaLabel)}
@@ -1004,7 +634,7 @@ export function TrackerGraph(props: Props) {
                 <title>{lane.name}</title>
               )}
             </text>
-            {focusTeam && (
+            {props.onFocusTeam && (
               <g
                 className={cls('eye', 'focus-btn', lane.focused && 'on')}
                 data-focusteam={lane.teamId}
@@ -1018,12 +648,10 @@ export function TrackerGraph(props: Props) {
                 </title>
               </g>
             )}
-            {!narrow && (
-              <g className="eye" data-eyeteam={lane.teamId} {...button(lane.eyeLabel)}>
-                <rect x={X0 - 24 - btn / 2} y={by} width={btn} height={btn} />
-                <SvgIcon name="eye" x={X0 - 24} y={by + btn / 2} size={icon} />
-              </g>
-            )}
+            <g className="eye" data-eyeteam={lane.teamId} {...button(lane.eyeLabel)}>
+              <rect x={X0 - 24 - btn / 2} y={by} width={btn} height={btn} />
+              <SvgIcon name="eye" x={X0 - 24} y={by + btn / 2} size={icon} />
+            </g>
             {lane.guide && (
               <line className="guide" x1={16} x2={16} y1={lane.guide.y1} y2={lane.guide.y2} />
             )}
@@ -1052,7 +680,7 @@ export function TrackerGraph(props: Props) {
               data-rowlabel={r.id}
               x={22}
               y={r.y - lv.hit / 2}
-              width={sideW - 22}
+              width={SIDE - 22}
               height={lv.hit}
             />
             <line className="guide" x1={16} x2={24 + indent} y1={r.y} y2={r.y} />
@@ -1060,10 +688,9 @@ export function TrackerGraph(props: Props) {
               className={cls(
                 'row-label',
                 r.changed && 'changed',
-                dim.has(r.id) && 'dim',
+                r.dimmed && 'dim',
                 selectedMs && r.milestoneId === selectedMs && 'sel',
               )}
-              data-label={r.id}
               x={28 + indent}
               y={r.y + lv.labelDy}
               style={{ fontSize: lv.font }}
@@ -1077,14 +704,14 @@ export function TrackerGraph(props: Props) {
               data-rowlabel={r.id}
               x={26}
               y={r.y - Math.min(10, lv.hit / 2)}
-              width={narrow ? sideW - 30 : X0 - (props.onFocusItem ? 82 : 64)}
+              width={X0 - (props.onFocusItem ? 82 : 64)}
               height={Math.min(20, lv.hit)}
             >
               <title>
                 {edit ? 'Open the details, or drag onto a milestone to add it' : 'Open the details'}
               </title>
             </rect>
-            {focusItem && (
+            {props.onFocusItem && (
               <g
                 className={cls('eye', 'focus-btn', r.focused && 'on')}
                 data-focusitem={r.id}
@@ -1104,21 +731,14 @@ export function TrackerGraph(props: Props) {
                 </title>
               </g>
             )}
-            {!narrow && (
-              <g className="eye" data-eyerow={r.id} {...button(r.eyeLabel)}>
-                <rect
-                  x={X0 - 24 - lv.btn / 2}
-                  y={r.y - lv.btn / 2}
-                  width={lv.btn}
-                  height={lv.btn}
-                />
-                <SvgIcon name="eye" x={X0 - 24} y={r.y} size={lv.btnIcon} />
-              </g>
-            )}
+            <g className="eye" data-eyerow={r.id} {...button(r.eyeLabel)}>
+              <rect x={X0 - 24 - lv.btn / 2} y={r.y - lv.btn / 2} width={lv.btn} height={lv.btn} />
+              <SvgIcon name="eye" x={X0 - 24} y={r.y} size={lv.btnIcon} />
+            </g>
           </Fragment>
         );
       })}
-      <line className="divider" x1={sideW - 0.5} x2={sideW - 0.5} y1={TOP} y2={H} />
+      <line className="divider" x1={SIDE - 0.5} x2={SIDE - 0.5} y1={TOP} y2={H} />
     </svg>
   );
 
@@ -1137,7 +757,6 @@ export function TrackerGraph(props: Props) {
 
   const timeHead = (
     <svg
-      ref={headSvg}
       className="tg pg-top pg-top-time"
       viewBox={`${SIDE} 0 ${L.width - SIDE} ${TOP}`}
       style={timeWidth}
@@ -1173,14 +792,6 @@ export function TrackerGraph(props: Props) {
           style={{ stroke: color(s.tone) }}
         />
       ))}
-      {/* One layer under every milestone, so no name box covers a circle. */}
-      <g className="label-backs">
-        {L.milestones
-          .filter((m) => m.label)
-          .map((m) => (
-            <rect key={m.id} className="label-back" data-back={m.id} />
-          ))}
-      </g>
       {L.milestones.map((m) => {
         const moved = preview?.kind === 'ms' && preview.id === m.id ? preview : null;
         const mx = moved ? moved.x : m.x;
@@ -1335,16 +946,6 @@ export function TrackerGraph(props: Props) {
                 >
                   {d.label}
                 </text>
-              )}
-              {d.label && (
-                <text
-                  className="deadline-name deadline-stuck"
-                  y={d.labelY - d.y}
-                  style={{
-                    fill: ink(d.tone === 'ink-3' ? 'ink-2' : d.tone),
-                    fontSize: lv.nameFont,
-                  }}
-                />
               )}
             </g>
           ))}
@@ -1527,24 +1128,17 @@ export function TrackerGraph(props: Props) {
     </svg>
   );
 
-  const onMenuKey = (event: KeyboardEvent<HTMLDivElement>, close: (refocus: boolean) => void) => {
-    const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button'));
+  const onMenuKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('button') ?? []);
     const at = items.indexOf(document.activeElement as HTMLElement);
     if (event.key === 'Escape' || event.key === 'Tab') {
       event.preventDefault();
       event.stopPropagation();
-      close(true);
+      closeMenu(true);
     } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       const step = event.key === 'ArrowDown' ? 1 : -1;
-      const next = items[(at + step + items.length) % items.length];
-      if (!next) return;
-      // A focus scroll would move the page, and the page scroll closes the menu.
-      next.focus({ preventScroll: true });
-      const list = event.currentTarget;
-      if (next.offsetTop < list.scrollTop) list.scrollTop = next.offsetTop;
-      else if (next.offsetTop + next.offsetHeight > list.scrollTop + list.clientHeight)
-        list.scrollTop = next.offsetTop + next.offsetHeight - list.clientHeight;
+      items[(at + step + items.length) % items.length]?.focus();
     }
   };
 
@@ -1597,15 +1191,13 @@ export function TrackerGraph(props: Props) {
       {menu && menuMark && (
         <div
           ref={menuRef}
-          className={`hand-menu ${menu.align}${menu.place?.up ? ' up' : ''}`}
+          className={`hand-menu ${menu.align}`}
           role="menu"
           aria-label={`Handoffs from ${L.rows.find((r) => r.id === menu.fromId)?.title ?? ''}`}
-          style={menuStyle(menu)}
-          onKeyDown={(event) => onMenuKey(event, closeMenu)}
+          style={{ left: menu.x, top: menu.y }}
+          onKeyDown={onMenuKey}
           onBlur={(event) => {
-            const to = event.relatedTarget as Element | null;
-            // A press on a mark moves the focus there first; its click then closes or switches the list.
-            if (!menuRef.current?.contains(to) && !to?.closest('[data-handoff]')) setMenu(null);
+            if (!menuRef.current?.contains(event.relatedTarget as Node | null)) setMenu(null);
           }}
         >
           <p>
@@ -1647,86 +1239,7 @@ export function TrackerGraph(props: Props) {
           )}
         </div>
       )}
-      {teamMenu && teamMenuLane && (
-        <div
-          ref={teamMenuRef}
-          className={`hand-menu team-menu start${teamMenu.place?.up ? ' up' : ''}`}
-          role="menu"
-          aria-label={teamMenuLane.name}
-          style={menuStyle(teamMenu)}
-          onKeyDown={(event) => onMenuKey(event, closeTeamMenu)}
-          onBlur={(event) => {
-            const to = event.relatedTarget as Element | null;
-            if (!teamMenuRef.current?.contains(to) && !to?.closest('[data-teammenu]'))
-              setTeamMenu(null);
-          }}
-        >
-          <p>{teamMenuLane.name}</p>
-          {teamMenuItems({
-            name: teamMenuLane.name,
-            count: teamMenuLane.summary.count,
-            collapsed: teamMenuLane.collapsed,
-            focused: teamMenuLane.focused,
-          })
-            .filter(
-              (i) =>
-                (i.action !== 'collapse' || props.onCollapse) &&
-                (i.action !== 'focus' || props.onFocusTeam),
-            )
-            .map((i) => (
-              <button
-                key={i.action}
-                type="button"
-                role="menuitem"
-                aria-label={i.label}
-                onClick={() => {
-                  const teamId = teamMenuLane.teamId;
-                  // The Focus panel gives the focus back to the team name when it closes.
-                  closeTeamMenu(i.action !== 'hide');
-                  if (i.action === 'collapse') props.onCollapse?.(teamId);
-                  else if (i.action === 'focus') props.onFocusTeam?.(teamId);
-                  else {
-                    hiddenByMenu.current = true;
-                    props.onToggleTeam(teamId);
-                  }
-                }}
-              >
-                <b>{i.text}</b>
-              </button>
-            ))}
-        </div>
-      )}
-      <div className="zoombar" role="group" aria-label="View controls" ref={barRef}>
-        {props.onLegend && (
-          <button
-            ref={legendBtn}
-            type="button"
-            className="lg-btn"
-            aria-label="Legend"
-            title="Legend"
-            aria-expanded={legendOpen}
-            aria-controls={legendId}
-            onClick={() => props.onLegend?.(!legendOpen)}
-          >
-            <Icon name="legend" size={14} />
-          </button>
-        )}
-        {legendOpen && (
-          <div
-            ref={legendRef}
-            id={legendId}
-            className="legend-pop"
-            role="dialog"
-            aria-label="Legend"
-            onKeyDown={(event) => {
-              if (event.key !== 'Escape') return;
-              event.preventDefault();
-              closeLegend(true);
-            }}
-          >
-            <LegendBody onClose={() => closeLegend(true)} />
-          </div>
-        )}
+      <div className="zoombar" role="group" aria-label="View controls">
         {props.onDensity && (
           <span className="view-menu" ref={viewRef}>
             <button
@@ -1818,85 +1331,44 @@ export function TrackerGraph(props: Props) {
   );
 }
 
-const LINES: Array<{ tone: string; label: string; title?: string }> = [
-  { tone: 'var(--route)', label: 'Not finished' },
-  { tone: 'var(--proceed)', label: 'Done' },
-  { tone: 'var(--danger)', label: 'Late part', title: 'Not finished after its planned finish' },
-  { tone: 'var(--caution)', label: 'Done late', title: 'Done after its planned finish' },
-  { tone: 'var(--isolated)', label: 'Cancelled' },
-];
-// The legend reads in the order of the kind picker (start, progress, finish).
-const LEGEND_KINDS = KIND_GROUPS.flatMap((g) => g.kinds);
-const MILESTONE_SHORT: Partial<Record<Status, string>> = { early: 'Early', ontime: 'On time' };
-
-function LegendKind({ kind }: { kind: EventKind }) {
-  return (
-    <span className="lg-it lg-kd">
-      <span className="lg-ring" style={{ color: KIND_COLOR[kind] }}>
-        <KindIcon kind={kind} size={11} />
-      </span>
-      {KIND_LABEL[kind]}
+export function Legend() {
+  const line = (background: string, label: string) => (
+    <span>
+      <i className="ln" style={{ background }} />
+      {label}
     </span>
   );
-}
-
-function LegendBody({ onClose }: { onClose: () => void }) {
-  const half = Math.ceil(LEGEND_KINDS.length / 2);
   return (
-    <>
-      <button className="x lg-x" type="button" aria-label="Close legend" onClick={onClose}>
-        ×
-      </button>
-      <div className="lg-grid">
-        <div className="lg-sec">
-          <p className="q-label">Line</p>
-          {LINES.map((l) => (
-            <span key={l.label} className="lg-it" title={l.title}>
-              <i className="ln" style={{ background: l.tone }} />
-              {l.label}
-            </span>
-          ))}
-          <p className="q-label">Change</p>
-          <span className="lg-it" title="Changed in this change request">
-            <i className="chg">Name</i>
-            Changed here
+    <div className="legend2">
+      {line('var(--route)', 'Not finished')}
+      {line('var(--proceed)', 'Done')}
+      {line('var(--danger)', 'Not finished after its planned finish')}
+      {line('var(--caution)', 'Done after its planned finish')}
+      {line('var(--isolated)', 'Cancelled')}
+      <span>
+        <svg width="12" height="12" viewBox="-7 -7 14 14" aria-hidden="true">
+          <path d={DIAMOND} fill="var(--ink-3)" stroke="var(--ink-3)" strokeWidth="1.5" />
+        </svg>
+        Milestone deadline on its work items
+      </span>
+      {MILESTONE_STATUSES.map((status) => (
+        <span key={status} style={{ color: color(STATUS_TONE[status]) }}>
+          <i className={cls('ms-sw', status !== 'planned' && 'fill')} />
+          <span style={{ color: 'var(--ink-2)' }}>{STATUS_LABEL[status]}</span>
+        </span>
+      ))}
+      <span>
+        <i className="chg">Name</i>
+        Changed in this change request
+      </span>
+      <span className="lg-kinds" role="group" aria-label="Event kinds">
+        {EVENT_KINDS.map((kind) => (
+          <span key={kind} style={{ color: KIND_COLOR[kind] }}>
+            <KindIcon kind={kind} size={13} />
+            <span className="lg-kind">{KIND_LABEL[kind]}</span>
           </span>
-        </div>
-        <div className="lg-sec">
-          <p className="q-label">Milestone</p>
-          <span className="lg-it" title="Milestone deadline on its work items">
-            <svg width="12" height="12" viewBox="-7 -7 14 14" aria-hidden="true">
-              <path d={DIAMOND} fill="var(--ink-3)" stroke="var(--ink-3)" strokeWidth="1.5" />
-            </svg>
-            Deadline
-          </span>
-          {MILESTONE_STATUSES.map((status) => (
-            <span
-              key={status}
-              className="lg-it"
-              title={MILESTONE_SHORT[status] && STATUS_LABEL[status]}
-            >
-              <i
-                className={cls('ms-sw', status !== 'planned' && 'fill')}
-                style={{ color: color(STATUS_TONE[status]) }}
-              />
-              {MILESTONE_SHORT[status] ?? STATUS_LABEL[status]}
-            </span>
-          ))}
-        </div>
-        <div className="lg-sec lg-ev" role="group" aria-label="Event kinds">
-          <p className="q-label">Event</p>
-          <div className="lg-ev-cols">
-            {[LEGEND_KINDS.slice(0, half), LEGEND_KINDS.slice(half)].map((kinds) => (
-              <div key={kinds[0]} className="lg-sec">
-                {kinds.map((kind) => (
-                  <LegendKind key={kind} kind={kind} />
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </>
+        ))}
+      </span>
+    </div>
   );
 }

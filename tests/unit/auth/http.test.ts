@@ -1,13 +1,11 @@
-import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 import { AppError, errorResponse, privateJson } from '../../../src/server/errors';
 import { getBrowserActor } from '../../../src/server/http/runtime';
 import { GET } from '../../../src/app/api/health/route';
-it('keeps health usable without provider credentials and answers the package version', async () => {
-  const { version } = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string };
+it('keeps health usable without provider credentials', async () => {
   const response = GET();
   expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({ status: 'ok', version });
+  expect(await response.json()).toEqual({ status: 'ok' });
 });
 it('protects authenticated and error response caches', () => {
   expect(privateJson({ value: 1 }).headers.get('cache-control')).toBe('private, no-store');

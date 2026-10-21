@@ -1,10 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { BrandMark } from '../../components/shell/BrandMark';
-import { Hero } from '../../components/shell/Hero';
 import { readAuthEnvironment, type AuthEnvironment } from '../../server/env';
-import { demoEntryPath } from '../../server/http/demo';
-import { returnPath } from '../../server/http/return-path';
 import { optionalActor } from '../../server/http/rsc';
 
 export const dynamic = 'force-dynamic';
@@ -41,21 +38,96 @@ function GoogleLogo() {
   );
 }
 
+function Flag({ x, y, color }: { x: number; y: number; color: string }) {
+  return (
+    <g stroke={color} fill={color}>
+      <line x1={x} y1={y} x2={x} y2={y - 18} strokeWidth="1.5" />
+      <path d={`M${x} ${y - 18} l10 4 -10 4 z`} />
+    </g>
+  );
+}
+
+function Hero() {
+  const label = { textAnchor: 'middle', fontSize: 12, fill: 'var(--ink-2)' } as const;
+  const event = { r: 7, fill: 'var(--surface)', stroke: 'var(--proceed)', strokeWidth: 2.5 };
+  return (
+    <svg
+      className="hero-svg"
+      viewBox="0 0 560 172"
+      role="img"
+      aria-label="Two work items on a project graph: events along each row, a planned finish that moved with a reason, and the milestone they lead to"
+    >
+      <line x1="10" y1="34" x2="550" y2="34" stroke="var(--trunk)" strokeWidth="3" />
+      <polygon
+        points="480,26 488,34 480,42 472,34"
+        fill="var(--surface)"
+        stroke="var(--trunk)"
+        strokeWidth="2"
+      />
+      <text x="480" y="16" {...label}>
+        Go-live
+      </text>
+      <path className="draw" d="M40 84 H290" fill="none" stroke="var(--proceed)" strokeWidth="3" />
+      <g className="pop" style={{ animationDelay: '.5s' }}>
+        <circle cx="60" cy="84" {...event} />
+        <text x="60" y="66" {...label}>
+          Message
+        </text>
+      </g>
+      <g className="pop" style={{ animationDelay: '1s' }}>
+        <circle cx="170" cy="84" {...event} />
+        <text x="170" y="66" {...label}>
+          Handoff
+        </text>
+      </g>
+      <g className="pop" style={{ animationDelay: '1.5s' }}>
+        <circle cx="290" cy="84" r="7" fill="var(--proceed)" />
+        <text x="290" y="66" {...label}>
+          Done
+        </text>
+      </g>
+      <path
+        className="draw"
+        d="M290 84 C318 84 306 136 334 136 H450"
+        fill="none"
+        stroke="var(--route)"
+        strokeWidth="3"
+      />
+      <g className="pop" style={{ animationDelay: '2s' }}>
+        <path d="M450 136 H500" fill="none" stroke="var(--danger)" strokeWidth="3" />
+        <Flag x={400} y={136} color="var(--ink-3)" />
+        <Flag x={450} y={136} color="var(--danger)" />
+        <path d="M406 106 H440" stroke="var(--ink-3)" strokeWidth="1" />
+        <path d="M444 106 l-6 -3.5 v7 z" fill="var(--ink-3)" />
+        <text x="425" y="162" {...label}>
+          Moved, with a reason
+        </text>
+      </g>
+      <line
+        className="pop"
+        style={{ animationDelay: '2.4s' }}
+        x1="500"
+        y1="136"
+        x2="480"
+        y2="42"
+        stroke="var(--ink-3)"
+        strokeWidth="1"
+      />
+    </svg>
+  );
+}
+
 export default async function SignInPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const mode = authMode();
-  const params = await searchParams;
-  const { label } = params;
+  const { label } = await searchParams;
   const localLabel = typeof label === 'string' && /^[a-z0-9-]{1,40}$/.test(label) ? label : null;
-  const next = returnPath(params.next);
-  if (mode === 'demo') redirect(demoEntryPath(next));
-  if (mode && (await optionalActor('/signin'))) redirect(next ?? '/');
-  const query = next ? `?next=${encodeURIComponent(next)}` : '';
+  if (mode && (await optionalActor('/signin'))) redirect('/');
   return (
-    <main className="signin" id="content" tabIndex={-1}>
+    <main className="signin">
       <div>
         <div className="brand" style={{ padding: 0, marginBottom: 28 }}>
           <BrandMark />
@@ -72,15 +144,15 @@ export default async function SignInPage({
       <div className="card pad stack" style={{ maxWidth: 380 }}>
         <h2>Sign in</h2>
         {mode === 'google' && (
-          <a className="btn big btn-block" href={`/api/auth/google${query}`}>
+          <a className="gbtn" href="/api/auth/google">
             <GoogleLogo />
             Continue with Google
           </a>
         )}
         {mode === 'local' && (
-          <form action={`/api/auth/local${query}`} method="post">
+          <form action="/api/auth/local" method="post">
             {localLabel && <input type="hidden" name="label" value={localLabel} />}
-            <button className="btn big btn-block" type="submit">
+            <button className="gbtn" type="submit">
               Continue (local dev{localLabel ? `, ${localLabel}` : ''})
             </button>
           </form>
@@ -90,14 +162,14 @@ export default async function SignInPage({
             Sign-in is unavailable until authentication is configured.
           </p>
         )}
-        <p className="muted small">
+        <p className="muted" style={{ fontSize: 13 }}>
           Your first visit creates a private sandbox: a copy of the Larkspur Capital demo project
           with its teams, work items and change requests.
         </p>
         <hr style={{ border: 0, borderTop: '1px solid var(--rule-2)', width: '100%' }} />
-        <p className="faint xsmall">
-          The app never calls an AI model. Your own agent works in the tracker through MCP, with the
-          permissions that you give its token.
+        <p className="faint" style={{ fontSize: 12 }}>
+          The app never calls an AI model. Your own agent reads the tracker and adds events and work
+          items to the Queue through MCP.
         </p>
       </div>
     </main>

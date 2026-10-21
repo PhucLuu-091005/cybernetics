@@ -1,13 +1,58 @@
 import { describe, expect, it } from 'vitest';
-import { collapsedTeams, openTeams, teamsOfOps } from '../../../src/tracker/teams';
-import { larkspurState } from '../../support/tracker-fixture';
+import {
+  changedTeams,
+  collapsedTeams,
+  lateTeams,
+  openTeams,
+  teamsOfOps,
+} from '../../../src/tracker/teams';
+import {
+  AS_OF,
+  TIME_ZONE,
+  at,
+  buildState,
+  event,
+  larkspurState,
+  workItem,
+} from '../../support/tracker-fixture';
+
+const TEAMS = [
+  'implementation',
+  'digitization',
+  'solutions-engineering',
+  'engineering',
+  'digitization-qa',
+  'customer-success',
+  'it',
+];
+
+describe('lateTeams', () => {
+  it('lists the teams with an open work item past its planned finish', () => {
+    const late = lateTeams(larkspurState(), AS_OF, TIME_ZONE);
+    expect([...late].sort()).toEqual(['customer-success', 'engineering', 'it']);
+  });
+
+  it('does not count a work item that finished late', () => {
+    const s = buildState({
+      teams: [{ id: 't', name: 'Team', leadId: null }],
+      workItems: [workItem({ id: 'a', teamId: 't', plannedFinish: '2026-10-01' })],
+      events: [event({ id: 'd', workItemId: 'a', kind: 'done', at: at('2026-10-05T09:00') })],
+    });
+    expect(lateTeams(s, AS_OF, TIME_ZONE).size).toBe(0);
+  });
+});
 
 describe('collapsedTeams', () => {
   const state = larkspurState();
-  const base = { toggles: new Map(), active: false };
+  const base = { asOf: AS_OF, timeZone: TIME_ZONE, toggles: new Map(), active: false };
 
-  it('opens every team by default', () => {
-    expect(collapsedTeams(state, base).size).toBe(0);
+  it('opens a team with a late work item and collapses the others by default', () => {
+    const collapsed = collapsedTeams(state, base);
+    expect(TEAMS.filter((t) => !collapsed.has(t))).toEqual([
+      'engineering',
+      'customer-success',
+      'it',
+    ]);
   });
 
   it("lets the person's own toggle win over the default", () => {
@@ -16,7 +61,9 @@ describe('collapsedTeams', () => {
       ['implementation', true],
     ]);
     const collapsed = collapsedTeams(state, { ...base, toggles });
-    expect([...collapsed]).toEqual(['engineering']);
+    expect(collapsed.has('engineering')).toBe(true);
+    expect(collapsed.has('implementation')).toBe(false);
+    expect(collapsed.has('digitization')).toBe(true);
   });
 
   it('opens every team while search, filters or a focus are active, and keeps the toggles', () => {
@@ -74,17 +121,46 @@ describe('teamsOfOps', () => {
   });
 });
 
+describe('changedTeams', () => {
+  it('lists the teams that hold a changed row, event or planned finish', () => {
+    const marks = {
+      workItems: new Set(['golive']),
+      events: new Set(['p31']),
+      milestones: new Set(['golive']),
+      dates: new Set(['secret', 'ms:golive']),
+    };
+    expect([...changedTeams(larkspurState(), marks)].sort()).toEqual([
+      'engineering',
+      'implementation',
+      'it',
+    ]);
+    expect(changedTeams(larkspurState(), undefined).size).toBe(0);
+  });
+});
+
+describe('collapsedTeams with changes', () => {
+  it('opens a team with changes by default, and the toggle still wins', () => {
+    const base = { asOf: AS_OF, timeZone: TIME_ZONE, toggles: new Map(), active: false };
+    const changed = new Set(['digitization']);
+    expect(collapsedTeams(larkspurState(), { ...base, changed }).has('digitization')).toBe(false);
+    expect(
+      collapsedTeams(larkspurState(), {
+        ...base,
+        changed,
+        toggles: new Map([['digitization', false]]),
+      }).has('digitization'),
+    ).toBe(true);
+  });
+});
+
 describe('openTeams', () => {
-  const view = { toggles: new Map<string, boolean>() };
+  const view = { asOf: AS_OF, timeZone: TIME_ZONE, toggles: new Map<string, boolean>() };
 
   it('stores an open toggle for a collapsed team when the graph is whole', () => {
-    const collapsed = { toggles: new Map([['implementation', false]]) };
-    expect(openTeams(larkspurState(), collapsed, ['implementation', 'engineering'], false)).toEqual(
-      {
-        toggles: new Map([['implementation', true]]),
-        active: [],
-      },
-    );
+    expect(openTeams(larkspurState(), view, ['implementation', 'engineering'], false)).toEqual({
+      toggles: new Map([['implementation', true]]),
+      active: [],
+    });
   });
 
   it('opens a team only for the narrowed graph, so the stored toggles come back', () => {
@@ -94,8 +170,10 @@ describe('openTeams', () => {
     });
   });
 
-  it('stores nothing for a team that the state does not know yet, as a new team starts open', () => {
-    expect(openTeams(larkspurState(), view, ['brand-new'], false).toggles).toBeNull();
+  it('stores a team that the state does not know yet, as a new team gets its first row', () => {
+    expect(openTeams(larkspurState(), view, ['brand-new'], false).toggles).toEqual(
+      new Map([['brand-new', true]]),
+    );
   });
 
   it('changes nothing for a team that is open already', () => {

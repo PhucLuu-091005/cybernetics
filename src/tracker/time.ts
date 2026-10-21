@@ -1,6 +1,6 @@
 export const DEFAULT_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 
-const MONTHS = [
+export const MONTHS = [
   'Jan',
   'Feb',
   'Mar',
@@ -62,24 +62,6 @@ function offsetMs(ms: number, timeZone: string): number {
   const whole = Math.floor(ms / 1000) * 1000;
   const p = zoned(whole, timeZone);
   return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - whole;
-}
-
-/** A zone half an hour off UTC keeps its own whole hours, so the floor is taken on the local clock. */
-export function hourFloor(ms: number, timeZone: string): number {
-  const HOUR_MS = 3_600_000;
-  const offset = offsetMs(ms, timeZone);
-  return Math.floor((ms + offset) / HOUR_MS) * HOUR_MS - offset;
-}
-
-const FIVE_MINUTES = 300_000;
-
-/** A fixed project clock stays as it is; else now, down to 5 minutes, as an event is past tense. */
-export function eventDefaultAt(
-  fixedAsOf: string | null | undefined,
-  nowMs: number,
-  timeZone: string,
-): string {
-  return fixedAsOf ?? toInstant(Math.floor(nowMs / FIVE_MINUTES) * FIVE_MINUTES, timeZone);
 }
 
 export function dayOf(instant: string, timeZone: string): string {

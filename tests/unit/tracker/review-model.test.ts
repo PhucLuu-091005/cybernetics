@@ -4,19 +4,10 @@ import {
   LARKSPUR_OWNER,
   larkspurCrs,
 } from '../../../src/server/tracker/seed/larkspur';
-import { liveOps, mainState, type Commit, type Picks } from '../../../src/tracker/clash';
+import { liveOps, mainState, type Commit } from '../../../src/tracker/clash';
 import { queueFromRows, replayOps, type Op } from '../../../src/tracker/ops';
 import type { Cr, Member, Resolution, TrackerPayload } from '../../../src/tracker/payload';
-import {
-  clashSpot,
-  firstUnpicked,
-  keepCrForAll,
-  openedReview,
-  pickAll,
-  pickedCount,
-  reviewModel,
-  type ReviewClash,
-} from '../../../src/tracker/review';
+import { openedReview, reviewModel } from '../../../src/tracker/review';
 import {
   at,
   larkspurBase,
@@ -34,7 +25,6 @@ const members: Member[] = LARKSPUR_MEMBERS.map((m) => ({
   color: m.color,
   userId: null,
   active: true,
-  removed: false,
   grants: m.grants,
 }));
 
@@ -126,7 +116,6 @@ function payload(crs: Cr[], commits: Commit[], me = LARKSPUR_OWNER): TrackerPayl
     queue,
     commits,
     crs,
-    version: 'v',
   };
 }
 
@@ -252,7 +241,7 @@ describe('reviewModel', () => {
       event: null,
       d: {
         change: 'planned date moved',
-        why: 'The CRS section is not ready. Sarah agreed on 26 September.',
+        why: 'The CRS section is not ready. Sarah agreed on 13 September.',
       },
     });
   });
@@ -309,23 +298,6 @@ describe('reviewModel', () => {
     expect(keepMain?.canMerge).toBe(true);
     expect(keepMain?.after.events.find((e) => e.id === 'qe1')?.workItemId).toBe('secret');
     expect(titleOf(keepMain!.after, 'secret')).toBe('Secret renewed');
-  });
-
-  it('keeps the change request for all where it can apply, worked out from every clash on cr', () => {
-    const { crs, commits } = afterTwoMerges();
-    expect(keepCrForAll(payload(crs, commits), 3, { 'loop:pg203:title': 'main' })).toEqual({
-      'loop:pg203:title': 'cr',
-    });
-    const took = mainTookTheSpots();
-    const p = payload(took.crs, took.commits);
-    const starts: Picks[] = [{}, { 'event:qe1': 'main' }, { 'act:p31': 'cr' }];
-    for (const start of starts) {
-      const picks = keepCrForAll(p, 5, start);
-      const model = reviewModel(p, 5, picks)!;
-      for (const clash of model.clashes)
-        expect(picks[clash.key] === 'main' || clash.crApplies, clash.key).toBe(true);
-      expect(model.canMerge).toBe(true);
-    }
   });
 
   it('reports the clash of a draft but never lets the owner merge it', () => {
@@ -463,36 +435,6 @@ describe('reviewModel', () => {
     expect(reviewModel(p, 7, { 'event:qe1': 'main' })?.canMerge).toBe(false);
   });
 
-  it('counts only the changes that still apply, and lists the others for Clear, last first', () => {
-    const { crs, commits } = mainTookTheSpots();
-    const p = payload(crs, commits);
-    expect(reviewModel(p, 5, {})).toMatchObject({ applying: 1, stale: [1, 0] });
-    const { cr1, commits: first } = seed();
-    const gone = makeOp('attach', { eventId: 'nope', workItemId: 'pg203' }, 1, 'lan');
-    const cr = makeCr(5, { author: 'lan', status: 'draft', ops: [gone] });
-    expect(reviewModel(payload([cr1, cr], first), 5, {})).toMatchObject({
-      applying: 0,
-      stale: [0],
-    });
-  });
-
-  it('says when every change of an open CR is already in Main', () => {
-    const { crs, commits } = afterTwoMerges();
-    const merged = crs.find((c) => c.num === 2)!;
-    const copy = makeCr(6, {
-      author: 'lan',
-      status: 'draft',
-      ops: merged.ops.map((op) => ({ ...op, rev: 1 })),
-    });
-    expect(reviewModel(payload([...crs, copy], commits), 6, {})).toMatchObject({
-      applying: 0,
-      inMain: true,
-      changes: [],
-    });
-    expect(reviewModel(payload(crs, commits), 3, {})?.inMain).toBe(false);
-    expect(reviewModel(payload(crs, commits), 2, {})?.inMain).toBe(false);
-  });
-
   it('blames Main, not the queue, for a closed change whose card or spot Main used before the close', () => {
     const { crs, commits } = mainTookTheSpots();
     const [, cr5] = crs;
@@ -551,8 +493,6 @@ describe('openedReview', () => {
       kind: 'comment' as const,
       body: 'Looks fine.',
       opIndex: null,
-      agent: false,
-      viaKey: null,
       createdAt: at('2026-10-09T17:10'),
     };
     const edited: Cr = {
@@ -571,46 +511,5 @@ describe('openedReview', () => {
     expect(cr?.asks).toEqual(edited.asks);
     expect(shown.crs.find((c) => c.num === 1)).toBe(cr1);
     expect(reviewModel(shown, 2, {})?.changes).toHaveLength(2);
-  });
-});
-
-describe('many clashes', () => {
-  const clash = (key: string, crApplies = true) => ({ key, crApplies, label: key }) as ReviewClash;
-  const clashes = [
-    clash('loop:pg203:title'),
-    clash('ms:golive:date'),
-    clash('loop:dynamics:due', false),
-    clash('act:e1:kind'),
-  ];
-
-  it('keeps one side for all, and Main where the change request cannot apply', () => {
-    expect(pickAll(clashes, 'main')).toEqual({
-      'loop:pg203:title': 'main',
-      'ms:golive:date': 'main',
-      'loop:dynamics:due': 'main',
-      'act:e1:kind': 'main',
-    });
-    expect(pickAll(clashes, 'cr')).toEqual({
-      'loop:pg203:title': 'cr',
-      'ms:golive:date': 'cr',
-      'loop:dynamics:due': 'main',
-      'act:e1:kind': 'cr',
-    });
-  });
-
-  it('counts the picks that count for a merge and finds the first clash without one', () => {
-    const picks = { 'loop:pg203:title': 'main', 'loop:dynamics:due': 'cr' } as const;
-    expect(pickedCount(clashes, picks)).toBe(1);
-    expect(firstUnpicked(clashes, picks)?.key).toBe('ms:golive:date');
-    expect(firstUnpicked(clashes, pickAll(clashes, 'cr'))).toBeNull();
-  });
-
-  it('finds the spot of a clash on the graph', () => {
-    const state = larkspurBase() as unknown as Parameters<typeof clashSpot>[1];
-    expect(clashSpot('loop:pg203:title', state)).toEqual({ kind: 'item', id: 'pg203' });
-    expect(clashSpot('ms:golive:date', state)).toEqual({ kind: 'ms', id: 'golive' });
-    const ev = larkspurBase().events[0];
-    expect(clashSpot(`act:${ev.id}`, state)).toEqual({ kind: 'item', id: ev.workItemId });
-    expect(clashSpot('item:q1', state)).toBeNull();
   });
 });

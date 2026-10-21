@@ -70,8 +70,8 @@ export type Rights = {
   /** Members, teams, grants and the project lead hand-over. */
   manage: boolean;
 };
-type Right = keyof Rights | 'edit';
-type CrRight = 'edit' | 'share' | 'cancel' | 'ask';
+export type Right = keyof Rights | 'edit';
+export type CrRight = 'edit' | 'share' | 'cancel' | 'ask';
 
 export type PermissionSubject = {
   me: { id: string; grants: Grants } | null;

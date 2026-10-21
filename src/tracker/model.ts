@@ -25,9 +25,6 @@ export const KIND_LABEL: Record<EventKind, string> = {
   cancelled: 'Cancelled',
 };
 
-export const kindWithArticle = (kind: EventKind) =>
-  `${/^[AEIOU]/.test(KIND_LABEL[kind]) ? 'an' : 'a'} ${KIND_LABEL[kind]}`;
-
 export const FINISHES_NOTE = 'finishes the work item';
 
 export const isFinishingHandoff = (e: { kind: EventKind; finishes?: boolean }) =>
@@ -96,18 +93,6 @@ export type WorkItem = {
   since: string | null;
 };
 
-/** The person a new event of this kind names first in Who: the doer closes the work, the requester opens it. */
-export const whoDid = (item: Pick<WorkItem, 'doneBy' | 'requestedBy'>, kind: EventKind) =>
-  kind === 'done' || kind === 'cancelled' ? item.doneBy : item.requestedBy;
-
-/** QA 19 Oct, L4: the person on screen wrote the event, so Who starts with them when the list has them. */
-export const defaultWho = (
-  item: Pick<WorkItem, 'doneBy' | 'requestedBy'>,
-  kind: EventKind,
-  me: string | null,
-  pickable: readonly string[],
-) => (me && pickable.includes(me) ? me : whoDid(item, kind));
-
 export type TrackerEvent = {
   id: string;
   workItemId: string;
@@ -117,7 +102,7 @@ export type TrackerEvent = {
   text: string;
   /** Only a Handoff reads it: true makes the Handoff finish its work item. */
   finishes?: boolean;
-  addedBy: string | null;
+  addedBy: 'agent' | string | null;
   hidden: boolean;
 };
 

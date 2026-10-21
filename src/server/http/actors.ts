@@ -6,20 +6,13 @@ import { browserScopes, type HttpIdentityStore } from './identity-store';
 import { assertTokenTransport } from './origin';
 import { MemoryRateLimiter, type RateLimiter } from './rate-limit';
 import { readSession } from './session';
-type IdentityOptions = {
+export type IdentityOptions = {
   store: HttpIdentityStore;
   env: AuthEnvironment;
   now?: () => number;
   limiter?: RateLimiter;
 };
 export type BrowserSession = { userId: string; defaultWorkspaceId: string };
-/**
- * A page of avatars loads many photos at once, and every open tracker tab checks its version, so
- * photo reads and version checks have their own limits and leave the read limit alone.
- */
-export type LimitBucket = 'calls' | 'photo' | 'poll';
-const LIMITS = { read: 300, write: 120, photo: 1200, poll: 60 } as const;
-const rateLimited = () => new AppError('RATE_LIMITED', 'Rate limit exceeded');
 export function projectInPath(pathname: string): string | null {
   const match = pathname.match(/\/projects\/([^/]+)/);
   if (!match) return null;
@@ -27,7 +20,7 @@ export function projectInPath(pathname: string): string | null {
   if (!result.success) throw new AppError('NOT_FOUND', 'Project not found');
   return result.data;
 }
-function requestedProject(request: Request): string | null {
+export function requestedProject(request: Request): string | null {
   return projectInPath(new URL(request.url).pathname);
 }
 export function createIdentityServices(options: IdentityOptions) {
@@ -35,16 +28,12 @@ export function createIdentityServices(options: IdentityOptions) {
     now = options.now ?? Date.now,
     limiter = options.limiter ?? new MemoryRateLimiter();
   /** Verifies the signed session and charges the per-user rate limit; a page render calls it once for the layout and the page together. */
-  async function resolveBrowserSession(
-    request: Request,
-    bucket: LimitBucket = 'calls',
-  ): Promise<BrowserSession> {
+  async function resolveBrowserSession(request: Request): Promise<BrowserSession> {
     const session = readSession(request, env, now());
     const user = await store.resolveSessionUser(session.userId);
     if (!user) throw new AppError('UNAUTHENTICATED', 'Unknown session');
     const write = !['GET', 'HEAD', 'OPTIONS'].includes(request.method);
-    const kind = write ? 'write' : bucket === 'calls' ? 'read' : bucket;
-    if (!limiter.consume(`user:${user.userId}:${kind}`, LIMITS[kind], now())) throw rateLimited();
+    limiter.consume(`user:${user.userId}:${write ? 'write' : 'read'}`, write ? 120 : 300, now());
     return user;
   }
   /** Current membership decides access on every call, so a cached session never carries project access. */
@@ -72,8 +61,8 @@ export function createIdentityServices(options: IdentityOptions) {
   return {
     resolveBrowserSession,
     resolveBrowserProject,
-    async getBrowserActor(request: Request, bucket?: LimitBucket): Promise<ActorContext> {
-      const session = await resolveBrowserSession(request, bucket);
+    async getBrowserActor(request: Request): Promise<ActorContext> {
+      const session = await resolveBrowserSession(request);
       return resolveBrowserProject(session, requestedProject(request));
     },
     /** A null scope verifies the token only; the caller must then check scope per operation (the MCP route does so per tool). */
@@ -93,20 +82,15 @@ export function createIdentityServices(options: IdentityOptions) {
         !Number.isFinite(Date.parse(token.expiresAt))
       )
         throw new AppError('UNAUTHENTICATED', 'Invalid or expired token');
-      // A personal key opens no project here: each tool call names one and passes the same project check.
+      const project = await store.resolveProject(token.userId, token.projectId);
       const requested = requestedProject(request);
-      const bound = token.kind === 'project' ? token.projectId : requested;
-      // A key made as a seeded person of a demo copy works in that copy only.
-      if (token.actsAs && bound && bound !== token.memberProjectId)
-        throw new AppError('NOT_FOUND', 'Project not found');
-      const project = bound ? await store.resolveProject(token.userId, bound) : null;
       if (
-        (bound && !project) ||
-        (token.kind === 'project' && project?.workspaceId !== token.workspaceId) ||
-        (requested && requested !== bound)
+        !project ||
+        project.workspaceId !== token.workspaceId ||
+        (requested && requested !== token.projectId)
       )
         throw new AppError('NOT_FOUND', 'Project not found');
-      if (!limiter.consume(`token:${token.id}`, 60, now())) throw rateLimited();
+      limiter.consume(`token:${token.id}`, 60, now());
       const at = now();
       if (!token.lastUsedAt || at - Date.parse(token.lastUsedAt) >= 60_000)
         await store.touchToken(token.id, new Date(at).toISOString());
@@ -116,11 +100,8 @@ export function createIdentityServices(options: IdentityOptions) {
         kind: 'agent',
         userId: token.userId,
         tokenId: token.id,
-        key: token.kind,
-        keyLabel: token.label,
-        ...(token.actsAs ? { memberId: token.actsAs.memberId } : {}),
-        workspaceId: project?.workspaceId ?? token.workspaceId,
-        projectId: bound,
+        workspaceId: token.workspaceId,
+        projectId: token.projectId,
         scopes: [...token.scopes],
         requestId: newRequestId(),
       };

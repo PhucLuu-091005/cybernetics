@@ -6,7 +6,6 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { createTestDatabase, testActor, type TestDb } from '../support/db';
 import { seedDemo } from '../support/tracker-db';
-import { mainState } from '../../src/tracker';
 import { configureApp, resetApp, seedOnUserCreated, tokenActor } from '../../src/server/app';
 import { DbIdentityStore } from '../../src/server/db/identity-store';
 import { projects } from '../../src/server/db/schema';
@@ -163,10 +162,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('release security checks', () =>
     expect(added.status).toBe(201);
     aliceCard = added.body.queue.events.find((event: { text: string }) => event.text === marker).id;
     const seeded = await getTrackerPayload(t.db, alice, { projectId: aliceProject });
-    seededBodies = [
-      ...mainState(seeded.base, seeded.queue, seeded.commits).events,
-      ...seeded.queue.events,
-    ]
+    seededBodies = [...seeded.base.events, ...seeded.queue.events]
       .map((event) => event.text)
       .filter((text) => text.length >= 24 && text !== marker);
     bob = await testActor(t.db, { name: 'Bob' });

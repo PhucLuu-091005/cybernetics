@@ -62,35 +62,8 @@ describe('auth configuration fails closed', () => {
   });
   it('refuses any other or missing mode', () => {
     expect(() => readAuthEnvironment({ ...google, AUTH_MODE: 'clerk' })).toThrow(
-      'AUTH_MODE must be google, local or demo',
+      'AUTH_MODE must be google or local',
     );
-    expect(() => readAuthEnvironment({})).toThrow('AUTH_MODE must be google, local or demo');
-  });
-  it('accepts demo mode in production on https without Google credentials', () => {
-    const demo = {
-      NODE_ENV: 'production',
-      AUTH_MODE: 'demo',
-      NEXT_PUBLIC_APP_URL: 'https://pg.example',
-      SESSION_SECRET: 'c'.repeat(64),
-    };
-    expect(readAuthEnvironment(demo)).toEqual({
-      mode: 'demo',
-      appOrigin: 'https://pg.example',
-      sessionSecret: 'c'.repeat(64),
-      google: null,
-    });
-    expect(() =>
-      readAuthEnvironment({ ...demo, NEXT_PUBLIC_APP_URL: 'http://pg.example' }),
-    ).toThrow(/HTTPS/);
-    expect(() => readAuthEnvironment({ ...demo, SESSION_SECRET: 'x'.repeat(31) })).toThrow(
-      /SESSION_SECRET/,
-    );
-    expect(
-      readAuthEnvironment({
-        ...demo,
-        NODE_ENV: 'development',
-        NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
-      }).mode,
-    ).toBe('demo');
+    expect(() => readAuthEnvironment({})).toThrow('AUTH_MODE must be google or local');
   });
 });

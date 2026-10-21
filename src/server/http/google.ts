@@ -3,14 +3,13 @@ import { z } from 'zod';
 import type { AuthEnvironment } from '../env';
 import { AppError } from '../errors';
 import type { HttpIdentityStore } from './identity-store';
-import { returnPath } from './return-path';
 import { SESSION_TTL_MS, cookieValue, sessionCookie, signSession } from './session';
 
 export type GoogleClient = {
   createAuthorizationURL(state: string, verifier: string): URL;
   exchange(code: string, verifier: string): Promise<unknown>;
 };
-type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
+export type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
 const AUTHORIZATION_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth',
   TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const ISSUERS = ['https://accounts.google.com', 'accounts.google.com'];
@@ -92,11 +91,7 @@ export function googleClient(env: AuthEnvironment, fetcher: Fetcher = fetch): Go
 const flowCookie = (name: string, value: string, env: AuthEnvironment, maxAge = TEN_MINUTES) =>
   `${name}=${value}; HttpOnly; SameSite=Lax; Path=/api/auth; Max-Age=${maxAge}${env.appOrigin.startsWith('https:') ? '; Secure' : ''}`;
 
-export function startGoogleSignIn(
-  env: AuthEnvironment,
-  client: GoogleClient,
-  next: string | null = null,
-): Response {
+export function startGoogleSignIn(env: AuthEnvironment, client: GoogleClient): Response {
   const state = randomToken(),
     verifier = randomToken();
   const headers = new Headers({
@@ -105,11 +100,6 @@ export function startGoogleSignIn(
   });
   headers.append('Set-Cookie', flowCookie('pg_oauth_state', state, env));
   headers.append('Set-Cookie', flowCookie('pg_oauth_verifier', verifier, env));
-  // An abandoned earlier sign-in can leave its return path behind.
-  headers.append(
-    'Set-Cookie',
-    flowCookie('pg_oauth_next', next ? encodeURIComponent(next) : '', env, next ? TEN_MINUTES : 0),
-  );
   return new Response(null, { status: 302, headers });
 }
 
@@ -131,28 +121,19 @@ h1 { font-size: 20px; margin: 0 0 8px; } p { color: var(--ink-2); margin: 0 0 20
 function finishCallback(
   env: AuthEnvironment,
   status: number,
-  outcome: { message: string; expired?: boolean } | { session: string; next: string | null },
+  outcome: { message: string; expired?: boolean } | { session: string },
 ): Response {
   const headers = new Headers({ 'Cache-Control': 'private, no-store' });
   if ('session' in outcome) {
-    headers.set('Location', outcome.next ?? '/');
+    headers.set('Location', '/');
     headers.append('Set-Cookie', outcome.session);
   } else headers.set('Content-Type', 'text/html; charset=utf-8');
   headers.append('Set-Cookie', flowCookie('pg_oauth_state', '', env, 0));
   headers.append('Set-Cookie', flowCookie('pg_oauth_verifier', '', env, 0));
-  headers.append('Set-Cookie', flowCookie('pg_oauth_next', '', env, 0));
   return new Response(
     'message' in outcome ? failurePage(outcome.message, outcome.expired ?? false) : null,
     { status, headers },
   );
-}
-
-function nextOf(request: Request): string | null {
-  try {
-    return returnPath(decodeURIComponent(cookieValue(request, 'pg_oauth_next') ?? ''));
-  } catch {
-    return null;
-  }
 }
 
 export async function completeGoogleSignIn(
@@ -193,7 +174,6 @@ export async function completeGoogleSignIn(
     name: name?.trim().slice(0, 200) || email || 'Google user',
   });
   return finishCallback(env, 303, {
-    next: nextOf(request),
     session: sessionCookie(
       signSession({ userId, expiresAt: now + SESSION_TTL_MS }, env.sessionSecret),
       env,

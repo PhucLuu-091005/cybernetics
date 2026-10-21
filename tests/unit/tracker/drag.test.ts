@@ -222,22 +222,6 @@ describe('dropAction: what a drop does', () => {
     });
     expect(dropAction(row, null, s)).toEqual({ kind: 'none' });
   });
-
-  it('sends nothing for a work item that is in another milestone, and says where to move it', () => {
-    const two = state();
-    two.milestones.push({
-      id: 'crm',
-      name: 'CRM live',
-      planned: '2026-10-01',
-      firstPlanned: '2026-10-01',
-      moves: [],
-    });
-    const a = two.workItems.find((w) => w.id === 'a')!;
-    expect(dropAction({ kind: 'row', id: 'a' }, { type: 'ms', id: 'crm' }, two)).toEqual({
-      kind: 'hint',
-      text: `${a.title} is in Go-live already. Change its milestone in its details.`,
-    });
-  });
 });
 
 describe('dayAtX and noonX: the day under a dragged milestone', () => {

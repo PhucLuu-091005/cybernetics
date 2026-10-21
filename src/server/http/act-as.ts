@@ -4,23 +4,40 @@ import { getApp } from '../app';
 import type { Db } from '../db/tx';
 import { readAuthEnvironment } from '../env';
 import { AppError, invalidInput, privateJson } from '../errors';
-import { personOnScreen } from '../domain/account';
-import type { ActsAs } from '../domain/tokens/service';
+import { actingMember } from '../tracker/access';
 import { getTrackerPayload } from '../tracker/read';
 import type { Handler, Input } from './route';
 import { cookieValue } from './session';
 
-const ACT_AS_MAX_AGE = 30 * 86_400;
+export const ACT_AS_MAX_AGE = 30 * 86_400;
 
 export const actAsCookieName = (projectId: string) => `pg_act_${projectId}`;
 
-function actAsCookie(projectId: string, memberId: string): string {
+export function actAsCookie(projectId: string, memberId: string): string {
   const secure = readAuthEnvironment().appOrigin.startsWith('https:') ? '; Secure' : '';
   return `${actAsCookieName(projectId)}=${memberId}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${ACT_AS_MAX_AGE}${secure}`;
 }
 
 export function readActAs(request: Request, projectId: string): string | undefined {
   return cookieValue(request, actAsCookieName(projectId)) ?? undefined;
+}
+
+/** A cookie that names no member any more falls back to the own member, so it cannot lock the person out. */
+async function usableActAs(
+  ctx: ActorContext,
+  projectId: string,
+  cookie: string | undefined,
+): Promise<string | undefined> {
+  if (!cookie) return undefined;
+  try {
+    await getApp().db.transaction((tx) => actingMember(tx, ctx, projectId, cookie), {
+      accessMode: 'read only',
+    });
+    return cookie;
+  } catch (error) {
+    if (error instanceof AppError && error.code === 'FORBIDDEN') return undefined;
+    throw error;
+  }
 }
 
 /** Only the act-as route sets the cookie, after the use case accepts the member, so a body or query value must not pick one. */
@@ -33,10 +50,7 @@ export function asMember<I, R>(
       throw new AppError('VALIDATION', 'The acting member comes from the act-as cookie', {
         errors: [{ path: 'actAs', message: 'Use POST /tracker/act-as' }],
       });
-    const cookie = readActAs(request, params.projectId);
-    const actAs = cookie
-      ? (await personOnScreen(getApp().db, ctx, params.projectId, cookie)).actAs
-      : undefined;
+    const actAs = await usableActAs(ctx, params.projectId, readActAs(request, params.projectId));
     return fn(getApp().db, ctx, { ...map(input), actAs } as I);
   };
 }
@@ -58,16 +72,3 @@ export const setActingMember: Handler = async (ctx, _request, _params, input) =>
   response.headers.append('Set-Cookie', actAsCookie(projectId, memberId));
   return response;
 };
-
-/** A key made from this request acts as the seeded person on screen of that demo copy, if any. */
-export async function keyActsAs(
-  request: Request,
-  ctx: ActorContext,
-  projectId: string | null,
-): Promise<ActsAs | undefined> {
-  if (!projectId || !IdSchema.safeParse(projectId).success) return undefined;
-  const seen = await personOnScreen(getApp().db, ctx, projectId, readActAs(request, projectId));
-  return seen.seeded && seen.member
-    ? { memberId: seen.member.id, name: seen.member.name, projectId }
-    : undefined;
-}

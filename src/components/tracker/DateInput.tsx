@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import {
   addDays,
   addMonths,
@@ -143,12 +143,7 @@ function Calendar({
   );
 }
 
-const DATE_ERROR = 'Not a date. Use e.g. 12 Oct 2026';
-
-/**
- * Bad text keeps the last good day, so a half-typed day never reaches a change request. The text
- * stays on screen with an error until the person fixes it, or Escape brings the day back.
- */
+/** Bad text keeps the last good day, so a half-typed day never reaches a change request. */
 export function DateInput({
   value,
   label,
@@ -167,121 +162,99 @@ export function DateInput({
   placeholder?: string;
 }) {
   const [text, setText] = useState<string | null>(null);
-  const [kept, setKept] = useState(false);
   const [open, setOpen] = useState(false);
-  const errorId = useId();
   const box = useRef<HTMLSpanElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const year = Number(value.slice(0, 4)) || Number((today ?? browserToday()).slice(0, 4));
   const read = (raw: string) => (!raw.trim() ? (optional ? '' : null) : parseDayText(raw, year));
   const bad = text !== null && read(text) === null;
-  const showError = bad && kept;
   const onFocus = useRef(value);
   const commit = (raw: string) => {
+    setText(null);
     const next = read(raw);
-    setKept(next === null);
     if (next !== null) {
-      setText(null);
       onFocus.current = next;
       if (next !== value) onChange(next);
     } else if (value !== onFocus.current) onChange(onFocus.current);
-  };
-  const revert = () => {
-    setText(null);
-    setKept(false);
-    if (value !== onFocus.current) onChange(onFocus.current);
   };
   const close = (focusButton: boolean) => {
     setOpen(false);
     if (focusButton) button.current?.focus();
   };
   return (
-    <>
-      <span
-        ref={box}
-        className="date-in"
+    <span
+      ref={box}
+      className="date-in"
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || !open) return;
+        event.preventDefault();
+        event.stopPropagation();
+        close(true);
+      }}
+      onBlur={(event) => {
+        const next = event.relatedTarget as Node | null;
+        if (open && next && !box.current?.contains(next)) setOpen(false);
+      }}
+    >
+      <input
+        type="text"
+        aria-label={label}
+        aria-invalid={bad || undefined}
+        title={bad ? 'Write a day such as 6 Oct 2026.' : undefined}
+        placeholder={placeholder}
+        autoComplete="off"
+        value={text ?? (value ? formatDayYear(value) : '')}
+        onFocus={() => {
+          onFocus.current = value;
+        }}
+        onChange={(event) => {
+          setText(event.target.value);
+          const whole = completeDayText(event.target.value);
+          if (whole !== null && whole !== value) onChange(whole);
+        }}
+        onBlur={() => text !== null && commit(text)}
         onKeyDown={(event) => {
-          if (event.key !== 'Escape' || !open) return;
-          event.preventDefault();
-          event.stopPropagation();
-          close(true);
+          if (event.key === 'Enter' && text !== null) {
+            // A form must not submit before the typed day is saved.
+            if (read(text) !== value) event.preventDefault();
+            commit(text);
+          }
+          if (event.key === 'ArrowDown' && event.altKey) setOpen(true);
         }}
-        onBlur={(event) => {
-          const next = event.relatedTarget as Node | null;
-          if (open && next && !box.current?.contains(next)) setOpen(false);
-        }}
+      />
+      <button
+        ref={button}
+        className="fp-ib"
+        type="button"
+        aria-label="Open the calendar"
+        title="Open the calendar"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen((was) => !was)}
       >
-        <input
-          type="text"
-          aria-label={label}
-          aria-invalid={bad || undefined}
-          aria-describedby={showError ? errorId : undefined}
-          placeholder={placeholder}
-          autoComplete="off"
-          value={text ?? (value ? formatDayYear(value) : '')}
-          onFocus={() => {
-            onFocus.current = value;
-          }}
-          onChange={(event) => {
-            setText(event.target.value);
-            const whole = completeDayText(event.target.value);
-            if (whole !== null && whole !== value) onChange(whole);
-          }}
-          onBlur={() => text !== null && commit(text)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && text !== null) {
-              // A form must not submit before the typed day is saved.
-              if (read(text) !== value) event.preventDefault();
-              commit(text);
-            }
-            if (event.key === 'ArrowDown' && event.altKey) setOpen(true);
-            if (event.key === 'Escape' && bad && !open) {
-              event.preventDefault();
-              event.stopPropagation();
-              revert();
-            }
-          }}
-        />
-        <button
-          ref={button}
-          className="fp-ib"
-          type="button"
-          aria-label="Open the calendar"
-          title="Open the calendar"
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          onClick={() => setOpen((was) => !was)}
+        <Icon name="cal" size={14} />
+      </button>
+      {open && (
+        <FieldPop
+          anchor={box}
+          className="cal-pop"
+          role="dialog"
+          aria-label="Calendar"
+          onClose={() => close(false)}
         >
-          <Icon name="cal" size={14} />
-        </button>
-        {open && (
-          <FieldPop
-            anchor={box}
-            className="cal-pop"
-            role="dialog"
-            aria-label="Calendar"
-            onClose={() => close(false)}
-          >
-            <Calendar
-              value={value}
-              today={today ?? browserToday()}
-              optional={optional}
-              onPick={(day) => {
-                setText(null);
-                setKept(false);
-                onFocus.current = day;
-                if (day !== value) onChange(day);
-                close(true);
-              }}
-            />
-          </FieldPop>
-        )}
-      </span>
-      {showError && (
-        <small className="field-err" id={errorId} role="alert">
-          {DATE_ERROR}
-        </small>
+          <Calendar
+            value={value}
+            today={today ?? browserToday()}
+            optional={optional}
+            onPick={(day) => {
+              setText(null);
+              onFocus.current = day;
+              if (day !== value) onChange(day);
+              close(true);
+            }}
+          />
+        </FieldPop>
       )}
-    </>
+    </span>
   );
 }

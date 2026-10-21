@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  applyingCount,
   clashesOf,
   crState,
   liveOps,
@@ -216,16 +215,6 @@ describe('mainState and crState', () => {
     expect(view.entries).toHaveLength(1);
     expect(view.state.workItems.find((w) => w.id === 'q1')?.teamId).toBe('engineering');
     expect([...view.marks.workItems]).toEqual(['q1']);
-  });
-
-  it('counts only the changes of a CR that apply: not the ones Main has, not the ones a removed change left behind', () => {
-    const ops = [
-      makeOp('rename', { workItemId: 'q1', title: 'Tax ID check' }, 1, 'lan'),
-      rename('PG-203 on staging', 1, 'lan'),
-      makeOp('rename', { workItemId: 'secret', title: 'Secret renewed' }, 1, 'lan'),
-    ];
-    expect(applyingCount(crState(base, rows, commits, cr({ ops })))).toBe(1);
-    expect(applyingCount(crState(base, rows, commits, cr({ ops: ops.slice(0, 2) })))).toBe(0);
   });
 
   it('shows a merged CR as Main right after its merge', () => {

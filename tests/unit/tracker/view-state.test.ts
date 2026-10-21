@@ -5,21 +5,16 @@ import {
   hiddenList,
   keepFocus,
   densityKey,
-  legendKey,
-  readLegendOpen,
   readDensity,
-  readIntroSeen,
   readNoticeOff,
   readTeamOpen,
   readViewState,
   teamOpenKey,
   writeDensity,
-  writeLegendOpen,
   writeTeamOpen,
   revealRows,
   toggleId,
   viewKey,
-  writeIntroSeen,
   writeNoticeOff,
   writeViewState,
   type KeyValueStore,
@@ -142,24 +137,13 @@ describe('tracker view state', () => {
     expect(readNoticeOff(null, 'u1')).toBe(false);
   });
 
-  it('shows the demo intro once per signed-in user, and never when storage is missing', () => {
-    const store = memoryStore();
-    expect(readIntroSeen(store, 'u1')).toBe(false);
-    writeIntroSeen(store, 'u1');
-    expect(readIntroSeen(store, 'u1')).toBe(true);
-    expect(readIntroSeen(store, 'u2')).toBe(false);
-    expect(() => writeIntroSeen(throwing, 'u1')).not.toThrow();
-    expect(readIntroSeen(throwing, 'u1')).toBe(true);
-    expect(readIntroSeen(null, 'u1')).toBe(true);
-  });
-
   it('lists hidden teams and hidden work items that still exist, and counts both', () => {
     const list = hiddenList(larkspurState(), {
       hiddenRows: ['pg203', 'gone', 'analyse'],
       hiddenTeams: ['it', 'nope'],
     });
     expect(list).toEqual({
-      teams: [{ id: 'it', name: 'IT', items: 2 }],
+      teams: [{ id: 'it', name: 'IT', items: 1 }],
       items: [
         { id: 'analyse', title: 'Analyse the CRS and FATCA rules', team: 'Digitization' },
         { id: 'pg203', title: 'PG-203 Country list field type', team: 'Engineering' },
@@ -180,22 +164,22 @@ describe('tracker view state', () => {
 });
 
 describe('row height and team toggles', () => {
-  it('reads Comfortable when nothing is stored, and round-trips each level per person', () => {
+  it('reads Compact when nothing is stored, and round-trips each level per person', () => {
     const store = memoryStore();
-    expect(readDensity(store, 'u1')).toBe('comfortable');
+    expect(readDensity(store, 'u1')).toBe('compact');
     writeDensity(store, 'u1', 'dense');
-    writeDensity(store, 'u2', 'compact');
+    writeDensity(store, 'u2', 'comfortable');
     expect(readDensity(store, 'u1')).toBe('dense');
-    expect(readDensity(store, 'u2')).toBe('compact');
+    expect(readDensity(store, 'u2')).toBe('comfortable');
     expect(densityKey('u1')).not.toBe(densityKey('u2'));
   });
 
-  it('reads Comfortable from an unknown value or a missing or throwing store', () => {
+  it('reads Compact from an unknown value or a missing or throwing store', () => {
     const store = memoryStore();
     store.setItem(densityKey('u1'), 'tiny');
-    expect(readDensity(store, 'u1')).toBe('comfortable');
-    expect(readDensity(null, 'u1')).toBe('comfortable');
-    expect(readDensity(throwing, 'u1')).toBe('comfortable');
+    expect(readDensity(store, 'u1')).toBe('compact');
+    expect(readDensity(null, 'u1')).toBe('compact');
+    expect(readDensity(throwing, 'u1')).toBe('compact');
     expect(() => writeDensity(throwing, 'u1', 'dense')).not.toThrow();
   });
 
@@ -233,35 +217,5 @@ describe('row height and team toggles', () => {
     expect(readTeamOpen(null, 'p1').size).toBe(0);
     expect(readTeamOpen(throwing, 'p1').size).toBe(0);
     expect(() => writeTeamOpen(throwing, 'p1', new Map([['it', true]]))).not.toThrow();
-  });
-});
-
-describe('legend popover', () => {
-  it('opens on a desktop and stays closed on a phone when nothing is stored', () => {
-    const store = memoryStore();
-    expect(readLegendOpen(store, 'u1', { phone: false })).toBe(true);
-    expect(readLegendOpen(store, 'u1', { phone: true })).toBe(false);
-  });
-
-  it('remembers closed and open again per person, and the stored choice wins on both widths', () => {
-    const store = memoryStore();
-    writeLegendOpen(store, 'u1', false);
-    expect(readLegendOpen(store, 'u1', { phone: false })).toBe(false);
-    expect(readLegendOpen(store, 'u2', { phone: false })).toBe(true);
-    writeLegendOpen(store, 'u1', true);
-    expect(readLegendOpen(store, 'u1', { phone: false })).toBe(true);
-    expect(readLegendOpen(store, 'u1', { phone: true })).toBe(true);
-    expect(legendKey('u1')).not.toBe(legendKey('u2'));
-  });
-
-  it('falls back to the width default from an unknown value or a missing or throwing store', () => {
-    const store = memoryStore();
-    store.setItem(legendKey('u1'), 'maybe');
-    expect(readLegendOpen(store, 'u1', { phone: false })).toBe(true);
-    expect(readLegendOpen(store, 'u1', { phone: true })).toBe(false);
-    expect(readLegendOpen(null, 'u1', { phone: false })).toBe(true);
-    expect(readLegendOpen(throwing, 'u1', { phone: true })).toBe(false);
-    expect(() => writeLegendOpen(throwing, 'u1', false)).not.toThrow();
-    expect(() => writeLegendOpen(null, 'u1', false)).not.toThrow();
   });
 });

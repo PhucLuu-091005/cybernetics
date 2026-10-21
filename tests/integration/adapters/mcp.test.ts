@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -30,8 +29,6 @@ describe('MCP result envelopes', () => {
     kind: 'agent',
     userId: randomUUID(),
     tokenId: randomUUID(),
-    key: 'project',
-    keyLabel: 'Agent',
     workspaceId: randomUUID(),
     projectId: randomUUID(),
     scopes: ['project:read'],
@@ -130,48 +127,19 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP adapter', () => {
     });
   });
 
-  it('names the server with the package.json version', async () => {
-    const { version } = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string };
-    expect((await connect(defaultToken.secret)).getServerVersion()).toEqual({
-      name: 'promise-graph',
-      version,
-    });
-  });
-  it('lists every tool to every token, and none accepts a projectId argument', async () => {
+  it('lists get_project and the tracker tools only, and none accepts a projectId argument', async () => {
     const { tools } = await (await connect(defaultToken.secret)).listTools();
     for (const tool of tools)
       expect(Object.keys(tool.inputSchema.properties ?? {})).not.toContain('projectId');
     expect(JSON.stringify({ tools }).length).toBeLessThanOrEqual(50_000);
     expect(tools.map((tool) => tool.name).sort()).toEqual([
-      'add_change',
       'add_queue_event',
       'add_queue_item',
-      'add_team',
-      'ask_to_edit',
-      'cancel_ask_to_edit',
-      'cancel_change_request',
-      'comment_change_request',
-      'create_change_request',
-      'decline_ask_to_edit',
-      'delete_team',
       'get_change_request',
       'get_project',
       'get_tracker',
-      'hand_over_change_request',
-      'invite_member',
       'list_change_requests',
-      'list_members',
       'list_queue',
-      'mark_draft',
-      'mark_ready',
-      'merge_change_request',
-      'remove_change',
-      'remove_member',
-      'remove_queue_card',
-      'request_changes',
-      'set_member_grants',
-      'share_change_request',
-      'update_team',
     ]);
   });
   it('get_project reads the title, client name and time zone, and a projectId argument is VALIDATION', async () => {
@@ -209,18 +177,6 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('MCP adapter', () => {
     expect(await call(writer, 'get_project', {})).toMatchObject({
       isError: true,
       structuredContent: { code: 'FORBIDDEN' },
-    });
-  });
-  it('list_members tells a members:manage token of the lead that it can manage members', async () => {
-    const manager = await connect((await token(['project:read', 'members:manage'])).secret);
-    const list = await call(manager, 'list_members');
-    expect(list.structuredContent).toMatchObject({ canManage: true, canManageTeams: false });
-    const invited = await call(manager, 'invite_member', { email: 'new.person@example.com' });
-    expect(invited.isError).toBeFalsy();
-    const reader = await connect(defaultToken.secret);
-    expect((await call(reader, 'list_members')).structuredContent).toMatchObject({
-      canManage: false,
-      canManageTeams: false,
     });
   });
   it('a revoked token fails its next call and a new connection', async () => {

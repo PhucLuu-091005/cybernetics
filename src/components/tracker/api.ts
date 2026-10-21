@@ -6,10 +6,9 @@ import type {
   QueueEventInput,
   QueueItemInput,
   TrackerPayload,
-  TrackerVersion,
 } from '../../tracker';
 
-type ApiError = {
+export type ApiError = {
   status: number;
   code: string;
   message: string;
@@ -35,22 +34,6 @@ export type CrAction =
   | (Reviewed & { action: 'merge'; picks: Picks })
   | (Reviewed & { action: 'request-changes'; note: string })
   | (Reviewed & { action: 'close'; reason: string });
-
-const FIELD_LABEL: Record<string, string> = {
-  title: 'Name',
-  name: 'Name',
-  text: 'What happened',
-  why: 'Why',
-  note: 'Note',
-  body: 'Comment',
-  reason: 'Reason',
-};
-
-export function errorText(error: ApiError): string {
-  const first = error.code === 'VALIDATION' ? error.errors?.[0] : undefined;
-  const label = first && FIELD_LABEL[first.path.split('.').at(-1) ?? ''];
-  return first && label ? `${label}: ${first.message}` : error.message;
-}
 
 const CODE_BY_STATUS: Record<number, string> = {
   400: 'VALIDATION',
@@ -115,9 +98,6 @@ const tracker = (projectId: string) => `/api/v1/projects/${encodeURIComponent(pr
 const cr = (projectId: string, num: number) => `${tracker(projectId)}/crs/${num}`;
 
 export const getTracker = (projectId: string) => send<TrackerPayload>(tracker(projectId), 'GET');
-
-export const getTrackerVersion = (projectId: string, num: number | null = null) =>
-  send<TrackerVersion>(`${tracker(projectId)}/version${num === null ? '' : `?num=${num}`}`, 'GET');
 
 export const actAs = (projectId: string, memberId: string) =>
   send<TrackerPayload>(`${tracker(projectId)}/act-as`, 'POST', { memberId });

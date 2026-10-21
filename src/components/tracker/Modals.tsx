@@ -18,30 +18,22 @@ import {
   KIND_GROUPS,
   KIND_LABEL,
   kindText,
-  pickable,
   toInstant,
   wallTimeInstant,
-  defaultWho,
-  eventDefaultAt,
   type Cr,
   type Member,
   type CrPermission,
   type EventKind,
-  type Person,
   type TrackerState,
-  TEXT_MAX,
 } from '../../tracker';
 import type { OpInput, QueueEntry } from './api';
 import { Avatar } from './avatar';
 import { mergerNames, trunc, type Session } from './ContextBar';
-import { Checkbox } from './Checkbox';
-import { Select } from './Select';
 import { Icon, KindIcon } from './icons';
 import { newTeamOp } from './team';
 import { DateInput } from './DateInput';
 import { DateTimeInput } from './DateTimeInput';
 import { TimeInput } from './TimeInput';
-import { TextCount } from './TextCount';
 
 export type ModalState =
   | { mode: 'add'; what: 'event' | 'item' }
@@ -85,6 +77,7 @@ type PropsOf<M extends ModalState['mode']> = Omit<Props, 'modal'> & {
   modal: Extract<ModalState, { mode: M }>;
 };
 
+const HOUR = 3_600_000;
 const newId = () => crypto.randomUUID();
 
 /** A `datetime-local` value is wall time in the project time zone. */
@@ -94,8 +87,7 @@ export function fromLocalInput(value: string, tz: string): string | null {
   const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/.exec(value);
   return match ? wallTimeInstant(match[1], match[2], tz) : null;
 }
-const defaultWhen = (session: Session) =>
-  localInput(eventDefaultAt(session.payload.project.asOf, Date.now(), session.tz), session.tz);
+const hourBefore = (asOf: string, tz: string) => toInstant(Date.parse(asOf) - HOUR, tz);
 const weekAfter = (asOf: string, tz: string) => addDays(dayOf(asOf, tz), 7);
 
 export function ModalFrame({
@@ -240,9 +232,15 @@ export function FinishesCheck({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <Checkbox className="check" checked={checked} disabled={disabled} onChange={onChange}>
+    <label className="check">
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+      />
       This finishes the work item
-    </Checkbox>
+    </label>
   );
 }
 
@@ -264,11 +262,9 @@ function EventText({
       <textarea
         value={value}
         required={cancel}
-        maxLength={TEXT_MAX.body}
         placeholder={cancel ? 'For example: The client keeps the free text field.' : placeholder}
         onChange={(event) => onChange(event.target.value)}
       />
-      <TextCount value={value} max={TEXT_MAX.body} />
     </label>
   );
 }
@@ -277,57 +273,53 @@ const finishFields = (kind: EventKind, finishes: boolean) =>
   kind === 'handoff' && finishes ? { finishes: true } : {};
 
 function PeopleSelect({
-  label,
-  people,
+  state,
   value,
   onChange,
 }: {
-  label: string;
-  people: readonly Person[];
+  state: TrackerState;
   value: string;
   onChange: (v: string) => void;
 }) {
   return (
-    <Select
-      label={label}
-      value={value}
-      onChange={onChange}
-      options={people.map((p) => ({ value: p.id, label: p.name }))}
-    />
+    <select value={value} onChange={(event) => onChange(event.target.value)}>
+      {state.people.map((p) => (
+        <option key={p.id} value={p.id}>
+          {p.name}
+        </option>
+      ))}
+    </select>
   );
 }
 
 function ItemSelect({
-  label,
   state,
   value,
   none,
   onChange,
 }: {
-  label: string;
   state: TrackerState;
   value: string;
   none?: string;
   onChange: (v: string) => void;
 }) {
   return (
-    <Select
-      label={label}
-      value={value}
-      onChange={onChange}
-      options={[
-        ...(none !== undefined ? [{ value: '', label: none }] : []),
-        ...state.workItems.map((w) => ({ value: w.id, label: trunc(w.title, 44) })),
-      ]}
-    />
+    <select value={value} onChange={(event) => onChange(event.target.value)}>
+      {none !== undefined && <option value="">{none}</option>}
+      {state.workItems.map((w) => (
+        <option key={w.id} value={w.id}>
+          {trunc(w.title, 44)}
+        </option>
+      ))}
+    </select>
   );
 }
 
 const blankText = (kind: EventKind) =>
   kind === 'cancelled' ? 'Write why the work item is cancelled.' : 'Write what happened first.';
 
-const personOr = (people: readonly Person[], id: string | null | undefined) =>
-  id && people.some((p) => p.id === id) ? id : (people[0]?.id ?? '');
+const personOr = (state: TrackerState, id: string | null | undefined) =>
+  id && state.people.some((p) => p.id === id) ? id : (state.people[0]?.id ?? '');
 
 function Gone({ onClose }: { onClose: () => void }) {
   useEffect(() => onClose(), [onClose]);
@@ -360,14 +352,13 @@ function EventQuote({
 
 function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'add'>) {
   const tz = session.tz;
-  const people = pickable(state.people, session.payload.members);
-  const me = personOr(people, session.me);
+  const me = personOr(state, session.me);
   const [what, setWhat] = useState(modal.what);
   const [kind, setKind] = useState<EventKind>('message');
   const [finishes, setFinishes] = useState(true);
   const [text, setText] = useState('');
   const [by, setBy] = useState(me);
-  const [when, setWhen] = useState(() => defaultWhen(session));
+  const [when, setWhen] = useState(localInput(hourBefore(asOf, tz), tz));
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
   const [doneBy, setDoneBy] = useState(me);
@@ -431,7 +422,7 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
           <div className="grid2">
             <label className="field">
               Who
-              <PeopleSelect label="Who" people={people} value={by} onChange={setBy} />
+              <PeopleSelect state={state} value={by} onChange={setBy} />
             </label>
             <div className="field">
               When
@@ -446,47 +437,32 @@ function AddModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'a
             Name
             <input
               value={title}
-              maxLength={TEXT_MAX.title}
               placeholder="For example: PG-205 Tax ID error messages"
               onChange={(event) => setTitle(event.target.value)}
             />
-            <TextCount value={title} max={TEXT_MAX.title} />
           </label>
           <label className="field">
             Note
             <input
               value={note}
-              maxLength={TEXT_MAX.note}
               placeholder="One line about the work"
               onChange={(event) => setNote(event.target.value)}
             />
-            <TextCount value={note} max={TEXT_MAX.note} />
           </label>
           <div className="grid2">
             <label className="field">
               Done by
-              <PeopleSelect label="Done by" people={people} value={doneBy} onChange={setDoneBy} />
+              <PeopleSelect state={state} value={doneBy} onChange={setDoneBy} />
             </label>
             <label className="field">
               For (requested by)
-              <PeopleSelect
-                label="For (requested by)"
-                people={people}
-                value={requestedBy}
-                onChange={setRequestedBy}
-              />
+              <PeopleSelect state={state} value={requestedBy} onChange={setRequestedBy} />
             </label>
           </div>
           <div className="grid2">
             <label className="field">
               Leads from
-              <ItemSelect
-                label="Leads from"
-                state={state}
-                value={after}
-                none="Nothing"
-                onChange={setAfter}
-              />
+              <ItemSelect state={state} value={after} none="Nothing" onChange={setAfter} />
             </label>
             <label className="field">
               Planned finish
@@ -538,18 +514,23 @@ function AttachModal({ modal, session, state, busy, on, onClose }: PropsOf<'atta
       {state.workItems.length > 0 && (
         <label className="field">
           Work item
-          <ItemSelect label="Work item" state={state} value={workItemId} onChange={setWorkItemId} />
+          <ItemSelect state={state} value={workItemId} onChange={setWorkItemId} />
         </label>
       )}
       {/* The click way to drop the event on a team: it starts a new work item there. */}
       <p className="q-label">Or start a new work item from it</p>
       <div className="share-add">
-        <Select
-          label="Team"
+        <select
+          aria-label="Team"
           value={teamId}
-          onChange={setTeamId}
-          options={state.teams.map((t) => ({ value: t.id, label: t.name }))}
-        />
+          onChange={(event) => setTeamId(event.target.value)}
+        >
+          {state.teams.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
         <button
           className="btn"
           type="button"
@@ -604,24 +585,24 @@ function PlaceModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<
       <div className="grid2">
         <label className="field">
           Team
-          <Select
-            label="Team"
-            value={teamId}
-            onChange={setTeamId}
-            options={state.teams.map((t) => ({ value: t.id, label: t.name }))}
-          />
+          <select value={teamId} onChange={(event) => setTeamId(event.target.value)}>
+            {state.teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="field">
           Milestone
-          <Select
-            label="Milestone"
-            value={ms}
-            onChange={setMs}
-            options={[
-              { value: '', label: 'No milestone' },
-              ...state.milestones.map((m) => ({ value: m.id, label: m.name })),
-            ]}
-          />
+          <select value={ms} onChange={(event) => setMs(event.target.value)}>
+            <option value="">No milestone</option>
+            {state.milestones.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="field">
           Planned finish
@@ -651,7 +632,6 @@ function PlaceModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<
 
 function EventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'event'>) {
   const tz = session.tz;
-  const people = pickable(state.people, session.payload.members);
   const start = state.workItems.find((w) => w.id === modal.workItemId);
   const [workItemId, setWorkItemId] = useState(modal.workItemId);
   const [kind, setKind] = useState<EventKind>(
@@ -659,21 +639,9 @@ function EventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<
   );
   const [finishes, setFinishes] = useState(true);
   const [text, setText] = useState(modal.done ? 'Done.' : '');
-  const [picked, setBy] = useState<string | null>(null);
-  const [when, setWhen] = useState(() => defaultWhen(session));
+  const [by, setBy] = useState(personOr(state, start?.requestedBy));
+  const [when, setWhen] = useState(localInput(hourBefore(asOf, tz), tz));
   if (!start) return <Gone onClose={onClose} />;
-  const item = state.workItems.find((w) => w.id === workItemId) ?? start;
-  const by =
-    picked ??
-    personOr(
-      people,
-      defaultWho(
-        item,
-        kind,
-        session.me,
-        people.map((p) => p.id),
-      ),
-    );
   const create = () => {
     const at = fromLocalInput(when, tz);
     if (!text.trim() || !at) return on.toast(blankText(kind));
@@ -691,7 +659,7 @@ function EventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<
     <ModalFrame title={modal.cancel ? 'Cancel this work item' : 'Add an event'} onClose={onClose}>
       <label className="field">
         Work item
-        <ItemSelect label="Work item" state={state} value={workItemId} onChange={setWorkItemId} />
+        <ItemSelect state={state} value={workItemId} onChange={setWorkItemId} />
       </label>
       <div className="field">
         Kind
@@ -702,7 +670,7 @@ function EventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<
       <div className="grid2">
         <label className="field">
           Who
-          <PeopleSelect label="Who" people={people} value={by} onChange={setBy} />
+          <PeopleSelect state={state} value={by} onChange={setBy} />
         </label>
         <div className="field">
           When
@@ -722,13 +690,12 @@ function EventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<
 
 function FromEventModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'fromEvent'>) {
   const tz = session.tz;
-  const people = pickable(state.people, session.payload.members);
   const ev = state.queue.events.find((e) => e.id === modal.eventId);
   const lead = state.teams.find((t) => t.id === modal.teamId)?.leadId;
   const [teamId, setTeamId] = useState(modal.teamId);
   const [title, setTitle] = useState(ev ? trunc(ev.text, 50) : '');
-  const [doneBy, setDoneBy] = useState(personOr(people, lead ?? session.me));
-  const [requestedBy, setRequestedBy] = useState(personOr(people, ev?.by));
+  const [doneBy, setDoneBy] = useState(personOr(state, lead ?? session.me));
+  const [requestedBy, setRequestedBy] = useState(personOr(state, ev?.by));
   const [after, setAfter] = useState('');
   const [planned, setPlanned] = useState(weekAfter(asOf, tz));
   const [plannedTime, setPlannedTime] = useState('');
@@ -759,48 +726,33 @@ function FromEventModal({ modal, session, state, asOf, busy, on, onClose }: Prop
       <div className="grid2">
         <label className="field">
           Name
-          <input
-            value={title}
-            maxLength={TEXT_MAX.title}
-            onChange={(event) => setTitle(event.target.value)}
-          />
-          <TextCount value={title} max={TEXT_MAX.title} />
+          <input value={title} onChange={(event) => setTitle(event.target.value)} />
         </label>
         <label className="field">
           Team
-          <Select
-            label="Team"
-            value={teamId}
-            onChange={setTeamId}
-            options={state.teams.map((t) => ({ value: t.id, label: t.name }))}
-          />
+          <select value={teamId} onChange={(event) => setTeamId(event.target.value)}>
+            {state.teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
       <div className="grid2">
         <label className="field">
           Done by
-          <PeopleSelect label="Done by" people={people} value={doneBy} onChange={setDoneBy} />
+          <PeopleSelect state={state} value={doneBy} onChange={setDoneBy} />
         </label>
         <label className="field">
           For (requested by)
-          <PeopleSelect
-            label="For (requested by)"
-            people={people}
-            value={requestedBy}
-            onChange={setRequestedBy}
-          />
+          <PeopleSelect state={state} value={requestedBy} onChange={setRequestedBy} />
         </label>
       </div>
       <div className="grid2">
         <label className="field">
           Leads from
-          <ItemSelect
-            label="Leads from"
-            state={state}
-            value={after}
-            none="Nothing"
-            onChange={setAfter}
-          />
+          <ItemSelect state={state} value={after} none="Nothing" onChange={setAfter} />
         </label>
         <label className="field">
           Planned finish
@@ -829,7 +781,6 @@ function MilestoneModal({ session, state, asOf, busy, on, onClose }: PropsOf<'ms
   const [planned, setPlanned] = useState(weekAfter(asOf, session.tz));
   const [time, setTime] = useState('');
   const [members, setMembers] = useState<string[]>([]);
-  const free = state.workItems.filter((w) => !w.milestoneId);
   const toggle = (id: string, checked: boolean) =>
     setMembers((list) => (checked ? [...list, id] : list.filter((x) => x !== id)));
   const create = () => {
@@ -848,11 +799,9 @@ function MilestoneModal({ session, state, asOf, busy, on, onClose }: PropsOf<'ms
           Name
           <input
             value={name}
-            maxLength={TEXT_MAX.title}
             placeholder="For example: CRS section live"
             onChange={(event) => setName(event.target.value)}
           />
-          <TextCount value={name} max={TEXT_MAX.title} />
         </label>
         <label className="field">
           Planned date
@@ -872,22 +821,21 @@ function MilestoneModal({ session, state, asOf, busy, on, onClose }: PropsOf<'ms
         <p className="tip">Without a time, the deadline is the end of the day.</p>
       </div>
       <p className="q-label">Work items in it</p>
-      <p className="tip">A work item belongs to one milestone, so the list shows the free ones.</p>
       <div className="pick">
-        {free.map((w) => {
+        {state.workItems.map((w) => {
           const checked = members.includes(w.id);
           return (
-            <Checkbox
-              key={w.id}
-              className={`pcard${checked ? ' on' : ''}`}
-              checked={checked}
-              onChange={(on) => toggle(w.id, on)}
-            >
+            <label key={w.id} className={`pcard${checked ? ' on' : ''}`}>
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(event) => toggle(w.id, event.target.checked)}
+              />{' '}
               {w.title}
-            </Checkbox>
+            </label>
           );
         })}
-        {!free.length && <p className="tip">Every work item is in a milestone already.</p>}
+        {!state.workItems.length && <p className="tip">No work item yet.</p>}
       </div>
       <Foot label="Create milestone" busy={busy} onCancel={onClose} onCreate={create} />
     </ModalFrame>
@@ -907,12 +855,11 @@ function TeamModal({ state, busy, on, onClose }: PropsOf<'team'>) {
         Name
         <input
           value={name}
-          maxLength={TEXT_MAX.title}
+          maxLength={200}
           placeholder="For example: Design"
           onChange={(event) => setName(event.target.value)}
           onKeyDown={(event) => event.key === 'Enter' && create()}
         />
-        <TextCount value={name} max={TEXT_MAX.title} />
       </label>
       <p className="tip">
         The team gets its own lane. After the merge, the project lead picks its lead and people on
@@ -997,11 +944,9 @@ function DueModal({ modal, session, state, asOf, busy, on, onClose }: PropsOf<'d
         <textarea
           value={why}
           required
-          maxLength={TEXT_MAX.why}
           placeholder="For example: Lan sends the country list on 10 October, so the field ships on 14 October."
           onChange={(event) => setWhy(event.target.value)}
         />
-        <TextCount value={why} max={TEXT_MAX.why} />
       </label>
       <p className="tip">
         Everyone sees this reason in the history of this {isMs ? 'milestone' : 'work item'}, and the
@@ -1032,12 +977,10 @@ function NewCrModal({ session, busy, on, onClose }: PropsOf<'newcr'>) {
         Name
         <input
           value={title}
-          maxLength={TEXT_MAX.title}
           placeholder="For example: Root cause report for Sarah"
           onChange={(event) => setTitle(event.target.value)}
           onKeyDown={(event) => event.key === 'Enter' && create()}
         />
-        <TextCount value={title} max={TEXT_MAX.title} />
       </label>
       <p className="tip">
         It starts from the latest Main. Only you can edit it until you share it. When you finish,
@@ -1059,7 +1002,6 @@ function NoteModal({
   action,
   keep,
   danger,
-  max,
   busy,
   onClose,
   onSend,
@@ -1070,7 +1012,6 @@ function NoteModal({
   tip: string;
   action: string;
   keep: string;
-  max: number;
   danger?: boolean;
   busy: boolean;
   onClose: () => void;
@@ -1084,12 +1025,11 @@ function NoteModal({
         {label}
         <textarea
           value={text}
-          maxLength={max}
+          maxLength={1000}
           required
           placeholder={placeholder}
           onChange={(event) => setText(event.target.value)}
         />
-        <TextCount value={text} max={max} />
       </label>
       <p className="tip">{tip}</p>
       <div className="m-foot">
@@ -1119,7 +1059,6 @@ function CancelCrModal({ cr, busy, on, onClose }: PropsOf<'cancelCr'>) {
       tip="Nothing from it goes into Main. Everyone sees the reason in its header and in History."
       action="Cancel change request"
       keep="Keep it"
-      max={TEXT_MAX.why}
       danger
       busy={busy}
       onClose={onClose}
@@ -1138,7 +1077,6 @@ function RequestChangesModal({ cr, session, busy, on, onClose }: PropsOf<'reques
       tip={`#${cr.num} goes back to draft, and ${session.dir.name(cr.editor)} sees your note in its header.`}
       action="Send back to draft"
       keep="Cancel"
-      max={TEXT_MAX.body}
       busy={busy}
       onClose={onClose}
       onSend={on.requestChanges}
@@ -1217,19 +1155,20 @@ function ShareModal({ session, cr, busy, on, onClose }: PropsOf<'share'>) {
           </div>
           {s.permission === 'edit' && hand(s.memberId)}
           {s.memberId !== cr.editor && (
-            <Select
-              label={`Access for ${dir.name(s.memberId)}`}
+            <select
+              aria-label={`Access for ${dir.name(s.memberId)}`}
               value={s.permission}
               disabled={busy}
-              onChange={(next) => on.share(s.memberId, next as CrPermission | 'remove')}
-              options={[
-                ...(s.permission === 'edit' || creates(s.memberId)
-                  ? [{ value: 'edit', label: 'Can edit' }]
-                  : []),
-                { value: 'view', label: 'Can view' },
-                { value: 'remove', label: 'Remove' },
-              ]}
-            />
+              onChange={(event) =>
+                on.share(s.memberId, event.target.value as CrPermission | 'remove')
+              }
+            >
+              {(s.permission === 'edit' || creates(s.memberId)) && (
+                <option value="edit">Can edit</option>
+              )}
+              <option value="view">Can view</option>
+              <option value="remove">Remove</option>
+            </select>
           )}
         </div>
       ))}
@@ -1247,22 +1186,25 @@ function ShareModal({ session, cr, busy, on, onClose }: PropsOf<'share'>) {
         <>
           <p className="q-label">Add a person</p>
           <div className="share-add">
-            <Select
-              label="Person"
-              className="grow"
+            <select
+              aria-label="Person"
               value={pick}
-              onChange={setWho}
-              options={others.map((m) => ({ value: m.id, label: m.name }))}
-            />
-            <Select
-              label="Access"
+              onChange={(event) => setWho(event.target.value)}
+            >
+              {others.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Access"
               value={access}
-              onChange={(next) => setPerm(next as CrPermission)}
-              options={[
-                ...(creates(pick) ? [{ value: 'edit', label: 'Can edit' }] : []),
-                { value: 'view', label: 'Can view' },
-              ]}
-            />
+              onChange={(event) => setPerm(event.target.value as CrPermission)}
+            >
+              {creates(pick) && <option value="edit">Can edit</option>}
+              <option value="view">Can view</option>
+            </select>
             <button
               className="btn btn-ink"
               type="button"

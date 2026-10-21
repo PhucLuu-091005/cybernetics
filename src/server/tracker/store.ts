@@ -12,34 +12,19 @@ import {
   trackerQueue,
   trackerTeamMembers,
   trackerTeams,
-  users,
 } from '../db/schema';
-import { photosOn } from '../avatars/config';
-import { memberPhotoUrl } from '../avatars/store';
 import { toIso, type Db, type Tx } from '../db/tx';
 
 export type Reader = Db | Tx;
 export type TrackerRow = typeof trackerProjects.$inferSelect;
 export type CrRow = typeof trackerCrs.$inferSelect;
-type QueueDbRow = typeof trackerQueue.$inferSelect;
-/**
- * byAgent and viaKey ride along with every tenant spread; only tables with those columns keep them,
- * so each change request comment records the key that wrote it for its person.
- */
-export type Tenant = { workspaceId: string; projectId: string; byAgent?: boolean; viaKey?: string };
+export type QueueDbRow = typeof trackerQueue.$inferSelect;
+export type Tenant = { workspaceId: string; projectId: string };
 
 const isoOrNull = (value: string | null) => (value === null ? null : toIso(value));
 
-/**
- * Main's teams and people come from the project, so a rename, a new lead or an invite shows at once
- * in every view. Removed members stay as people, so the work they did keeps their name. The caller
- * passes the rows of `loadMembers`, so one request reads the members once.
- */
-export async function findTracker(
-  db: Reader,
-  projectId: string,
-  members: readonly Pick<Member, 'id' | 'name'>[],
-): Promise<TrackerRow> {
+/** Main's team list comes from the project's teams, so a rename or a new lead shows at once in every view. */
+export async function findTracker(db: Reader, projectId: string): Promise<TrackerRow> {
   const [row] = await db
     .select()
     .from(trackerProjects)
@@ -47,19 +32,10 @@ export async function findTracker(
     .limit(1);
   if (!row) throw new AppError('NOT_FOUND', 'This project has no tracker yet');
   const teams = await loadTeams(db, projectId);
-  const memberName = new Map(members.map((member) => [member.id, member.name]));
-  const story = new Set(row.base.people.map((person) => person.id));
   return {
     ...row,
     base: {
       ...row.base,
-      people: [
-        ...row.base.people.map((person) => ({
-          id: person.id,
-          name: memberName.get(person.id) ?? person.name,
-        })),
-        ...members.filter((member) => !story.has(member.id)).map(({ id, name }) => ({ id, name })),
-      ],
       teams: teams.map(({ id, name, leadId }) => ({ id, name, leadId })),
     },
   };
@@ -116,26 +92,19 @@ export async function loadTeams(db: Reader, projectId: string): Promise<TeamRow[
 
 export async function loadMembers(db: Reader, projectId: string): Promise<Member[]> {
   const rows = await db
-    .select({ member: trackerMembers, avatarKey: users.avatarKey })
+    .select()
     .from(trackerMembers)
-    .leftJoin(users, eq(users.id, trackerMembers.userId))
     .where(eq(trackerMembers.projectId, projectId))
     .orderBy(asc(trackerMembers.seq));
-  const photos = photosOn();
-  return rows.map(({ member: row, avatarKey }) => {
-    const photo = photos ? memberPhotoUrl(row, avatarKey) : null;
-    return {
-      id: row.id,
-      name: row.name,
-      roleLabel: row.roleLabel,
-      color: row.color,
-      userId: row.userId,
-      active: row.removedAt === null && !isInvite(row),
-      removed: row.removedAt !== null,
-      grants: grantsOf(row),
-      ...(photo ? { photo } : {}),
-    };
-  });
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    roleLabel: row.roleLabel,
+    color: row.color,
+    userId: row.userId,
+    active: row.removedAt === null && !isInvite(row),
+    grants: grantsOf(row),
+  }));
 }
 
 export const grantsOf = (row: typeof trackerMembers.$inferSelect): Grants => ({
@@ -148,7 +117,7 @@ export const grantsOf = (row: typeof trackerMembers.$inferSelect): Grants => ({
 export const isInvite = (row: { userId: string | null; email: string | null }) =>
   row.userId === null && row.email !== null;
 
-function toQueueRow(row: QueueDbRow): QueueRow {
+export function toQueueRow(row: QueueDbRow): QueueRow {
   const meta = {
     id: row.id,
     addedByMember: row.addedByMember,
@@ -263,8 +232,6 @@ export async function loadCrs(
       kind: comment.kind,
       body: comment.body,
       opIndex: comment.opIndex,
-      agent: comment.byAgent,
-      viaKey: comment.viaKey,
       createdAt: toIso(comment.createdAt),
     })),
   }));

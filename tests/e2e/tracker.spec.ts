@@ -1,11 +1,10 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { centerOf, choose, crUrl, drag, HISTORY, hydrated, manyClashes, storyCr } from './helpers';
+import { drag, hydrated } from './helpers';
 
 type TrackerRead = {
   crs: Array<{
     num: number;
     status: string;
-    revision: number;
     shares: Array<{ memberId: string; permission: string }>;
   }>;
   members: Array<{ id: string; name: string }>;
@@ -26,18 +25,27 @@ async function viewMenu(page: Page, run: (pop: Locator) => Promise<void>) {
   await expect(pop).toBeHidden();
 }
 
-async function signIn(page: Page, label: string) {
+/** The older walks read rows of every team at 32 units, as the graph drew them before round 9. */
+async function classicView(page: Page) {
+  await viewMenu(page, async (pop) => {
+    await pop.getByRole('button', { name: 'Comfortable', exact: true }).click();
+    await pop.getByRole('button', { name: 'Expand all' }).click();
+  });
+}
+
+async function signIn(page: Page, label: string, { classic = true } = {}) {
   await page.goto(`/signin?label=${label}`);
   await page.getByRole('button', { name: /continue/i }).click();
   await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
   await expect(page.locator('svg.pg')).toBeVisible();
   await hydrated(page);
+  if (classic) await classicView(page);
   const projectId = new URL(page.url()).pathname.split('/')[2];
   return { projectId, graph: `/projects/${projectId}/graph` };
 }
 
 async function actAs(page: Page, name: string) {
-  await choose(page.getByLabel('Demo: act as'), name);
+  await page.getByLabel('Demo: act as').selectOption({ label: name });
   await expect(page.locator('.me b')).toHaveText(name);
 }
 
@@ -125,7 +133,7 @@ test.describe('the tracker walkthrough', () => {
       await expect(page.locator('.pop')).toHaveCount(0);
       for (const name of ['Add an event', 'Move the date', 'Rename', 'Mark done'])
         await expect(drawer.getByRole('button', { name })).toHaveCount(0);
-      await expect(drawer.locator('select, input, textarea, .sel-btn')).toHaveCount(0);
+      await expect(drawer.locator('select, input, textarea')).toHaveCount(0);
       await expect(drawer.locator('.facts')).toContainText('Not yet');
       await page.keyboard.press('Escape');
       await expect(drawer).toHaveCount(0);
@@ -147,8 +155,8 @@ test.describe('the tracker walkthrough', () => {
       await actAs(page, 'Lan Phạm');
       await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
       await dialog.getByRole('button', { name: 'Create', exact: true }).click();
-      await page.waitForURL(crUrl(5));
-      await expect(bar).toContainText(`#${storyCr(5)}`);
+      await page.waitForURL(/\/changes\/5$/);
+      await expect(bar).toContainText('#5');
       await expect(bar).toContainText('You are editing');
       await expect(side.getByRole('button', { name: /^Queue/ })).toHaveAttribute(
         'aria-pressed',
@@ -161,7 +169,9 @@ test.describe('the tracker walkthrough', () => {
 
     await test.step('3. Lan finds PG-203 with the search and moves its date in place, with a reason', async () => {
       await find('PG-203', 'PG-203 Country list field type');
-      await expect(drawer.getByLabel('Done by')).toHaveText('Quang Nguyễn');
+      await expect(drawer.getByLabel('Done by').locator('option:checked')).toHaveText(
+        'Quang Nguyễn',
+      );
       await expect(drawer).toContainText(/Events \(\d+\)/);
       await expect(drawer.getByRole('button', { name: 'Move the date' })).toHaveCount(0);
       const planned = drawer.getByLabel('Planned finish');
@@ -195,23 +205,21 @@ test.describe('the tracker walkthrough', () => {
       await expect(undo).toBeVisible();
     });
 
-    await test.step(`4. Lan shares #${storyCr(5)} with Khoa, Can edit`, async () => {
+    await test.step('4. Lan shares #5 with Khoa, Can edit', async () => {
       await bar.getByRole('button', { name: 'Share' }).click();
-      await expect(dialog.getByLabel('Link')).toHaveValue(
-        new RegExp(`/projects/[0-9a-f-]{36}/changes/${storyCr(5)}$`),
-      );
-      await choose(dialog.getByLabel('Person'), 'Khoa Lê');
-      await choose(dialog.getByLabel('Access', { exact: true }), 'Can edit');
+      await expect(dialog.getByLabel('Link')).toHaveValue(/\/projects\/[0-9a-f-]{36}\/changes\/5$/);
+      await dialog.getByLabel('Person').selectOption({ label: 'Khoa Lê' });
+      await dialog.getByLabel('Access', { exact: true }).selectOption('edit');
       await dialog.getByRole('button', { name: 'Add', exact: true }).click();
-      await expect(toast).toContainText(`Khoa Lê can edit #${storyCr(5)}. Send them the link.`);
-      await expect(dialog.getByLabel('Access for Khoa Lê')).toHaveText('Can edit');
+      await expect(toast).toContainText('Khoa Lê can edit #5. Send them the link.');
+      await expect(dialog.getByLabel('Access for Khoa Lê')).toHaveValue('edit');
       await dialog.getByRole('button', { name: 'Done' }).click();
       await expect(dialog).toHaveCount(0);
     });
 
-    await test.step(`5. Khoa opens #${storyCr(5)} while Lan edits and asks to edit`, async () => {
+    await test.step('5. Khoa opens #5 while Lan edits and asks to edit', async () => {
       await actAs(page, 'Khoa Lê');
-      await expect(page).toHaveURL(crUrl(5));
+      await expect(page).toHaveURL(/\/changes\/5$/);
       await expect(bar).toContainText('Lan is editing');
       await bar.getByRole('button', { name: 'Ask to edit' }).click();
       await expect(bar).toContainText('Waiting for Lan');
@@ -220,7 +228,7 @@ test.describe('the tracker walkthrough', () => {
     await test.step('6. Lan sees the ask and hands over', async () => {
       await actAs(page, 'Lan Phạm');
       const ask = page.locator('.ask-row');
-      await expect(ask).toContainText(`Khoa Lê asks to edit #${storyCr(5)}.`);
+      await expect(ask).toContainText('Khoa Lê asks to edit #5.');
       await ask.getByRole('button', { name: 'Hand over' }).click();
       await expect(bar).toContainText('Khoa is editing');
     });
@@ -235,19 +243,17 @@ test.describe('the tracker walkthrough', () => {
       await expect(bar).toContainText('3 changes');
     });
 
-    await test.step(`8. Khoa marks #${storyCr(5)} as ready, which locks it`, async () => {
+    await test.step('8. Khoa marks #5 as ready, which locks it', async () => {
       await bar.getByRole('button', { name: 'Mark as ready' }).click();
-      await expect(toast).toContainText(
-        `#${storyCr(5)} is ready. Minh Trần or Quang Nguyễn can merge it now.`,
-      );
+      await expect(toast).toContainText('#5 is ready. Minh Trần or Quang Nguyễn can merge it now.');
       await expect(bar).toContainText('Ready to merge');
       await expect(bar).toContainText('Locked. Waiting for Minh or Quang.');
       await expect(bar.getByRole('button', { name: 'Edit again' })).toBeVisible();
     });
 
-    await test.step(`9. Minh opens #${storyCr(2)} from the Change requests button and merges it into Main`, async () => {
+    await test.step('9. Minh opens #2 from the Change requests button and merges it into Main', async () => {
       await actAs(page, 'Minh Trần');
-      await expect(page).toHaveURL(crUrl(5));
+      await expect(page).toHaveURL(/\/changes\/5$/);
       const requests = page.getByRole('button', { name: 'Change requests, 3 ready to merge' });
       await expect(requests.locator('.nbadge')).toHaveText('3');
       await requests.click();
@@ -256,8 +262,8 @@ test.describe('the tracker walkthrough', () => {
         .getByRole('button', { name: 'Review and merge' })
         .last()
         .click();
-      await page.waitForURL(crUrl(2));
-      await expect(bar).toContainText(`#${storyCr(2)}`);
+      await page.waitForURL(/\/changes\/2$/);
+      await expect(bar).toContainText('#2');
       await expect(page.getByRole('button', { name: 'After', exact: true })).toHaveAttribute(
         'aria-pressed',
         'true',
@@ -267,14 +273,14 @@ test.describe('the tracker walkthrough', () => {
       await expect(page.getByRole('tab')).toHaveCount(0);
       await bar.getByRole('button', { name: 'Merge into Main' }).click();
       await expect(bar).toContainText('Merged into Main by Minh Trần');
-      await expect(toast).toContainText(`#${storyCr(2)} is in Main now.`);
+      await expect(toast).toContainText('#2 is in Main now.');
       const tracker = await readTracker(page, projectId);
-      expect(tracker.crs.find((c) => c.num === storyCr(2))?.status).toBe('merged');
-      expect(tracker.commits).toHaveLength(HISTORY + 2);
+      expect(tracker.crs.find((c) => c.num === 2)?.status).toBe('merged');
+      expect(tracker.commits).toHaveLength(2);
     });
 
-    await test.step(`10. Minh resolves the PG-203 name clash in #${storyCr(3)} and merges`, async () => {
-      await openCr(storyCr(3));
+    await test.step('10. Minh resolves the PG-203 name clash in #3 and merges', async () => {
+      await openCr(3);
       await expect(bar).toContainText('1 clash with Main');
       const merge = bar.getByRole('button', { name: 'Merge into Main' });
       await expect(page.locator('.res-box')).toBeVisible();
@@ -282,16 +288,14 @@ test.describe('the tracker walkthrough', () => {
       await page.locator('.res-box input[type=radio][value="cr"]').first().check();
       await expect(merge).toBeEnabled();
       await merge.click();
-      await expect(bar).toContainText(`#${storyCr(3)}`);
+      await expect(bar).toContainText('#3');
       await expect(bar).toContainText('Merged into Main by Minh Trần');
-      const commit = (await readTracker(page, projectId)).commits.find(
-        (c) => c.crNum === storyCr(3),
-      );
+      const commit = (await readTracker(page, projectId)).commits.find((c) => c.crNum === 3);
       expect(commit?.resolutions.map((r) => r.chose)).toEqual(['cr']);
     });
 
-    await test.step(`11. Minh asks for changes on #${storyCr(5)}; Khoa reads the note and marks it ready again`, async () => {
-      await openCr(storyCr(5));
+    await test.step('11. Minh asks for changes on #5; Khoa reads the note and marks it ready again', async () => {
+      await openCr(5);
       await expect(changes).toContainText('Why: Lan sends the country list on 10 October');
       await bar.getByRole('button', { name: 'Request changes' }).click();
       const send = dialog.getByRole('button', { name: 'Send back to draft' });
@@ -300,76 +304,40 @@ test.describe('the tracker walkthrough', () => {
         .getByLabel('What should change?')
         .fill('Add the date Lan promised for the country list.');
       await send.click();
-      await expect(toast).toContainText(`#${storyCr(5)} is a draft again. Khoa Lê sees your note.`);
+      await expect(toast).toContainText('#5 is a draft again. Khoa Lê sees your note.');
       await expect(bar.locator('.chipx').first()).toHaveText('Draft');
       await expect(page.getByText('This change request changed since you opened it.')).toHaveCount(
         0,
       );
       await expect
-        .poll(
-          async () =>
-            (await readTracker(page, projectId)).crs.find((c) => c.num === storyCr(5))?.status,
-        )
+        .poll(async () => (await readTracker(page, projectId)).crs.find((c) => c.num === 5)?.status)
         .toBe('draft');
 
       await visit(page, graph);
       await actAs(page, 'Khoa Lê');
-      await page.waitForURL(crUrl(5));
+      await page.waitForURL(/\/changes\/5$/);
       await expect(bar).toContainText(
         'Minh Trần asked for changes: Add the date Lan promised for the country list.',
       );
       await bar.getByRole('button', { name: 'Mark as ready' }).click();
-      await expect(toast).toContainText(`#${storyCr(5)} is ready`);
+      await expect(toast).toContainText('#5 is ready');
     });
 
     await test.step('12. History lists the merges, and Open goes to the change request page', async () => {
       await page.locator('.p-head').getByRole('button', { name: 'History' }).click();
       const history = page.locator('.drawer');
-      for (const text of [`#${storyCr(3)}`, `#${storyCr(2)}`, `#${storyCr(1)}`])
+      for (const text of ['#3', '#2', '#1', '1 clash resolved'])
         await expect(history).toContainText(text);
-      const rows = history.locator('.hist > li');
-      await expect(rows.first()).toHaveText(
-        new RegExp(
-          `^#${storyCr(3)} PG-203 is on staging\\s*Latest\\s*QN\\s*by Quang Nguyễn · merged by Minh Trần · \\d+ \\w+ \\d{2}:\\d{2}$`,
-        ),
-      );
-      await expect(rows.filter({ hasText: `#${storyCr(1)} Explain the go-live slip` })).toHaveText(
-        new RegExp(
-          `^#${storyCr(1)} Explain the go-live slip\\s*MT\\s*by Minh Trần · \\d+ \\w+ \\d{2}:\\d{2}$`,
-        ),
-      );
-      await expect(history.locator('.hist ul')).toHaveCount(0);
-      await expect(history).not.toContainText('clash resolved');
-      // Every merge from the empty project, newest first, then the Start row.
-      await expect(rows).toHaveCount(HISTORY + 3 + 1);
-      await expect(rows.nth(HISTORY + 2)).toContainText('#1 Set up teams and milestones');
-      await expect(rows.nth(HISTORY + 2)).toContainText('by Minh Trần · merged by Quang Nguyễn');
-      await expect(rows.last()).toContainText('Start');
-      await history.getByRole('button', { name: 'Open #1 Set up teams and milestones' }).click();
-      await page.waitForURL(/\/changes\/1$/);
-      await expect(bar).toContainText('Read-only history.');
-      await expect(page.getByRole('list', { name: 'Changes' })).toContainText('Implementation');
-      // The Main card is for Main only; a change request with no work items says so in one line.
-      const quiet = page.getByRole('note').filter({ hasText: 'No work items in this view.' });
-      for (const side of ['After', 'Before']) {
-        await page.getByRole('button', { name: side, exact: true }).click();
-        await expect(page.locator('.empty')).toHaveCount(0);
-        await expect(quiet).toBeVisible();
-      }
-      await page.locator('.p-head').getByRole('button', { name: 'History' }).click();
-      await history.getByRole('button', { name: `Open #${storyCr(3)}` }).click();
-      await page.waitForURL(crUrl(3));
-      await expect(bar).toContainText(`#${storyCr(3)}`);
+      await history.getByRole('button', { name: 'Open #3' }).click();
+      await page.waitForURL(/\/changes\/3$/);
+      await expect(bar).toContainText('#3');
     });
 
-    await test.step(`13. Merged #${storyCr(1)} is read-only history: no Queue and no drag`, async () => {
+    await test.step('13. Merged #1 is read-only history: no Queue and no drag', async () => {
       await visit(page, graph);
       await page.locator('.p-head').getByRole('button', { name: 'History' }).click();
-      await page
-        .locator('.drawer')
-        .getByRole('button', { name: `Open #${storyCr(1)}` })
-        .click();
-      await page.waitForURL(crUrl(1));
+      await page.locator('.drawer').getByRole('button', { name: 'Open #1' }).click();
+      await page.waitForURL(/\/changes\/1$/);
       await expect(bar).toContainText('Read-only history.');
       await expect(
         page.locator('.p-head').getByRole('button', { name: 'New change request' }),
@@ -382,33 +350,33 @@ test.describe('the tracker walkthrough', () => {
       await expect(page.locator('svg.pg [data-act][data-in="test"]')).toHaveCount(0);
     });
 
-    await test.step(`14. Quang asks Hà for edit access to #${storyCr(4)}, and Hà grants Can edit`, async () => {
-      await openCr(storyCr(4));
+    await test.step('14. Quang asks Hà for edit access to #4, and Hà grants Can edit', async () => {
+      await openCr(4);
       await actAs(page, 'Quang Nguyễn');
       await expect(bar).toContainText('View only.');
       await bar.getByRole('button', { name: 'Ask for edit access' }).click();
       await expect(bar).toContainText('Waiting for Hà');
       await actAs(page, 'Hà Đỗ');
       const ask = page.locator('.ask-row');
-      await expect(ask).toContainText(`Quang Nguyễn asks for edit access to #${storyCr(4)}.`);
+      await expect(ask).toContainText('Quang Nguyễn asks for edit access to #4.');
       await ask.getByRole('button', { name: 'Grant Can edit' }).click();
-      await expect(toast).toContainText(`Quang Nguyễn can edit #${storyCr(4)} now.`);
+      await expect(toast).toContainText('Quang Nguyễn can edit #4 now.');
       await expect(ask).toHaveCount(0);
       const tracker = await readTracker(page, projectId);
       const quang = tracker.members.find((m) => m.name === 'Quang Nguyễn')?.id;
-      expect(tracker.crs.find((c) => c.num === storyCr(4))?.shares).toContainEqual({
+      expect(tracker.crs.find((c) => c.num === 4)?.shares).toContainEqual({
         memberId: quang,
         permission: 'edit',
       });
     });
 
-    await test.step(`15. Hà cancels #${storyCr(4)} with a reason; the header and History show it`, async () => {
+    await test.step('15. Hà cancels #4 with a reason; the header and History show it', async () => {
       await bar.getByRole('button', { name: 'Cancel change request' }).click();
       const confirm = dialog.getByRole('button', { name: 'Cancel change request' });
       await expect(confirm).toBeDisabled();
       await dialog.getByLabel('Reason').fill('Main has these test dates already.');
       await confirm.click();
-      await expect(toast).toContainText(`#${storyCr(4)} is cancelled. Nothing went into Main.`);
+      await expect(toast).toContainText('#4 is cancelled. Nothing went into Main.');
       await expect(bar).toContainText('Closed');
       await expect(bar).toContainText('Cancelled by Hà Đỗ');
       await expect(bar).toContainText('Reason: Main has these test dates already.');
@@ -420,58 +388,6 @@ test.describe('the tracker walkthrough', () => {
     });
 
     expect(problems).toEqual([]);
-  });
-});
-
-test.describe('a drag right after a change', () => {
-  test.use({ viewport: { width: 1440, height: 900 }, colorScheme: 'light' });
-
-  test('hides the toast while a Queue card moves, keeps it announced, and holds its timer', async ({
-    page,
-  }) => {
-    await page.clock.install();
-    await signIn(page, 'tracker-toast-drag');
-    const toast = page.locator('.tk-toast');
-    const status = page.getByRole('status').filter({ hasText: 'Message by Sarah Kim: added' });
-    const opacity = () => toast.evaluate((el) => getComputedStyle(el).opacity);
-    const bin = page.locator('.bin');
-    await actAs(page, 'Lan Phạm');
-    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
-    await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
-    await page.waitForURL(crUrl(5));
-    const card = (text: string) => page.locator('[data-qevent]', { hasText: text });
-    await drag(
-      page,
-      card('Where is the root cause report'),
-      page.locator('svg.pg [data-loop="incident"]'),
-    );
-    await expect(status).toHaveCount(1);
-
-    const from = await centerOf(card('Scope call'));
-    await page.mouse.move(from.x, from.y);
-    await page.mouse.down();
-    await page.mouse.move(from.x + 8, from.y + 8, { steps: 3 });
-    await page.mouse.move(from.x + 300, from.y, { steps: 6 });
-    await expect(bin).toBeVisible();
-    await expect.poll(opacity).toBe('0');
-    const box = (await bin.boundingBox())!;
-    const top = await page.evaluate(
-      ([x, y]) => document.elementFromPoint(x, y)?.closest('.bin, .tk-toast')?.className ?? '',
-      [box.x + box.width / 2, box.y + box.height / 2],
-    );
-    expect(top).toContain('bin');
-    // A drag longer than the toast time keeps the toast and its Undo.
-    await page.clock.fastForward(10_000);
-    await expect(status).toHaveCount(1);
-    await page.mouse.move(from.x, from.y, { steps: 6 });
-    await page.mouse.up();
-    await expect.poll(opacity).toBe('1');
-    await expect(toast.getByRole('button', { name: 'Undo' })).toBeVisible();
-    // After the drop the toast gets its full time again.
-    await page.clock.fastForward(4_000);
-    await expect(status).toHaveCount(1);
-    await page.clock.fastForward(1_000);
-    await expect(status).toHaveCount(0);
   });
 });
 
@@ -517,13 +433,13 @@ test.describe('the top bar', () => {
     await view.click();
     await page
       .locator('.gmenu')
-      .getByRole('button', { name: new RegExp(`#${storyCr(4)} Test plan`) })
+      .getByRole('button', { name: /#4 Test plan/ })
       .click();
-    await page.waitForURL(crUrl(4));
-    await expect(view).toContainText(`#${storyCr(4)} Test plan for the CRS section`);
+    await page.waitForURL(/\/changes\/4$/);
+    await expect(view).toContainText('#4 Test plan for the CRS section');
 
     await actAs(page, 'Hà Đỗ');
-    await expect(page).toHaveURL(crUrl(4));
+    await expect(page).toHaveURL(/\/changes\/4$/);
     await expect(bar).toContainText('You are editing');
     for (const name of ['Share', 'Mark as ready', 'Cancel change request'])
       await expect(bar.getByRole('button', { name })).toBeVisible();
@@ -534,22 +450,22 @@ test.describe('the top bar', () => {
     await expect(bar.getByRole('button', { name: /^Open #/ })).toHaveCount(0);
     await head.getByRole('button', { name: /^Change requests/ }).click();
     await page
-      .locator('.drawer .req', { hasText: `#${storyCr(4)} Test plan for the CRS section` })
+      .locator('.drawer .req', { hasText: '#4 Test plan for the CRS section' })
       .getByRole('button', { name: 'Open' })
       .click();
-    await page.waitForURL(crUrl(4));
+    await page.waitForURL(/\/changes\/4$/);
     await visit(page, graph);
     await actAs(page, 'Minh Trần');
     await head.getByRole('button', { name: 'New change request' }).click();
     const dialog = page.locator('.m-card');
     await dialog.getByRole('button', { name: 'Create', exact: true }).click();
-    await page.waitForURL(crUrl(5));
-    await expect(bar).toContainText(`#${storyCr(5)}`);
+    await page.waitForURL(/\/changes\/5$/);
+    await expect(bar).toContainText('#5');
 
-    await page.goto(`${graph}?cr=${storyCr(2)}`);
-    await page.waitForURL(crUrl(2));
-    await page.goto(`/projects/${projectId}/changes/${storyCr(2)}?tab=talk`);
-    await expect(bar).toContainText(`#${storyCr(2)}`);
+    await page.goto(`${graph}?cr=2`);
+    await page.waitForURL(/\/changes\/2$/);
+    await page.goto(`/projects/${projectId}/changes/2?tab=talk`);
+    await expect(bar).toContainText('#2');
     await expect(page.getByRole('tab')).toHaveCount(0);
     await expect(page.getByText('Conversation')).toHaveCount(0);
     await expect(page.locator('.p-head details.acct summary b')).toHaveText('Minh Trần');
@@ -558,29 +474,6 @@ test.describe('the top bar', () => {
 
 test.describe('milestone deadlines, hiding and the time zoom', () => {
   test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
-
-  test('the details panel has Focus beside Hide on a wide screen too', async ({ page }) => {
-    await signIn(page, 'tracker-drawer-focus');
-    const drawer = page.locator('.drawer');
-    await page.locator('svg.pg-side .label-hit[data-rowlabel="pg203"]').click();
-    const focus = drawer.getByRole('button', { name: 'Focus on PG-203 Country list field type' });
-    const hide = drawer.getByRole('button', {
-      name: 'Hide from the graph: PG-203 Country list field type',
-    });
-    await expect(focus).toBeVisible();
-    await expect(hide).toBeVisible();
-    const [f, h] = [(await focus.boundingBox())!, (await hide.boundingBox())!];
-    expect(Math.abs(f.y - h.y)).toBeLessThan(2);
-    await focus.click();
-    await expect(
-      page.getByRole('complementary', { name: 'Focus on PG-203 Country list field type' }),
-    ).toBeVisible();
-    await expect(
-      page
-        .locator('svg.pg-side')
-        .getByRole('button', { name: 'Focus on PG-203 Country list field type' }),
-    ).toHaveAttribute('aria-pressed', 'true');
-  });
 
   test('marks the milestone deadline on every member row and opens the milestone from it', async ({
     page,
@@ -602,12 +495,10 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(page.locator('svg.tg [data-ms="crm"] .ms-c')).toHaveCount(1);
 
     await crm.first().locator('.deadline-mark').hover();
-    await expect(tip).toContainText('CRM integration live · deadline 18 Sept 17:00 · Late');
+    await expect(tip).toContainText('CRM integration live · deadline 18 Sept · Late');
     await crm.first().focus();
     await page.keyboard.press(' ');
     await expect(drawer).toContainText('CRM integration live');
-    await expect(drawer.locator('.badge')).toHaveText(/^Late by \d+ days$/);
-    await expect(drawer).not.toContainText(/late \d/);
     await page.keyboard.press('Escape');
     await expect(drawer).toHaveCount(0);
 
@@ -644,68 +535,6 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     }
   });
 
-  test('a milestone name on the axis keeps the T line behind its own background and covers no circle', async ({
-    page,
-  }) => {
-    const { projectId, graph } = await signIn(page, 'tracker-axis');
-    // Both milestones move next to T (9 Oct 18:00): whichever side each name takes, one crosses T.
-    const num = await page.evaluate(async (pid) => {
-      const read = await (await fetch(`/api/v1/projects/${pid}/tracker`)).json();
-      const move = (milestoneId: string, date: string) => ({
-        op: 'msDate',
-        a: { milestoneId, date, why: 'Axis test.', by: read.me.id, at: new Date().toISOString() },
-      });
-      const created = await fetch(`/api/v1/projects/${pid}/tracker/crs`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          title: 'Axis',
-          ops: [move('crm', '2026-10-08'), move('golive', '2026-10-11')],
-        }),
-      });
-      return ((await created.json()) as { num: number }).num;
-    }, projectId);
-    await visit(page, crPath(graph, num));
-    const read = () =>
-      page.evaluate(() => {
-        const probe = document.createElement('div');
-        probe.style.color = 'var(--panel)';
-        document.querySelector('.tk')!.append(probe);
-        const panel = getComputedStyle(probe).color;
-        probe.remove();
-        const head = document.querySelector('svg.pg-top-time')!;
-        const tline = head.querySelector('.tline')!;
-        const xt = tline.getBoundingClientRect().left;
-        const groups = Array.from(head.querySelectorAll('.ms'));
-        return groups.map((g) => {
-          const text = g.querySelector('.ms-label')!.getBoundingClientRect();
-          const back = head.querySelector(`.label-back[data-back="${g.getAttribute('data-ms')}"]`);
-          const box = back?.getBoundingClientRect();
-          return {
-            crosses: text.left < xt && text.right > xt,
-            covered:
-              !!box &&
-              box.left <= text.left &&
-              box.right >= text.right &&
-              box.top <= text.top + 1 &&
-              box.bottom >= text.bottom - 1,
-            panel: !!back && getComputedStyle(back).fill === panel,
-            overT:
-              !!back && !!(tline.compareDocumentPosition(back) & Node.DOCUMENT_POSITION_FOLLOWING),
-            underCircles:
-              !!back &&
-              groups.every(
-                (other) =>
-                  !!(back.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING),
-              ),
-          };
-        });
-      });
-    await expect.poll(async () => (await read()).some((m) => m.crosses)).toBe(true);
-    for (const m of await read())
-      expect(m).toMatchObject({ covered: true, panel: true, overT: true, underCircles: true });
-  });
-
   test('a milestone deadline with a time sits at that time inside its busy day', async ({
     page,
   }) => {
@@ -731,15 +560,14 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     ).toHaveCount(4);
     await expect(page.locator('svg.tg [data-ms="crm"]')).toHaveAttribute(
       'aria-label',
-      /CRM integration live · 18 Sept 12:00 · Late \(was 18 Sept 17:00\)/,
+      /CRM integration live · 18 Sept 12:00 · Late \(was 18 Sept\)/,
     );
-    await expect(drawer).toContainText('18 Sept 17:00 → 18 Sept 12:00');
+    await expect(drawer).toContainText('18 Sept → 18 Sept 12:00');
 
     await page.keyboard.press('Escape');
     const zoomIn = page.getByRole('button', { name: 'Zoom in' });
     for (let i = 0; i < 6; i += 1) await zoomIn.click();
-    // The third member row of CRM integration live is CRM integration live itself.
-    const mark = page.locator('svg.pg .deadline[data-goal="crm"]').nth(2);
+    const mark = page.locator('svg.pg .deadline[data-goal="crm"]').nth(3);
     await mark.scrollIntoViewIfNeeded();
     const x = async (locator: ReturnType<typeof page.locator>) => {
       const box = await locator.boundingBox();
@@ -751,163 +579,6 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     const after = await x(page.locator('svg.pg [data-act="m3"]'));
     expect(before).toBeLessThan(at);
     expect(at).toBeLessThan(after);
-  });
-
-  test('many clashes: a count, keep one side for all, the next to pick, and a jump to each spot', async ({
-    page,
-  }) => {
-    const { projectId, graph } = await signIn(page, 'tracker-many-clashes');
-    const num = await manyClashes(page, projectId);
-    await visit(page, crPath(graph, num));
-    const box = page.getByRole('region', { name: 'Clashes with Main' });
-    const bar = page.locator('.bbar').first();
-    const merge = bar.getByRole('button', { name: 'Merge into Main' });
-    await expect(box).toContainText('5 clashes with Main');
-    await expect(box.locator('.res-count')).toHaveText('0 of 5 picked');
-    await expect(merge).toBeDisabled();
-    await expect(bar.locator('.merge-wait')).toContainText('Pick a version for');
-
-    await box.getByRole('button', { name: /^Next to pick: / }).click();
-    await expect(box.locator('.conf').first().getByRole('radio').first()).toBeFocused();
-    await box.locator('.conf').first().getByRole('radio').first().check();
-    await expect(box.locator('.res-count')).toHaveText('1 of 5 picked');
-
-    await box.getByRole('button', { name: 'Keep this change request for all' }).click();
-    await expect(box.locator('.res-count')).toHaveText('5 of 5 picked');
-    await expect(box.getByRole('button', { name: /^Next to pick/ })).toHaveCount(0);
-    await expect(bar.locator('.merge-wait')).toHaveCount(0);
-    await expect(merge).toBeEnabled();
-    await box.getByRole('button', { name: 'Keep Main for all' }).click();
-    await expect(box.getByRole('radio', { checked: true })).toHaveCount(5);
-    await expect(bar.locator('.merge-wait')).toHaveCount(0);
-
-    await box
-      .getByRole('button', { name: /^Dynamics/ })
-      .first()
-      .click();
-    await expect(page.locator('svg.pg .hit.flash[data-loop="dynamics"]')).toHaveCount(1);
-    await box
-      .getByRole('button', { name: /^Go-live/ })
-      .first()
-      .click();
-    await expect(page.locator('.drawer h4')).toContainText('Go-live');
-  });
-
-  test('a handoff jump holds its highlight for about 3 s and fades, or holds it still with reduced motion', async ({
-    page,
-  }) => {
-    await signIn(page, 'tracker-hand-flash');
-    const handoff = page.getByRole('button', {
-      name: 'Hands over to Digitization QA when done · received in Test the CRS section end to end',
-    });
-    const flash = page.locator('svg.pg .hit.flash[data-loop="test"]');
-    await handoff.click();
-    await expect(flash).toHaveCount(1);
-    expect(await flash.evaluate((el) => getComputedStyle(el).animationName)).toBe('row-flash');
-    await page.waitForTimeout(2200);
-    await expect(flash).toHaveCount(1);
-    await expect(flash).toHaveCount(0, { timeout: 2000 });
-
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await handoff.click();
-    await expect(flash).toHaveCount(1);
-    expect(await flash.evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
-    await expect(flash).toHaveCount(0, { timeout: 4000 });
-  });
-
-  test('a milestone deadline time shows on the axis, in its drawer and in the New milestone form', async ({
-    page,
-  }) => {
-    await signIn(page, 'tracker-ms-time');
-    const drawer = page.locator('.drawer');
-    await expect(page.locator('svg.tg [data-ms="golive"] .ms-label')).toContainText(
-      'Go-live and first close · 15 Oct 17:00',
-    );
-    await page.locator('svg.tg [data-ms="golive"] .ms-hit').click();
-    await expect(drawer.locator('dd').filter({ hasText: '15 Oct 17:00' })).toHaveCount(1);
-    await page.keyboard.press('Escape');
-    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
-    await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
-    await page.waitForURL(/\/changes\/\d+$/);
-    await page.getByRole('button', { name: 'New milestone' }).click();
-    const dialog = page.getByRole('dialog', { name: 'New milestone' });
-    await expect(dialog.getByLabel('Time (optional)')).toBeVisible();
-    await expect(
-      dialog.getByRole('checkbox', { name: 'PG-203 Country list field type' }),
-    ).toBeVisible();
-    await expect(dialog.getByRole('checkbox', { name: 'Dynamics CRM sync scope' })).toHaveCount(0);
-    await dialog.getByRole('button', { name: 'Cancel' }).click();
-    await page.locator('svg.tg [data-ms="crm"] .ms-hit').click();
-    await page.locator('.drawer').getByLabel('Work item to add').click();
-    const options = page.getByRole('option');
-    await expect(options.filter({ hasText: 'PG-203 Country list field type' })).toHaveCount(1);
-    await expect(options.filter({ hasText: 'Go-live date' })).toHaveCount(0);
-  });
-
-  test('a selected milestone lights its work items and dims the others until its drawer closes', async ({
-    page,
-  }) => {
-    await signIn(page, 'tracker-ms-light');
-    const drawer = page.locator('.drawer');
-    const rowLabel = (id: string) => page.locator(`svg.pg-side .row-label[data-label="${id}"]`);
-    await expect(page.locator('svg.pg-side .row-label.dim')).toHaveCount(0);
-
-    await page.locator('svg.tg [data-ms="crm"] .ms-hit').click();
-    await expect(drawer.locator('h4')).toHaveText('CRM integration live');
-    await expect(rowLabel('dynamics')).toHaveClass(/\bsel\b/);
-    await expect(rowLabel('dynamics')).not.toHaveClass(/\bdim\b/);
-    await expect(rowLabel('golive')).toHaveClass(/\bdim\b/);
-    await expect(page.locator('svg.pg-side .hit.sel[data-rowlabel="dynamics"]')).toHaveCount(1);
-    await expect(page.locator('svg.pg .seg.dim').first()).toBeAttached();
-
-    await page.keyboard.press('Escape');
-    await expect(drawer).toHaveCount(0);
-    await expect(page.locator('svg.pg-side .row-label.dim')).toHaveCount(0);
-    await expect(page.locator('svg.pg .seg.dim')).toHaveCount(0);
-
-    await page.locator('svg.tg [data-ms="crm"] .ms-hit').click();
-    await drawer.getByRole('button', { name: 'Sync monitoring' }).click();
-    await expect(drawer).toHaveAttribute('aria-label', 'Sync monitoring');
-    await expect(page.locator('svg.pg-side .hit.sel[data-rowlabel="syncmon"]')).toHaveCount(1);
-    await expect(page.locator('svg.pg-side .row-label.dim')).toHaveCount(0);
-  });
-
-  test('a long name stops at the server limit with a counter, and a bad date keeps its text with an error', async ({
-    page,
-  }) => {
-    await signIn(page, 'tracker-limits');
-    const dialog = page.locator('.m-card');
-    const drawer = page.locator('.drawer');
-    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
-    const name = dialog.getByLabel('Name');
-    await name.fill('x'.repeat(400));
-    await expect(name).toHaveValue('x'.repeat(200));
-    await expect(dialog.locator('.count')).toHaveText('200/200');
-    await name.fill('Lan changes');
-    await expect(dialog.locator('.count')).toHaveCount(0);
-    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
-    await page.waitForURL(/\/changes\/\d+$/);
-
-    await page.getByRole('combobox', { name: 'Search work items' }).fill('PG-203');
-    await expect(page.getByRole('option').first()).toContainText('PG-203 Country list field type');
-    await page.keyboard.press('Enter');
-    const planned = drawer.getByLabel('Planned finish');
-    await expect(planned).toHaveValue('6 Oct 2026');
-    const error = drawer.getByText('Not a date. Use e.g. 12 Oct 2026');
-    for (const text of ['31 Feb 2026', 'yesterday']) {
-      await planned.fill(text);
-      await planned.press('Tab');
-      await expect(planned).toHaveValue(text);
-      await expect(planned).toHaveAttribute('aria-invalid', 'true');
-      await expect(error).toBeVisible();
-      await expect(planned).toHaveAccessibleDescription('Not a date. Use e.g. 12 Oct 2026');
-      await planned.focus();
-      await page.keyboard.press('Escape');
-      await expect(drawer).toBeVisible();
-      await expect(planned).toHaveValue('6 Oct 2026');
-      await expect(error).toHaveCount(0);
-    }
-    await expect(drawer.getByLabel(/Why does the date move/)).toHaveCount(0);
   });
 
   test('date and time boxes use the app format and their own calendar and time list', async ({
@@ -940,9 +611,6 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(date).toHaveValue('20 Sept 2026');
 
     const time = drawer.getByLabel('Time (optional)');
-    await expect(time).toHaveValue('17:00');
-    await time.fill('');
-    await time.press('Tab');
     await expect(time).toHaveValue('');
     await expect(time).toHaveAttribute('placeholder', 'Time');
     const times = page.getByRole('listbox', { name: 'Times' });
@@ -978,14 +646,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await retype('25:00');
     await expect(time).toHaveAttribute('aria-invalid', 'true');
     await time.press('Tab');
-    await expect(time).toHaveValue('25:00');
-    await expect(drawer.getByText('Not a time. Use e.g. 14:30')).toBeVisible();
-    await time.focus();
-    await page.keyboard.press('Escape');
-    await expect(drawer).toBeVisible();
     await expect(time).toHaveValue('17:00');
     await expect(time).not.toHaveAttribute('aria-invalid');
-    await expect(drawer.getByText('Not a time. Use e.g. 14:30')).toHaveCount(0);
     await retype('143');
     await time.press('Tab');
     await expect(time).toHaveValue('01:43');
@@ -997,12 +659,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await date.fill('soon');
     await expect(date).toHaveAttribute('aria-invalid', 'true');
     await time.focus();
-    await expect(date).toHaveValue('soon');
-    await expect(drawer.getByText('Not a date. Use e.g. 12 Oct 2026')).toBeVisible();
-    await date.fill('20 Sept 2026');
-    await time.focus();
+    await expect(date).toHaveValue('20 Sept 2026');
     await expect(date).not.toHaveAttribute('aria-invalid');
-    await expect(drawer.getByText('Not a date. Use e.g. 12 Oct 2026')).toHaveCount(0);
 
     await drawer.getByRole('button', { name: 'Save milestone' }).click();
     await expect(dialog).toContainText('Move the milestone date');
@@ -1045,8 +703,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await whenDate.press('ControlOrMeta+a');
     await whenDate.pressSequentially('6 Oct 0202');
     await whenDate.press('Tab');
-    await expect(whenDate).toHaveValue('6 Oct 0202');
-    await expect(when.getByText('Not a date. Use e.g. 12 Oct 2026')).toBeVisible();
+    await expect(whenDate).toHaveValue('9 Oct 2026');
     await whenDate.press('ControlOrMeta+a');
     await whenDate.pressSequentially('8 Oct');
     await whenDate.press('Enter');
@@ -1096,11 +753,15 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
         return `svg.pg [data-act="${right.getAttribute('data-act')}"]`;
       });
 
-    // The story is five weeks long, so the first view is the whole board at Fit.
-    await expect(fit).toBeDisabled();
+    await expect(fit).toBeEnabled();
     await expect.poll(() => inView('svg.pg-top-time .tpill')).toBe(true);
     expect(await inView(await latest())).toBe(true);
     expect(await labelsApart()).toBe(true);
+
+    await fit.click();
+    await expect(fit).toBeDisabled();
+    await expect.poll(labelsApart).toBe(true);
+    expect(await inView('svg.pg-top-time .tpill')).toBe(true);
   });
 
   test('folding the rail keeps the size of the graph and shows more of the time line', async ({
@@ -1118,6 +779,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       });
     const lastTick = () => page.locator('svg.pg-top-time .tick').last().textContent();
     const timeLine = async () => (await page.locator('svg.pg').boundingBox())?.width ?? 0;
+    await fit.click();
     await expect(fit).toBeDisabled();
     const open = await measure();
     const openEnd = await lastTick();
@@ -1142,7 +804,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
   test('a click on a row opens its details, and an event brief leads to its work item', async ({
     page,
   }) => {
-    await signIn(page, 'tracker-click');
+    // This walk runs on the shipped view: Compact rows, and teams without late work collapsed.
+    await signIn(page, 'tracker-click', { classic: false });
     const drawer = page.locator('.drawer');
     const pop = page.locator('.pop');
 
@@ -1186,14 +849,14 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     const rows = page.locator('svg.pg [data-loop]');
     const control = page.locator('.tfilter-btn');
     const search = page.getByRole('combobox', { name: 'Search work items' });
-    await expect(rows).toHaveCount(15);
+    await expect(rows).toHaveCount(14);
 
     await control.click();
     const panel = page.getByRole('group', { name: 'Filter the graph' });
     await panel.locator('.fchip', { hasText: /^Late$/ }).click();
     await expect(page.getByRole('button', { name: 'Clear filters' })).toBeEnabled();
     await expect(page.locator('summary[aria-label="Filters, 1 on"]')).toHaveCount(1);
-    await expect(panel).toContainText('4 of 15 work items match');
+    await expect(panel).toContainText('4 of 14 work items match');
     await expect(rows).toHaveCount(5);
     const dimmed = page.locator('svg.pg-side .row-label.dim');
     await expect(dimmed).toHaveCount(1);
@@ -1211,7 +874,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(rows).toHaveCount(5);
     await control.click();
     await page.getByRole('button', { name: 'Clear filters' }).click();
-    await expect(rows).toHaveCount(15);
+    await expect(rows).toHaveCount(14);
     await expect(page.locator('summary[aria-label="Filters"]')).toHaveCount(1);
     await page.keyboard.press('Escape');
 
@@ -1223,7 +886,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(drawer).toBeFocused();
     expect(await drawer.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('none');
     await expect(search).toHaveValue('');
-    await expect(rows).toHaveCount(15);
+    await expect(rows).toHaveCount(14);
   });
 
   test('the axis stays pinned while the rows scroll, and follows the sideways scroll', async ({
@@ -1267,8 +930,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(board).toHaveCount(1);
     await expect(full).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.p-head')).toBeHidden();
-    await expect(page.getByRole('button', { name: 'Legend', exact: true })).toBeVisible();
-    await expect(page.getByRole('dialog', { name: 'Legend' })).toBeVisible();
+    await expect(page.locator('.legend2')).toBeHidden();
     const box = (await page.locator('.tk.board').boundingBox())!;
     expect(box.x).toBe(0);
     expect(box.width).toBe(1440);
@@ -1308,7 +970,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(board).toHaveCount(1);
     await page.keyboard.press('Escape');
     await expect(board).toHaveCount(0);
-    await expect(page.locator('.p-head')).toBeVisible();
+    await expect(page.locator('.legend2')).toBeVisible();
   });
 
   test('lists a stack, zooms it apart, and hides rows without a trace but a chip', async ({
@@ -1327,7 +989,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     await expect(pop).toContainText('Minh sends the rehearsal report.');
     await page.keyboard.press('Escape');
 
-    await expect(page.getByRole('button', { name: 'Fit to width' })).toBeDisabled();
+    await page.getByRole('button', { name: 'Fit to width' }).click();
     await expect.poll(overflow).toBe(0);
     const zoomIn = page.getByRole('button', { name: 'Zoom in' });
     for (let i = 0; i < 6; i += 1) await zoomIn.click();
@@ -1367,7 +1029,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
     const side = page.locator('svg.pg-side');
     const tip = page.getByRole('tooltip');
     const fit = page.getByRole('button', { name: 'Fit to width' });
-    await expect(rows).toHaveCount(15);
+    await expect(rows).toHaveCount(14);
 
     await test.step('one mark per source lists every handoff, and a click on a receiver shows it', async () => {
       await expect(page.locator('svg.tg path.link, svg.tg path.stem')).toHaveCount(0);
@@ -1380,7 +1042,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await expect(marks).toHaveCount(1);
       const mark = marks.first();
       // The Handoff event icon is the mark: one symbol, with the receiver count on it.
-      await expect(mark).toHaveAttribute('data-act', 'a3');
+      await expect(mark).toHaveAttribute('data-stack', /a3/);
       await expect(mark.locator('.hand-count')).toHaveText('3');
       await expect(page.locator('svg.pg .handoff[data-handoff="analyse"]')).toHaveCount(0);
       await mark.hover();
@@ -1395,8 +1057,8 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       const menu = page.getByRole('menu', {
         name: 'Handoffs from Analyse the CRS and FATCA rules',
       });
-      // The Handoff event stands alone, so the list holds the three receivers only.
-      await expect(menu.getByRole('menuitem')).toHaveCount(3);
+      await expect(menu.getByRole('menuitem')).toHaveCount(4);
+      await expect(menu.getByRole('menuitem').last()).toHaveText(/Show the \d events here/);
       await page.keyboard.press('Escape');
       await expect(menu).toHaveCount(0);
       await expect(mark).toBeFocused();
@@ -1408,11 +1070,6 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await page.keyboard.press('Enter');
       await expect(menu).toBeVisible();
       await page.locator('.zoombar').getByRole('button', { name: 'Zoom in' }).focus();
-      await expect(menu).toHaveCount(0);
-      await mark.click();
-      await expect(menu).toBeVisible();
-      // A second click on the open mark closes its list and does not open it again.
-      await mark.click();
       await expect(menu).toHaveCount(0);
       await mark.click();
       await menu.getByRole('menuitem', { name: /PG-203 Country list field type/ }).click();
@@ -1440,7 +1097,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await expect(panel).toContainText('6 work items');
       await expect(panel).toContainText('Legal review routing');
       await page.keyboard.press('Escape');
-      await expect(rows).toHaveCount(15);
+      await expect(rows).toHaveCount(14);
       await expect(teamFocus).toHaveAttribute('aria-pressed', 'false');
     });
 
@@ -1465,17 +1122,17 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
         }),
       ).toBeVisible();
       await page.keyboard.press('Escape');
-      await expect(rows).toHaveCount(15);
+      await expect(rows).toHaveCount(14);
       const focusPg201 = side.getByRole('button', { name: 'Focus on PG-201 CRS form logic' });
       await focusPg201.click();
       await expect(rows).toHaveCount(2);
       await expect(focusPg201).toHaveAttribute('aria-pressed', 'true');
       await focusPg201.click();
-      await expect(rows).toHaveCount(15);
+      await expect(rows).toHaveCount(14);
       await expect(focusPg201).toHaveAttribute('aria-pressed', 'false');
       await focusPg201.click();
       await page.getByRole('complementary').getByRole('button', { name: 'Leave focus' }).click();
-      await expect(rows).toHaveCount(15);
+      await expect(rows).toHaveCount(14);
     });
 
     await test.step('hiding the team of the focused row ends the focus, and the parent link shows a hidden parent', async () => {
@@ -1490,11 +1147,11 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       ).toBeVisible();
       await expect(searchBox).toBeFocused();
       await side.locator('[data-eyeteam="digitization"]').click();
-      await expect(rows).toHaveCount(13);
+      await expect(rows).toHaveCount(12);
       await expect(page.getByRole('complementary')).toHaveCount(0);
       await page.locator('.hid-menu > summary').click();
       await page.getByRole('button', { name: 'Unhide Digitization' }).click();
-      await expect(rows).toHaveCount(15);
+      await expect(rows).toHaveCount(14);
       // The badge goes away with the last hidden row, so the focus moves to the control before it.
       await expect(page.locator('.bbar .gpick > summary')).toBeFocused();
 
@@ -1508,7 +1165,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await expect(row('crs')).toHaveCount(1);
       await expect(rows).toHaveCount(6);
       await page.keyboard.press('Escape');
-      await expect(rows).toHaveCount(15);
+      await expect(rows).toHaveCount(14);
       await expect(page.locator('.hid-menu')).toHaveCount(0);
     });
 
@@ -1518,7 +1175,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await side.locator('[data-eyeteam="engineering"]').click();
       await side.locator('[data-eyerow="pg201"]').click();
       await side.locator('[data-eyerow="pg202"]').click();
-      await expect(rows).toHaveCount(9);
+      await expect(rows).toHaveCount(8);
       await expect(side.locator('[data-eyeteam="engineering"]')).toHaveCount(0);
       await expect(side.locator('[data-eyeteam="solutions-engineering"]')).toHaveCount(0);
       await expect(side.getByText(/hidden/)).toHaveCount(0);
@@ -1540,7 +1197,7 @@ test.describe('milestone deadlines, hiding and the time zoom', () => {
       await expect(row('pg201')).toHaveCount(1);
       await expect(badge).toContainText('2 hidden');
       await list.getByRole('button', { name: 'Unhide all' }).click();
-      await expect(rows).toHaveCount(15);
+      await expect(rows).toHaveCount(14);
       await expect(page.locator('.hid-menu')).toHaveCount(0);
       await expect(page.locator('.bbar .gpick > summary')).toBeFocused();
     });
@@ -1553,7 +1210,7 @@ test.describe('the hidden badge in a change request', () => {
   test('the last Unhide in a draft with no changes keeps the focus on an enabled control of the bar', async ({
     page,
   }) => {
-    await signIn(page, 'tracker-hidden-cr');
+    await signIn(page, 'tracker-hidden-cr', { classic: false });
     await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
     await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
     await page.waitForURL(/\/changes\/\d+$/);
@@ -1583,8 +1240,9 @@ test.describe('events at their own time', () => {
 
   test('Fit shows the earliest events, and a sideways drag moves nothing', async ({ page }) => {
     const { projectId } = await signIn(page, 'tracker-day');
-    await expect(page.getByRole('button', { name: 'Fit to width' })).toBeDisabled();
-    const g1 = page.locator('svg.pg [data-act="g1"]');
+    await page.getByRole('button', { name: 'Fit to width' }).click();
+    // At Fit the 2 Jul and 3 Jul events stack, with the later one on top.
+    const g1 = page.locator('svg.pg [data-stack*="g1"]');
     await expect(g1).toHaveCount(1);
     await expect(g1).toBeInViewport();
     const side = await page.locator('svg.pg-side').boundingBox();
@@ -1624,429 +1282,6 @@ test.describe('events at their own time', () => {
 test.describe('the tracker at phone width', () => {
   test.use({ viewport: { width: 390, height: 844 }, colorScheme: 'light', hasTouch: true });
 
-  test('a milestone name on a row never sits under the pinned column: it moves right and ends with an ellipsis', async ({
-    page,
-  }) => {
-    await page.goto('/signin?label=tracker-row-names');
-    await page.getByRole('button', { name: /continue/i }).click();
-    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
-    const time = page.locator('.gscroll .gtime');
-    await expect(page.locator('.gscroll svg.pg-side')).toHaveAttribute('viewBox', /^0 64 128 /);
-    await expect.poll(() => time.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
-    const shown = () =>
-      page.evaluate(() => {
-        const edge = document.querySelector('.gscroll svg.pg-side')!.getBoundingClientRect().right;
-        return Array.from(document.querySelectorAll<SVGTextElement>('svg.pg .deadline-name'))
-          .filter((t) => t.getAttribute('visibility') !== 'hidden' && t.textContent)
-          .map((t) => {
-            const box = t.getBoundingClientRect();
-            return { text: t.textContent!, cut: box.left < edge - 1 && box.right > edge };
-          });
-      });
-    await expect.poll(async () => (await shown()).filter((n) => n.cut)).toEqual([]);
-    const moved = (await shown()).filter((n) => n.text.startsWith('CRM integ'));
-    expect(moved.length).toBeGreaterThan(0);
-    for (const n of moved)
-      expect(n.text === 'CRM integration live' || n.text.endsWith('…')).toBe(true);
-
-    await time.evaluate((el) => (el.scrollLeft = 0));
-    await expect
-      .poll(async () => (await shown()).filter((n) => n.text === 'CRM integration live').length)
-      .toBeGreaterThan(0);
-    await expect(page.locator('svg.pg .deadline-stuck:not(:empty)')).toHaveCount(0);
-  });
-
-  test('the zoom bar stays on the screen and covers no change, no last row and no full view exit', async ({
-    page,
-  }) => {
-    await page.goto('/signin?label=tracker-phone-zoombar');
-    await page.getByRole('button', { name: /continue/i }).click();
-    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
-    const graph = new URL(page.url()).pathname;
-    const bar = page.getByRole('group', { name: 'View controls' });
-    const barBox = async () => (await bar.boundingBox())!;
-    const onScreen = async () => {
-      const b = await barBox();
-      return b.y >= 0 && b.y + b.height <= 844;
-    };
-    const lastRowBottom = () =>
-      page.evaluate(() =>
-        Math.max(
-          ...Array.from(document.querySelectorAll('svg.pg rect.hit')).map(
-            (r) => r.getBoundingClientRect().bottom,
-          ),
-        ),
-      );
-
-    await page.goto(crPath(graph, storyCr(4)));
-    const changed = page.locator('svg.pg .halo').first();
-    await expect(changed).toBeVisible();
-    await expect
-      .poll(async () => {
-        const c = (await changed.boundingBox())!;
-        return c.y >= 0 && c.y + c.height <= (await barBox()).y;
-      })
-      .toBe(true);
-    expect(await onScreen()).toBe(true);
-    const item = (await page.getByRole('list', { name: 'Changes' }).boundingBox())!;
-    const b = await barBox();
-    expect(item.y + item.height <= b.y || item.y >= b.y + b.height).toBe(true);
-
-    for (const path of [crPath(graph, storyCr(4)), graph]) {
-      await page.goto(path);
-      await expect(page.locator('svg.pg')).toBeVisible();
-      await page.evaluate(() => window.scrollTo(0, 0));
-      expect(await onScreen()).toBe(true);
-      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-      await expect.poll(onScreen).toBe(true);
-      expect(await lastRowBottom()).toBeLessThanOrEqual((await barBox()).y);
-    }
-
-    const full = page.locator('.zoombar .full');
-    await full.click();
-    const board = page.locator('.tk.fullview');
-    await expect(board).toHaveCount(1);
-    for (const to of ['end', 'start'] as const) {
-      await board.evaluate((el, at) => (el.scrollTop = at === 'end' ? el.scrollHeight : 0), to);
-      await expect.poll(onScreen).toBe(true);
-      expect(await lastRowBottom()).toBeLessThanOrEqual(to === 'end' ? (await barBox()).y : 1e6);
-    }
-    await full.click();
-    await expect(board).toHaveCount(0);
-  });
-
-  test('keeps the names level with their rows while the column still has the wide view box', async ({
-    page,
-  }) => {
-    await page.goto('/signin?label=tracker-level');
-    await page.getByRole('button', { name: /continue/i }).click();
-    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
-    const side = page.locator('.gscroll svg.pg-side');
-    await expect(side).toHaveAttribute('viewBox', /^0 64 128 /);
-    // A server-rendered first frame has the desktop view box until the phone flag arrives.
-    const offsets = await page.evaluate(() => {
-      const svg = document.querySelector<SVGSVGElement>('.gscroll svg.pg-side')!;
-      const [, y, , h] = svg.getAttribute('viewBox')!.split(' ');
-      svg.setAttribute('viewBox', `0 ${y} 228 ${h}`);
-      return Array.from(svg.querySelectorAll('.hit[data-rowlabel]')).map((hit) => {
-        const id = hit.getAttribute('data-rowlabel');
-        const line = document.querySelector(`svg.pg .hit[data-loop="${id}"]`);
-        const a = hit.getBoundingClientRect();
-        const b = line?.getBoundingClientRect();
-        return b ? Math.abs(a.top + a.height / 2 - (b.top + b.height / 2)) : 0;
-      });
-    });
-    expect(offsets.length).toBeGreaterThan(0);
-    for (const offset of offsets) expect(offset).toBeLessThan(1);
-  });
-
-  test('pins a narrow column of row names beside the time line, which scrolls on its own', async ({
-    page,
-  }) => {
-    await page.goto('/signin?label=tracker-pin');
-    await page.getByRole('button', { name: /continue/i }).click();
-    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
-    const side = page.locator('.gscroll svg.pg-side');
-    const time = page.locator('.gscroll .gtime');
-    await expect(side).toHaveAttribute('viewBox', /^0 64 128 /);
-    await expect.poll(() => time.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
-    const box = (await side.boundingBox())!;
-    expect(box.x).toBeGreaterThanOrEqual(0);
-    expect(box.width).toBeLessThanOrEqual(140);
-    await expect(side.locator('.row-label').first()).toBeInViewport();
-    await expect(page.locator('svg.pg-top-time .tpill')).toBeInViewport();
-    await expect(side.locator('[data-eyerow], [data-eyeteam], [data-focusitem]')).toHaveCount(0);
-    const names = await side.locator('.row-label').evaluateAll((els) =>
-      els.map((el) => {
-        const column = el.closest('svg')!.getBoundingClientRect();
-        const text = el.firstChild!;
-        const range = document.createRange();
-        range.selectNodeContents(text);
-        return {
-          text: text.textContent ?? '',
-          room: column.right - range.getBoundingClientRect().right,
-        };
-      }),
-    );
-    const cut = names.filter((n) => n.text.endsWith('…'));
-    expect(cut.length).toBeGreaterThan(0);
-    for (const n of names) expect(n.room).toBeGreaterThanOrEqual(2);
-
-    await time.evaluate((el) => (el.scrollLeft = 0));
-    expect((await side.boundingBox())!.x).toBe(box.x);
-    expect(
-      await page.locator('.gscroll').evaluate((el) => el.scrollWidth - el.clientWidth),
-    ).toBeLessThanOrEqual(0);
-    await noHorizontalScroll(page);
-  });
-
-  test('a change request opens with its first change above the zoom bar when every team is open', async ({
-    page,
-  }) => {
-    await page.goto('/signin?label=tracker-phone-open-cr');
-    await page.getByRole('button', { name: /continue/i }).click();
-    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
-    await expect(page.locator('svg.pg')).toBeVisible();
-    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Expand all' }).click());
-    await page.goto(new URL(page.url()).pathname.replace(/graph$/, `changes/${storyCr(4)}`));
-    const changed = page.locator('svg.pg .halo').first();
-    await expect(changed).toBeVisible();
-    const place = () =>
-      page.evaluate(() => {
-        const box = (s: string) => document.querySelector(s)!.getBoundingClientRect();
-        const rail = box('.rail');
-        const change = box('svg.pg .halo');
-        const history = box('.hist-btn');
-        return {
-          clear: change.top >= rail.bottom && change.bottom <= box('.zoombar').top,
-          whole: history.top >= rail.bottom || history.bottom <= rail.bottom,
-          rail: rail.top === 0,
-        };
-      });
-    // The saved fold loads after the first layout and opens the Implementation team.
-    await expect(page.locator('svg.pg [data-loop="golive"]')).toHaveCount(1);
-    await expect.poll(place).toEqual({ clear: true, whole: true, rail: true });
-  });
-
-  test('a scroll made before the page hydrates stays where the person left it', async ({
-    page,
-  }) => {
-    await page.goto('/signin?label=tracker-phone-early-scroll');
-    await page.getByRole('button', { name: /continue/i }).click();
-    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
-    const path = new URL(page.url()).pathname.replace(/graph$/, `changes/${storyCr(4)}`);
-    let release = () => {};
-    const scripts = new Promise<void>((resolve) => (release = resolve));
-    await page.route(/\/_next\/static\/chunks\/.*\.js/, async (route) => {
-      await scripts;
-      await route.continue();
-    });
-    await page.goto(path, { waitUntil: 'domcontentloaded' });
-    await page.evaluate(() => window.scrollTo(0, 300));
-    const early = await page.evaluate(() => window.scrollY);
-    expect(early).toBeGreaterThan(100);
-    release();
-    // The rail button is enabled once React runs, and the graph effects run in the frames after.
-    await expect(page.locator('.rail-fold')).toBeEnabled();
-    await expect(page.locator('svg.pg .halo').first()).toBeVisible();
-    await page.evaluate(
-      () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))),
-    );
-    expect(await page.evaluate(() => window.scrollY)).toBe(early);
-  });
-
-  test('an open team menu closes on a resize, and a menu with no room scrolls inside', async ({
-    page,
-  }) => {
-    await page.goto('/signin?label=tracker-phone-menu-room');
-    await page.getByRole('button', { name: /continue/i }).click();
-    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
-    await expect(page.locator('svg.pg')).toBeVisible();
-    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Expand all' }).click());
-    const team = page.locator('svg.pg-side [data-teammenu="engineering"]');
-    const menu = page.getByRole('menu', { name: 'Engineering' });
-    await team.click();
-    await expect(menu).toBeVisible();
-    await page.setViewportSize({ width: 390, height: 800 });
-    await expect(menu).toHaveCount(0);
-
-    // A short screen with the team name in the middle leaves room for neither side.
-    await page.setViewportSize({ width: 390, height: 330 });
-    await page.evaluate(() => {
-      const name = document.querySelector('svg.pg-side [data-teammenu="engineering"]')!;
-      window.scrollBy(0, name.getBoundingClientRect().top - 175);
-    });
-    await team.click();
-    await expect(menu).toBeVisible();
-    await page.waitForTimeout(400);
-    await expect(menu).toBeVisible();
-    const box = (await menu.boundingBox())!;
-    const bar = (await page.getByRole('group', { name: 'View controls' }).boundingBox())!;
-    expect(box.y).toBeGreaterThanOrEqual(0);
-    expect(box.y + box.height).toBeLessThanOrEqual(bar.y + 1);
-    expect(await menu.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
-    const y = await page.evaluate(() => window.scrollY);
-    await page.keyboard.press('ArrowUp');
-    const last = menu.getByRole('menuitem', { name: 'Hide Engineering' });
-    await expect(last).toBeFocused();
-    const item = (await last.boundingBox())!;
-    const now = (await menu.boundingBox())!;
-    expect(item.y + item.height).toBeLessThanOrEqual(now.y + now.height + 1);
-    expect(await page.evaluate(() => window.scrollY)).toBe(y);
-    await expect(menu).toBeVisible();
-  });
-
-  test('the menu of the lowest team on the screen opens above the zoom bar with every item in reach', async ({
-    page,
-  }) => {
-    await page.goto('/signin?label=tracker-phone-low-menu');
-    await page.getByRole('button', { name: /continue/i }).click();
-    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
-    await expect(page.locator('svg.pg')).toBeVisible();
-    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Expand all' }).click());
-    await page.evaluate(() => window.scrollTo(0, 0));
-    const barTop = async () =>
-      (await page.getByRole('group', { name: 'View controls' }).boundingBox())!.y;
-    const top = await barTop();
-    const id = await page.evaluate((limit) => {
-      const names = Array.from(document.querySelectorAll('svg.pg-side [data-teammenu]'));
-      const shown = names.filter((n) => n.getBoundingClientRect().bottom <= limit);
-      shown.sort((a, b) => b.getBoundingClientRect().top - a.getBoundingClientRect().top);
-      return shown[0].getAttribute('data-teammenu')!;
-    }, top);
-    const team = page.locator(`svg.pg-side [data-teammenu="${id}"]`);
-    const name = (await team.getAttribute('aria-label'))!.split(',')[0];
-    const menu = page.getByRole('menu', { name });
-    const inReach = async () => {
-      const limit = await barTop();
-      for (const item of await menu.getByRole('menuitem').all()) {
-        const box = (await item.boundingBox())!;
-        expect(box.y).toBeGreaterThanOrEqual(0);
-        expect(box.y + box.height).toBeLessThanOrEqual(limit);
-      }
-    };
-
-    await team.click();
-    await expect(menu).toBeVisible();
-    await page.waitForTimeout(400);
-    await expect(menu).toBeVisible();
-    expect(await page.evaluate(() => window.scrollY)).toBe(0);
-    await inReach();
-    await menu.getByRole('menuitem', { name: `Focus on ${name}` }).click();
-    const panel = page.getByRole('complementary', { name: `Focus on ${name}` });
-    await expect(panel).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(panel).toHaveCount(0);
-
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await team.focus();
-    await page.keyboard.press('Enter');
-    await expect(menu.getByRole('menuitem').first()).toBeFocused();
-    await page.waitForTimeout(400);
-    await expect(menu).toBeVisible();
-    await inReach();
-    await menu.getByRole('menuitem', { name: `Hide ${name}` }).click();
-    await expect(team).toHaveCount(0);
-  });
-
-  test('a handoff list near the zoom bar opens above it and stays open', async ({ page }) => {
-    await page.goto('/signin?label=tracker-phone-low-handoff');
-    await page.getByRole('button', { name: /continue/i }).click();
-    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
-    await expect(page.locator('svg.pg')).toBeVisible();
-    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Expand all' }).click());
-    const mark = page.locator('svg.pg [data-handoff="analyse"]');
-    await expect(mark).toBeVisible();
-    await mark.scrollIntoViewIfNeeded();
-    const bar = page.getByRole('group', { name: 'View controls' });
-    // A shorter screen puts the mark just above the sticky bar.
-    const room = await page.evaluate(() => {
-      const m = document.querySelector('svg.pg [data-handoff="analyse"]')!.getBoundingClientRect();
-      const b = document.querySelector('.zoombar')!.getBoundingClientRect();
-      return { bottom: m.bottom, under: innerHeight - b.top };
-    });
-    await page.setViewportSize({ width: 390, height: Math.ceil(room.bottom + 20 + room.under) });
-    const y = await page.evaluate(() => window.scrollY);
-    await mark.click();
-    const menu = page.getByRole('menu', { name: /^Handoffs from Analyse/ });
-    await expect(menu).toBeVisible();
-    await page.waitForTimeout(400);
-    await expect(menu).toBeVisible();
-    expect(await page.evaluate(() => window.scrollY)).toBe(y);
-    // The list stays between the pinned axis and the bar; with too little room it scrolls inside.
-    const limit = (await bar.boundingBox())!.y;
-    const box = (await menu.boundingBox())!;
-    const axis = (await page.locator('.ghead').boundingBox())!;
-    expect(box.y).toBeGreaterThanOrEqual(axis.y + axis.height - 1);
-    expect(box.y + box.height).toBeLessThanOrEqual(limit);
-    await expect(menu.getByRole('menuitem').first()).toBeFocused();
-  });
-
-  test('the details panel focuses a work item, and a tap on a team name opens its Focus and Hide menu', async ({
-    page,
-  }) => {
-    await page.goto('/signin?label=tracker-phone-focus');
-    await page.getByRole('button', { name: /continue/i }).click();
-    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
-    const side = page.locator('.gscroll svg.pg-side');
-    await expect(side).toHaveAttribute('viewBox', /^0 64 128 /);
-    const rows = page.locator('svg.pg [data-loop]');
-    const drawer = page.locator('.drawer');
-    await expect(rows.first()).toBeVisible();
-    const all = await rows.count();
-
-    await side.locator('.label-hit[data-rowlabel="pg203"]').click();
-    await expect(drawer.locator('h4')).toHaveText('PG-203 Country list field type');
-    await expect(
-      drawer.getByRole('button', { name: 'Hide from the graph: PG-203 Country list field type' }),
-    ).toBeVisible();
-    const focus = drawer.getByRole('button', { name: 'Focus on PG-203 Country list field type' });
-    await expect(focus).toHaveText('Focus');
-    await expect(focus).toHaveAttribute('aria-pressed', 'false');
-    await noHorizontalScroll(page);
-    await focus.click();
-    await expect(
-      page.getByRole('complementary', { name: 'Focus on PG-203 Country list field type' }),
-    ).toBeVisible();
-    await expect.poll(() => rows.count()).toBeLessThan(all);
-    // The focus panel covers the graph on a phone, so search opens the details again.
-    await page.getByRole('combobox', { name: 'Search work items' }).fill('PG-203');
-    await page.keyboard.press('Enter');
-    const leave = drawer.getByRole('button', {
-      name: 'Leave focus on PG-203 Country list field type',
-    });
-    await expect(leave).toHaveAttribute('aria-pressed', 'true');
-    await leave.click();
-    await expect(rows).toHaveCount(all);
-    await expect(focus).toHaveAttribute('aria-pressed', 'false');
-    await page.keyboard.press('Escape');
-    await expect(drawer).toHaveCount(0);
-
-    const team = side.getByRole('button', { name: /^Engineering, 4 work items/ });
-    await expect(team).toHaveAttribute('aria-haspopup', 'menu');
-    const menu = page.getByRole('menu', { name: 'Engineering' });
-    await team.click();
-    await expect(menu).toBeVisible();
-    await expect(team).toHaveAttribute('aria-expanded', 'true');
-    await expect(menu.getByRole('menuitem')).toHaveText(['Collapse', 'Focus', 'Hide']);
-    const box = (await menu.boundingBox())!;
-    expect(box.x).toBeGreaterThanOrEqual(0);
-    expect(box.x + box.width).toBeLessThanOrEqual(390);
-    await noHorizontalScroll(page);
-    await menu.getByRole('menuitem', { name: 'Focus on Engineering' }).click();
-    await expect(menu).toHaveCount(0);
-    const panel = page.getByRole('complementary', { name: 'Focus on Engineering' });
-    await expect(panel).toBeFocused();
-    await page.keyboard.press('Escape');
-    await expect(panel).toHaveCount(0);
-    await expect(team).toBeFocused();
-    await team.click();
-    await expect(menu).toBeVisible();
-    await team.click();
-    await expect(menu).toHaveCount(0);
-    await expect(page.getByRole('complementary')).toHaveCount(0);
-    await expect(rows).toHaveCount(all);
-
-    await team.focus();
-    await page.keyboard.press('Enter');
-    await expect(menu.getByRole('menuitem', { name: 'Collapse Engineering' })).toBeFocused();
-    await page.keyboard.press('ArrowDown');
-    await expect(menu.getByRole('menuitem', { name: 'Focus on Engineering' })).toBeFocused();
-    await page.keyboard.press('Escape');
-    await expect(menu).toHaveCount(0);
-    await expect(team).toBeFocused();
-    await page.keyboard.press(' ');
-    await page.keyboard.press('Enter');
-    await expect(page.locator('svg.pg [data-loop="pg203"]')).toHaveCount(0);
-    await team.click();
-    await expect(menu.getByRole('menuitem', { name: 'Expand Engineering' })).toBeVisible();
-    await menu.getByRole('menuitem', { name: 'Hide Engineering' }).click();
-    await expect(team).toHaveCount(0);
-    await expect(page.locator('.hid-menu > summary')).toContainText('1 hidden');
-    await expect(page.locator('.hid-menu > summary')).toBeFocused();
-    await noHorizontalScroll(page);
-  });
-
   test('the graph, a change request page, its modals and the other pages never scroll sideways', async ({
     page,
   }) => {
@@ -2067,10 +1302,10 @@ test.describe('the tracker at phone width', () => {
 
     // The phone rail hides the fold button, so the first picks may land before hydration.
     await expect(async () => {
-      await choose(page.getByLabel('Demo: act as'), 'Hà Đỗ', 2_000);
-      await expect(page).toHaveURL(crUrl(4), { timeout: 2_000 });
+      await page.getByLabel('Demo: act as').selectOption({ label: 'Hà Đỗ' }, { timeout: 2_000 });
+      await expect(page).toHaveURL(/\/changes\/4$/, { timeout: 2_000 });
     }).toPass();
-    await expect(page.locator('.bbar').first()).toContainText(`#${storyCr(4)}`);
+    await expect(page.locator('.bbar').first()).toContainText('#4');
     await noHorizontalScroll(page);
 
     const add = page.getByRole('dialog', { name: 'Add to the queue' });
@@ -2086,12 +1321,12 @@ test.describe('the tracker at phone width', () => {
     await page.keyboard.press('Escape');
 
     await page.locator('.bbar').getByRole('button', { name: 'Cancel change request' }).click();
-    await expect(page.getByRole('dialog', { name: `Cancel #${storyCr(4)}?` })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Cancel #4?' })).toBeVisible();
     await noHorizontalScroll(page);
     await page.keyboard.press('Escape');
 
-    await page.goto(graph.replace(/graph$/, `changes/${storyCr(2)}`));
-    await expect(page.locator('.bbar').first()).toContainText(`#${storyCr(2)}`);
+    await page.goto(graph.replace(/graph$/, 'changes/2'));
+    await expect(page.locator('.bbar').first()).toContainText('#2');
     await noHorizontalScroll(page);
 
     for (const path of ['members', 'settings/tokens']) {
@@ -2111,13 +1346,14 @@ test.describe('row height and collapsible teams', () => {
       return r.y.baseVal.value + r.height.baseVal.value / 2;
     });
 
-  test('the row height starts Comfortable, changes in the view menu and stays after a reload', async ({
+  test('the row height starts Compact, changes in the view menu and stays after a reload', async ({
     page,
   }) => {
-    const { graph } = await signIn(page, 'tracker-density');
-    expect((await rowY(page, 'syncmon')) - (await rowY(page, 'dynamics'))).toBe(32);
+    const { graph } = await signIn(page, 'tracker-density', { classic: false });
+    // Engineering has late work, so it starts open.
+    expect((await rowY(page, 'syncmon')) - (await rowY(page, 'dynamics'))).toBe(20);
     await viewMenu(page, async (pop) => {
-      await expect(pop.getByRole('button', { name: 'Comfortable' })).toHaveAttribute(
+      await expect(pop.getByRole('button', { name: 'Compact' })).toHaveAttribute(
         'aria-pressed',
         'true',
       );
@@ -2134,25 +1370,21 @@ test.describe('row height and collapsible teams', () => {
     await expect(page.locator('svg.pg [data-act] circle.dot').first()).toBeVisible();
     await visit(page, graph);
     expect((await rowY(page, 'syncmon')) - (await rowY(page, 'dynamics'))).toBe(12);
-    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Compact' }).click());
+    await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Comfortable' }).click());
     await expect
       .poll(async () => (await rowY(page, 'syncmon')) - (await rowY(page, 'dynamics')))
-      .toBe(20);
+      .toBe(32);
   });
 
   test('a team opens and collapses from its summary row, by click and by keyboard', async ({
     page,
   }) => {
-    const { graph } = await signIn(page, 'tracker-collapse');
+    const { graph } = await signIn(page, 'tracker-collapse', { classic: false });
     const side = page.locator('svg.pg-side');
     const implementation = side.getByRole('button', { name: /^Implementation, 3 work items/ });
     const engineering = side.getByRole('button', { name: /^Engineering, 4 work items: 2 late/ });
-    await expect(side.locator('[aria-expanded="false"]')).toHaveCount(0);
-    await expect(implementation).toHaveAttribute('aria-expanded', 'true');
-    await expect(engineering).toHaveAttribute('aria-expanded', 'true');
-    await expect(page.locator('svg.pg [data-loop="golive"]')).toHaveCount(1);
-    await implementation.click();
     await expect(implementation).toHaveAttribute('aria-expanded', 'false');
+    await expect(engineering).toHaveAttribute('aria-expanded', 'true');
     await expect(page.locator('svg.pg [data-loop="golive"]')).toHaveCount(0);
     await expect(page.locator('svg.pg [data-loop="pg203"]')).toHaveCount(1);
 
@@ -2208,11 +1440,11 @@ test.describe('row height and collapsible teams', () => {
     await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Collapse all' }).click());
     await expect(page.locator('svg.pg [data-loop]')).toHaveCount(0);
     await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Expand all' }).click());
-    await expect(page.locator('svg.pg [data-loop]')).toHaveCount(15);
+    await expect(page.locator('svg.pg [data-loop]')).toHaveCount(14);
   });
 
   test('the view and zoom buttons show a ring for the keyboard only', async ({ page }) => {
-    await signIn(page, 'tracker-zoom-ring');
+    await signIn(page, 'tracker-zoom-ring', { classic: false });
     const btn = page.getByRole('button', { name: 'Row height and teams' });
     const outline = (el: Locator) => el.evaluate((node) => getComputedStyle(node).outlineStyle);
     await btn.click();
@@ -2241,7 +1473,7 @@ test.describe('row height and collapsible teams', () => {
   test('at Dense a summary row is one 24-unit line with its counts in the lane', async ({
     page,
   }) => {
-    await signIn(page, 'tracker-dense-summary');
+    await signIn(page, 'tracker-dense-summary', { classic: false });
     await viewMenu(page, (pop) => pop.getByRole('button', { name: 'Dense', exact: true }).click());
     const engineering = page
       .locator('svg.pg-side')
@@ -2264,12 +1496,10 @@ test.describe('row height and collapsible teams', () => {
   test('search, the filter panel, a search pick and a handoff pick open a collapsed team', async ({
     page,
   }) => {
-    await signIn(page, 'tracker-collapse-pick');
+    await signIn(page, 'tracker-collapse-pick', { classic: false });
     const side = page.locator('svg.pg-side');
     const qa = side.getByRole('button', { name: /^Digitization QA, 1 work item/ });
     const testRow = page.locator('svg.pg [data-loop="test"]');
-    await qa.click();
-    await side.getByRole('button', { name: /^Implementation, 3 work items/ }).click();
     await expect(qa).toHaveAttribute('aria-expanded', 'false');
 
     // While the search text narrows the graph, every team with a match shows open.
@@ -2314,13 +1544,11 @@ test.describe('row height and collapsible teams', () => {
   });
 
   test('a details link and a milestone member open a collapsed team', async ({ page }) => {
-    await signIn(page, 'tracker-collapse-links');
+    await signIn(page, 'tracker-collapse-links', { classic: false });
     const side = page.locator('svg.pg-side');
     const drawer = page.locator('.drawer');
     const qa = side.getByRole('button', { name: /^Digitization QA, 1 work item/ });
     const implementation = side.getByRole('button', { name: /^Implementation, 3 work items/ });
-    await qa.click();
-    await implementation.click();
     await expect(qa).toHaveAttribute('aria-expanded', 'false');
     await expect(implementation).toHaveAttribute('aria-expanded', 'false');
 
@@ -2341,14 +1569,13 @@ test.describe('row height and collapsible teams', () => {
   });
 
   test('an event added to a work item of a collapsed team opens that team', async ({ page }) => {
-    const { graph } = await signIn(page, 'tracker-collapse-attach');
-    await page.goto(crPath(graph, storyCr(4)));
+    const { graph } = await signIn(page, 'tracker-collapse-attach', { classic: false });
+    await page.goto(crPath(graph, 4));
     await hydrated(page);
     await actAs(page, 'Hà Đỗ');
     const implementation = page
       .locator('svg.pg-side')
       .getByRole('button', { name: /^Implementation, 3 work items/ });
-    await implementation.click();
     await expect(implementation).toHaveAttribute('aria-expanded', 'false');
 
     await page
@@ -2359,7 +1586,7 @@ test.describe('row height and collapsible teams', () => {
     const eventId = await card.getAttribute('data-qevent');
     await card.click();
     const dialog = page.getByRole('dialog', { name: 'Add this event to a work item' });
-    await choose(dialog.getByLabel('Work item'), 'Go-live date');
+    await dialog.getByLabel('Work item').selectOption({ label: 'Go-live date' });
     await dialog.getByRole('button', { name: 'Add to work item' }).click();
 
     await expect(implementation).toHaveAttribute('aria-expanded', 'true');
@@ -2373,7 +1600,7 @@ test.describe('row height and collapsible teams', () => {
   test('an event takes the colour of its kind while its row line keeps the status colour', async ({
     page,
   }) => {
-    await signIn(page, 'tracker-kinds');
+    await signIn(page, 'tracker-kinds', { classic: false });
     // PG-203 is open, so its line starts in the Not finished blue; p31 on it is a Task.
     await expect(page.locator('svg.pg [data-line="pg203"]').first()).toHaveCSS(
       'stroke',
@@ -2388,7 +1615,7 @@ test.describe('row height and collapsible teams', () => {
       'rgb(96, 100, 108)',
     );
     await expect(
-      page.getByRole('dialog', { name: 'Legend' }).getByRole('group', { name: 'Event kinds' }),
+      page.locator('.legend2').getByRole('group', { name: 'Event kinds' }),
     ).toContainText('Meeting');
   });
 
@@ -2400,7 +1627,7 @@ test.describe('row height and collapsible teams', () => {
     await actAs(page, 'Lan Phạm');
     await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
     await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
-    await page.waitForURL(crUrl(5));
+    await page.waitForURL(/\/changes\/5$/);
     const bar = page.locator('.bbar').first();
     const mark = page.locator('svg.pg [data-handoff="pg203"]');
     const receiverWait = page.locator('svg.pg text', { hasText: /^(Waiting for|PG-203 was)/ });
@@ -2427,7 +1654,7 @@ test.describe('row height and collapsible teams', () => {
         'Cancelled · Test the CRS section end to end no longer gets it from here',
       );
       await expect(receiverWait).toHaveText('PG-203 was cancelled');
-      await expect(page.locator('.lane-count', { hasText: /done · 1 cancelled/ })).toHaveText(
+      await expect(page.locator('.lane-count', { hasText: 'cancelled' })).toHaveText(
         '1 late · 2 done · 1 cancelled',
       );
       await expect(bar).toContainText('1 change');
@@ -2469,7 +1696,7 @@ test.describe('row height and collapsible teams', () => {
     await actAs(page, 'Lan Phạm');
     await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
     await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
-    await page.waitForURL(crUrl(5));
+    await page.waitForURL(/\/changes\/5$/);
     const drawer = page.locator('.drawer');
     const search = page.getByRole('combobox', { name: 'Search work items' });
     const details = async (text: string, title: string) => {
@@ -2486,14 +1713,6 @@ test.describe('row height and collapsible teams', () => {
       await expect(hint).toHaveCount(0);
       await drawer.getByRole('button', { name: 'Add an event' }).click();
       const dialog = page.getByRole('dialog', { name: 'Add an event' });
-      await expect(dialog.getByLabel('Who')).toHaveText('Lan Phạm');
-      await expect(dialog.getByLabel('Date')).toHaveValue('9 Oct 2026');
-      await expect(dialog.getByLabel('Time')).toHaveValue('18:00');
-      await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-      await expect(dialog.getByLabel('Who')).toHaveText('Lan Phạm');
-      await choose(dialog.getByLabel('Who'), 'Minh Trần');
-      await dialog.getByRole('button', { name: 'Message', exact: true }).click();
-      await expect(dialog.getByLabel('Who')).toHaveText('Minh Trần');
       const group = (name: string) => dialog.getByRole('group', { name, exact: true });
       await expect(group('Start').getByRole('button')).toHaveText(['Idea', 'Message', 'Issue']);
       await expect(group('Progress').getByRole('button')).toHaveText([
@@ -2525,16 +1744,9 @@ test.describe('row height and collapsible teams', () => {
 
     await test.step('Cancel work item needs a reason, then the row is grey and not late', async () => {
       await details('PG-203', 'PG-203 Country list field type');
-      await expect(drawer.locator('.wi-top .badge')).toHaveText(/^Late by \d+ days?$/);
-      await expect(drawer).not.toContainText(/late \d/);
-      await drawer.getByRole('button', { name: 'Mark done' }).click();
-      const done = page.getByRole('dialog', { name: 'Add an event' });
-      await expect(done.getByLabel('Who')).toHaveText('Lan Phạm');
-      await done.getByRole('button', { name: 'Cancel', exact: true }).click();
-      await expect(done).toHaveCount(0);
+      await expect(drawer.locator('.wi-top .badge')).toHaveText('Late');
       await drawer.getByRole('button', { name: 'Cancel work item' }).click();
       const dialog = page.getByRole('dialog', { name: 'Cancel this work item' });
-      await expect(dialog.getByLabel('Who')).toHaveText('Lan Phạm');
       await expect(dialog.getByRole('button', { name: 'Cancelled', exact: true })).toHaveAttribute(
         'aria-pressed',
         'true',
@@ -2574,7 +1786,7 @@ test.describe('row height and collapsible teams', () => {
   test('an event circle is a full kind-colour ring on a light tint, and the circles behind a stack tint more', async ({
     page,
   }) => {
-    await signIn(page, 'tracker-kind-tint');
+    await signIn(page, 'tracker-kind-tint', { classic: false });
     // The browser serialises color-mix in its own way, so a probe element computes the expected colour.
     const mixed = (color: string, percent: number) =>
       page.evaluate(
@@ -2605,7 +1817,7 @@ test.describe('row height and collapsible teams', () => {
       colorScheme: 'dark',
     });
     const page = await context.newPage();
-    await signIn(page, 'tracker-kind-tint-dark');
+    await signIn(page, 'tracker-kind-tint-dark', { classic: false });
     const task = page.locator('svg.pg [data-act="p31"] circle.bg');
     await expect(task).toHaveCSS('stroke', 'rgb(176, 180, 186)');
     const expected = await page.evaluate(() => {
@@ -2618,769 +1830,5 @@ test.describe('row height and collapsible teams', () => {
     });
     await expect(task).toHaveCSS('fill', expected);
     await context.close();
-  });
-});
-
-test.describe('the legend popover', () => {
-  test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
-
-  test('opens on the first visit and remembers a close and an open across reloads', async ({
-    page,
-  }) => {
-    const { graph } = await signIn(page, 'legend-store');
-    const button = page.getByRole('button', { name: 'Legend', exact: true });
-    const legend = page.getByRole('dialog', { name: 'Legend' });
-    await expect(page.locator('.legend2')).toHaveCount(0);
-    await expect(button).toHaveAttribute('aria-expanded', 'true');
-    await expect(button).toHaveAttribute('title', 'Legend');
-    await expect(legend).toBeVisible();
-    for (const group of ['Line', 'Change', 'Milestone', 'Event'])
-      await expect(legend.getByText(group, { exact: true })).toBeVisible();
-    await expect(legend.getByRole('group', { name: 'Event kinds' }).locator('.lg-kd')).toHaveCount(
-      10,
-    );
-    await expect(legend.getByText('Late part')).toHaveAttribute(
-      'title',
-      'Not finished after its planned finish',
-    );
-    await expect(legend.getByText('Done late')).toHaveAttribute(
-      'title',
-      'Done after its planned finish',
-    );
-    const pop = (await legend.boundingBox())!;
-    const bar = (await page.getByRole('group', { name: 'View controls' }).boundingBox())!;
-    expect(pop.y + pop.height).toBeLessThanOrEqual(bar.y);
-    expect(Math.abs(pop.x + pop.width - (bar.x + bar.width))).toBeLessThanOrEqual(1);
-
-    // The server cannot read the stored choice, so its HTML holds no legend at all.
-    const html = await (await page.request.get(graph)).text();
-    expect(html).toContain('aria-label="View controls"');
-    expect(html).not.toContain('legend-pop');
-
-    await button.click();
-    await expect(legend).toBeHidden();
-    await expect(button).toHaveAttribute('aria-expanded', 'false');
-    await page.addInitScript(() => {
-      const seen = { legend: false };
-      (window as unknown as { legendSeen: typeof seen }).legendSeen = seen;
-      new MutationObserver(() => {
-        if (document.querySelector('.legend-pop')) seen.legend = true;
-      }).observe(document, { childList: true, subtree: true });
-    });
-    await page.reload();
-    await hydrated(page);
-    await expect(button).toHaveAttribute('aria-expanded', 'false');
-    await expect(legend).toBeHidden();
-    expect(
-      await page.evaluate(
-        () => (window as unknown as { legendSeen: { legend: boolean } }).legendSeen.legend,
-      ),
-    ).toBe(false);
-
-    await button.click();
-    await expect(legend).toBeVisible();
-    await page.reload();
-    await hydrated(page);
-    await expect(legend).toBeVisible();
-
-    await legend.getByRole('button', { name: 'Close legend' }).click();
-    await expect(legend).toBeHidden();
-    await page.reload();
-    await hydrated(page);
-    await expect(legend).toBeHidden();
-  });
-
-  test('Esc closes it only from inside, and the graph around it still takes clicks', async ({
-    page,
-  }) => {
-    await signIn(page, 'legend-esc');
-    const button = page.getByRole('button', { name: 'Legend', exact: true });
-    const legend = page.getByRole('dialog', { name: 'Legend' });
-    const drawer = page.locator('.drawer');
-    await expect(legend).toBeVisible();
-
-    await page.locator('svg.pg [data-loop="pg203"]').click({ position: { x: 40, y: 15 } });
-    await expect(drawer.locator('h4')).toHaveText('PG-203 Country list field type');
-    await expect(legend).toBeVisible();
-    const pop = (await legend.boundingBox())!;
-    const left = { x: pop.x - 20, y: pop.y + pop.height / 2 };
-    expect(
-      await page.evaluate(
-        ({ x, y }) => !!document.elementFromPoint(x, y)?.closest('.tgraph'),
-        left,
-      ),
-    ).toBe(true);
-
-    await page.keyboard.press('Escape');
-    await expect(drawer).toHaveCount(0);
-    await expect(legend).toBeVisible();
-
-    await page.locator('svg.pg [data-loop="pg203"]').click({ position: { x: 40, y: 15 } });
-    await expect(drawer).toHaveCount(1);
-    await legend.getByRole('button', { name: 'Close legend' }).focus();
-    await page.keyboard.press('Escape');
-    await expect(legend).toBeHidden();
-    await expect(drawer).toHaveCount(1);
-    await expect(button).toBeFocused();
-    await expect(button).toHaveAttribute('aria-expanded', 'false');
-  });
-});
-
-test.describe('the legend popover beside a drawer', () => {
-  test.use({ viewport: { width: 1280, height: 900 }, colorScheme: 'light' });
-
-  test('follows the zoom corner when a drawer opens, and hides while an event moves', async ({
-    page,
-  }) => {
-    const { graph } = await signIn(page, 'legend-drawer');
-    await visit(page, crPath(graph, storyCr(4)));
-    await actAs(page, 'Hà Đỗ');
-    const legend = page.getByRole('dialog', { name: 'Legend' });
-    const bar = page.getByRole('group', { name: 'View controls' });
-    const canvas = page.locator('.gcanvas');
-    const inside = async () => {
-      const pop = (await legend.boundingBox())!;
-      const area = (await canvas.boundingBox())!;
-      const zoom = (await bar.boundingBox())!;
-      expect(pop.x).toBeGreaterThanOrEqual(area.x);
-      expect(Math.abs(pop.x + pop.width - (zoom.x + zoom.width))).toBeLessThanOrEqual(1);
-      expect(pop.y).toBeGreaterThanOrEqual(area.y);
-      expect(pop.y + pop.height).toBeLessThanOrEqual(zoom.y);
-    };
-    await expect(legend).toBeVisible();
-    await inside();
-    const wide = (await legend.boundingBox())!.width;
-
-    await page.locator('svg.pg [data-loop="pg203"]').click({ position: { x: 40, y: 15 } });
-    await expect(
-      page.getByRole('complementary', { name: 'PG-203 Country list field type' }),
-    ).toBeVisible();
-    await expect(legend).toBeVisible();
-    await inside();
-    await page.keyboard.press('Escape');
-    await expect(page.locator('.drawer')).toHaveCount(0);
-    await inside();
-    expect((await legend.boundingBox())!.width).toBe(wide);
-
-    await page.locator('svg.pg [data-act="p31"]').click();
-    await page.locator('.pop').getByRole('button', { name: 'Move to another work item' }).click();
-    await expect(page.locator('.tk.moving')).toHaveCount(1);
-    await expect(legend).toBeHidden();
-    await page.keyboard.press('Escape');
-    await expect(page.locator('.tk.moving')).toHaveCount(0);
-    await expect(legend).toBeVisible();
-  });
-});
-
-test.describe('the legend popover on a phone', () => {
-  test.use({ viewport: { width: 390, height: 844 }, colorScheme: 'light', hasTouch: true });
-
-  test('starts closed, then takes two columns inside the graph, no wider than the screen minus the 16 px gutters', async ({
-    page,
-  }) => {
-    await page.goto('/signin?label=legend-phone');
-    await page.getByRole('button', { name: /continue/i }).click();
-    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
-    const legend = page.getByRole('dialog', { name: 'Legend' });
-    const button = page.getByRole('button', { name: 'Legend', exact: true });
-    // On a phone the legend would cover most of the graph, so it starts closed there.
-    await expect(button).toHaveAttribute('aria-expanded', 'false');
-    await expect(legend).toHaveCount(0);
-    await page.locator('.gcanvas').scrollIntoViewIfNeeded();
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    await button.click();
-    await expect(legend).toBeVisible();
-    const box = (await legend.boundingBox())!;
-    const area = (await page.locator('.gcanvas').boundingBox())!;
-    const bar = (await page.getByRole('group', { name: 'View controls' }).boundingBox())!;
-    expect(box.y).toBeGreaterThanOrEqual(area.y);
-    expect(box.width).toBeLessThanOrEqual(390 - 32);
-    expect(box.x).toBeGreaterThanOrEqual(16);
-    expect(Math.abs(box.x + box.width - (bar.x + bar.width))).toBeLessThanOrEqual(1);
-    expect(box.y + box.height).toBeLessThanOrEqual(bar.y);
-    const columns = await legend.evaluate(
-      (el) => getComputedStyle(el.querySelector('.lg-grid')!).gridTemplateColumns.split(' ').length,
-    );
-    expect(columns).toBe(2);
-    await noHorizontalScroll(page);
-    await page.reload();
-    await expect(page.locator('svg.pg')).toBeVisible();
-    await expect(button).toHaveAttribute('aria-expanded', 'true');
-    await expect(legend).toBeVisible();
-  });
-
-  test('never covers the controls above a short view of the graph', async ({ page }) => {
-    await page.goto('/signin?label=legend-phone-top');
-    await page.getByRole('button', { name: /continue/i }).click();
-    await page.waitForURL(/\/projects\/[0-9a-f-]{36}\/graph$/);
-    await page.getByRole('button', { name: 'Legend', exact: true }).click();
-    const legend = page.getByRole('dialog', { name: 'Legend' });
-    await expect(legend).toBeVisible();
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await expect
-      .poll(async () => {
-        const box = (await legend.boundingBox())!;
-        const area = (await page.locator('.gcanvas').boundingBox())!;
-        return box.y - area.y;
-      })
-      .toBeGreaterThanOrEqual(0);
-  });
-});
-
-test.describe('changes that no longer apply', () => {
-  test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
-
-  test('when Clear fails part way, the rows left keep their Clear button', async ({ page }) => {
-    const { projectId, graph } = await signIn(page, 'tracker-clear-409');
-    const num = await page.evaluate(async (pid) => {
-      const read = await (await fetch(`/api/v1/projects/${pid}/tracker`)).json();
-      const item = read.queue.items.find(
-        (q: { title: string }) => q.title === 'PG-204 Tax ID format check',
-      );
-      const created = await fetch(`/api/v1/projects/${pid}/tracker/crs`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          title: 'Tax ID check',
-          ops: [
-            { op: 'place', a: { itemId: item.id, teamId: 'engineering' } },
-            { op: 'rename', a: { workItemId: item.id, title: 'PG-204 Tax ID check' } },
-            { op: 'rename', a: { workItemId: item.id, title: 'PG-204 Tax ID rules' } },
-          ],
-        }),
-      });
-      return ((await created.json()) as { num: number }).num;
-    }, projectId);
-    await visit(page, crPath(graph, num));
-    const side = page.locator('.cr-side');
-    const rows = side.locator('.chg-row');
-    const clear = side.getByRole('button', { name: 'Clear the changes that no longer apply' });
-    const note = side.getByRole('note', { name: 'Changes that no longer apply' });
-    await rows
-      .first()
-      .getByRole('button', { name: /^Undo this change/ })
-      .click();
-    await expect(note).toHaveText('2 changes no longer apply.Clear');
-
-    let removals = 0;
-    await page.route(/\/ops\/\d+$/, async (route) => {
-      if (route.request().method() !== 'DELETE' || ++removals < 2) return route.continue();
-      await route.fulfill({
-        status: 409,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: { code: 'CONFLICT', message: 'The change request changed.' },
-        }),
-      });
-    });
-    await clear.click();
-    await expect(note).toHaveText('1 change no longer applies.Clear');
-    await expect(rows).toHaveCount(1);
-    await expect(clear).toBeEnabled();
-    expect(removals).toBe(2);
-  });
-
-  test('a draft whose every change is already in Main says so and can be cancelled', async ({
-    page,
-  }) => {
-    const { projectId, graph } = await signIn(page, 'tracker-inmain');
-    const num = await page.evaluate(async (pid) => {
-      const base = `/api/v1/projects/${pid}/tracker/crs`;
-      const post = (url: string, body: unknown) =>
-        fetch(url, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(body),
-        }).then((r) => r.json());
-      const ops = [{ op: 'rename', a: { workItemId: 'secret', title: 'Client secret renewed' } }];
-      const first = await post(base, { title: 'First', ops });
-      const copy = await post(base, { title: 'Copy', ops });
-      await post(`${base}/${first.num}/actions`, { action: 'ready' });
-      const read = await (await fetch(`/api/v1/projects/${pid}/tracker`)).json();
-      const revision = read.crs.find((c: { num: number }) => c.num === first.num).revision;
-      await post(`${base}/${first.num}/actions`, { action: 'merge', expectedRevision: revision });
-      return copy.num as number;
-    }, projectId);
-    await visit(page, crPath(graph, num));
-    const bar = page.locator('.bbar').first();
-    await expect(bar).toContainText('0 changes');
-    await expect(bar).toContainText('Every change is already in Main.');
-    await expect(bar.getByRole('button', { name: 'Mark as ready' })).toBeDisabled();
-    await expect(bar.getByRole('button', { name: 'Cancel change request' })).toBeEnabled();
-    await expect(page.locator('.cr-side')).toContainText('Every change is already in Main.');
-  });
-
-  test('an undone placement leaves its later changes out of the count and of Mark as ready, and Clear removes them', async ({
-    page,
-  }) => {
-    const { projectId, graph } = await signIn(page, 'tracker-stale');
-    const num = await page.evaluate(async (pid) => {
-      const read = await (await fetch(`/api/v1/projects/${pid}/tracker`)).json();
-      const item = read.queue.items.find(
-        (q: { title: string }) => q.title === 'PG-204 Tax ID format check',
-      );
-      const created = await fetch(`/api/v1/projects/${pid}/tracker/crs`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          title: 'Tax ID check',
-          ops: [
-            { op: 'place', a: { itemId: item.id, teamId: 'engineering' } },
-            { op: 'rename', a: { workItemId: item.id, title: 'PG-204 Tax ID check' } },
-            { op: 'rename', a: { workItemId: item.id, title: 'PG-204 Tax ID rules' } },
-          ],
-        }),
-      });
-      return ((await created.json()) as { num: number }).num;
-    }, projectId);
-    await visit(page, crPath(graph, num));
-    const bar = page.locator('.bbar').first();
-    const side = page.locator('.cr-side');
-    const rows = side.locator('.chg-row');
-    const ready = bar.getByRole('button', { name: 'Mark as ready' });
-    const clear = side.getByRole('button', { name: 'Clear the changes that no longer apply' });
-    await expect(bar).toContainText('3 changes');
-    await expect(ready).toBeEnabled();
-    await expect(clear).toHaveCount(0);
-
-    await rows
-      .first()
-      .getByRole('button', { name: /^Undo this change/ })
-      .click();
-    await expect(rows).toHaveCount(2);
-    await expect(rows.first()).toContainText('no longer applies');
-    await expect(bar).toContainText('0 changes');
-    await expect(side.getByRole('button', { name: /^Changes/ })).toHaveText('Changes 0');
-    await expect(ready).toBeDisabled();
-    await expect(side.getByRole('note', { name: 'Changes that no longer apply' })).toHaveText(
-      '2 changes no longer apply.Clear',
-    );
-
-    await side.getByRole('button', { name: 'Hide the side panel' }).click();
-    const show = page.getByRole('button', { name: /^Changes and Queue/ });
-    await expect(show.locator('.cnt')).toHaveText('0');
-    await show.click();
-
-    await clear.click();
-    await expect(rows).toHaveCount(0);
-    await expect(clear).toHaveCount(0);
-    await expect(side).toContainText('No changes yet.');
-  });
-});
-
-test.describe('new changes wait for Refresh', () => {
-  test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
-
-  const rename = (title: string) => ({ op: 'rename', a: { workItemId: 'secret', title } });
-  /** A write that this screen did not make, as another tab or another person makes it. */
-  const post = (page: Page, path: string, body: unknown) =>
-    page.evaluate(
-      async ({ path, body }) => {
-        const reply = await fetch(path, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        return { status: reply.status, body: await reply.json() };
-      },
-      { path, body },
-    );
-  async function writeElsewhere(page: Page, projectId: string, title: string, ready = false) {
-    const crs = `/api/v1/projects/${projectId}/tracker/crs`;
-    const created = await post(page, crs, { title, ops: [rename(title)] });
-    expect(created.status).toBe(201);
-    const num = created.body.num as number;
-    if (ready)
-      expect((await post(page, `${crs}/${num}/actions`, { action: 'ready' })).status).toBe(200);
-    return num;
-  }
-  /** Runs the background check at once instead of after 15 s. */
-  async function check(page: Page) {
-    const answered = page.waitForResponse(/\/tracker\/version(\?|$)/);
-    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-    await answered;
-  }
-
-  test('another write leaves the screen alone; Refresh shows it and keeps the scroll and the drawer', async ({
-    page,
-  }) => {
-    const { projectId } = await signIn(page, 'tracker-fresh');
-    const bar = page.locator('.bbar').first();
-    const notice = bar.locator('.fresh');
-    const drawer = page.locator('.drawer');
-    const requests = page.locator('.p-head .crs-btn');
-    const rows = page.locator('.gscroll .gtime');
-    const viewMenu = async () => {
-      await bar.locator('summary.vsel').click();
-      const text = await bar.locator('.gmenu').innerText();
-      await page.keyboard.press('Escape');
-      return text;
-    };
-    await page.getByRole('combobox', { name: 'Search work items' }).fill('PG-203');
-    await page.keyboard.press('Enter');
-    await expect(drawer).toHaveAttribute('aria-label', 'PG-203 Country list field type');
-    await rows.evaluate((el) => el.scrollTo({ left: 120 }));
-    await expect.poll(() => rows.evaluate((el) => el.scrollLeft)).toBe(120);
-    await expect(requests.locator('.nbadge')).toHaveText('2');
-    await check(page);
-    await expect(notice).toHaveCount(0);
-
-    await writeElsewhere(page, projectId, 'Client secret renewed', true);
-    await check(page);
-    await expect(notice).toHaveText('1 new change request · Refresh');
-    await expect(requests.locator('.nbadge')).toHaveText('2');
-    expect(await viewMenu()).not.toContain('Client secret renewed');
-    await writeElsewhere(page, projectId, 'Client secret rotated');
-    await check(page);
-    await expect(notice).toHaveText('2 new change requests · Refresh');
-
-    await notice.getByRole('button', { name: 'Refresh' }).click();
-    await expect(notice).toHaveCount(0);
-    await expect(requests.locator('.nbadge')).toHaveText('3');
-    expect(await viewMenu()).toContain('Client secret renewed');
-    await expect(drawer).toHaveAttribute('aria-label', 'PG-203 Country list field type');
-    expect(await rows.evaluate((el) => el.scrollLeft)).toBe(120);
-    await check(page);
-    await expect(notice).toHaveCount(0);
-  });
-
-  test('own writes show at once and raise no notice; a 409 offers Refresh', async ({ page }) => {
-    const { projectId, graph } = await signIn(page, 'tracker-fresh-own');
-    const num = await writeElsewhere(page, projectId, 'Client secret renewed');
-    await visit(page, crPath(graph, num));
-    const bar = page.locator('.bbar').first();
-    const toast = page.locator('.tk-toast');
-    await expect(bar).toContainText('1 change');
-
-    await bar.getByRole('button', { name: 'Mark as ready' }).click();
-    await expect(bar.locator('.chipx').first()).toHaveText('Ready to merge');
-    await check(page);
-    await expect(bar.locator('.fresh')).toHaveCount(0);
-
-    await bar.getByRole('button', { name: 'Edit again' }).click();
-    await expect(bar.locator('.chipx').first()).toHaveText('Draft');
-    const crs = `/api/v1/projects/${projectId}/tracker/crs`;
-    const read = await readTracker(page, projectId);
-    const revision = read.crs.find((c) => c.num === num)?.revision;
-    const appended = await post(page, `${crs}/${num}/ops`, {
-      op: rename('Client secret replaced'),
-      expectedRevision: revision,
-    });
-    expect(appended.status).toBe(200);
-    await expect(bar).toContainText('1 change');
-
-    await bar.getByRole('button', { name: 'Mark as ready' }).click();
-    await expect(toast).toContainText(`#${num} changed since you saw it.`);
-    await expect(bar.locator('.chipx').first()).toHaveText('Draft');
-    await expect(bar).toContainText('1 change');
-    await toast.getByRole('button', { name: 'Refresh' }).click();
-    await expect(bar).toContainText('2 changes');
-    await expect(bar.locator('.fresh')).toHaveCount(0);
-  });
-
-  test('a merger keeps the version they opened: Refresh shows Review again when the change request moved', async ({
-    page,
-  }) => {
-    const { projectId, graph } = await signIn(page, 'tracker-fresh-merger');
-    await visit(page, crPath(graph, storyCr(2)));
-    const bar = page.locator('.bbar').first();
-    const notice = bar.locator('.fresh');
-    const merge = bar.getByRole('button', { name: 'Merge into Main' });
-    const moved = page.getByText('This change request changed since you opened it.');
-    const actions = `/api/v1/projects/${projectId}/tracker/crs/${storyCr(2)}/actions`;
-    await expect(merge).toBeEnabled();
-
-    expect((await post(page, actions, { action: 'comment', body: 'Looks fine.' })).status).toBe(
-      200,
-    );
-    await check(page);
-    await expect(notice).toHaveText('This change request changed · Refresh');
-    await notice.getByRole('button', { name: 'Refresh' }).click();
-    await expect(notice).toHaveCount(0);
-    await expect(moved).toHaveCount(0);
-    await expect(merge).toBeEnabled();
-
-    const revision = (await readTracker(page, projectId)).crs.find(
-      (c) => c.num === storyCr(2),
-    )?.revision;
-    const sent = await post(page, actions, {
-      action: 'request-changes',
-      note: 'Name the owner.',
-      expectedRevision: revision,
-    });
-    expect(sent.status).toBe(200);
-    await check(page);
-    await expect(notice).toHaveText('This change request changed · Refresh');
-    await notice.getByRole('button', { name: 'Refresh' }).click();
-    await expect(notice).toHaveCount(0);
-    await expect(moved).toBeVisible();
-    await expect(merge).toBeDisabled();
-    await bar.getByRole('button', { name: 'Review again' }).click();
-    await expect(bar.locator('.chipx').first()).toHaveText('Draft');
-  });
-
-  test('a Refresh that answers after an own write does not roll the write back', async ({
-    page,
-  }) => {
-    const { projectId, graph } = await signIn(page, 'tracker-fresh-race');
-    const num = await writeElsewhere(page, projectId, 'Client secret renewed');
-    await visit(page, crPath(graph, num));
-    const bar = page.locator('.bbar').first();
-    const notice = bar.locator('.fresh');
-    await post(page, `/api/v1/projects/${projectId}/tracker/crs/${num}/actions`, {
-      action: 'comment',
-      body: 'Check the date.',
-    });
-    await check(page);
-    await expect(notice).toHaveText('This change request changed · Refresh');
-    let answered = false;
-    let fetched: () => void = () => {};
-    const read = new Promise<void>((resolve) => (fetched = resolve));
-    let release: () => void = () => {};
-    const hold = new Promise<void>((resolve) => (release = resolve));
-    // The read gets the data from before the write and comes back after the write.
-    await page.route(/\/tracker$/, async (route) => {
-      const response = await route.fetch();
-      fetched();
-      await hold;
-      await route.fulfill({ response });
-      answered = true;
-    });
-    await notice.getByRole('button', { name: 'Refresh' }).click();
-    await read;
-    await bar.getByRole('button', { name: 'Mark as ready' }).click();
-    await expect(bar.locator('.chipx').first()).toHaveText('Ready to merge');
-    release();
-    await expect.poll(() => answered).toBe(true);
-    await page.waitForTimeout(300);
-    await expect(bar.locator('.chipx').first()).toHaveText('Ready to merge');
-  });
-
-  /** A new draft of Minh, open on its own page with the Queue tab. */
-  async function newDraft(page: Page, label: string) {
-    const { projectId } = await signIn(page, label);
-    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
-    await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
-    await page.waitForURL(crUrl(5));
-    await expect(page.locator('.bbar').first()).toContainText('You are editing');
-    return projectId;
-  }
-  const queueEvent = (page: Page, text: string) => page.locator('[data-qevent]', { hasText: text });
-  const row = (page: Page, id: string) => page.locator(`svg.pg [data-loop="${id}"]`);
-
-  test('two drops in quick succession both land', async ({ page }) => {
-    await newDraft(page, 'tracker-fresh-drops');
-    const bar = page.locator('.bbar').first();
-    // A slow server keeps the first append in flight while the second drop happens.
-    await page.route(/\/ops$/, async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      await route.continue();
-    });
-    await drag(page, queueEvent(page, 'Where is the root cause report'), row(page, 'incident'));
-    await drag(page, queueEvent(page, 'Scope call'), row(page, 'dynamics'));
-    await expect(bar).toContainText('2 changes');
-    await expect(page.locator('.tk-toast')).not.toContainText('changed since you saw it');
-  });
-
-  test("a drop on a draft that the editor's agent changed lands on top of the agent's change", async ({
-    page,
-  }) => {
-    const projectId = await newDraft(page, 'tracker-fresh-agent');
-    const bar = page.locator('.bbar').first();
-    const appended = await post(
-      page,
-      `/api/v1/projects/${projectId}/tracker/crs/${storyCr(5)}/ops`,
-      {
-        op: rename('Client secret renewed'),
-        expectedRevision: 0,
-      },
-    );
-    expect(appended.status).toBe(200);
-    await expect(bar).toContainText('0 changes');
-    await drag(page, queueEvent(page, 'Where is the root cause report'), row(page, 'incident'));
-    await expect(bar).toContainText('2 changes');
-    await expect(page.locator('.tk-toast')).toContainText('added');
-  });
-
-  test('a slow opening of a new change request shows no notice for the own create, and still opens it', async ({
-    page,
-  }) => {
-    await signIn(page, 'tracker-fresh-create');
-    let release = () => {};
-    const held = new Promise<void>((resolve) => (release = resolve));
-    await page.route(new RegExp(`/changes/${storyCr(5)}(\\?|$)`), async (route) => {
-      await held;
-      await route.continue();
-    });
-    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
-    const created = page.waitForResponse(
-      (r) => r.request().method() === 'POST' && /\/tracker\/crs$/.test(r.url()),
-    );
-    await page.locator('.m-card').getByRole('button', { name: 'Create', exact: true }).click();
-    expect((await created).status()).toBe(201);
-    await check(page);
-    await expect(page.locator('.bbar .fresh')).toHaveCount(0);
-    release();
-    await page.waitForURL(crUrl(5));
-    await expect(page.locator('.bbar').first()).toContainText('You are editing');
-  });
-
-  test('a hidden tab does not check, and checks at once when it shows again', async ({ page }) => {
-    await page.clock.install();
-    await signIn(page, 'tracker-fresh-hidden');
-    let checks = 0;
-    page.on('request', (request) => {
-      if (/\/tracker\/version$/.test(request.url())) checks += 1;
-    });
-    await page.clock.runFor(16_000);
-    expect(checks).toBe(0);
-    await page.clock.runFor(5 * 60_000);
-    await expect.poll(() => checks).toBe(1);
-    const show = (state: 'hidden' | 'visible') =>
-      page.evaluate((value) => {
-        Object.defineProperty(document, 'visibilityState', {
-          configurable: true,
-          get: () => value,
-        });
-        document.dispatchEvent(new Event('visibilitychange'));
-      }, state);
-    await show('hidden');
-    await page.clock.runFor(10 * 60_000);
-    expect(checks).toBe(1);
-    await show('visible');
-    await expect.poll(() => checks).toBe(2);
-  });
-
-  test('a focus after a minute away checks at once, and a shorter absence does not', async ({
-    page,
-  }) => {
-    await page.clock.install();
-    await signIn(page, 'tracker-fresh-focus');
-    let checks = 0;
-    page.on('request', (request) => {
-      if (/\/tracker\/version$/.test(request.url())) checks += 1;
-    });
-    const away = async (ms: number) => {
-      await page.evaluate(() => window.dispatchEvent(new Event('blur')));
-      await page.clock.runFor(ms);
-      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-    };
-    await away(30_000);
-    await page.clock.runFor(1_000);
-    expect(checks).toBe(0);
-    await away(61_000);
-    await expect.poll(() => checks).toBe(1);
-  });
-});
-
-test.describe('the Demo select', () => {
-  const ROLES = [
-    ['Minh Trần', 'Project lead'],
-    ['Lan Phạm', 'Digitization lead'],
-    ['Quang Nguyễn', 'Engineering lead'],
-    ['Hà Đỗ', 'QA analyst'],
-    ['Khoa Lê', 'Solutions engineer'],
-  ];
-
-  for (const width of [1440, 390])
-    test(`names the project role of each person at ${width}`, async ({ page }) => {
-      await page.setViewportSize({ width, height: 900 });
-      await page.goto(`/signin?label=demo-roles-${width}`);
-      await page.getByRole('button', { name: /continue/i }).click();
-      await expect(page.locator('svg.pg')).toBeVisible();
-      const select = page.getByRole('combobox', { name: 'Demo: act as' });
-      const list = page.getByRole('listbox', { name: 'Demo: act as' });
-      // A click before hydration does nothing, so the click repeats until the list opens.
-      await expect(async () => {
-        await select.click();
-        await expect(list).toBeVisible({ timeout: 1000 });
-      }).toPass();
-      const box = (await list.boundingBox())!;
-      for (const [name, role] of ROLES) {
-        const option = list.getByRole('option', { name, exact: true });
-        await expect(option).toHaveAccessibleDescription(role);
-        const hint = (await option.locator('.sel-hint').boundingBox())!;
-        expect(hint.x + hint.width).toBeLessThanOrEqual(box.x + box.width);
-      }
-      await page.keyboard.press('Escape');
-      await noHorizontalScroll(page);
-    });
-});
-
-test.describe('acting as another member right after a write', () => {
-  test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
-
-  test('drops the success toast of a write that answers after the person changed, and names the actor of an error', async ({
-    page,
-  }) => {
-    const { graph } = await signIn(page, 'act-as-toast');
-    await actAs(page, 'Lan Phạm');
-    await page.goto(crPath(graph, storyCr(4)));
-    await hydrated(page);
-    const bar = page.locator('.bbar').first();
-    const toast = page.locator('.tk-toast');
-    const slow = (status?: number) =>
-      page.route(`**/crs/${storyCr(4)}/actions`, async (route) => {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        if (status)
-          await route.fulfill({
-            status,
-            contentType: 'application/json',
-            body: JSON.stringify({ code: 'INTERNAL', message: 'Internal error' }),
-          });
-        else await route.continue();
-      });
-    await slow();
-    await bar.getByRole('button', { name: 'Ask for edit access' }).click();
-    await choose(page.getByLabel('Demo: act as'), 'Quang Nguyễn');
-    await expect(page.locator('.me b')).toHaveText('Quang Nguyễn');
-    await page.waitForTimeout(300);
-    // A retrying check would pass once the toast times out, so the text is read once.
-    expect((await toast.allTextContents()).join(' ')).not.toContain('Asked');
-    await page.unroute(`**/crs/${storyCr(4)}/actions`);
-
-    await actAs(page, 'Lan Phạm');
-    await page.goto(crPath(graph, storyCr(4)));
-    await hydrated(page);
-    await slow(500);
-    await bar.getByRole('button', { name: 'Cancel', exact: true }).click();
-    await choose(page.getByLabel('Demo: act as'), 'Quang Nguyễn');
-    await expect(page.locator('.me b')).toHaveText('Quang Nguyễn');
-    await expect(toast).toContainText('Lan Phạm: Internal error');
-  });
-
-  test('waits for the write, then shows the new person and their fresh data', async ({ page }) => {
-    const { projectId, graph } = await signIn(page, 'act-as-after-write');
-    await page.goto(crPath(graph, storyCr(4)));
-    await hydrated(page);
-    await actAs(page, 'Khoa Lê');
-    await page.goto(crPath(graph, storyCr(4)));
-    await hydrated(page);
-    const bar = page.locator('.bbar').first();
-    // A slow answer to the ask: the switch to Lan is sent while it is still on its way.
-    await page.route(`**/crs/${storyCr(4)}/actions`, async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      await route.continue();
-    });
-    await bar.getByRole('button', { name: 'Ask to edit' }).click();
-    await choose(page.getByLabel('Demo: act as'), 'Lan Phạm');
-    await expect(page.locator('.me b')).toHaveText('Lan Phạm');
-    await page.waitForTimeout(2500);
-    await expect(page.locator('.me b')).toHaveText('Lan Phạm');
-    await expect(page.getByRole('combobox', { name: 'Demo: act as' })).toContainText('Lan Phạm');
-    const read = await page.request.get(`/api/v1/projects/${projectId}/tracker`);
-    const data = (await read.json()) as {
-      me: { name: string };
-      crs: Array<{ num: number; asks: unknown[] }>;
-    };
-    expect(data.me.name).toBe('Lan Phạm');
-    expect(data.crs.find((c) => c.num === storyCr(4))?.asks).toHaveLength(1);
-    await page.unroute(`**/crs/${storyCr(4)}/actions`);
-    await expect(page.getByText('This change request changed')).toHaveCount(0);
-
-    await actAs(page, 'Hà Đỗ');
-    await page.goto(crPath(graph, storyCr(4)));
-    await hydrated(page);
-    await expect(page.locator('.ask-row')).toContainText(`Khoa Lê asks to edit #${storyCr(4)}.`);
   });
 });

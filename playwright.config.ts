@@ -1,6 +1,4 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 import { testDatabaseUrl } from './tests/support/db';
 
@@ -38,11 +36,7 @@ export default defineConfig({
       NEXT_PUBLIC_APP_URL: baseURL,
       SESSION_SECRET: process.env.E2E_SESSION_SECRET,
       DATABASE_URL: testDatabaseUrl(admin, process.env.E2E_DATABASE_NAME),
-      AVATAR_STORE: 'local',
-      AVATAR_DIR: join(tmpdir(), process.env.E2E_DATABASE_NAME),
       NEXT_TELEMETRY_DISABLED: '1',
-      // The walks read fixed dates and statuses; the demo suite runs on the real clock.
-      TRACKER_DEMO_AS_OF: '2026-10-09T18:00:00+07:00',
     },
   },
 });

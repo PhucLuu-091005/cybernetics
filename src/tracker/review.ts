@@ -1,5 +1,4 @@
 import {
-  applyingCount,
   clashesOf,
   crVersionApplies,
   liveOps,
@@ -56,12 +55,6 @@ export type ReviewModel = {
   after: TrackerState;
   marks: Marks;
   changes: ReviewChange[];
-  /** The changes that still apply: the count that the bar shows and Mark as ready needs. */
-  applying: number;
-  /** The positions of the changes that no longer apply, last first, so removing them one by one keeps the rest in place. */
-  stale: number[];
-  /** An open CR whose every change Main already took; it can only be cancelled. */
-  inMain: boolean;
   clashes: ReviewClash[];
   /** The picks that match a clash now; the server rejects a merge that sends any other key. */
   picks: Picks;
@@ -69,7 +62,6 @@ export type ReviewModel = {
   dropped: Resolution[];
 };
 
-const isOpenCr = (cr: Cr) => cr.status === 'draft' || cr.status === 'ready';
 const isMerger = (payload: TrackerPayload) => !!payload.me && can(payload, 'merge');
 
 function eventIdOf(op: Op): string | null {
@@ -102,7 +94,6 @@ function workItemIdOf(op: Op, after: TrackerState): string | null {
     case 'after':
       return op.a.workItemId;
     case 'place':
-      return op.a.id ?? op.a.itemId;
     case 'qms':
       return op.a.itemId;
     case 'fromEvent':
@@ -128,7 +119,7 @@ function createdIds(op: Op): string[] {
     case 'attach':
       return [op.a.eventId];
     case 'place':
-      return [op.a.id ?? op.a.itemId];
+      return [op.a.itemId];
     case 'fromEvent':
       return [op.a.id, op.a.eventId];
     case 'addEvent':
@@ -300,11 +291,6 @@ export function reviewModel(
     after,
     marks: shape.after.marks,
     changes,
-    applying: applyingCount(shape.described),
-    inMain: isOpenCr(cr) && cr.ops.length > 0 && shape.ops.length === 0,
-    stale: changes
-      .flatMap((change) => (change.skipReason && change.opIndex !== null ? [change.opIndex] : []))
-      .sort((a, b) => b - a),
     clashes,
     picks: current,
     canMerge:
@@ -340,53 +326,4 @@ export function openedReview(
     updatedAt: now.updatedAt,
   };
   return { payload: { ...live, crs: live.crs.map((c) => (c === now ? kept : c)) }, changed: true };
-}
-
-const counts = (clash: ReviewClash, picks: Picks) =>
-  picks[clash.key] === 'main' || (picks[clash.key] === 'cr' && clash.crApplies);
-
-/** A clash whose change request side cannot apply keeps Main. */
-export const pickAll = (clashes: readonly ReviewClash[], side: 'main' | 'cr'): Picks =>
-  Object.fromEntries(
-    clashes.map((c) => [c.key, side === 'cr' && c.crApplies ? 'cr' : 'main'] as const),
-  );
-
-export const pickedCount = (clashes: readonly ReviewClash[], picks: Picks) =>
-  clashes.filter((c) => counts(c, picks)).length;
-
-export const firstUnpicked = (clashes: readonly ReviewClash[], picks: Picks) =>
-  clashes.find((c) => !counts(c, picks)) ?? null;
-
-/** Where a clash sits on the graph: a work item row or a milestone; a Queue card has no spot. */
-export function clashSpot(
-  key: string,
-  state: Pick<TrackerState, 'events'>,
-): { kind: 'item' | 'ms'; id: string } | null {
-  const [kind, id] = key.split(':');
-  if (kind === 'loop') return { kind: 'item', id };
-  if (kind === 'ms') return { kind: 'ms', id };
-  if (kind === 'act' || kind === 'event') {
-    const ev = state.events.find((e) => e.id === id);
-    return ev ? { kind: 'item', id: ev.workItemId } : null;
-  }
-  return null;
-}
-
-/**
- * Whether a change request side applies depends on the other picks, so this starts from cr for
- * every clash and keeps Main only where cr cannot apply, until the picks stop changing.
- */
-export function keepCrForAll(payload: TrackerPayload, num: number, picks: Picks): Picks {
-  const first = reviewModel(payload, num, picks);
-  if (!first) return picks;
-  let next: Picks = { ...picks, ...pickAll(first.clashes, 'main') };
-  for (const clash of first.clashes) next[clash.key] = 'cr';
-  for (let round = 0; round <= first.clashes.length; round += 1) {
-    const model = reviewModel(payload, num, next)!;
-    const fixed: Picks = { ...next };
-    for (const clash of model.clashes) fixed[clash.key] = clash.crApplies ? 'cr' : 'main';
-    if (model.clashes.every((clash) => fixed[clash.key] === next[clash.key])) return fixed;
-    next = fixed;
-  }
-  return next;
 }

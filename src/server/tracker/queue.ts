@@ -3,14 +3,10 @@ import { z } from 'zod';
 import type { ActorContext } from '../../contracts';
 import {
   mainState,
-  QueueEventFieldsSchema,
   QueueEventInputSchema,
   QueueItemInputSchema,
   type Commit,
-  type Member,
   type Op,
-  type QueueEventInput,
-  type QueueItemInput,
   type TrackerPayload,
   type TrackerState,
 } from '../../tracker';
@@ -22,35 +18,25 @@ import { OPEN, ProjectScopeSchema, requireRight, requireQueueWriter, writeScope 
 import { buildPayload } from './read';
 import { loadCommits, loadQueue } from './store';
 
-// Who defaults to the acting member, as the Add dialog does, so a key's event names its person.
-const EventFieldsSchema = QueueEventFieldsSchema.extend({
-  by: QueueEventFieldsSchema.shape.by.optional(),
-});
 const AddQueueEntryInputSchema = z.discriminatedUnion('kind', [
   z.strictObject({
     ...ProjectScopeSchema,
     kind: z.literal('event'),
-    fields: EventFieldsSchema,
+    fields: QueueEventInputSchema,
   }),
   z.strictObject({ ...ProjectScopeSchema, kind: z.literal('item'), fields: QueueItemInputSchema }),
 ]);
-export const DismissQueueEntryInputSchema = z.strictObject({
+const DismissQueueEntryInputSchema = z.strictObject({
   ...ProjectScopeSchema,
   queueId: z.string().max(100),
 });
 
-type Card = { kind: 'event'; fields: QueueEventInput } | { kind: 'item'; fields: QueueItemInput };
+type Entry = z.infer<typeof AddQueueEntryInputSchema>;
 
-/**
- * A card that names an unknown person, milestone or work item could never be placed. A removed
- * member keeps the name on past work, but a new card cannot give them work.
- */
-function unknownReferences(entry: Card, main: TrackerState, members: readonly Member[]): string[] {
-  const person = (field: string, id: string) => {
-    const gone = members.find((m) => m.id === id && m.removed);
-    if (gone) return [`${field}: ${gone.name} is no longer in this project`];
-    return main.people.some((p) => p.id === id) ? [] : [`${field}: no person ${id}`];
-  };
+/** A card that names an unknown person, milestone or work item could never be placed. */
+function unknownReferences(entry: Entry, main: TrackerState): string[] {
+  const person = (field: string, id: string) =>
+    main.people.some((p) => p.id === id) ? [] : [`${field}: no person ${id}`];
   if (entry.kind === 'event') return person('by', entry.fields.by);
   const { doneBy, requestedBy, milestoneId, after } = entry.fields;
   return [
@@ -65,7 +51,7 @@ function unknownReferences(entry: Card, main: TrackerState, members: readonly Me
   ];
 }
 
-type AddQueueEntryInput = z.input<typeof AddQueueEntryInputSchema>;
+export type AddQueueEntryInput = z.input<typeof AddQueueEntryInputSchema>;
 
 /** MCP answers with the new card, so this variant also returns its id. */
 export async function addQueueCard(
@@ -80,35 +66,24 @@ export async function addQueueCard(
   return withTransaction(db, async (tx) => {
     const scope = await writeScope(tx, ctx, entry.projectId, entry.actAs);
     const me = requireQueueWriter(scope);
-    const card: Card =
-      entry.kind === 'event'
-        ? {
-            kind: 'event',
-            fields: QueueEventInputSchema.parse({ ...entry.fields, by: entry.fields.by ?? me.id }),
-          }
-        : entry;
     const queue = await loadQueue(tx, scope.project.id);
     const commits = await loadCommits(tx, scope.project.id);
-    const problems = unknownReferences(
-      card,
-      mainState(scope.tracker.base, queue, commits),
-      scope.members,
-    );
+    const problems = unknownReferences(entry, mainState(scope.tracker.base, queue, commits));
     if (problems.length)
       throw new AppError('VALIDATION', 'The queue card names something Main does not have', {
         errors: problems.map((message) => ({ path: 'fields', message })),
       });
-    const [row] = await tx
+    const [card] = await tx
       .insert(trackerQueue)
       .values({
         ...scope.tenant,
-        kind: card.kind,
-        payload: card.fields,
+        kind: entry.kind,
+        payload: entry.fields,
         addedByMember: me.id,
         addedByAgent: ctx.kind === 'agent',
       })
       .returning({ id: trackerQueue.id });
-    return { id: row.id, payload: await buildPayload(tx, scope) };
+    return { id: card.id, payload: await buildPayload(tx, scope) };
   });
 }
 

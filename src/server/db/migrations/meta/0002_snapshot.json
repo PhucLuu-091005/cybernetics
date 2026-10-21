@@ -1,6 +1,6 @@
 {
-  "id": "00f6d642-aa86-4216-8491-babf47cd3443",
-  "prevId": "dae16111-c0db-477d-821d-fb236242db7c",
+  "id": "9c1d7918-563e-48d8-8908-59672c3bbdec",
+  "prevId": "72ffa5f5-6181-4886-8c94-f6c09be600f7",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -25,14 +25,7 @@
           "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'project'"
+          "notNull": true
         },
         "user_id": {
           "name": "user_id",
@@ -95,21 +88,9 @@
           "primaryKey": false,
           "notNull": false
         },
-        "last_used_at": {
-          "name": "last_used_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "revoke_key": {
           "name": "revoke_key",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "member_id": {
-          "name": "member_id",
-          "type": "uuid",
           "primaryKey": false,
           "notNull": false
         }
@@ -120,21 +101,6 @@
           "columns": [
             {
               "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "agent_tokens_user_idx": {
-          "name": "agent_tokens_user_idx",
-          "columns": [
-            {
-              "expression": "user_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -158,19 +124,6 @@
             "id"
           ],
           "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "agent_tokens_member_id_tracker_members_id_fk": {
-          "name": "agent_tokens_member_id_tracker_members_id_fk",
-          "tableFrom": "agent_tokens",
-          "tableTo": "tracker_members",
-          "columnsFrom": [
-            "member_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         },
         "agent_tokens_project_fk": {
@@ -200,7 +153,7 @@
         },
         "agent_tokens_creation_key_unique": {
           "name": "agent_tokens_creation_key_unique",
-          "nullsNotDistinct": true,
+          "nullsNotDistinct": false,
           "columns": [
             "user_id",
             "project_id",
@@ -209,12 +162,457 @@
         }
       },
       "policies": {},
-      "checkConstraints": {
-        "agent_tokens_kind_project": {
-          "name": "agent_tokens_kind_project",
-          "value": "(\"agent_tokens\".\"kind\" = 'project' and \"agent_tokens\".\"project_id\" is not null) or (\"agent_tokens\".\"kind\" = 'personal' and \"agent_tokens\".\"project_id\" is null)"
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.graph_commits": {
+      "name": "graph_commits",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sequence": {
+          "name": "sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "snapshot": {
+          "name": "snapshot",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "snapshot_hash": {
+          "name": "snapshot_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor": {
+          "name": "actor",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "proposal_id": {
+          "name": "proposal_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_commit_id": {
+          "name": "target_commit_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_evidence_revision": {
+          "name": "reviewed_evidence_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
+      "indexes": {
+        "graph_commits_parent_idx": {
+          "name": "graph_commits_parent_idx",
+          "columns": [
+            {
+              "expression": "parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "graph_commits_project_fk": {
+          "name": "graph_commits_project_fk",
+          "tableFrom": "graph_commits",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "workspace_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "graph_commits_parent_fk": {
+          "name": "graph_commits_parent_fk",
+          "tableFrom": "graph_commits",
+          "tableTo": "graph_commits",
+          "columnsFrom": [
+            "project_id",
+            "parent_id"
+          ],
+          "columnsTo": [
+            "project_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "graph_commits_proposal_fk": {
+          "name": "graph_commits_proposal_fk",
+          "tableFrom": "graph_commits",
+          "tableTo": "graph_proposals",
+          "columnsFrom": [
+            "project_id",
+            "proposal_id"
+          ],
+          "columnsTo": [
+            "project_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "graph_commits_target_fk": {
+          "name": "graph_commits_target_fk",
+          "tableFrom": "graph_commits",
+          "tableTo": "graph_commits",
+          "columnsFrom": [
+            "project_id",
+            "target_commit_id"
+          ],
+          "columnsTo": [
+            "project_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "graph_commits_project_sequence_unique": {
+          "name": "graph_commits_project_sequence_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "project_id",
+            "sequence"
+          ]
+        },
+        "graph_commits_project_id_unique": {
+          "name": "graph_commits_project_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "project_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.graph_proposals": {
+      "name": "graph_proposals",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "base_commit_id": {
+          "name": "base_commit_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "candidate": {
+          "name": "candidate",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "author": {
+          "name": "author",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rationale": {
+          "name": "rationale",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence_revision": {
+          "name": "evidence_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "merged_commit_id": {
+          "name": "merged_commit_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "graph_proposals_project_status_idx": {
+          "name": "graph_proposals_project_status_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "graph_proposals_project_fk": {
+          "name": "graph_proposals_project_fk",
+          "tableFrom": "graph_proposals",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "workspace_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "graph_proposals_base_commit_fk": {
+          "name": "graph_proposals_base_commit_fk",
+          "tableFrom": "graph_proposals",
+          "tableTo": "graph_commits",
+          "columnsFrom": [
+            "project_id",
+            "base_commit_id"
+          ],
+          "columnsTo": [
+            "project_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "graph_proposals_merged_commit_fk": {
+          "name": "graph_proposals_merged_commit_fk",
+          "tableFrom": "graph_proposals",
+          "tableTo": "graph_commits",
+          "columnsFrom": [
+            "project_id",
+            "merged_commit_id"
+          ],
+          "columnsTo": [
+            "project_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "graph_proposals_project_id_unique": {
+          "name": "graph_proposals_project_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "project_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mutation_receipts": {
+      "name": "mutation_receipts",
+      "schema": "",
+      "columns": {
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_key": {
+          "name": "actor_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operation": {
+          "name": "operation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_hash": {
+          "name": "request_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "result": {
+          "name": "result",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "mutation_receipts_project_id_projects_id_fk": {
+          "name": "mutation_receipts_project_id_projects_id_fk",
+          "tableFrom": "mutation_receipts",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "mutation_receipts_project_id_actor_key_operation_idempotency_key_pk": {
+          "name": "mutation_receipts_project_id_actor_key_operation_idempotency_key_pk",
+          "columns": [
+            "project_id",
+            "actor_key",
+            "operation",
+            "idempotency_key"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.projects": {
@@ -245,6 +643,26 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "main_commit_id": {
+          "name": "main_commit_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evidence_revision": {
+          "name": "evidence_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "source_routing": {
+          "name": "source_routing",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
         },
         "created_at": {
           "name": "created_at",
@@ -284,6 +702,21 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "projects_main_commit_fk": {
+          "name": "projects_main_commit_fk",
+          "tableFrom": "projects",
+          "tableTo": "graph_commits",
+          "columnsFrom": [
+            "id",
+            "main_commit_id"
+          ],
+          "columnsTo": [
+            "project_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -301,543 +734,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.tracker_commits": {
-      "name": "tracker_commits",
-      "schema": "",
-      "columns": {
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rev": {
-          "name": "rev",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cr_id": {
-          "name": "cr_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "merged_by": {
-          "name": "merged_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "merged_at": {
-          "name": "merged_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ops": {
-          "name": "ops",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "resolutions": {
-          "name": "resolutions",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        }
-      },
-      "indexes": {
-        "tracker_commits_cr_idx": {
-          "name": "tracker_commits_cr_idx",
-          "columns": [
-            {
-              "expression": "cr_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "tracker_commits_project_fk": {
-          "name": "tracker_commits_project_fk",
-          "tableFrom": "tracker_commits",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "workspace_id",
-            "project_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "tracker_commits_cr_fk": {
-          "name": "tracker_commits_cr_fk",
-          "tableFrom": "tracker_commits",
-          "tableTo": "tracker_crs",
-          "columnsFrom": [
-            "project_id",
-            "cr_id"
-          ],
-          "columnsTo": [
-            "project_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "tracker_commits_merged_by_fk": {
-          "name": "tracker_commits_merged_by_fk",
-          "tableFrom": "tracker_commits",
-          "tableTo": "tracker_members",
-          "columnsFrom": [
-            "project_id",
-            "merged_by"
-          ],
-          "columnsTo": [
-            "project_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "tracker_commits_project_id_rev_pk": {
-          "name": "tracker_commits_project_id_rev_pk",
-          "columns": [
-            "project_id",
-            "rev"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.tracker_cr_asks": {
-      "name": "tracker_cr_asks",
-      "schema": "",
-      "columns": {
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cr_id": {
-          "name": "cr_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "member_id": {
-          "name": "member_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "tracker_cr_asks_project_idx": {
-          "name": "tracker_cr_asks_project_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "tracker_cr_asks_project_fk": {
-          "name": "tracker_cr_asks_project_fk",
-          "tableFrom": "tracker_cr_asks",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "workspace_id",
-            "project_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "tracker_cr_asks_cr_fk": {
-          "name": "tracker_cr_asks_cr_fk",
-          "tableFrom": "tracker_cr_asks",
-          "tableTo": "tracker_crs",
-          "columnsFrom": [
-            "project_id",
-            "cr_id"
-          ],
-          "columnsTo": [
-            "project_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "tracker_cr_asks_member_fk": {
-          "name": "tracker_cr_asks_member_fk",
-          "tableFrom": "tracker_cr_asks",
-          "tableTo": "tracker_members",
-          "columnsFrom": [
-            "project_id",
-            "member_id"
-          ],
-          "columnsTo": [
-            "project_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "tracker_cr_asks_cr_id_member_id_pk": {
-          "name": "tracker_cr_asks_cr_id_member_id_pk",
-          "columns": [
-            "cr_id",
-            "member_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.tracker_cr_comments": {
-      "name": "tracker_cr_comments",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "seq": {
-          "name": "seq",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "identity": {
-            "type": "always",
-            "name": "tracker_cr_comments_seq_seq",
-            "schema": "public",
-            "increment": "1",
-            "startWith": "1",
-            "minValue": "1",
-            "maxValue": "2147483647",
-            "cache": "1",
-            "cycle": false
-          }
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cr_id": {
-          "name": "cr_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "member_id": {
-          "name": "member_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "body": {
-          "name": "body",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "op_index": {
-          "name": "op_index",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "by_agent": {
-          "name": "by_agent",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "via_key": {
-          "name": "via_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "tracker_cr_comments_cr_idx": {
-          "name": "tracker_cr_comments_cr_idx",
-          "columns": [
-            {
-              "expression": "cr_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "tracker_cr_comments_project_idx": {
-          "name": "tracker_cr_comments_project_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "tracker_cr_comments_project_fk": {
-          "name": "tracker_cr_comments_project_fk",
-          "tableFrom": "tracker_cr_comments",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "workspace_id",
-            "project_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "tracker_cr_comments_cr_fk": {
-          "name": "tracker_cr_comments_cr_fk",
-          "tableFrom": "tracker_cr_comments",
-          "tableTo": "tracker_crs",
-          "columnsFrom": [
-            "project_id",
-            "cr_id"
-          ],
-          "columnsTo": [
-            "project_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "tracker_cr_comments_member_fk": {
-          "name": "tracker_cr_comments_member_fk",
-          "tableFrom": "tracker_cr_comments",
-          "tableTo": "tracker_members",
-          "columnsFrom": [
-            "project_id",
-            "member_id"
-          ],
-          "columnsTo": [
-            "project_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.tracker_cr_shares": {
-      "name": "tracker_cr_shares",
-      "schema": "",
-      "columns": {
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cr_id": {
-          "name": "cr_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "member_id": {
-          "name": "member_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "permission": {
-          "name": "permission",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "tracker_cr_shares_project_idx": {
-          "name": "tracker_cr_shares_project_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "tracker_cr_shares_project_fk": {
-          "name": "tracker_cr_shares_project_fk",
-          "tableFrom": "tracker_cr_shares",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "workspace_id",
-            "project_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "tracker_cr_shares_cr_fk": {
-          "name": "tracker_cr_shares_cr_fk",
-          "tableFrom": "tracker_cr_shares",
-          "tableTo": "tracker_crs",
-          "columnsFrom": [
-            "project_id",
-            "cr_id"
-          ],
-          "columnsTo": [
-            "project_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "tracker_cr_shares_member_fk": {
-          "name": "tracker_cr_shares_member_fk",
-          "tableFrom": "tracker_cr_shares",
-          "tableTo": "tracker_members",
-          "columnsFrom": [
-            "project_id",
-            "member_id"
-          ],
-          "columnsTo": [
-            "project_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "tracker_cr_shares_cr_id_member_id_pk": {
-          "name": "tracker_cr_shares_cr_id_member_id_pk",
-          "columns": [
-            "cr_id",
-            "member_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.tracker_crs": {
-      "name": "tracker_crs",
+    "public.record_versions": {
+      "name": "record_versions",
       "schema": "",
       "columns": {
         "id": {
@@ -859,11 +757,53 @@
           "primaryKey": false,
           "notNull": true
         },
-        "num": {
-          "name": "num",
+        "record_id": {
+          "name": "record_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_no": {
+          "name": "version_no",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "digest": {
+          "name": "digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_label": {
+          "name": "source_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "external_id": {
+          "name": "external_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "thread_external_id": {
+          "name": "thread_external_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parent_external_id": {
+          "name": "parent_external_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "title": {
           "name": "title",
@@ -871,651 +811,89 @@
           "primaryKey": false,
           "notNull": true
         },
-        "author": {
-          "name": "author",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "editor": {
-          "name": "editor",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
+        "body_text": {
+          "name": "body_text",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "ops": {
-          "name": "ops",
-          "type": "jsonb",
+        "search_text": {
+          "name": "search_text",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
+          "notNull": true
         },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
+        "search_title": {
+          "name": "search_title",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": 0
+          "notNull": true
         },
-        "created_at": {
-          "name": "created_at",
+        "occurred_at": {
+          "name": "occurred_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "merged_rev": {
-          "name": "merged_rev",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "merged_by": {
-          "name": "merged_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "merged_at": {
-          "name": "merged_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "closed_by": {
-          "name": "closed_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "closed_at": {
-          "name": "closed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "closed_rev": {
-          "name": "closed_rev",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "resolutions": {
-          "name": "resolutions",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "tracker_crs_project_fk": {
-          "name": "tracker_crs_project_fk",
-          "tableFrom": "tracker_crs",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "workspace_id",
-            "project_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "tracker_crs_author_fk": {
-          "name": "tracker_crs_author_fk",
-          "tableFrom": "tracker_crs",
-          "tableTo": "tracker_members",
-          "columnsFrom": [
-            "project_id",
-            "author"
-          ],
-          "columnsTo": [
-            "project_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "tracker_crs_editor_fk": {
-          "name": "tracker_crs_editor_fk",
-          "tableFrom": "tracker_crs",
-          "tableTo": "tracker_members",
-          "columnsFrom": [
-            "project_id",
-            "editor"
-          ],
-          "columnsTo": [
-            "project_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "tracker_crs_merged_by_fk": {
-          "name": "tracker_crs_merged_by_fk",
-          "tableFrom": "tracker_crs",
-          "tableTo": "tracker_members",
-          "columnsFrom": [
-            "project_id",
-            "merged_by"
-          ],
-          "columnsTo": [
-            "project_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "tracker_crs_closed_by_fk": {
-          "name": "tracker_crs_closed_by_fk",
-          "tableFrom": "tracker_crs",
-          "tableTo": "tracker_members",
-          "columnsFrom": [
-            "project_id",
-            "closed_by"
-          ],
-          "columnsTo": [
-            "project_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "tracker_crs_project_num_unique": {
-          "name": "tracker_crs_project_num_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "project_id",
-            "num"
-          ]
-        },
-        "tracker_crs_project_id_unique": {
-          "name": "tracker_crs_project_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "project_id",
-            "id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.tracker_event_offsets": {
-      "name": "tracker_event_offsets",
-      "schema": "",
-      "columns": {
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "uuid",
-          "primaryKey": false,
           "notNull": true
         },
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "event_id": {
-          "name": "event_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "offset_minutes": {
-          "name": "offset_minutes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "tracker_event_offsets_user_id_users_id_fk": {
-          "name": "tracker_event_offsets_user_id_users_id_fk",
-          "tableFrom": "tracker_event_offsets",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "tracker_event_offsets_project_fk": {
-          "name": "tracker_event_offsets_project_fk",
-          "tableFrom": "tracker_event_offsets",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "workspace_id",
-            "project_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "tracker_event_offsets_project_id_user_id_event_id_pk": {
-          "name": "tracker_event_offsets_project_id_user_id_event_id_pk",
-          "columns": [
-            "project_id",
-            "user_id",
-            "event_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.tracker_members": {
-      "name": "tracker_members",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "seq": {
-          "name": "seq",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "identity": {
-            "type": "always",
-            "name": "tracker_members_seq_seq",
-            "schema": "public",
-            "increment": "1",
-            "startWith": "1",
-            "minValue": "1",
-            "maxValue": "2147483647",
-            "cache": "1",
-            "cycle": false
-          }
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "role_label": {
-          "name": "role_label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "color": {
-          "name": "color",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "access": {
-          "name": "access",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'member'"
-        },
-        "view_main": {
-          "name": "view_main",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "view_crs": {
-          "name": "view_crs",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "create_crs": {
-          "name": "create_crs",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "merge_crs": {
-          "name": "merge_crs",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "removed_at": {
-          "name": "removed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "avatar_key": {
-          "name": "avatar_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "tracker_members_user_idx": {
-          "name": "tracker_members_user_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "tracker_members_email_idx": {
-          "name": "tracker_members_email_idx",
-          "columns": [
-            {
-              "expression": "email",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "tracker_members_user_id_users_id_fk": {
-          "name": "tracker_members_user_id_users_id_fk",
-          "tableFrom": "tracker_members",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "tracker_members_project_fk": {
-          "name": "tracker_members_project_fk",
-          "tableFrom": "tracker_members",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "workspace_id",
-            "project_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "tracker_members_project_id_unique": {
-          "name": "tracker_members_project_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "project_id",
-            "id"
-          ]
-        },
-        "tracker_members_project_user_unique": {
-          "name": "tracker_members_project_user_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "project_id",
-            "user_id"
-          ]
-        },
-        "tracker_members_project_email_unique": {
-          "name": "tracker_members_project_email_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "project_id",
-            "email"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.tracker_projects": {
-      "name": "tracker_projects",
-      "schema": "",
-      "columns": {
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "base": {
-          "name": "base",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "time_zone": {
-          "name": "time_zone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'Asia/Ho_Chi_Minh'"
-        },
-        "window_start": {
-          "name": "window_start",
+        "occurred_date": {
+          "name": "occurred_date",
           "type": "date",
           "primaryKey": false,
           "notNull": false
         },
-        "as_of": {
-          "name": "as_of",
-          "type": "timestamp with time zone",
+        "occurred_time_zone": {
+          "name": "occurred_time_zone",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "demo": {
-          "name": "demo",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "owner_member_id": {
-          "name": "owner_member_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "tracker_projects_project_fk": {
-          "name": "tracker_projects_project_fk",
-          "tableFrom": "tracker_projects",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "workspace_id",
-            "project_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "tracker_projects_owner_fk": {
-          "name": "tracker_projects_owner_fk",
-          "tableFrom": "tracker_projects",
-          "tableTo": "tracker_members",
-          "columnsFrom": [
-            "project_id",
-            "owner_member_id"
-          ],
-          "columnsTo": [
-            "project_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.tracker_queue": {
-      "name": "tracker_queue",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
+        "time_precision": {
+          "name": "time_precision",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "payload": {
-          "name": "payload",
+        "author": {
+          "name": "author",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
         },
-        "added_by_member": {
-          "name": "added_by_member",
-          "type": "uuid",
+        "recipients": {
+          "name": "recipients",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quoted_ranges": {
+          "name": "quoted_ranges",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attachment_names": {
+          "name": "attachment_names",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "permalink": {
+          "name": "permalink",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "added_by_agent": {
-          "name": "added_by_agent",
-          "type": "boolean",
+        "provenance": {
+          "name": "provenance",
+          "type": "jsonb",
           "primaryKey": false,
-          "notNull": true,
-          "default": false
+          "notNull": true
+        },
+        "evidence_revision": {
+          "name": "evidence_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
         },
         "created_at": {
           "name": "created_at",
@@ -1523,23 +901,50 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "dismissed_at": {
-          "name": "dismissed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
-        "tracker_queue_project_idx": {
-          "name": "tracker_queue_project_idx",
+        "record_versions_project_occurred_idx": {
+          "name": "record_versions_project_occurred_idx",
           "columns": [
             {
               "expression": "project_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "record_versions_project_source_digest_idx": {
+          "name": "record_versions_project_source_digest_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "digest",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
             }
           ],
           "isUnique": false,
@@ -1549,9 +954,9 @@
         }
       },
       "foreignKeys": {
-        "tracker_queue_project_fk": {
-          "name": "tracker_queue_project_fk",
-          "tableFrom": "tracker_queue",
+        "record_versions_project_fk": {
+          "name": "record_versions_project_fk",
+          "tableFrom": "record_versions",
           "tableTo": "projects",
           "columnsFrom": [
             "workspace_id",
@@ -1564,13 +969,13 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "tracker_queue_added_by_fk": {
-          "name": "tracker_queue_added_by_fk",
-          "tableFrom": "tracker_queue",
-          "tableTo": "tracker_members",
+        "record_versions_record_fk": {
+          "name": "record_versions_record_fk",
+          "tableFrom": "record_versions",
+          "tableTo": "records",
           "columnsFrom": [
             "project_id",
-            "added_by_member"
+            "record_id"
           ],
           "columnsTo": [
             "project_id",
@@ -1581,114 +986,39 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.tracker_team_members": {
-      "name": "tracker_team_members",
-      "schema": "",
-      "columns": {
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
+      "uniqueConstraints": {
+        "record_versions_record_version_unique": {
+          "name": "record_versions_record_version_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "record_id",
+            "version_no"
+          ]
         },
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "team_id": {
-          "name": "team_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "member_id": {
-          "name": "member_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "tracker_team_members_project_fk": {
-          "name": "tracker_team_members_project_fk",
-          "tableFrom": "tracker_team_members",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "workspace_id",
-            "project_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "tracker_team_members_team_fk": {
-          "name": "tracker_team_members_team_fk",
-          "tableFrom": "tracker_team_members",
-          "tableTo": "tracker_teams",
-          "columnsFrom": [
-            "project_id",
-            "team_id"
-          ],
-          "columnsTo": [
-            "project_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "tracker_team_members_member_fk": {
-          "name": "tracker_team_members_member_fk",
-          "tableFrom": "tracker_team_members",
-          "tableTo": "tracker_members",
-          "columnsFrom": [
-            "project_id",
-            "member_id"
-          ],
-          "columnsTo": [
-            "project_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "tracker_team_members_project_id_team_id_member_id_pk": {
-          "name": "tracker_team_members_project_id_team_id_member_id_pk",
+        "record_versions_project_id_unique": {
+          "name": "record_versions_project_id_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "project_id",
-            "team_id",
-            "member_id"
+            "id"
           ]
         }
       },
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.tracker_teams": {
-      "name": "tracker_teams",
+    "public.records": {
+      "name": "records",
       "schema": "",
       "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
         "workspace_id": {
           "name": "workspace_id",
           "type": "uuid",
@@ -1701,54 +1031,42 @@
           "primaryKey": false,
           "notNull": true
         },
-        "id": {
-          "name": "id",
+        "source": {
+          "name": "source",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "seq": {
-          "name": "seq",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "identity": {
-            "type": "always",
-            "name": "tracker_teams_seq_seq",
-            "schema": "public",
-            "increment": "1",
-            "startWith": "1",
-            "minValue": "1",
-            "maxValue": "2147483647",
-            "cache": "1",
-            "cycle": false
-          }
-        },
-        "name": {
-          "name": "name",
+        "external_id": {
+          "name": "external_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "lead_member_id": {
-          "name": "lead_member_id",
+        "current_version_id": {
+          "name": "current_version_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
         },
-        "created_at": {
-          "name": "created_at",
+        "withdrawn_at": {
+          "name": "withdrawn_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": false
+        },
+        "withdrawn_reason": {
+          "name": "withdrawn_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "tracker_teams_project_fk": {
-          "name": "tracker_teams_project_fk",
-          "tableFrom": "tracker_teams",
+        "records_project_fk": {
+          "name": "records_project_fk",
+          "tableFrom": "records",
           "tableTo": "projects",
           "columnsFrom": [
             "workspace_id",
@@ -1761,13 +1079,13 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "tracker_teams_lead_fk": {
-          "name": "tracker_teams_lead_fk",
-          "tableFrom": "tracker_teams",
-          "tableTo": "tracker_members",
+        "records_current_version_fk": {
+          "name": "records_current_version_fk",
+          "tableFrom": "records",
+          "tableTo": "record_versions",
           "columnsFrom": [
             "project_id",
-            "lead_member_id"
+            "current_version_id"
           ],
           "columnsTo": [
             "project_id",
@@ -1777,16 +1095,26 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {
-        "tracker_teams_project_id_id_pk": {
-          "name": "tracker_teams_project_id_id_pk",
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "records_project_source_external_unique": {
+          "name": "records_project_source_external_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "project_id",
+            "source",
+            "external_id"
+          ]
+        },
+        "records_project_id_unique": {
+          "name": "records_project_id_unique",
+          "nullsNotDistinct": false,
           "columns": [
             "project_id",
             "id"
           ]
         }
       },
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1819,12 +1147,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "avatar_key": {
-          "name": "avatar_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "created_at": {
           "name": "created_at",

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { choose, hydrated, storyCr } from './helpers';
+import { hydrated } from './helpers';
 
 test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
 
@@ -34,10 +34,6 @@ test('the project lead invites, sets grants, edits a team, removes a member and 
   await expect(row('Minh Trần')).toContainText('You');
   await expect(row('Minh Trần')).toContainText('Project lead');
   await expect(row('Minh Trần').getByRole('button', { name: /Remove/ })).toHaveCount(0);
-  await expect(row('Minh Trần').getByRole('button', { name: /Make project lead/ })).toHaveCount(0);
-  await expect(
-    row('Lan Phạm').getByRole('button', { name: /Make project lead/ }),
-  ).toHaveAccessibleName('Make project lead: Lan Phạm');
   await expect(page.getByLabel('Merge change requests: Minh Trần')).toBeDisabled();
   await expect(page.getByLabel('Merge change requests: Minh Trần')).toBeChecked();
 
@@ -53,20 +49,6 @@ test('the project lead invites, sets grants, edits a team, removes a member and 
     await expect(page.locator('.pg-error')).toHaveText(
       'members-guest@local.test is already in this project.',
     );
-    await form.getByLabel('Email').fill('a@b');
-    await form.getByRole('button', { name: 'Invite' }).click();
-    await expect(page.locator('.pg-error')).toHaveText('Invalid email address.');
-  });
-
-  await test.step('the invite is a person of the graph at once, in the Person filter', async () => {
-    await page.goto(`/projects/${projectId}/graph`);
-    await hydrated(page);
-    await page.locator('.tfilter-btn').click();
-    const panel = page.getByRole('group', { name: 'Filter the graph' });
-    await expect(panel.locator('.fchip', { hasText: 'members-guest@local.test' })).toHaveCount(1);
-    await expect(panel.locator('.fchip', { hasText: 'Sarah Kim' })).toHaveCount(1);
-    await page.goto(`/projects/${projectId}/members`);
-    await hydrated(page);
   });
 
   await test.step('grants follow their rule: a team lead keeps Create, Merge turns on its needs', async () => {
@@ -124,38 +106,6 @@ test('the project lead invites, sets grants, edits a team, removes a member and 
     await expect(row('Hà Đỗ')).toHaveCount(0);
   });
 
-  await test.step('Hà keeps the name on past work, but new work cannot go to her', async () => {
-    await page.goto(`/projects/${projectId}/graph`);
-    await hydrated(page);
-    await page.locator('.tfilter-btn').click();
-    const panel = page.getByRole('group', { name: 'Filter the graph' });
-    await expect(panel.locator('.fchip', { hasText: 'Hà Đỗ' })).toHaveCount(1);
-    await page.keyboard.press('Escape');
-    await page.locator('.p-head').getByRole('button', { name: 'New change request' }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Create', exact: true }).click();
-    await page.waitForURL(/\/changes\/\d+$/);
-    await hydrated(page);
-    await page
-      .locator('.cr-side')
-      .getByRole('button', { name: /^Queue/ })
-      .click();
-    await page.locator('.qpanel').getByRole('button', { name: 'Add' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Add to the queue' });
-    const who = dialog.getByLabel('Who');
-    await who.click();
-    await expect(page.getByRole('option', { name: 'Hà Đỗ' })).toHaveCount(0);
-    await expect(page.getByRole('option', { name: 'Lan Phạm' })).toHaveCount(1);
-    await page.keyboard.press('Escape');
-    await dialog.getByRole('button', { name: 'Work item' }).click();
-    const doneBy = dialog.getByLabel('Done by');
-    await doneBy.click();
-    await expect(page.getByRole('option', { name: 'Hà Đỗ' })).toHaveCount(0);
-    await page.keyboard.press('Escape');
-    await page.keyboard.press('Escape');
-    await page.goto(`/projects/${projectId}/members`);
-    await hydrated(page);
-  });
-
   await test.step('the invited person signs in, lands in the project and reads the page only', async () => {
     const guest = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     const other = await guest.newPage();
@@ -187,12 +137,12 @@ test('the project lead invites, sets grants, edits a team, removes a member and 
   await test.step('hand the lead to Quang: Cancel keeps it, Make project lead moves it', async () => {
     await page.reload();
     await hydrated(page);
-    await page.getByRole('button', { name: 'Make project lead: Quang Nguyễn' }).click();
+    await row('Quang Nguyễn').getByRole('button', { name: 'Make project lead' }).click();
     const confirm = page.getByRole('dialog', { name: 'Make Quang Nguyễn the project lead?' });
     await expect(confirm).toContainText('You keep every grant');
     await confirm.getByRole('button', { name: 'Cancel' }).click();
     await expect(confirm).toHaveCount(0);
-    await page.getByRole('button', { name: 'Make project lead: Quang Nguyễn' }).click();
+    await row('Quang Nguyễn').getByRole('button', { name: 'Make project lead' }).click();
     await confirm.getByRole('button', { name: 'Make project lead' }).click();
     await expect(toast).toContainText('Quang Nguyễn is the project lead now.');
     await expect(page.getByRole('form', { name: 'Invite a person' })).toHaveCount(0);
@@ -204,7 +154,7 @@ test('the project lead invites, sets grants, edits a team, removes a member and 
     await page.goto(`/projects/${projectId}/graph`);
     await hydrated(page);
     await expect(page.locator('.bbar .gowner')).toContainText('Lead: Quang Nguyễn');
-    await choose(page.getByLabel('Demo: act as'), 'Quang Nguyễn');
+    await page.getByLabel('Demo: act as').selectOption({ label: 'Quang Nguyễn' });
     await expect(page.locator('.p-head details.acct summary b')).toHaveText('Quang Nguyễn');
     await page.goto(`/projects/${projectId}/members`);
     await hydrated(page);
@@ -237,40 +187,10 @@ test('an invited person with no grant sees why the graph is closed', async ({ pa
   await other.getByRole('button', { name: /continue/i }).click();
   await other.waitForURL(new RegExp(`/projects/${projectId}/graph$`));
   await expect(other.getByRole('status')).toContainText('You cannot see Main of this project yet.');
-  await other.goto(`/projects/${projectId}/changes/${storyCr(2)}`);
+  await other.goto(`/projects/${projectId}/changes/2`);
   await expect(other.getByRole('status')).toContainText('You cannot see Main of this project yet.');
   await other.getByRole('link', { name: 'Members page' }).click();
   await other.waitForURL(/\/members$/);
   await expect(other.getByRole('table', { name: 'People' })).toContainText('Minh Trần');
   await guest.close();
-});
-
-test('a member without Create or View change requests reads Main and gets a plain refusal on a change request', async ({
-  page,
-}) => {
-  const projectId = await signIn(page, 'members-fewest');
-  const graph = `/projects/${projectId}/graph`;
-  await expect(page.getByRole('note', { name: 'Main is read-only' })).toContainText(
-    'Main is read-only. To change it, create a change request.',
-  );
-  await page.goto(`/projects/${projectId}/members`);
-  await hydrated(page);
-  for (const name of ['Create change requests', 'View change requests']) {
-    await page.getByLabel(`${name}: Khoa Lê`).click();
-    await expect(page.locator('.tk-toast')).toContainText(`Khoa Lê: ${name} off.`);
-  }
-  await page.goto(graph);
-  await hydrated(page);
-  await choose(page.getByLabel('Demo: act as'), 'Khoa Lê');
-  await expect(page.locator('.me b')).toHaveText('Khoa Lê');
-  const note = page.getByRole('note', { name: 'Main is read-only' });
-  await expect(note).toHaveText(/Main is read-only\. You can view it\./);
-  await expect(note).not.toContainText('create a change request');
-
-  await page.goto(`/projects/${projectId}/changes/${storyCr(2)}`);
-  const refusal = page.getByRole('status');
-  await expect(refusal).toContainText('You cannot view change requests in this project.');
-  await expect(refusal).not.toContainText('cannot open');
-  await refusal.getByRole('link', { name: 'Back to Main' }).click();
-  await page.waitForURL(new RegExp(`${graph}$`));
 });

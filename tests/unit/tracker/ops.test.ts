@@ -8,9 +8,7 @@ import {
   sameOp,
   type Op,
   type OpDescription,
-  secondMilestone,
 } from '../../../src/tracker/ops';
-import { mainState, type Commit } from '../../../src/tracker/clash';
 import { OpSchema, QueueEventInputSchema, TrackerStateSchema } from '../../../src/tracker/schemas';
 import {
   at,
@@ -304,7 +302,7 @@ describe('the Larkspur fixture', () => {
       'it',
     ]);
     expect(s.milestones).toHaveLength(2);
-    expect(s.workItems).toHaveLength(15);
+    expect(s.workItems).toHaveLength(14);
     expect(s.queue.events.map((e) => e.id)).toEqual(['qe1', 'qe2', 'qe3', 'qe4']);
     expect(s.queue.items.map((q) => q.id)).toEqual(['q1', 'q2']);
     expect(s.workItems.filter((w) => w.moves.length).map((w) => w.id)).toEqual(['golive', 'pg201']);
@@ -327,13 +325,6 @@ describe('applyOp', () => {
     expect(state).not.toEqual(input);
   });
 
-  it('names the person of the key, not an agent, as the adder of an event that a key queued', () => {
-    const s = larkspurState();
-    expect(s.queue.events.find((e) => e.id === 'qe3')).toMatchObject({ agent: true });
-    const { state } = applyOp(s, CASES[0][1]);
-    expect(state.events.find((e) => e.id === 'qe3')?.addedBy).toBe('minh');
-  });
-
   it('attach moves the queue event onto the work item', () => {
     const { state } = applyOp(larkspurState(), CASES[0][1]);
     expect(state.queue.events.map((e) => e.id)).toEqual(['qe1', 'qe2', 'qe4']);
@@ -343,8 +334,8 @@ describe('applyOp', () => {
       kind: 'message',
       at: at('2026-10-07T08:30'),
       by: 'sarah',
-      text: 'Sarah needs an explanation for the go-live slip before the LP call.',
-      addedBy: 'minh',
+      text: 'Sarah needs an explanation for the go-live slip before the LP call on Monday.',
+      addedBy: 'agent',
       hidden: false,
     });
     const human = applyOp(
@@ -398,9 +389,9 @@ describe('applyOp', () => {
       {
         from: '2026-09-30',
         to: '2026-10-15',
-        why: 'The CRS section is not ready. Sarah agreed to 15 October on 26 September.',
+        why: 'The CRS section is not ready. Sarah agreed to 15 October on 13 September.',
         by: 'minh',
-        at: at('2026-09-26T09:30'),
+        at: at('2026-09-12T10:40'),
       },
       { from: '2026-10-15', to: '2026-10-20', why: WHY, by: 'minh', at: at('2026-10-09T17:00') },
     ]);
@@ -547,41 +538,6 @@ describe('applyOp', () => {
     expect(applyOp(s, CASES[9][1]).state.milestones.find((m) => m.id === 'crm')?.name).toBe(
       'CRM sync live',
     );
-  });
-
-  it('refuses a new change that puts a work item in a second milestone; a move is remove then add', () => {
-    const s = larkspurState();
-    const taken =
-      'Dynamics CRM sync scope is in CRM integration live already. Remove it from that milestone first.';
-    const add = (workItemId: string, milestoneId: string) =>
-      makeOp('msAdd', { workItemId, milestoneId });
-    expect(secondMilestone(s, add('dynamics', 'golive'))).toBe(taken);
-    expect(
-      secondMilestone(
-        s,
-        makeOp('newMs', { id: 'm9', name: 'X', planned: '2026-10-20', members: ['dynamics'] }),
-      ),
-    ).toBe(taken);
-    expect(secondMilestone(s, add('pg203', 'golive'))).toBeNull();
-    expect(secondMilestone(s, add('dynamics', 'crm'))).toBeNull();
-    const removed = applyOp(s, makeOp('msRemove', { workItemId: 'dynamics' })).state;
-    expect(secondMilestone(removed, add('dynamics', 'golive'))).toBeNull();
-  });
-
-  it('replays an old merged single msAdd as a move, so history keeps its result', () => {
-    const commits: Commit[] = [
-      {
-        rev: 1,
-        crId: 'old',
-        crNum: 1,
-        mergedBy: 'minh',
-        mergedAt: at('2026-10-01T10:00'),
-        ops: [makeOp('msAdd', { workItemId: 'dynamics', milestoneId: 'golive' })],
-        resolutions: [],
-      },
-    ];
-    const main = mainState(larkspurBase(), larkspurQueueRows(), commits);
-    expect(main.workItems.find((w) => w.id === 'dynamics')?.milestoneId).toBe('golive');
   });
 
   it('addTeam appends the team', () => {

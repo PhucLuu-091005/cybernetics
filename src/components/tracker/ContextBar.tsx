@@ -28,15 +28,14 @@ export type Session = {
   tz: string;
 };
 
-const CR_STATUS: Record<CrStatus, { label: string; tone: '' | 'route' | 'ok' }> = {
+export const CR_STATUS: Record<CrStatus, { label: string; tone: '' | 'route' | 'ok' }> = {
   draft: { label: 'Draft', tone: '' },
   ready: { label: 'Ready to merge', tone: 'route' },
   merged: { label: 'Merged', tone: 'ok' },
   closed: { label: 'Closed', tone: '' },
 };
 
-export const plural = (n: number, word: string) =>
-  `${n} ${word}${n === 1 ? '' : /(s|x|ch|sh)$/.test(word) ? 'es' : 's'}`;
+export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 export const trunc = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 export const isOpen = (c: Cr) => c.status === 'draft' || c.status === 'ready';
 export const byNumDesc = (a: Cr, b: Cr) => b.num - a.num;
@@ -50,7 +49,7 @@ export function roleIn(c: Cr, memberId: string | null): 'author' | CrPermission 
   return c.shares.find((s) => s.memberId === memberId)?.permission ?? 'view';
 }
 // Share gives the right to edit; only the current editor may change the change request.
-const canEditCr = (c: Cr, memberId: string | null) =>
+export const canEditCr = (c: Cr, memberId: string | null) =>
   c.status === 'draft' && !!memberId && c.editor === memberId;
 export const editorsOf = (c: Cr) => [
   c.author,
@@ -60,7 +59,7 @@ export const clashCount = (c: Cr, commits: readonly Commit[]) =>
   isOpen(c) ? clashesOf(c.ops, commits).length : 0;
 export const myDrafts = (crs: readonly Cr[], me: string | null) =>
   crs.filter((c) => canEditCr(c, me)).sort(byNumDesc);
-const asksForMe = (crs: readonly Cr[], me: string | null) =>
+export const asksForMe = (crs: readonly Cr[], me: string | null) =>
   crs.filter((c) => isOpen(c) && !!me && c.editor === me && c.asks.length > 0);
 
 export function StatusChip({ cr }: { cr: Cr }) {
@@ -75,34 +74,10 @@ type Props = {
   busy?: boolean;
   onView: (view: TrackerView) => void;
   onDrawer: (mode: 'crs') => void;
-  review?: {
-    canMerge: boolean;
-    /** The first clash with no pick, so Merge can say what it waits for. */
-    toPick?: string | null;
-    changed: boolean;
-    onReviewAgain: () => void;
-    applying: number;
-    inMain: boolean;
-  };
+  review?: { canMerge: boolean; changed: boolean; onReviewAgain: () => void };
   /** Without it, the bar has no hidden badge. */
   hidden?: HiddenMenuProps;
-  /** Set when the server has a newer version than the screen shows. */
-  fresh?: Fresh | null;
 };
-
-type Fresh = { label: string; busy: boolean; onRefresh: () => void };
-
-/** One quiet line, as on a pull request page: the screen changes only when the person asks. */
-function FreshNotice({ fresh }: { fresh: Fresh }) {
-  return (
-    <span className="fresh" role="status">
-      <span>{fresh.label}</span> <span aria-hidden="true">·</span>{' '}
-      <button className="lnk" type="button" disabled={fresh.busy} onClick={fresh.onRefresh}>
-        Refresh
-      </button>
-    </span>
-  );
-}
 
 export const crHref = (projectId: string, num: number) => `/projects/${projectId}/changes/${num}`;
 export const mainHref = (projectId: string) => `/projects/${projectId}/graph`;
@@ -128,13 +103,13 @@ function ViewMenu({ session, cr, actions, onView, onDrawer }: Props) {
         className="vsel"
         aria-label={`View: ${cr ? `#${cr.num} ${cr.title}` : `Main, read-only, project lead ${dir.name(lead)}`}. Switch view`}
       >
-        <Icon name={cr ? 'pr' : 'lock'} size={15} />
+        {cr ? <Icon name="pr" size={15} /> : <span className="gdot" />}
         <span className="vtitle">{cr ? `#${cr.num} ${cr.title}` : 'Main'}</span>
         <Icon name="chev" size={14} />
       </summary>
       <div className="gmenu">
         <button type="button" className={view === 'main' ? 'on' : ''} onClick={() => pick('main')}>
-          <Icon name="lock" size={15} />
+          <span className="gdot" />
           <span>
             Main<small>Read-only · project lead {dir.name(lead)}</small>
           </span>
@@ -201,7 +176,6 @@ function MainBar(props: Props) {
         <span>Lead: {dir.name(lead)}</span>
       </span>
       <span className="sp" />
-      {props.fresh && <FreshNotice fresh={props.fresh} />}
       {asks.flatMap((c) =>
         c.asks.map((ask) => (
           <button
@@ -267,7 +241,7 @@ export function ContextBar(props: Props) {
   const hiddenBadge = !!props.hidden?.hidden.count && <HiddenMenu {...props.hidden} />;
   if (!c) return <MainBar {...props} />;
   const { payload, me, dir, tz } = session;
-  const n = review?.applying ?? c.ops.length;
+  const n = c.ops.length;
   const open = isOpen(c);
   const label = `Change request #${c.num}`;
   const head = (
@@ -293,8 +267,7 @@ export function ContextBar(props: Props) {
             ? `Merged into Main by ${dir.name(c.mergedBy ?? '')}${c.mergedAt ? `, ${formatStamp(c.mergedAt, tz)}` : ''}. Read-only history.`
             : `Cancelled by ${dir.name(c.closedBy ?? '')}${c.closedAt ? `, ${formatStamp(c.closedAt, tz)}` : ''}. Nothing went into Main.`}
         </span>
-        {(hiddenBadge || props.fresh) && <span className="sp" />}
-        {props.fresh && <FreshNotice fresh={props.fresh} />}
+        {hiddenBadge && <span className="sp" />}
         {hiddenBadge}
         {c.status === 'closed' && reason && (
           <p className="bnote">
@@ -327,7 +300,6 @@ export function ContextBar(props: Props) {
     tone = 'mine';
     buttons = (
       <>
-        {review?.inMain && <span className="muted">Every change is already in Main.</span>}
         {share}
         {cancel}
         <button
@@ -364,22 +336,11 @@ export function ContextBar(props: Props) {
             >
               <Icon name="pencil" /> Request changes
             </button>
-            {review?.toPick && (
-              <span className="muted merge-wait">
-                Pick a version for {trunc(review.toPick, 40)}
-              </span>
-            )}
             <button
               className="btn btn-ink"
               type="button"
               disabled={!review?.canMerge || review.changed || busy}
-              title={
-                review?.canMerge
-                  ? undefined
-                  : review?.toPick
-                    ? `Pick a version for ${review.toPick} first.`
-                    : 'Pick a version for each clash first.'
-              }
+              title={review?.canMerge ? undefined : 'Pick a version for each clash first.'}
               onClick={actions.merge}
             >
               <Icon name="merge" /> Merge into Main
@@ -444,7 +405,6 @@ export function ContextBar(props: Props) {
         </span>
       )}
       <span className="sp" />
-      {props.fresh && <FreshNotice fresh={props.fresh} />}
       {buttons}
       {hiddenBadge}
       {review?.changed && (
@@ -477,22 +437,16 @@ export function ContextBar(props: Props) {
 }
 
 export function MainNotice({
-  canCreate,
   onClose,
   onNeverAgain,
 }: {
-  canCreate: boolean;
   onClose: () => void;
   onNeverAgain: () => void;
 }) {
   return (
     <div className="ro-note" role="note" aria-label="Main is read-only">
       <Icon name="lock" size={15} />
-      <p>
-        {canCreate
-          ? 'Main is read-only. To change it, create a change request.'
-          : 'Main is read-only. You can view it.'}
-      </p>
+      <p>Main is read-only. To change it, create a change request.</p>
       <span className="ro-acts">
         <button className="lnk" type="button" onClick={onNeverAgain}>
           Don&apos;t show again

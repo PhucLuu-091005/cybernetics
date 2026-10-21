@@ -70,32 +70,6 @@ describe('google sign-in', () => {
     );
     expect(cookies).toMatch(/pg_oauth_verifier=/);
   });
-  it('keeps the link the person opened through the Google round trip, and only a path of this app', async () => {
-    const link = '/projects/4f0c2a52-31a8-4b0f-9a57-0f1d3c9a2b11/changes/2';
-    const start = startGoogleSignIn(env, client({}), link);
-    expect(start.headers.getSetCookie()).toContain(
-      `pg_oauth_next=${encodeURIComponent(link)}; HttpOnly; SameSite=Lax; Path=/api/auth; Max-Age=600; Secure`,
-    );
-    expect(startGoogleSignIn(env, client({})).headers.getSetCookie()).toContain(
-      'pg_oauth_next=; HttpOnly; SameSite=Lax; Path=/api/auth; Max-Age=0; Secure',
-    );
-    const back = (next: string) =>
-      completeGoogleSignIn(
-        callback(undefined, `pg_oauth_state=good; pg_oauth_verifier=v; pg_oauth_next=${next}`),
-        env,
-        memoryStore(),
-        client(valid()),
-        now,
-      );
-    const landed = await back(encodeURIComponent(link));
-    expect(landed.status).toBe(303);
-    expect(landed.headers.get('location')).toBe(link);
-    expect(landed.headers.getSetCookie().join('\n')).toMatch(
-      /pg_oauth_next=; HttpOnly; .*Max-Age=0/,
-    );
-    for (const foreign of ['%2F%2Fevil.example', 'https%3A%2F%2Fevil.example', '%E0%A4%A'])
-      expect((await back(foreign)).headers.get('location')).toBe('/');
-  });
   it('rejects a callback whose state does not match the cookie', async () => {
     const store = memoryStore();
     const response = await completeGoogleSignIn(

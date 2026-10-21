@@ -18,7 +18,7 @@ Promise Graph is an event tracker for a whole project. Each team has rows of wor
 
 ## Stack and where things live
 
-Next.js 16 (App Router), React 19, TypeScript, PostgreSQL 17 with Drizzle, Zod, Vitest, Playwright, plain CSS with tokens.
+Next.js 16 (App Router), React 19, TypeScript, PostgreSQL 17 with Drizzle, Zod, Vitest, Playwright, plain CSS with tokens (Tailwind 4 is installed but the UI uses CSS classes).
 
 | Path | What it holds |
 |---|---|
@@ -29,11 +29,11 @@ Next.js 16 (App Router), React 19, TypeScript, PostgreSQL 17 with Drizzle, Zod, 
 | `src/server/` (other) | `db/` (Drizzle schema, migrations, client), `http/` (route helper, sessions, rate limits, scopes), `domain/` (projects, tokens), `mcp/` (MCP server and tools). |
 | `src/app/` | Routes. Pages under `(app)/projects/[id]/` (`graph`, `changes/[num]`, `settings`). REST under `api/v1/projects/[projectId]/tracker/**`. MCP endpoint at `mcp/route.ts`. Global CSS: `globals.css`, `shell.css`. |
 | `tests/` | `unit/` (pure code), `integration/` (real Postgres), `e2e/` (Playwright), `support/` (test databases and fixtures). |
-| `docs/` | Spec, design option pages (`docs/design/`), design system, deploy guide, MCP recipe, README screenshot. |
+| `docs/` | Spec, plans, design option pages (`docs/design/`), design system, MCP recipe, README screenshots. |
 
 ## Skills
 
-The repository has 4 skills in `.claude/skills/`. Each one holds the steps and a script for a job that every task repeats. Use them before you write the same steps by hand.
+The repository has 5 skills in `.claude/skills/`. Each one holds the steps and a script for a job that every task repeats. Use them before you write the same steps by hand.
 
 | Skill | Use it to |
 |---|---|
@@ -41,6 +41,7 @@ The repository has 4 skills in `.claude/skills/`. Each one holds the steps and a
 | `et-gates` | Run every gate with real exit codes and the test counts. |
 | `et-ui-qa` | Take light and dark screenshots at 1440 px and 390 px, and measure scroll, dashed lines and page errors. |
 | `et-option-page` | Build an HTML option page for a question that the owner decides. |
+| `et-qa` | Run a QA pass at a chosen scope (no argument: full QA with gates, every area, a demo video and an HTML report in Vietnamese). |
 
 ## Commands
 
@@ -86,7 +87,6 @@ $B/prettier --check . > "$LOG/prettier.log" 2>&1; echo "prettier rc=$?"
 node scripts/check-no-model-dependencies.mjs > "$LOG/providers.log" 2>&1; echo "providers rc=$?"
 TEST_DATABASE_URL=$ADMIN $B/vitest run > "$LOG/vitest.log" 2>&1; echo "vitest rc=$?"
 TEST_DATABASE_URL=$ADMIN E2E_PORT=<free port> $B/playwright test > "$LOG/e2e.log" 2>&1; echo "e2e rc=$?"
-TEST_DATABASE_URL=$ADMIN E2E_PORT=<free port> $B/playwright test -c playwright.demo.config.ts > "$LOG/e2e-demo.log" 2>&1; echo "e2e-demo rc=$?"
 ```
 
 - Never pipe a gate into `tail` or `grep` before you take `$?`. The pipe returns the status of the last command, so a failed suite reads as green.
@@ -154,7 +154,8 @@ cp -cR <base checkout>/node_modules <scratch dir>/<task>/
 | File | Update it when |
 |---|---|
 | `docs/superpowers/specs/2026-10-16-event-tracker-design.md` | The owner rules a change of behaviour or look. Edit the decision in place. |
+| `docs/superpowers/plans/2026-10-16-event-tracker.md` | The task list changes. |
 | `.superpowers/sdd/2026-10-16-event-tracker/progress.md` | After each task, review or ruling: one line with the branch, commits, gate counts, and each ruling as "Ruling: <decision>, why: <reason>, cost if wrong: <cost>". The folder is gitignored and lives in the controller's checkout; task briefs and reports sit next to the ledger. |
 | `docs/design-system.md` and `docs/design/design-system.html` | A token, a component or a graph mark changes. |
-| `README.md` | A user-visible flow changes. Take the README screenshot again when the UI changes. |
+| `README.md` | A user-visible flow changes. Take the screenshots again when the UI changes. |
 | `docs/mcp-agent-recipe.md` | An MCP tool or scope changes. |

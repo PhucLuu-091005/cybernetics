@@ -14,7 +14,6 @@ import {
   findProjectForActor,
   isId,
   joinTransaction,
-  keyReaches,
   projectOpenTo,
   withTransaction,
   type Db,
@@ -38,8 +37,8 @@ const EmptyProjectInputSchema = CreateProjectInputSchema.extend({
   teams: ProjectTeamsSchema,
   milestone: FirstMilestoneSchema,
 });
-type CreateProjectInput = z.input<typeof CreateProjectInputSchema>;
-const toProject = (row: ProjectRow): Project => ({
+export type CreateProjectInput = z.input<typeof CreateProjectInputSchema>;
+export const toProject = (row: ProjectRow): Project => ({
   id: row.id,
   workspaceId: row.workspaceId,
   title: row.title,
@@ -130,8 +129,7 @@ export async function listProjects(db: Db, ctx: ActorContext): Promise<Project[]
     .where(
       and(
         projectOpenTo(ctx.userId),
-        keyReaches(ctx),
-        ctx.kind === 'agent' && ctx.projectId ? eq(projects.id, ctx.projectId) : undefined,
+        ctx.kind === 'agent' ? eq(projects.id, ctx.projectId) : undefined,
       ),
     )
     .orderBy(asc(projects.createdAt), asc(projects.id));

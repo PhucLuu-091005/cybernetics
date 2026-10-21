@@ -1,24 +1,6 @@
 .app {
   grid-template-columns: auto minmax(0, 1fr);
 }
-/* The rail is sticky and one screen high; this column paints its fill and line down a long page. */
-@media (min-width: 761px) {
-  .app::before {
-    content: '';
-    grid-area: 1 / 1;
-    background: var(--sunk);
-    border-right: 1px solid var(--rule);
-  }
-  /* Above the main area, so a rail popover that is wider than the rail stays whole. */
-  .app > .rail {
-    grid-area: 1 / 1;
-    align-self: start;
-    z-index: 60;
-  }
-  .app > .main {
-    grid-area: 1 / 2;
-  }
-}
 .rail {
   box-sizing: border-box;
   width: 212px;
@@ -208,8 +190,7 @@
 .proj-new button:hover:not(:disabled) {
   background: var(--hover);
 }
-.new-project,
-.sheet-dialog {
+.new-project {
   box-sizing: border-box;
   width: min(420px, calc(100vw - 32px));
   max-width: none;
@@ -220,47 +201,8 @@
   color: var(--ink);
   box-shadow: var(--shadow-lg);
 }
-.new-project::backdrop,
-.sheet-dialog::backdrop {
+.new-project::backdrop {
   background: var(--scrim);
-}
-.sheet-dialog h2 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 8px;
-  font-size: 15px;
-}
-.sheet-dialog p,
-.sheet-dialog li {
-  margin: 0;
-  color: var(--ink-2);
-  font-size: var(--fs);
-  line-height: 1.5;
-}
-.sheet-dialog b {
-  color: var(--ink);
-  font-weight: 600;
-}
-.sheet-dialog-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 18px;
-}
-.demo-intro {
-  width: min(460px, calc(100vw - 32px));
-}
-.demo-intro .demo-intro-lead {
-  color: var(--ink);
-}
-.demo-intro ul {
-  display: grid;
-  gap: 6px;
-  margin: 14px 0 0;
-  padding: 12px 0 0 18px;
-  border-top: 1px solid var(--rule-2);
 }
 .new-project form {
   display: grid;
@@ -468,11 +410,6 @@
   font-size: var(--fs-xs);
   font-weight: 400;
 }
-.acct-note {
-  margin: 2px 6px 4px;
-  color: var(--ink-3);
-  font-size: var(--fs-xs);
-}
 .acct-label {
   margin: 4px 6px 6px;
   color: var(--ink-3);
@@ -511,7 +448,6 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  text-decoration: none;
   width: 100%;
   min-height: 32px;
   padding: 6px 8px;
@@ -541,18 +477,15 @@
 
 .tk.pg {
   min-height: 100vh;
-}
-/* One page frame for every page: the same 52 px top bar and the same side padding (--page-x) on the
-   graph, a change request, Members and Settings; the body fills the width beside the rail. */
-.tk {
-  --page-x: 24px;
+  --pg-max: 1200px;
+  /* The head and the body share one centred column, so a wide screen keeps both in balance. */
+  --pg-gutter: max(24px, calc((100% - var(--pg-max)) / 2 + 24px));
 }
 .tk .p-head.pg-head {
   gap: 12px;
-  padding: 10px var(--page-x);
+  padding: 10px var(--pg-gutter);
 }
 .tk .pg-head h1 {
-  flex: none;
   font-size: 15px;
   font-weight: 600;
 }
@@ -565,189 +498,92 @@
   white-space: nowrap;
 }
 .tk .pg-body {
+  box-sizing: border-box;
   width: 100%;
-  padding: 24px var(--page-x) 56px;
+  padding: 24px var(--pg-gutter) 56px;
+}
+.tk .pg-aside > .pg-sec:first-of-type {
+  padding-top: 22px;
+  border-top: 1px solid var(--rule);
 }
 @media (min-width: 1180px) {
   .tk .pg-split {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
     gap: 0 48px;
     align-items: start;
+  }
+  .tk .pg-split > .pg-lede {
+    grid-column: 1 / -1;
   }
   .tk .pg-aside {
     position: sticky;
     top: 24px;
+    padding-left: 48px;
+    margin-left: -48px;
+    border-left: 1px solid var(--rule-2);
+  }
+  .tk .pg-aside > .pg-sec:first-of-type {
+    padding-top: 0;
+    border-top: 0;
   }
 }
-@media (max-width: 1179px) {
-  .tk .pg-aside {
-    margin-top: 36px;
-  }
+.tk .pg-lede {
+  max-width: 640px;
+  margin: 0 0 18px;
+  color: var(--ink-2);
 }
-/* Sections stand apart by space, as on Members; the rows inside carry the hairlines. */
-.tk .pg-sec + .pg-sec {
-  margin-top: 36px;
+.tk .pg-sec {
+  padding: 22px 0;
+  border-top: 1px solid var(--rule);
+}
+.tk .pg-sec:first-of-type {
+  padding-top: 0;
+  border-top: 0;
 }
 .tk .pg-sec h2 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   margin: 0 0 4px;
   font-size: var(--fs);
   font-weight: 600;
 }
-.tk .pg-count {
-  color: var(--ink-3);
-  font-size: var(--fs-s);
-  font-weight: 500;
-}
-.tk .pg-lede,
-.tk .pg-sec > p {
-  max-width: 640px;
-  margin: 0 0 14px;
+.tk .pg-sec > p,
+.tk .pg-hint,
+.tk .pg-note {
+  margin: 0;
   color: var(--ink-2);
   font-size: var(--fs-s);
 }
 .tk .pg-hint {
   flex-basis: 100%;
-  max-width: 640px;
-  margin: 0;
   color: var(--ink-3);
   font-size: var(--fs-xs);
+}
+.tk .pg-note {
+  margin-bottom: 14px;
 }
 .tk .pg-error {
   margin: 10px 0 0;
   color: var(--danger-ink);
   font-size: var(--fs-s);
 }
-.tk .pg-sec-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 4px;
-}
-.tk .pg-sec-head h2 {
-  margin: 0;
-}
-.tk .pg-facts {
-  display: grid;
-  grid-template-columns: 140px minmax(0, 1fr);
-  margin: 10px 0 0;
-  border-top: 1px solid var(--rule-2);
-  font-size: var(--fs-s);
-}
-.tk .pg-facts dt,
-.tk .pg-facts dd {
-  margin: 0;
-  padding: 9px 0;
-  border-bottom: 1px solid var(--rule-2);
-}
-.tk .pg-facts dt {
-  color: var(--ink-3);
-}
-.tk .pg-facts dd {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.tk .pg-facts small {
-  display: block;
-  color: var(--ink-3);
-  font-size: var(--fs-xs);
-}
-
-/* Token rows: the Members row style, a hairline under each row and a quiet column head. */
-.tk .pg-tokens {
-  border-top: 1px solid var(--rule);
-  font-size: var(--fs-s);
-}
-.tk .pg-trow {
-  display: grid;
-  grid-template-columns: minmax(120px, 1fr) minmax(120px, 1.4fr) 92px 104px minmax(72px, auto);
-  align-items: center;
-  gap: 12px;
-  min-height: 52px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--rule-2);
-}
-.tk .pg-trow.pg-cols {
-  min-height: 0;
-  border-bottom: 1px solid var(--rule);
-  color: var(--ink-3);
-  font-size: var(--fs-xs);
-  font-weight: 500;
-}
-.tk .pg-trow.inactive > :not(.pg-tacts) {
-  opacity: 0.55;
-}
-.tk .pg-tname,
-.tk .pg-tperm {
-  min-width: 0;
-}
-.tk .pg-token {
-  display: block;
-  overflow: hidden;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tk .pg-tperm {
-  color: var(--ink-2);
-}
-.tk .pg-cap {
-  display: none;
-}
-.tk .pg-tacts {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-.tk .pg-empty {
-  padding: 14px 0;
-  border-bottom: 1px solid var(--rule-2);
-  color: var(--ink-3);
-}
-.tk .pg-acts {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-.tk .pg-status {
-  color: var(--ink-3);
-  font-size: var(--fs-xs);
-}
-
-/* Create a token: a readable column, left-aligned. */
-.tk .pg-create {
-  display: grid;
-  justify-items: start;
-  gap: 14px;
-  max-width: 760px;
-}
-.tk .pg-create h2 {
-  margin: 0;
-}
 .tk .pg-form {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 8px 12px;
-  width: 100%;
+  gap: 8px 10px;
+  margin-bottom: 18px;
 }
 .tk .pg-form .field {
   margin-top: 0;
 }
 .tk .pg-grow {
-  flex: 1 1 260px;
+  flex: 1 1 240px;
+  max-width: 420px;
 }
-.tk .pg-expiry {
-  flex: 0 1 240px;
-  min-width: 0;
-}
-.tk.pg .field input {
+.tk.pg select,
+.tk.pg .field input,
+.tk.pg .field textarea {
+  box-sizing: border-box;
   min-height: 32px;
   border: 1px solid var(--rule);
   border-radius: var(--r-ctl);
@@ -756,6 +592,126 @@
   padding: 5px 10px;
   font: var(--fs-s) var(--f-ui);
 }
+.tk.pg select {
+  padding-right: 6px;
+}
+.tk .pg-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule-2);
+}
+.tk .pg-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule-2);
+}
+.tk .acct-av.pending {
+  background: var(--gray-bg);
+  color: var(--ink-2);
+}
+.tk .pg-who {
+  flex: 1;
+  min-width: 0;
+}
+.tk .pg-who b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs);
+  font-weight: 600;
+}
+.tk .pg-who b,
+.tk .pg-who small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tk .pg-who small {
+  display: block;
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+}
+.tk .pg-role-text {
+  color: var(--ink-2);
+  font-size: var(--fs-s);
+}
+.tk .pg-sec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.tk .pg-sec-head h2 {
+  margin: 0;
+}
+.tk .pg-scroll {
+  overflow-x: auto;
+}
+.tk .pg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-s);
+}
+.tk .pg-table th {
+  padding: 8px 12px 8px 0;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+.tk .pg-table td {
+  padding: 10px 12px 10px 0;
+  border-bottom: 1px solid var(--rule-2);
+  vertical-align: top;
+}
+.tk .pg-table td:last-child,
+.tk .pg-table th:last-child {
+  padding-right: 0;
+  text-align: right;
+}
+.tk .pg-table td[colspan] {
+  color: var(--ink-3);
+  text-align: left;
+}
+.tk .pg-table tr.inactive {
+  opacity: 0.55;
+}
+.tk .pg-token {
+  display: block;
+  font-weight: 600;
+}
+.tk .pg-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.tk .pg-table .pg-acts {
+  justify-content: flex-end;
+}
+.tk .pg-status {
+  color: var(--ink-3);
+  font-size: var(--fs-xs);
+}
+.tk .pg-create {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+}
+.tk .pg-create h2,
+.tk .pg-create .pg-form {
+  margin: 0;
+}
+.tk .pg-create .pg-form {
+  width: 100%;
+}
 .tk .pg-scopes {
   width: 100%;
   margin: 0;
@@ -763,68 +719,39 @@
   border: 0;
 }
 .tk .pg-scopes legend {
-  margin-bottom: 2px;
+  margin-bottom: 4px;
   padding: 0;
   color: var(--ink-2);
   font-size: var(--fs-xs);
   font-weight: 500;
 }
-.tk .pg-all {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 10px;
-  padding: 10px 0;
-  border-top: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
-  font-size: var(--fs-s);
-}
-.tk .pg-group h3 {
-  margin: 0;
-  padding: 14px 0 4px;
-  color: var(--ink-3);
-  font-size: var(--fs-xs);
-  font-weight: 500;
-}
-.tk .pg-warn {
-  margin: 0;
-  padding-bottom: 4px;
-  color: var(--ink-2);
-  font-size: var(--fs-xs);
-}
 .tk .pg-scope {
+  display: flex;
   align-items: flex-start;
   gap: 10px;
   padding: 9px 0;
   border-bottom: 1px solid var(--rule-2);
   font-size: var(--fs-s);
+  cursor: pointer;
 }
-.tk .pg-scope .cbx {
-  margin-top: 2px;
+.tk .pg-scope:first-of-type {
+  border-top: 1px solid var(--rule-2);
 }
-.tk .pg-scope-text {
-  min-width: 0;
+.tk .pg-scope input {
+  margin-top: 3px;
+  accent-color: var(--ink);
 }
 .tk .pg-scope small {
   display: block;
   color: var(--ink-3);
   font-size: var(--fs-xs);
 }
-.tk .pg-scope.off b,
-.tk .pg-scope.off .id {
-  color: var(--ink-3);
-}
-.tk .pg-scope .pg-why {
-  color: var(--ink-2);
-}
 .tk .pg-secret {
   display: grid;
   gap: 10px;
   width: 100%;
-  padding: 14px 0;
-  border-top: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
+  padding-top: 12px;
+  border-top: 1px solid var(--rule-2);
 }
 .tk .pg-secret p {
   margin: 0;
@@ -844,101 +771,30 @@
   border-radius: var(--r-ctl);
   background: var(--sunk);
   font: 12px/1.55 var(--f-id);
-  /* A hidden scroll bar made the service address look cut; Copy config copies the unwrapped JSON. */
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-@media (max-width: 1100px) {
-  .tk .pg-trow {
-    grid-template-columns: minmax(140px, 1fr) minmax(140px, 1.4fr) 110px 110px;
-  }
-  .tk .pg-trow > .pg-tacts {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-  }
-  .tk .pg-trow.pg-cols > :last-child {
-    display: none;
-  }
+  overflow: auto;
 }
 @media (max-width: 760px) {
-  .tk {
-    --page-x: 16px;
+  .tk.pg {
+    --pg-gutter: 16px;
   }
   .tk .p-head.pg-head {
-    padding: 8px var(--page-x);
+    padding: 8px var(--pg-gutter);
   }
   .tk .pg-proj {
     flex-basis: 100%;
     order: 3;
   }
   .tk .pg-body {
-    padding: 16px var(--page-x) 40px;
+    padding: 16px var(--pg-gutter) 40px;
   }
-  .tk .pg-trow {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 4px 12px;
-    padding: 12px 0;
+  .tk .pg-row {
+    flex-wrap: wrap;
   }
-  .tk .pg-trow.pg-cols {
-    display: none;
+  .tk .pg-who {
+    flex-basis: calc(100% - 40px);
   }
-  .tk .pg-trow > .pg-tname,
-  .tk .pg-trow > .pg-tperm {
-    grid-column: 1 / -1;
+  .tk .pg-row .pg-role,
+  .tk .pg-row .pg-role-text {
+    margin-left: 40px;
   }
-  .tk .pg-cap {
-    display: block;
-    color: var(--ink-3);
-    font-size: var(--fs-xs);
-  }
-  .tk .pg-facts {
-    grid-template-columns: 96px minmax(0, 1fr);
-  }
-}
-
-/* A photo keeps the size and the round shape of the initials it replaces. */
-.ph-img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  object-fit: cover;
-}
-.tk .pf-photo,
-.tk .pf-pick {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.tk .pf-pick {
-  margin: 4px 0 4px;
-}
-.tk .pf-photo-text,
-.tk .pf-pick-text {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  min-width: 0;
-}
-.tk .pf-photo-text .pg-lede,
-.tk .pf-photo-text .pg-error,
-.tk .pf-pick-text .pg-error {
-  margin: 0;
-}
-.tk .pf-pick-text small {
-  overflow-wrap: anywhere;
-}
-.tk .pf-face {
-  display: grid;
-  flex: none;
-  width: 96px;
-  height: 96px;
-  overflow: hidden;
-  border-radius: 50%;
-}
-.tk .pf-face svg {
-  display: block;
-  fill: #fff;
-  font: 600 11px var(--f-ui);
 }

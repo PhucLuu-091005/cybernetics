@@ -1,16 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createHash, randomUUID } from 'node:crypto';
-import type { Creator, Scope } from '../../../src/contracts';
+import type { Scope } from '../../../src/contracts';
 import { createIdentityServices } from '../../../src/server/http/actors';
 import { createTokenService } from '../../../src/server/domain/tokens/service';
 import { signSession } from '../../../src/server/http/session';
 import type { AuthEnvironment } from '../../../src/server/env';
 import { memoryStore } from './test-store';
 const now = Date.parse('2026-10-13T00:00:00Z');
-const LEAD: Creator = {
-  member: true,
-  rights: { viewMain: true, create: true, merge: true, manage: true },
-};
 const env: AuthEnvironment = {
   mode: 'local',
   appOrigin: 'http://localhost:3000',
@@ -36,11 +32,7 @@ async function setup() {
     scopes: ['project:read' as const, 'queue:add' as const],
     requestId: 'test',
   };
-  const tokens = createTokenService(
-    store,
-    async () => LEAD,
-    () => now,
-  );
+  const tokens = createTokenService(store, () => now);
   const request = (secret?: string, method = 'GET') =>
     new Request(`${env.appOrigin}/api/projects/${projectId}`, {
       method,
@@ -196,11 +188,7 @@ describe('hashed project agent tokens', () => {
       idempotencyKey: 'revoke-once',
     };
     const result = await s.tokens.revokeToken(s.ctx, input);
-    const later = createTokenService(
-      s.store,
-      async () => LEAD,
-      () => now + 60_000,
-    );
+    const later = createTokenService(s.store, () => now + 60_000);
     const retried = await later.revokeToken(s.ctx, input);
     expect(result).toMatchObject({
       projectId: s.projectId,
@@ -489,173 +477,5 @@ describe('last call of a token', () => {
     await s.call();
     const listed = await s.tokens.listTokens(s.ctx, { projectId: s.projectId });
     expect(listed.items[0].lastUsedAt).toBe('2026-10-13T00:00:00.000Z');
-  });
-});
-
-describe('token creation and the rights of the creator today', () => {
-  const writer: Creator = {
-    member: true,
-    rights: { viewMain: true, create: true, merge: false, manage: false },
-  };
-  const reader: Creator = {
-    member: false,
-    rights: { viewMain: true, create: false, merge: false, manage: false },
-  };
-  it('refuses a scope whose right the creator does not hold, with the reason the page shows', async () => {
-    const s = await setup();
-    const tokens = createTokenService(
-      s.store,
-      async () => writer,
-      () => now,
-    );
-    const base = { projectId: s.projectId, label: 'Agent' };
-    await expect(
-      tokens.createToken(s.ctx, {
-        ...base,
-        scopes: ['project:read', 'crs:merge'],
-        idempotencyKey: 'merge',
-      }),
-    ).rejects.toMatchObject({
-      code: 'VALIDATION',
-      message: 'You do not have the Merge right in this project',
-      extras: { errors: [{ path: 'scopes', message: expect.stringContaining('crs:merge') }] },
-    });
-    const ok = await tokens.createToken(s.ctx, {
-      ...base,
-      scopes: ['crs:edit'],
-      idempotencyKey: 'edit',
-    });
-    expect(ok.token.scopes).toEqual(['crs:edit']);
-  });
-  it('gives a token without scopes the default scopes that the creator may give', async () => {
-    const s = await setup();
-    const tokens = createTokenService(
-      s.store,
-      async () => reader,
-      () => now,
-    );
-    const made = await tokens.createToken(s.ctx, {
-      projectId: s.projectId,
-      label: 'Reader agent',
-      idempotencyKey: 'reader',
-    });
-    expect(made.token.scopes).toEqual(['project:read']);
-    await expect(
-      tokens.createToken(s.ctx, {
-        projectId: s.projectId,
-        label: 'Reader agent',
-        scopes: ['queue:add'],
-        idempotencyKey: 'reader-queue',
-      }),
-    ).rejects.toMatchObject({
-      code: 'VALIDATION',
-      message: 'Only members of the project can do this',
-    });
-  });
-});
-describe('personal keys', () => {
-  const personalRequest = (secret: string, path = '/mcp') =>
-    new Request(`${env.appOrigin}${path}`, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${secret}` },
-    });
-  it('opens no project until a call names one, and then only a project its person can open', async () => {
-    const s = await setup();
-    const created = await s.tokens.createPersonalKey(s.ctx, {
-      label: 'Laptop',
-      idempotencyKey: 'p1',
-    });
-    expect(created.token).toMatchObject({
-      kind: 'personal',
-      projectId: null,
-      scopes: ['project:read', 'queue:add'],
-    });
-    await expect(
-      s.services.getTokenActor(personalRequest(created.secret), null),
-    ).resolves.toMatchObject({
-      kind: 'agent',
-      key: 'personal',
-      keyLabel: 'Laptop',
-      projectId: null,
-    });
-    await expect(
-      s.services.getTokenActor(
-        personalRequest(created.secret, `/api/projects/${s.projectId}`),
-        null,
-      ),
-    ).resolves.toMatchObject({ projectId: s.projectId, workspaceId: s.workspaceId });
-    const foreign = randomUUID();
-    s.store.projects.set(foreign, { workspaceId: randomUUID() });
-    await expect(
-      s.services.getTokenActor(personalRequest(created.secret, `/api/projects/${foreign}`), null),
-    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
-  });
-  it('asks the creator rights across all projects, and refuses agents', async () => {
-    const s = await setup();
-    const asked: Array<string | null> = [];
-    const tokens = createTokenService(
-      s.store,
-      async (_ctx, projectId) => {
-        asked.push(projectId);
-        return {
-          member: true,
-          rights: { viewMain: true, create: true, merge: false, manage: false },
-        };
-      },
-      () => now,
-    );
-    await expect(
-      tokens.createPersonalKey(s.ctx, { label: 'L', scopes: ['crs:merge'], idempotencyKey: 'm' }),
-    ).rejects.toMatchObject({
-      code: 'VALIDATION',
-      message: 'You do not have the Merge right in any of your projects',
-    });
-    expect(asked).toEqual([null]);
-    const created = await tokens.createPersonalKey(s.ctx, {
-      label: 'L',
-      scopes: ['crs:edit'],
-      idempotencyKey: 'e',
-    });
-    const actor = await s.services.getTokenActor(personalRequest(created.secret), null);
-    await expect(
-      tokens.createPersonalKey(actor, { label: 'Up', idempotencyKey: 'up' }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    await expect(tokens.listPersonalKeys(actor, {})).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    await expect(
-      tokens.revokePersonalKey(actor, { tokenId: created.token.id, idempotencyKey: 'r' }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    expect((await tokens.listPersonalKeys(s.ctx, {})).items.map((key) => key.id)).toEqual([
-      created.token.id,
-    ]);
-  });
-});
-describe('photo reads', () => {
-  it('count against their own larger limit, so a page of avatars leaves the read limit alone', async () => {
-    const s = await setup();
-    const photo = () =>
-      s.services.getBrowserActor(
-        new Request(`${env.appOrigin}/api/v1/avatars/x/y`, { headers: s.request().headers }),
-        'photo',
-      );
-    for (let i = 0; i < 1200; i++) await photo();
-    await expect(photo()).rejects.toMatchObject({ code: 'RATE_LIMITED' });
-    await expect(s.services.getBrowserActor(s.request())).resolves.toMatchObject({
-      kind: 'user',
-    });
-  });
-});
-describe('version checks', () => {
-  it('count against their own light limit, so open tabs leave the read limit alone', async () => {
-    const s = await setup();
-    const check = () =>
-      s.services.getBrowserActor(
-        new Request(`${env.appOrigin}/api/v1/me/keys`, { headers: s.request().headers }),
-        'poll',
-      );
-    for (let i = 0; i < 60; i++) await check();
-    await expect(check()).rejects.toMatchObject({ code: 'RATE_LIMITED' });
-    await expect(s.services.getBrowserActor(s.request())).resolves.toMatchObject({
-      kind: 'user',
-    });
   });
 });

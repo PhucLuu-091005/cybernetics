@@ -20,7 +20,7 @@ export const PageInputSchema = z.strictObject({
   cursor: z.string().max(4096).nullable().optional(),
   limit: z.number().int().min(1).max(50).default(50),
 });
-const ErrorCodeSchema = z.enum([
+export const ErrorCodeSchema = z.enum([
   'UNAUTHENTICATED',
   'FORBIDDEN',
   'NOT_FOUND',
@@ -30,7 +30,7 @@ const ErrorCodeSchema = z.enum([
   'LIMIT_EXCEEDED',
   'INTERNAL',
 ]);
-const FieldErrorSchema = z.strictObject({ path: z.string(), message: TextSchema });
+export const FieldErrorSchema = z.strictObject({ path: z.string(), message: TextSchema });
 export const DomainErrorSchema = z.strictObject({
   code: ErrorCodeSchema,
   message: TextSchema,

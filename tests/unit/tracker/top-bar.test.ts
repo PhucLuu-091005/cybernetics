@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { makeDirectory } from '../../../src/components/tracker/avatar';
 import type { Session } from '../../../src/components/tracker/ContextBar';
 import { ContextBar } from '../../../src/components/tracker/ContextBar';
-import { demoPeople, TopBar } from '../../../src/components/tracker/TopBar';
+import { TopBar } from '../../../src/components/tracker/TopBar';
 import { NO_ACTIONS } from '../../../src/components/tracker/TrackerScreen';
 import type { HiddenList } from '../../../src/components/tracker/view-state';
 import { NO_FILTER, type RowFilter } from '../../../src/tracker/filter';
@@ -20,7 +20,6 @@ const members: Member[] = [
     color: '#111',
     userId: 'u1',
     active: true,
-    removed: false,
     grants: DEFAULT_GRANTS,
   },
   {
@@ -30,7 +29,6 @@ const members: Member[] = [
     color: '#222',
     userId: null,
     active: true,
-    removed: false,
     grants: DEFAULT_GRANTS,
   },
   {
@@ -40,7 +38,6 @@ const members: Member[] = [
     color: '#333',
     userId: null,
     active: false,
-    removed: true,
     grants: DEFAULT_GRANTS,
   },
   {
@@ -50,7 +47,6 @@ const members: Member[] = [
     color: '#444',
     userId: 'u2',
     active: true,
-    removed: false,
     grants: DEFAULT_GRANTS,
   },
 ];
@@ -111,7 +107,6 @@ function sessionOf(me: Member | null, crs: Cr[] = []): Session {
     queue,
     commits: [],
     crs,
-    version: 'v',
   };
   return {
     projectId: 'p1',
@@ -217,30 +212,16 @@ describe('TopBar', () => {
 
   it('lists only the seeded members who can act and your own member in the Demo select', () => {
     const html = render(members[1]);
-    expect(html).toContain('aria-label="Demo: act as"');
-    expect(html).toContain(
-      '<span class="sel-val">Lan Phạm<small class="sel-hint" aria-hidden="true">Lead</small></span>',
-    );
-    const names = demoPeople(members, 'u1').map((option) => option.label);
-    expect(names).toContain('Lan Phạm');
-    expect(names).toContain('Minh Trần');
-    expect(names).not.toContain('Bảo Ngô');
-    expect(names).not.toContain('Mai Vũ');
+    expect(html).toContain('>Lan Phạm</option>');
+    expect(html).not.toContain('Bảo Ngô</option>');
+    expect(html).not.toContain('Mai Vũ</option>');
+    expect(html).toContain('>Minh Trần</option>');
   });
 
-  it('gives each person of the Demo select their project role as a quiet hint', () => {
-    expect(demoPeople(members, 'u1')).toEqual([
-      { value: 'minh', label: 'Minh Trần', hint: 'Owner' },
-      { value: 'lan', label: 'Lan Phạm', hint: 'Lead' },
-    ]);
-    const roleless = demoPeople([{ ...members[3], userId: 'u2' }], 'u2');
-    expect(roleless).toEqual([{ value: 'mai', label: 'Mai Vũ', hint: undefined }]);
-  });
-
-  it('opens a menu with Profile, the theme and Sign out from the acting member, or from the signed-in person', () => {
+  it('opens a menu with the theme and Sign out from the acting member, or from the signed-in person', () => {
     const html = render(members[1]);
     expect(html).toMatch(
-      /<details class="acct me"><summary aria-label="Lan Phạm: profile, theme and sign out"/,
+      /<details class="acct me"><summary aria-label="Lan Phạm: theme and sign out"/,
     );
     expect(html).toContain('role="radiogroup"');
     for (const theme of ['System', 'Light', 'Dark']) expect(html).toContain(`>${theme}</button>`);
@@ -407,8 +388,6 @@ describe('ContextBar in a change request', () => {
           kind: 'closed',
           body: 'Main has it already.',
           opIndex: null,
-          agent: false,
-          viaKey: null,
           createdAt: '2026-10-09T11:00:00.000Z',
         },
       ],

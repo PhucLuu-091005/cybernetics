@@ -3,7 +3,7 @@ import { clashesOf, type Commit } from '../../../src/tracker/clash';
 import {
   deadlineMs,
   formatDeadline,
-  lateBadge,
+  lateBy,
   milestoneDeadline,
 } from '../../../src/tracker/deadline';
 import { describeOp, diffLines } from '../../../src/tracker/describe';
@@ -129,12 +129,12 @@ describe('milestone deadline time: the instant and the label', () => {
 describe('milestone deadline time: how late', () => {
   it('counts hours on the day of the deadline and days after it, never 0 days', () => {
     const m = { planned: '2026-10-15', plannedTime: '17:00' };
-    expect(lateBadge(m, at('2026-10-15T17:20'), TIME_ZONE)).toBe('Late by 1 h');
-    expect(lateBadge(m, at('2026-10-15T20:00'), TIME_ZONE)).toBe('Late by 3 h');
-    expect(lateBadge(m, at('2026-10-16T09:00'), TIME_ZONE)).toBe('Late by 1 day');
-    expect(lateBadge(m, at('2026-10-18T09:00'), TIME_ZONE)).toBe('Late by 3 days');
-    expect(lateBadge({ planned: '2026-09-18' }, at('2026-10-09T18:00'), TIME_ZONE)).toBe(
-      'Late by 21 days',
+    expect(lateBy(m, at('2026-10-15T17:20'), TIME_ZONE)).toBe('late 1 h');
+    expect(lateBy(m, at('2026-10-15T20:00'), TIME_ZONE)).toBe('late 3 h');
+    expect(lateBy(m, at('2026-10-16T09:00'), TIME_ZONE)).toBe('late 1 day');
+    expect(lateBy(m, at('2026-10-18T09:00'), TIME_ZONE)).toBe('late 3 days');
+    expect(lateBy({ planned: '2026-10-15' }, at('2026-10-17T09:00'), TIME_ZONE)).toBe(
+      'late 2 days',
     );
   });
 });

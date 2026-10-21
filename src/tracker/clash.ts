@@ -84,10 +84,6 @@ export function mainState(
   return replayOps(initialState(base, queue), ops).state;
 }
 
-/** The changes that count: Main does not have them yet, and the earlier changes they need are still there. */
-export const applyingCount = (replay: Replay): number =>
-  replay.entries.filter((entry) => !entry.skipped).length;
-
 export function crState(
   base: TrackerBase,
   queue: QueueSource,

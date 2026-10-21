@@ -19,10 +19,10 @@ import {
   itemInfo,
   itemStatus,
   KIND_LABEL,
-  kindWithArticle,
-  lateBadge,
+  lateBy,
+  mainState,
   milestoneStatus,
-  pickable,
+  replayOps,
   startHint,
   STATUS_LABEL,
   STATUS_TONE,
@@ -34,8 +34,6 @@ import {
   type DateMove,
   type FocusNode,
   type TrackerState,
-  type WorkItem,
-  TEXT_MAX,
 } from '../../tracker';
 import type { OpInput } from './api';
 import { Avatar, Avatars, type Directory } from './avatar';
@@ -52,12 +50,9 @@ import {
   type Session,
 } from './ContextBar';
 import { Icon, KIND_COLOR, KindIcon } from './icons';
-import { Select } from './Select';
 import { DateInput } from './DateInput';
 import { TimeInput } from './TimeInput';
-import { TextCount } from './TextCount';
 import { Moves } from './Pops';
-import { focusAction } from './team';
 import type { TrackerActions, TrackerView } from './TrackerScreen';
 
 function Frame({
@@ -133,7 +128,7 @@ export function MilestoneDrawer({
 }) {
   const { dir, tz } = session;
   const m = state.milestones.find((x) => x.id === milestoneId);
-  // Null until the editor types, so a hand-over or a Refresh shows the current milestone, not a stale copy.
+  // Null until the editor types, so a hand-over or a poll shows the current milestone, not a stale copy.
   const [draft, setDraft] = useState<{ name: string; date: string; time: string } | null>(null);
   const [adding, setAdding] = useState('');
   if (!m) return null;
@@ -143,7 +138,7 @@ export function MilestoneDrawer({
   const date = edit && draft ? draft.date : m.planned;
   const time = edit && draft ? draft.time : (m.plannedTime ?? '');
   const unchanged = name === m.name && date === m.planned && time === (m.plannedTime ?? '');
-  const outside = state.workItems.filter((w) => !w.milestoneId);
+  const outside = state.workItems.filter((w) => w.milestoneId !== m.id);
   const pick = adding && outside.some((w) => w.id === adding) ? adding : (outside[0]?.id ?? '');
   return (
     <Frame
@@ -156,9 +151,13 @@ export function MilestoneDrawer({
       head={
         <>
           <h4>{m.name}</h4>
-          <span className={`badge st-${status}`}>
-            {status === 'late' ? lateBadge(m, asOf, tz) : STATUS_LABEL[status]}
-          </span>
+          <span className={`badge st-${status}`}>{STATUS_LABEL[status]}</span>
+          {status === 'late' && (
+            <small style={{ display: 'inline', color: 'var(--danger-ink)' }}>
+              {' '}
+              {lateBy(m, asOf, tz)}
+            </small>
+          )}
         </>
       }
       onClose={onClose}
@@ -170,10 +169,8 @@ export function MilestoneDrawer({
             Name
             <input
               value={name}
-              maxLength={TEXT_MAX.title}
               onChange={(event) => setDraft({ name: event.target.value, date, time })}
             />
-            <TextCount value={name} max={TEXT_MAX.title} />
           </label>
           <label className="field">
             Planned date
@@ -246,13 +243,17 @@ export function MilestoneDrawer({
       })}
       {edit && outside.length > 0 && (
         <div className="share-add">
-          <Select
-            label="Work item to add"
-            className="grow"
+          <select
+            aria-label="Work item to add"
             value={pick}
-            onChange={setAdding}
-            options={outside.map((w) => ({ value: w.id, label: trunc(w.title, 44) }))}
-          />
+            onChange={(event) => setAdding(event.target.value)}
+          >
+            {outside.map((w) => (
+              <option key={w.id} value={w.id}>
+                {trunc(w.title, 44)}
+              </option>
+            ))}
+          </select>
           <button
             className="btn"
             type="button"
@@ -327,11 +328,6 @@ function MoveHistory({
   );
 }
 
-const itemDeadlineOf = (item: WorkItem) => ({
-  planned: item.plannedFinish,
-  plannedTime: item.plannedFinishTime,
-});
-
 function Who({ id, dir }: { id: string; dir: Directory }) {
   return (
     <span className="who">
@@ -358,14 +354,10 @@ export function WorkItemDrawer({
   onEvent,
   onMilestone,
   onToggleRow,
-  focused,
-  onFocus,
 }: Base & {
   itemId: string;
   edit: boolean;
   hidden: boolean;
-  focused: boolean;
-  onFocus: (workItemId: string) => void;
   actions: TrackerActions;
   onPick: (workItemId: string) => void;
   onEvent: (eventId: string) => void;
@@ -374,7 +366,7 @@ export function WorkItemDrawer({
 }) {
   const { dir, tz } = session;
   const item = state.workItems.find((w) => w.id === itemId);
-  // Null until the editor types, so a hand-over or a Refresh shows the current values, not a stale copy.
+  // Null until the editor types, so a hand-over or a poll shows the current values, not a stale copy.
   const [title, setTitle] = useState<string | null>(null);
   const [dates, setDates] = useState<Dates | null>(null);
   const [adding, setAdding] = useState('');
@@ -383,6 +375,9 @@ export function WorkItemDrawer({
   const status = itemStatus(item, state.events, asOf, tz);
   const hint = startHint(item, state.events);
   const late = status === 'late';
+  const lateText = late
+    ? lateBy({ planned: item.plannedFinish, plannedTime: item.plannedFinishTime }, asOf, tz)
+    : null;
   const team = state.teams.find((t) => t.id === item.teamId)?.name ?? '';
   const ms = state.milestones.find((m) => m.id === item.milestoneId);
   const msStat = ms ? milestoneStatus(ms, state.workItems, state.events, asOf, tz).status : null;
@@ -426,22 +421,21 @@ export function WorkItemDrawer({
   const people = (value: string, label: string, onPick: (id: string) => void) => (
     <span className="wi-pick">
       <Avatar id={value} dir={dir} sm />
-      <Select
-        label={label}
-        className="quiet"
+      <select
+        aria-label={label}
         value={value}
         disabled={busy}
-        onChange={onPick}
-        options={pickable(state.people, session.payload.members, value).map((p) => ({
-          value: p.id,
-          label: p.name,
-        }))}
-      />
+        onChange={(e) => onPick(e.target.value)}
+      >
+        {state.people.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
     </span>
   );
   const finish = formatDeadline(item.plannedFinish, item.plannedFinishTime);
-  const focusLabel = focusAction(item.title, focused);
-  const hideText = hidden ? 'Show on the graph' : 'Hide from the graph';
   return (
     <Frame
       label={item.title}
@@ -466,7 +460,6 @@ export function WorkItemDrawer({
               className="wi-title"
               aria-label="Name"
               value={name}
-              maxLength={TEXT_MAX.title}
               onChange={(event) => setTitle(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key !== 'Enter') return;
@@ -498,37 +491,25 @@ export function WorkItemDrawer({
         </div>
       )}
       <div className="wi-top">
-        <span className={`badge st-${status}`}>
-          {late ? lateBadge(itemDeadlineOf(item), asOf, tz) : STATUS_LABEL[status]}
-        </span>
+        <span className={`badge st-${status}`}>{STATUS_LABEL[status]}</span>
+        {lateText && <span className="late-by">{lateText}</span>}
         <span className="sp" />
-        <span className="wi-view">
-          <button
-            className="btn sm btn-quiet"
-            type="button"
-            aria-pressed={focused}
-            aria-label={focusLabel.label}
-            onClick={() => onFocus(item.id)}
-          >
-            <Icon name="focus" size={13} /> {focusLabel.text}
-          </button>
-          <button
-            className="btn sm btn-quiet"
-            type="button"
-            aria-pressed={hidden}
-            aria-label={`${hideText}: ${item.title}`}
-            onClick={() => onToggleRow(item.id)}
-          >
-            <Icon name={hidden ? 'eyeoff' : 'eye'} size={13} /> {hideText}
-          </button>
-        </span>
+        <button
+          className="btn sm btn-quiet"
+          type="button"
+          aria-pressed={hidden}
+          onClick={() => onToggleRow(item.id)}
+        >
+          <Icon name={hidden ? 'eyeoff' : 'eye'} size={13} />{' '}
+          {hidden ? 'Show on the graph' : 'Hide from the graph'}
+        </button>
       </div>
       {hint && (
         <p className="wi-hint" role="note" aria-label="Start of the work item">
           <Icon name="info" size={14} />
           <span>
-            This work item starts with {kindWithArticle(hint)}. Add the event that started it, such
-            as a Message, an Idea or a Task.
+            This work item starts with a {KIND_LABEL[hint]}. Add the event that started it, such as
+            a Message, an Idea or a Task.
           </span>
         </p>
       )}
@@ -553,14 +534,20 @@ export function WorkItemDrawer({
         <dt>Team</dt>
         <dd>
           {edit ? (
-            <Select
-              label="Team"
-              className="quiet"
+            <select
+              aria-label="Team"
               value={item.teamId}
               disabled={busy}
-              onChange={(teamId) => change({ op: 'team', a: { workItemId: item.id, teamId } })}
-              options={state.teams.map((t) => ({ value: t.id, label: t.name }))}
-            />
+              onChange={(e) =>
+                change({ op: 'team', a: { workItemId: item.id, teamId: e.target.value } })
+              }
+            >
+              {state.teams.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
           ) : (
             team
           )}
@@ -589,29 +576,25 @@ export function WorkItemDrawer({
         <dt>Milestone</dt>
         <dd>
           {edit ? (
-            <Select
-              label="Milestone"
-              className="quiet"
+            <select
+              aria-label="Milestone"
               value={item.milestoneId ?? ''}
               disabled={busy}
-              onChange={(milestoneId) =>
-                actions.editItem([
-                  ...(item.milestoneId
-                    ? [{ op: 'msRemove' as const, a: { workItemId: item.id } }]
-                    : []),
-                  ...(milestoneId
-                    ? [{ op: 'msAdd' as const, a: { workItemId: item.id, milestoneId } }]
-                    : []),
-                ])
+              onChange={(e) =>
+                change(
+                  e.target.value
+                    ? { op: 'msAdd', a: { workItemId: item.id, milestoneId: e.target.value } }
+                    : { op: 'msRemove', a: { workItemId: item.id } },
+                )
               }
-              options={[
-                { value: '', label: 'None' },
-                ...state.milestones.map((m) => ({
-                  value: m.id,
-                  label: `${m.name} · ${formatDeadline(m.planned, m.plannedTime)}`,
-                })),
-              ]}
-            />
+            >
+              <option value="">None</option>
+              {state.milestones.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} · {formatDeadline(m.planned, m.plannedTime)}
+                </option>
+              ))}
+            </select>
           ) : ms && msStat ? (
             <>
               <button className="lnk" type="button" onClick={() => onMilestone(ms.id)}>
@@ -639,6 +622,7 @@ export function WorkItemDrawer({
                 />
                 <TimeInput value={plan.time} onChange={(time) => setDates({ ...plan, time })} />
               </span>
+              {late && !moved && <span className="late-by">{lateText}</span>}
               {moved && (
                 <div className="wi-why">
                   <label className="field">
@@ -646,11 +630,9 @@ export function WorkItemDrawer({
                     <textarea
                       value={plan.why}
                       required
-                      maxLength={TEXT_MAX.why}
                       placeholder="For example: Lan sends the country list on 10 October."
                       onChange={(e) => setDates({ ...plan, why: e.target.value })}
                     />
-                    <TextCount value={plan.why} max={TEXT_MAX.why} />
                   </label>
                   <div className="wi-inline">
                     <button className="btn sm" type="button" onClick={() => setDates(null)}>
@@ -669,7 +651,10 @@ export function WorkItemDrawer({
               )}
             </div>
           ) : (
-            finish
+            <>
+              {finish}
+              {lateText && ` · ${lateText}`}
+            </>
           )}
         </dd>
         <dt>Finished</dt>
@@ -684,19 +669,24 @@ export function WorkItemDrawer({
             <dt>Parent</dt>
             <dd>
               {edit ? (
-                <Select
-                  label="Parent"
-                  className="quiet"
+                <select
+                  aria-label="Parent"
                   value={item.parentId ?? ''}
                   disabled={busy}
-                  onChange={(parentId) =>
-                    change({ op: 'parent', a: { workItemId: item.id, parentId: parentId || null } })
+                  onChange={(e) =>
+                    change({
+                      op: 'parent',
+                      a: { workItemId: item.id, parentId: e.target.value || null },
+                    })
                   }
-                  options={[
-                    { value: '', label: 'None' },
-                    ...others.map((w) => ({ value: w.id, label: trunc(w.title, 44) })),
-                  ]}
-                />
+                >
+                  <option value="">None</option>
+                  {others.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {trunc(w.title, 44)}
+                    </option>
+                  ))}
+                </select>
               ) : (
                 parent && link(parent)
               )}
@@ -731,26 +721,28 @@ export function WorkItemDrawer({
                 ),
               )}
               {edit && (
-                <Select
-                  label="Add to Leads from"
-                  className="quiet"
+                <select
+                  aria-label="Add to Leads from"
                   value={adding}
                   disabled={busy}
-                  onChange={(next) => {
+                  onChange={(e) => {
                     setAdding('');
-                    if (next)
+                    if (e.target.value)
                       change({
                         op: 'after',
-                        a: { workItemId: item.id, after: [...item.after, next] },
+                        a: { workItemId: item.id, after: [...item.after, e.target.value] },
                       });
                   }}
-                  options={[
-                    { value: '', label: sources.length ? 'Add another…' : 'Nothing · add…' },
-                    ...others
-                      .filter((w) => !item.after.includes(w.id))
-                      .map((w) => ({ value: w.id, label: trunc(w.title, 44) })),
-                  ]}
-                />
+                >
+                  <option value="">{sources.length ? 'Add another…' : 'Nothing · add…'}</option>
+                  {others
+                    .filter((w) => !item.after.includes(w.id))
+                    .map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {trunc(w.title, 44)}
+                      </option>
+                    ))}
+                </select>
               )}
             </dd>
           </>
@@ -1023,6 +1015,12 @@ export function RequestsDrawer({
   );
 }
 
+function commitLines(session: Session, commit: Commit) {
+  const { payload, tz } = session;
+  const before = mainState(payload.base, payload.queue, payload.commits, commit.rev - 1);
+  return replayOps(before, commit.ops, tz).entries;
+}
+
 export function HistoryDrawer({
   session,
   onClose,
@@ -1034,6 +1032,10 @@ export function HistoryDrawer({
     [payload.commits],
   );
   const latest = commits[0]?.rev;
+  const lines = useMemo(
+    () => new Map(commits.map((c) => [c.rev, commitLines(session, c)])),
+    [commits, session],
+  );
   const crOf = (commit: Commit) => payload.crs.find((c) => c.id === commit.crId);
   const closed = payload.crs.filter((c) => c.status === 'closed');
   return (
@@ -1050,16 +1052,11 @@ export function HistoryDrawer({
       <ol className="hist">
         {commits.map((commit) => {
           const cr = crOf(commit);
-          const merger = commit.mergedBy !== cr?.author ? dir.name(commit.mergedBy) : null;
+          const n = commit.resolutions.length;
           return (
             <li key={commit.rev}>
               <span className="hdot" />
-              <button
-                className="hcard hrow"
-                type="button"
-                aria-label={`Open #${commit.crNum} ${cr?.title ?? ''}`}
-                onClick={() => onView(commit.crNum)}
-              >
+              <div className="hcard">
                 <header>
                   <b>
                     #{commit.crNum} {cr?.title}
@@ -1067,10 +1064,37 @@ export function HistoryDrawer({
                   {commit.rev === latest && <span className="chipx ok">Latest</span>}
                 </header>
                 <div className="hm">
-                  {cr && <Avatar id={cr.author} dir={dir} sm />} by {cr ? dir.name(cr.author) : ''}
-                  {merger && ` · merged by ${merger}`} · {formatStamp(commit.mergedAt, tz)}
+                  {cr && <Avatar id={cr.author} dir={dir} sm />} by {cr ? dir.name(cr.author) : ''}{' '}
+                  · merged by {dir.name(commit.mergedBy)} · {formatStamp(commit.mergedAt, tz)}
                 </div>
-              </button>
+                <ul>
+                  {(lines.get(commit.rev) ?? []).map((e) => (
+                    <li key={e.i}>
+                      {e.item}: {e.change}
+                      {e.after && ` → ${trunc(e.after, 40)}`}
+                    </li>
+                  ))}
+                </ul>
+                {n > 0 && (
+                  <div className="resolved">
+                    <Icon name="check" size={13} />
+                    <span>
+                      {plural(n, 'clash')} resolved:{' '}
+                      {commit.resolutions
+                        .map(
+                          (x) =>
+                            `${x.label}, kept ${x.chose === 'main' ? `Main from #${x.from}` : 'this change request'}`,
+                        )
+                        .join('; ')}
+                    </span>
+                  </div>
+                )}
+                <div className="row-btns">
+                  <button className="btn sm" type="button" onClick={() => onView(commit.crNum)}>
+                    Open #{commit.crNum}
+                  </button>
+                </div>
+              </div>
             </li>
           );
         })}

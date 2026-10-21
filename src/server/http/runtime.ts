@@ -1,8 +1,6 @@
 import type {
   ActorContext,
   CreateAgentTokenInput,
-  CreatePersonalKeyInput,
-  RevokePersonalKeyInput,
   ListAgentTokensResult,
   RevokeAgentTokenInput,
   RevokeAgentTokenResult,
@@ -10,14 +8,8 @@ import type {
   TokenCreated,
 } from '../../contracts';
 import { readAuthEnvironment } from '../env';
-import {
-  createTokenService,
-  type ActsAs,
-  type CreatorOf,
-  type ListKeysInput,
-  type ListTokensInput,
-} from '../domain/tokens/service';
-import { createIdentityServices, type BrowserSession, type LimitBucket } from './actors';
+import { createTokenService, type ListTokensInput } from '../domain/tokens/service';
+import { createIdentityServices, type BrowserSession } from './actors';
 import type { HttpIdentityStore } from './identity-store';
 import { MemoryRateLimiter } from './rate-limit';
 const state = globalThis as typeof globalThis & {
@@ -28,26 +20,21 @@ const state = globalThis as typeof globalThis & {
 export function configureHttpIdentityStore(store: HttpIdentityStore): void {
   state.promiseIdentityStore = store;
 }
-function getHttpIdentityStore(): HttpIdentityStore {
+export function getHttpIdentityStore(): HttpIdentityStore {
   if (!state.promiseIdentityStore) throw new Error('Identity persistence is unavailable');
   return state.promiseIdentityStore;
 }
-export function getRateLimiter(): MemoryRateLimiter {
-  state.promiseRateLimiter ??= new MemoryRateLimiter();
-  return state.promiseRateLimiter;
-}
 function identities() {
+  const store = getHttpIdentityStore();
+  state.promiseRateLimiter ??= new MemoryRateLimiter();
   return createIdentityServices({
-    store: getHttpIdentityStore(),
+    store,
     env: readAuthEnvironment(),
-    limiter: getRateLimiter(),
+    limiter: state.promiseRateLimiter,
   });
 }
-export async function getBrowserActor(
-  request: Request,
-  bucket?: LimitBucket,
-): Promise<ActorContext> {
-  return identities().getBrowserActor(request, bucket);
+export async function getBrowserActor(request: Request): Promise<ActorContext> {
+  return identities().getBrowserActor(request);
 }
 export async function getBrowserSession(request: Request): Promise<BrowserSession> {
   return identities().resolveBrowserSession(request);
@@ -61,53 +48,21 @@ export async function getBrowserProjectActor(
 export async function getTokenActor(request: Request, scope: Scope | null): Promise<ActorContext> {
   return identities().getTokenActor(request, scope);
 }
-// Loaded on use: the app module imports this one, and the creator's rights live in the tracker.
-const creatorOf: CreatorOf = async (ctx, projectId, actsAs) => {
-  const [{ getApp }, { personalCreator, tokenCreator }] = await Promise.all([
-    import('../app'),
-    import('../domain/account'),
-  ]);
-  const db = getApp().db;
-  if (actsAs) return tokenCreator(db, ctx, actsAs.projectId, actsAs.memberId);
-  return projectId === null ? personalCreator(db, ctx) : tokenCreator(db, ctx, projectId);
-};
-const tokenService = () => createTokenService(getHttpIdentityStore(), creatorOf);
-
 export async function createToken(
   ctx: ActorContext,
   input: Omit<CreateAgentTokenInput, 'scopes'> & { scopes?: Scope[] },
-  actsAs?: ActsAs,
 ): Promise<TokenCreated> {
-  return tokenService().createToken(ctx, input, actsAs);
+  return createTokenService(getHttpIdentityStore()).createToken(ctx, input);
 }
 export async function revokeToken(
   ctx: ActorContext,
   input: RevokeAgentTokenInput,
 ): Promise<RevokeAgentTokenResult> {
-  return tokenService().revokeToken(ctx, input);
+  return createTokenService(getHttpIdentityStore()).revokeToken(ctx, input);
 }
 export async function listTokens(
   ctx: ActorContext,
   input: ListTokensInput,
 ): Promise<ListAgentTokensResult> {
-  return tokenService().listTokens(ctx, input);
-}
-export async function createPersonalKey(
-  ctx: ActorContext,
-  input: Omit<CreatePersonalKeyInput, 'scopes'> & { scopes?: Scope[] },
-  actsAs?: ActsAs,
-): Promise<TokenCreated> {
-  return tokenService().createPersonalKey(ctx, input, actsAs);
-}
-export async function revokePersonalKey(
-  ctx: ActorContext,
-  input: RevokePersonalKeyInput,
-): Promise<RevokeAgentTokenResult> {
-  return tokenService().revokePersonalKey(ctx, input);
-}
-export async function listPersonalKeys(
-  ctx: ActorContext,
-  input: ListKeysInput,
-): Promise<ListAgentTokensResult> {
-  return tokenService().listPersonalKeys(ctx, input);
+  return createTokenService(getHttpIdentityStore()).listTokens(ctx, input);
 }

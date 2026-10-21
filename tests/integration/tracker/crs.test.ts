@@ -11,7 +11,7 @@ import {
 import { clashesOf, mainState, type TrackerPayload } from '../../../src/tracker';
 import { reviewModel } from '../../../src/tracker/review';
 import { createTestDatabase, testActor, type TestDb } from '../../support/db';
-import { type Demo, HISTORY, seedDemo, storyCr } from '../../support/tracker-db';
+import { seedDemo, type Demo } from '../../support/tracker-db';
 
 const crOf = (payload: TrackerPayload, num: number) => {
   const cr = payload.crs.find((item) => item.num === num);
@@ -45,8 +45,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
     it('numbers change requests per project and starts a draft that its author edits', async () => {
       await fresh();
       const five = await createCr(t.db, demo.owner, { ...as('lan'), title: 'Root cause report' });
-      expect(five.num).toBe(storyCr(5));
-      const cr = crOf(five.payload, storyCr(5));
+      expect(five.num).toBe(5);
+      const cr = crOf(five.payload, 5);
       expect(cr).toMatchObject({
         title: 'Root cause report',
         author: demo.ids.lan,
@@ -67,14 +67,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
           kind: 'created',
           body: null,
           opIndex: null,
-          agent: false,
-          viaKey: null,
           createdAt: expect.any(String),
         },
       ]);
-      expect((await createCr(t.db, demo.owner, { ...as('minh'), title: 'Next' })).num).toBe(
-        storyCr(6),
-      );
+      expect((await createCr(t.db, demo.owner, { ...as('minh'), title: 'Next' })).num).toBe(6);
       const ctx = await testActor(t.db);
       const other = await createEmptyProject(t.db, ctx, {
         title: 'Other',
@@ -95,7 +91,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
         {
           op: 'qms',
           a: { itemId: demo.ids.q2, milestoneId: 'golive' },
-          rev: HISTORY + 1,
+          rev: 1,
           by: demo.ids.lan,
           d: {
             item: 'Investor statement template',
@@ -115,12 +111,6 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       await expect(createCr(t.db, demo.owner, { ...as('lan'), title: '  ' })).rejects.toMatchObject(
         { code: 'VALIDATION' },
       );
-      await expect(
-        createCr(t.db, demo.owner, { ...as('lan'), title: 'x'.repeat(201) }),
-      ).rejects.toMatchObject({
-        code: 'VALIDATION',
-        extras: { errors: [{ path: 'title', message: 'at most 200 characters' }] },
-      });
     });
   });
 
@@ -139,7 +129,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
         {
           op: 'attach',
           a: { eventId: demo.ids.qe1, workItemId: 'incident' },
-          rev: HISTORY + 1,
+          rev: 1,
           by: demo.ids.lan,
           d: {
             item: 'Message by Sarah Kim',
@@ -212,19 +202,6 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
       ).rejects.toMatchObject({ code: 'VALIDATION' });
       await expect(append({ op: 'rename', a: { workItemId: 'pg203' } })).rejects.toMatchObject({
         code: 'VALIDATION',
-      });
-      await expect(
-        append({ op: 'msAdd', a: { workItemId: 'dynamics', milestoneId: 'golive' } }),
-      ).rejects.toMatchObject({
-        code: 'VALIDATION',
-        message: expect.stringContaining(
-          'Dynamics CRM sync scope is in CRM integration live already.',
-        ),
-      });
-      await expect(
-        append({ op: 'rename', a: { workItemId: 'pg203', title: 'x'.repeat(201) } }),
-      ).rejects.toMatchObject({
-        extras: { errors: [expect.objectContaining({ message: 'at most 200 characters' })] },
       });
       await expect(
         append({
@@ -398,126 +375,89 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
     });
   });
 
-  describe('ready with changes that no longer apply', () => {
-    it('refuses Ready when no change applies after the placement is undone', async () => {
-      await fresh();
-      const { num } = await createCr(t.db, demo.owner, { ...as('lan'), title: 'Placed' });
-      const ops = [
-        { op: 'place', a: { itemId: demo.ids.q2, teamId: 'engineering' } },
-        { op: 'rename', a: { workItemId: demo.ids.q2, title: 'Investor template v2' } },
-      ];
-      for (const [i, op] of ops.entries())
-        await appendOp(t.db, demo.owner, { ...as('lan'), num, expectedRevision: i, op });
-      const undone = await removeOp(t.db, demo.owner, {
-        ...as('lan'),
-        num,
-        index: 0,
-        expectedRevision: 2,
-      });
-      expect(crOf(undone, num).ops).toHaveLength(1);
-      expect(reviewModel(undone, num)).toMatchObject({ applying: 0, stale: [0] });
-      await expect(action('lan', num, { action: 'ready' })).rejects.toMatchObject({
-        code: 'VALIDATION',
-        message: 'Add at least one change that applies before you mark it as ready',
-      });
-    });
-  });
-
   describe('editing hand-over', () => {
     it('asks to edit and cancels the ask', async () => {
       await fresh();
-      const asked = await action('khoa', storyCr(4), { action: 'ask' });
-      expect(crOf(asked, storyCr(4)).asks).toEqual([
+      const asked = await action('khoa', 4, { action: 'ask' });
+      expect(crOf(asked, 4).asks).toEqual([
         { memberId: demo.ids.khoa, createdAt: expect.any(String) },
       ]);
-      expect(lastComment(asked, storyCr(4))).toMatchObject({
-        kind: 'ask',
-        memberId: demo.ids.khoa,
-      });
-      const again = await action('khoa', storyCr(4), { action: 'ask' });
-      expect(crOf(again, storyCr(4)).asks).toHaveLength(1);
-      expect(crOf(again, storyCr(4)).comments.filter((c) => c.kind === 'ask')).toHaveLength(1);
-      const cancelled = await action('khoa', storyCr(4), { action: 'cancel-ask' });
-      expect(crOf(cancelled, storyCr(4)).asks).toEqual([]);
-      const again2 = await action('khoa', storyCr(4), { action: 'cancel-ask' });
-      expect(crOf(again2, storyCr(4)).updatedAt).toBe(crOf(cancelled, storyCr(4)).updatedAt);
+      expect(lastComment(asked, 4)).toMatchObject({ kind: 'ask', memberId: demo.ids.khoa });
+      const again = await action('khoa', 4, { action: 'ask' });
+      expect(crOf(again, 4).asks).toHaveLength(1);
+      expect(crOf(again, 4).comments.filter((c) => c.kind === 'ask')).toHaveLength(1);
+      const cancelled = await action('khoa', 4, { action: 'cancel-ask' });
+      expect(crOf(cancelled, 4).asks).toEqual([]);
+      const again2 = await action('khoa', 4, { action: 'cancel-ask' });
+      expect(crOf(again2, 4).updatedAt).toBe(crOf(cancelled, 4).updatedAt);
     });
 
     it('hands over to a member with edit right, and not to anyone else', async () => {
       await fresh();
-      await action('khoa', storyCr(4), { action: 'ask' });
-      const handed = await action('ha', storyCr(4), { action: 'handover', to: demo.ids.khoa });
-      expect(crOf(handed, storyCr(4))).toMatchObject({ editor: demo.ids.khoa, asks: [] });
-      expect(lastComment(handed, storyCr(4))).toMatchObject({
+      await action('khoa', 4, { action: 'ask' });
+      const handed = await action('ha', 4, { action: 'handover', to: demo.ids.khoa });
+      expect(crOf(handed, 4)).toMatchObject({ editor: demo.ids.khoa, asks: [] });
+      expect(lastComment(handed, 4)).toMatchObject({
         kind: 'handover',
         memberId: demo.ids.ha,
         body: 'Khoa Lê edits now.',
       });
       const appended = await appendOp(t.db, demo.owner, {
         ...as('khoa'),
-        num: storyCr(4),
-        expectedRevision: crOf(handed, storyCr(4)).revision,
+        num: 4,
+        expectedRevision: crOf(handed, 4).revision,
         op: { op: 'rename', a: { workItemId: 'test', title: 'Test the CRS section on staging' } },
       });
-      expect(crOf(appended, storyCr(4)).ops.at(-1)?.by).toBe(demo.ids.khoa);
+      expect(crOf(appended, 4).ops.at(-1)?.by).toBe(demo.ids.khoa);
       await expect(
-        action('khoa', storyCr(4), { action: 'handover', to: demo.ids.lan }),
+        action('khoa', 4, { action: 'handover', to: demo.ids.lan }),
       ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-      const back = await action('khoa', storyCr(4), { action: 'handover', to: demo.ids.ha });
-      expect(crOf(back, storyCr(4)).editor).toBe(demo.ids.ha);
+      const back = await action('khoa', 4, { action: 'handover', to: demo.ids.ha });
+      expect(crOf(back, 4).editor).toBe(demo.ids.ha);
     });
 
     it('declines an ask with Not now', async () => {
       await fresh();
-      await action('khoa', storyCr(4), { action: 'ask' });
-      const declined = await action('ha', storyCr(4), { action: 'decline', who: demo.ids.khoa });
-      expect(crOf(declined, storyCr(4))).toMatchObject({ editor: demo.ids.ha, asks: [] });
-      expect(lastComment(declined, storyCr(4))).toMatchObject({
+      await action('khoa', 4, { action: 'ask' });
+      const declined = await action('ha', 4, { action: 'decline', who: demo.ids.khoa });
+      expect(crOf(declined, 4)).toMatchObject({ editor: demo.ids.ha, asks: [] });
+      expect(lastComment(declined, 4)).toMatchObject({
         kind: 'decline',
         memberId: demo.ids.ha,
         body: 'Not now, Khoa.',
       });
       await expect(
-        action('ha', storyCr(4), { action: 'decline', who: demo.ids.khoa }),
+        action('ha', 4, { action: 'decline', who: demo.ids.khoa }),
       ).rejects.toMatchObject({ code: 'VALIDATION' });
-      await expect(
-        action('ha', storyCr(4), { action: 'decline', who: 'junk' }),
-      ).rejects.toMatchObject({
+      await expect(action('ha', 4, { action: 'decline', who: 'junk' })).rejects.toMatchObject({
         code: 'VALIDATION',
       });
     });
 
     it('records an ask for edit access from a member without edit right, and Grant clears it', async () => {
       await fresh();
-      const asked = await action('quang', storyCr(4), { action: 'ask' });
-      expect(crOf(asked, storyCr(4)).asks.map((ask) => ask.memberId)).toEqual([demo.ids.quang]);
-      expect(lastComment(asked, storyCr(4))).toMatchObject({
-        kind: 'ask',
-        memberId: demo.ids.quang,
-      });
+      const asked = await action('quang', 4, { action: 'ask' });
+      expect(crOf(asked, 4).asks.map((ask) => ask.memberId)).toEqual([demo.ids.quang]);
+      expect(lastComment(asked, 4)).toMatchObject({ kind: 'ask', memberId: demo.ids.quang });
       await expect(
-        action('ha', storyCr(4), { action: 'handover', to: demo.ids.quang }),
+        action('ha', 4, { action: 'handover', to: demo.ids.quang }),
       ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-      const granted = await action('ha', storyCr(4), {
+      const granted = await action('ha', 4, {
         action: 'share',
         memberId: demo.ids.quang,
         permission: 'edit',
       });
-      expect(crOf(granted, storyCr(4)).shares).toContainEqual({
+      expect(crOf(granted, 4).shares).toContainEqual({
         memberId: demo.ids.quang,
         permission: 'edit',
       });
-      expect(crOf(granted, storyCr(4)).asks).toEqual([]);
+      expect(crOf(granted, 4).asks).toEqual([]);
 
-      await action('ha', storyCr(4), {
-        action: 'share',
-        memberId: demo.ids.lan,
-        permission: 'view',
-      });
-      await action('lan', storyCr(4), { action: 'ask' });
-      const declined = await action('ha', storyCr(4), { action: 'decline', who: demo.ids.lan });
-      expect(crOf(declined, storyCr(4)).asks).toEqual([]);
-      expect(crOf(declined, storyCr(4)).shares).toContainEqual({
+      await action('ha', 4, { action: 'share', memberId: demo.ids.lan, permission: 'view' });
+      await action('lan', 4, { action: 'ask' });
+      const declined = await action('ha', 4, { action: 'decline', who: demo.ids.lan });
+      expect(crOf(declined, 4).asks).toEqual([]);
+      expect(crOf(declined, 4).shares).toContainEqual({
         memberId: demo.ids.lan,
         permission: 'view',
       });
@@ -525,69 +465,61 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
 
     it('keeps an ask to edit from a member who has edit right when the share stays Can edit', async () => {
       await fresh();
-      await action('khoa', storyCr(4), { action: 'ask' });
-      const same = await action('ha', storyCr(4), {
+      await action('khoa', 4, { action: 'ask' });
+      const same = await action('ha', 4, {
         action: 'share',
         memberId: demo.ids.khoa,
         permission: 'edit',
       });
-      expect(crOf(same, storyCr(4)).asks.map((ask) => ask.memberId)).toEqual([demo.ids.khoa]);
+      expect(crOf(same, 4).asks.map((ask) => ask.memberId)).toEqual([demo.ids.khoa]);
     });
   });
 
   describe('share', () => {
     it('shares with Can view or Can edit and removes a share', async () => {
       await fresh();
-      const viewed = await action('ha', storyCr(4), {
+      const viewed = await action('ha', 4, {
         action: 'share',
         memberId: demo.ids.lan,
         permission: 'view',
       });
-      expect(crOf(viewed, storyCr(4)).shares).toEqual(
+      expect(crOf(viewed, 4).shares).toEqual(
         expect.arrayContaining([
           { memberId: demo.ids.khoa, permission: 'edit' },
           { memberId: demo.ids.lan, permission: 'view' },
         ]),
       );
-      expect(lastComment(viewed, storyCr(4))).toMatchObject({
+      expect(lastComment(viewed, 4)).toMatchObject({
         kind: 'shared',
         memberId: demo.ids.ha,
         body: 'Lan Phạm can view.',
       });
-      await action('ha', storyCr(4), {
-        action: 'share',
-        memberId: demo.ids.lan,
-        permission: 'edit',
-      });
-      const asked = await action('lan', storyCr(4), { action: 'ask' });
-      expect(crOf(asked, storyCr(4)).asks.map((ask) => ask.memberId)).toEqual([demo.ids.lan]);
-      const removed = await action('ha', storyCr(4), {
+      await action('ha', 4, { action: 'share', memberId: demo.ids.lan, permission: 'edit' });
+      const asked = await action('lan', 4, { action: 'ask' });
+      expect(crOf(asked, 4).asks.map((ask) => ask.memberId)).toEqual([demo.ids.lan]);
+      const removed = await action('ha', 4, {
         action: 'share',
         memberId: demo.ids.lan,
         permission: 'remove',
       });
-      expect(crOf(removed, storyCr(4)).shares).toEqual([
-        { memberId: demo.ids.khoa, permission: 'edit' },
-      ]);
-      expect(crOf(removed, storyCr(4)).asks).toEqual([]);
-      expect(lastComment(removed, storyCr(4))).toMatchObject({
+      expect(crOf(removed, 4).shares).toEqual([{ memberId: demo.ids.khoa, permission: 'edit' }]);
+      expect(crOf(removed, 4).asks).toEqual([]);
+      expect(lastComment(removed, 4)).toMatchObject({
         kind: 'shared',
         memberId: demo.ids.ha,
         body: 'Lan Phạm no longer has access.',
       });
-      const again = await action('ha', storyCr(4), {
+      const again = await action('ha', 4, {
         action: 'share',
         memberId: demo.ids.lan,
         permission: 'remove',
       });
-      expect(crOf(again, storyCr(4)).comments).toHaveLength(
-        crOf(removed, storyCr(4)).comments.length,
-      );
+      expect(crOf(again, 4).comments).toHaveLength(crOf(removed, 4).comments.length);
       await expect(
-        action('ha', storyCr(4), { action: 'share', memberId: demo.ids.ha, permission: 'view' }),
+        action('ha', 4, { action: 'share', memberId: demo.ids.ha, permission: 'view' }),
       ).rejects.toMatchObject({ code: 'VALIDATION' });
       await expect(
-        action('ha', storyCr(4), { action: 'share', memberId: demo.ids.qe1, permission: 'view' }),
+        action('ha', 4, { action: 'share', memberId: demo.ids.qe1, permission: 'view' }),
       ).rejects.toMatchObject({ code: 'VALIDATION' });
     });
   });
@@ -595,25 +527,20 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
   describe('comments', () => {
     it('lets any member comment on the change request or on one change', async () => {
       await fresh();
-      const general = await action('lan', storyCr(4), {
-        action: 'comment',
-        body: 'Use the staging list.',
-      });
-      expect(lastComment(general, storyCr(4))).toMatchObject({
+      const general = await action('lan', 4, { action: 'comment', body: 'Use the staging list.' });
+      expect(lastComment(general, 4)).toMatchObject({
         kind: 'comment',
         memberId: demo.ids.lan,
         body: 'Use the staging list.',
         opIndex: null,
       });
-      const onOp = await action('quang', storyCr(4), { action: 'comment', body: 'OK', opIndex: 0 });
-      expect(lastComment(onOp, storyCr(4))).toMatchObject({ opIndex: 0, memberId: demo.ids.quang });
-      await expect(
-        action('lan', storyCr(4), { action: 'comment', body: ' ' }),
-      ).rejects.toMatchObject({
+      const onOp = await action('quang', 4, { action: 'comment', body: 'OK', opIndex: 0 });
+      expect(lastComment(onOp, 4)).toMatchObject({ opIndex: 0, memberId: demo.ids.quang });
+      await expect(action('lan', 4, { action: 'comment', body: ' ' })).rejects.toMatchObject({
         code: 'VALIDATION',
       });
       await expect(
-        action('lan', storyCr(4), { action: 'comment', body: 'X', opIndex: 3 }),
+        action('lan', 4, { action: 'comment', body: 'X', opIndex: 3 }),
       ).rejects.toMatchObject({ code: 'VALIDATION' });
     });
   });
@@ -621,86 +548,73 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
   describe('merge', () => {
     it('merges a change request without a clash as commit rev N+1', async () => {
       await fresh();
-      const merged = await review(storyCr(2), { action: 'merge', picks: {} });
-      expect(merged.commits.map((commit) => commit.rev)).toEqual(
-        Array.from({ length: HISTORY + 2 }, (_, i) => i + 1),
-      );
-      const commit = merged.commits[HISTORY + 1];
+      const merged = await review(2, { action: 'merge', picks: {} });
+      expect(merged.commits.map((commit) => commit.rev)).toEqual([1, 2]);
+      const commit = merged.commits[1];
       expect(commit).toMatchObject({
-        rev: HISTORY + 2,
-        crNum: storyCr(2),
-        crId: crOf(merged, storyCr(2)).id,
+        rev: 2,
+        crNum: 2,
+        crId: crOf(merged, 2).id,
         mergedBy: demo.ids.minh,
         resolutions: [],
       });
       expect(commit.ops.map((op) => op.op)).toEqual(['place', 'rename']);
-      expect(crOf(merged, storyCr(2))).toMatchObject({
+      expect(crOf(merged, 2)).toMatchObject({
         status: 'merged',
-        mergedRev: HISTORY + 2,
+        mergedRev: 2,
         mergedBy: demo.ids.minh,
         mergedAt: commit.mergedAt,
       });
-      expect(lastComment(merged, storyCr(2))).toMatchObject({
-        kind: 'merged',
-        memberId: demo.ids.minh,
-      });
+      expect(lastComment(merged, 2)).toMatchObject({ kind: 'merged', memberId: demo.ids.minh });
       const main = mainState(merged.base, merged.queue, merged.commits);
       expect(main.workItems.find((item) => item.id === demo.ids.q1)?.teamId).toBe('engineering');
       expect(main.workItems.find((item) => item.id === 'pg203')?.title).toBe(
         'PG-203 Country list field (multi-select)',
       );
-      await expect(review(storyCr(2), { action: 'merge', picks: {} })).rejects.toMatchObject({
+      await expect(review(2, { action: 'merge', picks: {} })).rejects.toMatchObject({
         code: 'CONFLICT',
       });
     });
 
     it('rejects a merge with a clash and no pick, and a pick for a spot that does not clash', async () => {
       await fresh();
-      await expect(
-        review(storyCr(2), { action: 'merge', picks: { [PG203]: 'cr' } }),
-      ).rejects.toMatchObject({
+      await expect(review(2, { action: 'merge', picks: { [PG203]: 'cr' } })).rejects.toMatchObject({
         code: 'CONFLICT',
       });
-      const afterTwo = await review(storyCr(2), { action: 'merge', picks: {} });
-      expect(clashesOf(crOf(afterTwo, storyCr(3)).ops, afterTwo.commits).map((c) => c.key)).toEqual(
-        [PG203],
-      );
-      await expect(review(storyCr(3), { action: 'merge', picks: {} })).rejects.toMatchObject({
+      const afterTwo = await review(2, { action: 'merge', picks: {} });
+      expect(clashesOf(crOf(afterTwo, 3).ops, afterTwo.commits).map((c) => c.key)).toEqual([PG203]);
+      await expect(review(3, { action: 'merge', picks: {} })).rejects.toMatchObject({
         code: 'CONFLICT',
       });
       await expect(
-        review(storyCr(3), { action: 'merge', picks: { [PG203]: 'cr', 'ms:golive:date': 'cr' } }),
+        review(3, { action: 'merge', picks: { [PG203]: 'cr', 'ms:golive:date': 'cr' } }),
       ).rejects.toMatchObject({ code: 'CONFLICT' });
       await expect(
-        review(storyCr(3), { action: 'merge', picks: { [PG203]: 'both' } }),
+        review(3, { action: 'merge', picks: { [PG203]: 'both' } }),
       ).rejects.toMatchObject({ code: 'VALIDATION' });
     });
 
     it('records the picks as resolutions and a resolved comment', async () => {
       await fresh();
-      await review(storyCr(2), { action: 'merge', picks: {} });
-      const merged = await review(storyCr(3), { action: 'merge', picks: { [PG203]: 'cr' } });
+      await review(2, { action: 'merge', picks: {} });
+      const merged = await review(3, { action: 'merge', picks: { [PG203]: 'cr' } });
       const resolution = {
         key: PG203,
         label: 'PG-203 Country list field type · name',
         chose: 'cr',
         mainVal: 'PG-203 Country list field (multi-select)',
         crVal: 'PG-203 Country list field type, on staging',
-        from: storyCr(2),
+        from: 2,
         by: demo.ids.minh,
       };
-      expect(merged.commits[HISTORY + 2]).toMatchObject({
-        rev: HISTORY + 3,
-        crNum: storyCr(3),
-        resolutions: [resolution],
-      });
-      expect(merged.commits[HISTORY + 2].ops.map((op) => op.op)).toEqual(['addEvent', 'rename']);
-      expect(crOf(merged, storyCr(3))).toMatchObject({
+      expect(merged.commits[2]).toMatchObject({ rev: 3, crNum: 3, resolutions: [resolution] });
+      expect(merged.commits[2].ops.map((op) => op.op)).toEqual(['addEvent', 'rename']);
+      expect(crOf(merged, 3)).toMatchObject({
         status: 'merged',
-        mergedRev: HISTORY + 3,
+        mergedRev: 3,
         resolutions: [resolution],
       });
-      expect(crOf(merged, storyCr(3)).comments.slice(-2)).toMatchObject([
+      expect(crOf(merged, 3).comments.slice(-2)).toMatchObject([
         {
           kind: 'resolved',
           memberId: demo.ids.minh,
@@ -716,16 +630,13 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
 
     it('drops the op of a clash picked as main from the commit', async () => {
       await fresh();
-      await review(storyCr(2), { action: 'merge', picks: {} });
-      const merged = await review(storyCr(3), { action: 'merge', picks: { [PG203]: 'main' } });
-      expect(merged.commits[HISTORY + 2].ops.map((op) => op.op)).toEqual(['addEvent']);
-      expect(merged.commits[HISTORY + 2].resolutions[0]).toMatchObject({
-        chose: 'main',
-        from: storyCr(2),
-      });
-      expect(lastComment(merged, storyCr(3))?.kind).toBe('merged');
-      expect(crOf(merged, storyCr(3)).comments.at(-2)?.body).toBe(
-        `PG-203 Country list field type · name: kept Main's version from #${storyCr(2)}, "PG-203 Country list field (multi-select)".`,
+      await review(2, { action: 'merge', picks: {} });
+      const merged = await review(3, { action: 'merge', picks: { [PG203]: 'main' } });
+      expect(merged.commits[2].ops.map((op) => op.op)).toEqual(['addEvent']);
+      expect(merged.commits[2].resolutions[0]).toMatchObject({ chose: 'main', from: 2 });
+      expect(lastComment(merged, 3)?.kind).toBe('merged');
+      expect(crOf(merged, 3).comments.at(-2)?.body).toBe(
+        'PG-203 Country list field type · name: kept Main\'s version from #2, "PG-203 Country list field (multi-select)".',
       );
       const main = mainState(merged.base, merged.queue, merged.commits);
       expect(main.workItems.find((item) => item.id === 'pg203')?.title).toBe(
@@ -801,7 +712,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
         message: `No change of #${x.num} applies to Main now`,
       });
       const payload = await getTrackerPayload(t.db, demo.owner, as('minh'));
-      expect(payload.commits).toHaveLength(HISTORY + 2);
+      expect(payload.commits).toHaveLength(2);
       expect(crOf(payload, x.num).status).toBe('ready');
     });
 
@@ -831,7 +742,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
 
     it('merges only a ready change request', async () => {
       await fresh();
-      await expect(review(storyCr(4), { action: 'merge', picks: {} })).rejects.toMatchObject({
+      await expect(review(4, { action: 'merge', picks: {} })).rejects.toMatchObject({
         code: 'CONFLICT',
       });
     });
@@ -840,100 +751,79 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
   describe('request changes and close', () => {
     it('returns a ready change request to draft with a changes note', async () => {
       await fresh();
-      await expect(
-        review(storyCr(2), { action: 'request-changes', note: '  ' }),
-      ).rejects.toMatchObject({
+      await expect(review(2, { action: 'request-changes', note: '  ' })).rejects.toMatchObject({
         code: 'VALIDATION',
       });
-      const back = await review(storyCr(2), {
+      const back = await review(2, {
         action: 'request-changes',
         note: 'Add the tax ID rules first.',
       });
-      expect(crOf(back, storyCr(2))).toMatchObject({ status: 'draft', editor: demo.ids.lan });
-      expect(lastComment(back, storyCr(2))).toMatchObject({
+      expect(crOf(back, 2)).toMatchObject({ status: 'draft', editor: demo.ids.lan });
+      expect(lastComment(back, 2)).toMatchObject({
         kind: 'changes',
         memberId: demo.ids.minh,
         body: 'Add the tax ID rules first.',
       });
-      await expect(
-        review(storyCr(2), { action: 'request-changes', note: 'Again' }),
-      ).rejects.toMatchObject({
+      await expect(review(2, { action: 'request-changes', note: 'Again' })).rejects.toMatchObject({
         code: 'CONFLICT',
       });
     });
 
     it('closes a ready change request without merging, with the reason', async () => {
       await fresh();
-      await expect(review(storyCr(3), { action: 'close' })).rejects.toMatchObject({
+      await expect(review(3, { action: 'close' })).rejects.toMatchObject({ code: 'VALIDATION' });
+      await expect(review(3, { action: 'close', reason: '   ' })).rejects.toMatchObject({
         code: 'VALIDATION',
       });
-      await expect(review(storyCr(3), { action: 'close', reason: '   ' })).rejects.toMatchObject({
-        code: 'VALIDATION',
-      });
-      const closed = await review(storyCr(3), {
-        action: 'close',
-        reason: 'Main has the name already.',
-      });
-      expect(crOf(closed, storyCr(3))).toMatchObject({
+      const closed = await review(3, { action: 'close', reason: 'Main has the name already.' });
+      expect(crOf(closed, 3)).toMatchObject({
         status: 'closed',
         closedBy: demo.ids.minh,
-        closedRev: HISTORY + 1,
+        closedRev: 1,
         closedAt: expect.any(String),
       });
-      expect(lastComment(closed, storyCr(3))).toMatchObject({
+      expect(lastComment(closed, 3)).toMatchObject({
         kind: 'closed',
         memberId: demo.ids.minh,
         body: 'Main has the name already.',
       });
-      expect(closed.commits).toHaveLength(HISTORY + 1);
-      await expect(review(storyCr(3), { action: 'close', reason: 'Again' })).rejects.toMatchObject({
+      expect(closed.commits).toHaveLength(1);
+      await expect(review(3, { action: 'close', reason: 'Again' })).rejects.toMatchObject({
         code: 'CONFLICT',
       });
       await expect(
-        action('khoa', storyCr(3), { action: 'comment', body: 'Too late' }),
+        action('khoa', 3, { action: 'comment', body: 'Too late' }),
       ).rejects.toMatchObject({ code: 'CONFLICT' });
     });
 
     it('lets the author, the editor or a person who may merge cancel a draft, and no one else', async () => {
       await fresh();
       const cancel = async (key: string) =>
-        action(key, storyCr(4), {
+        action(key, 4, {
           action: 'close',
           reason: `${key} cancels it.`,
-          expectedRevision: await revisionOf(storyCr(4)),
+          expectedRevision: await revisionOf(4),
         });
       for (const key of ['khoa', 'lan'])
         await expect(cancel(key)).rejects.toMatchObject({ code: 'FORBIDDEN' });
       const byAuthor = await cancel('ha');
-      expect(crOf(byAuthor, storyCr(4))).toMatchObject({ status: 'closed', closedBy: demo.ids.ha });
-      expect(lastComment(byAuthor, storyCr(4))).toMatchObject({
-        kind: 'closed',
-        body: 'ha cancels it.',
-      });
+      expect(crOf(byAuthor, 4)).toMatchObject({ status: 'closed', closedBy: demo.ids.ha });
+      expect(lastComment(byAuthor, 4)).toMatchObject({ kind: 'closed', body: 'ha cancels it.' });
 
       await fresh();
-      await action('khoa', storyCr(4), { action: 'ask' });
-      await action('ha', storyCr(4), { action: 'handover', to: demo.ids.khoa });
+      await action('khoa', 4, { action: 'ask' });
+      await action('ha', 4, { action: 'handover', to: demo.ids.khoa });
       const byEditor = await cancel('khoa');
-      expect(crOf(byEditor, storyCr(4))).toMatchObject({
-        status: 'closed',
-        closedBy: demo.ids.khoa,
-      });
+      expect(crOf(byEditor, 4)).toMatchObject({ status: 'closed', closedBy: demo.ids.khoa });
 
       await fresh();
       const byOwner = await cancel('minh');
-      expect(crOf(byOwner, storyCr(4))).toMatchObject({
-        status: 'closed',
-        closedBy: demo.ids.minh,
-      });
-      expect(crOf(byOwner, storyCr(4)).asks).toEqual([]);
+      expect(crOf(byOwner, 4)).toMatchObject({ status: 'closed', closedBy: demo.ids.minh });
+      expect(crOf(byOwner, 4).asks).toEqual([]);
 
       await fresh();
       const byMerger = await cancel('quang');
-      expect(crOf(byMerger, storyCr(4))).toMatchObject({
-        status: 'closed',
-        closedBy: demo.ids.quang,
-      });
+      expect(crOf(byMerger, 4)).toMatchObject({ status: 'closed', closedBy: demo.ids.quang });
     });
   });
 
@@ -959,40 +849,34 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
 
     it('rejects a merge of changes the owner did not see', async () => {
       await fresh();
-      const seen = await revisionOf(storyCr(2));
-      await action('lan', storyCr(2), { action: 'unready' });
+      const seen = await revisionOf(2);
+      await action('lan', 2, { action: 'unready' });
       await appendOp(t.db, demo.owner, {
         ...as('lan'),
-        num: storyCr(2),
-        expectedRevision: await revisionOf(storyCr(2)),
+        num: 2,
+        expectedRevision: await revisionOf(2),
         op: { op: 'rename', a: { workItemId: 'secret', title: 'Secret renewed late' } },
       });
-      await action('lan', storyCr(2), { action: 'ready' });
+      await action('lan', 2, { action: 'ready' });
       for (const body of [
         { action: 'merge', picks: {} },
         { action: 'request-changes', note: 'Wait' },
         { action: 'close', reason: 'Wait' },
       ])
-        await expect(
-          action('minh', storyCr(2), { ...body, expectedRevision: seen }),
-        ).rejects.toMatchObject({
+        await expect(action('minh', 2, { ...body, expectedRevision: seen })).rejects.toMatchObject({
           code: 'CONFLICT',
         });
-      const merged = await review(storyCr(2), { action: 'merge', picks: {} });
+      const merged = await review(2, { action: 'merge', picks: {} });
       expect(merged.commits.at(-1)?.ops.map((op) => op.op)).toEqual(['place', 'rename', 'rename']);
     });
 
     it('checks expectedRevision on any action that sends it', async () => {
       await fresh();
       await expect(
-        action('khoa', storyCr(4), { action: 'comment', body: 'Hi', expectedRevision: 7 }),
+        action('khoa', 4, { action: 'comment', body: 'Hi', expectedRevision: 7 }),
       ).rejects.toMatchObject({ code: 'CONFLICT' });
-      const ok = await action('khoa', storyCr(4), {
-        action: 'comment',
-        body: 'Hi',
-        expectedRevision: 0,
-      });
-      expect(lastComment(ok, storyCr(4))?.body).toBe('Hi');
+      const ok = await action('khoa', 4, { action: 'comment', body: 'Hi', expectedRevision: 0 });
+      expect(lastComment(ok, 4)?.body).toBe('Hi');
     });
 
     it('leaves out a change that Main already has', async () => {
@@ -1070,7 +954,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('tracker change requests', () =>
     await expect(action('lan', 99, { action: 'ready' })).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
-    await expect(action('lan', storyCr(2), { action: 'sync' })).rejects.toMatchObject({
+    await expect(action('lan', 2, { action: 'sync' })).rejects.toMatchObject({
       code: 'VALIDATION',
     });
   });

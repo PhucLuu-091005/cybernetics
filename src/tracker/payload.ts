@@ -14,12 +14,8 @@ export type Member = {
   userId: string | null;
   /** A present person: not removed and not a pending invite. What they may do comes from `can`. */
   active: boolean;
-  /** Removed from the project: the name stays on past work, but nobody gives them new work. */
-  removed: boolean;
   /** The stored grants; `rightsOf` adds the project lead and team lead rules. */
   grants: Grants;
-  /** The photo URL; without it the avatar shows initials. */
-  photo?: string;
 };
 
 export type CrStatus = 'draft' | 'ready' | 'merged' | 'closed';
@@ -76,9 +72,6 @@ export type Cr = {
     kind: CrCommentKind;
     body: string | null;
     opIndex: number | null;
-    /** An agent wrote it for memberId; audit only. */
-    agent: boolean;
-    viaKey: string | null;
     createdAt: string;
   }>;
 };
@@ -90,7 +83,7 @@ export type QueueRow = {
   createdAt: string;
 } & ({ kind: 'event'; payload: QueueEventInput } | { kind: 'item'; payload: QueueItemInput });
 
-type TrackerProject = {
+export type TrackerProject = {
   id: string;
   title: string;
   clientName: string;
@@ -112,6 +105,4 @@ export type TrackerPayload = {
   queue: TrackerQueue;
   commits: Commit[];
   crs: Cr[];
-  /** The version of this payload; the light check compares it (`TrackerVersion`). */
-  version: string;
 };

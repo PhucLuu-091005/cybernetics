@@ -1,6 +1,5 @@
 import {
   boolean,
-  check,
   date,
   foreignKey,
   index,
@@ -16,8 +15,7 @@ import {
   type ForeignKeyBuilder,
   type PgColumn,
 } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
-import type { KeyKind } from '../../contracts';
+import type { Scope } from '../../contracts';
 import type {
   CrCommentKind,
   CrPermission,
@@ -57,8 +55,6 @@ export const users = pgTable('users', {
   subject: text('subject').notNull().unique(),
   email: text('email'),
   name: text('name').notNull(),
-  // avatars/<userId>/<sha256>.webp in the photo store; the hash in it makes the photo URL immutable.
-  avatarKey: text('avatar_key'),
   createdAt: createdAt(),
 });
 export const workspaces = pgTable('workspaces', {
@@ -103,17 +99,15 @@ export const agentTokens = pgTable(
   'agent_tokens',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    // A personal key keeps the creator's home workspace here; each call checks the project it names.
     workspaceId: tenantWorkspaceId(),
-    projectId: uuid('project_id'),
-    kind: text('kind').$type<KeyKind>().notNull().default('project'),
+    projectId: tenantProjectId(),
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id),
     prefix: text('prefix').notNull(),
     hash: text('hash').notNull().unique(),
     label: text('label').notNull(),
-    scopes: text('scopes').array().$type<string[]>().notNull(),
+    scopes: text('scopes').array().$type<Scope[]>().notNull(),
     idempotencyKey: text('idempotency_key').notNull(),
     // Nullable because the HttpIdentityStore port declares requestDigest optional.
     requestDigest: text('request_digest'),
@@ -122,20 +116,15 @@ export const agentTokens = pgTable(
     revokedAt: tz('revoked_at'),
     lastUsedAt: tz('last_used_at'),
     revokeKey: text('revoke_key'),
-    // A key made while the visitor of a demo copy acts as a seeded person acts as that member.
-    memberId: uuid('member_id').references(() => trackerMembers.id, { onDelete: 'cascade' }),
   },
   (table) => [
-    unique('agent_tokens_creation_key_unique')
-      .on(table.userId, table.projectId, table.idempotencyKey)
-      .nullsNotDistinct(),
-    index('agent_tokens_project_idx').on(table.projectId),
-    index('agent_tokens_user_idx').on(table.userId),
-    inProject('agent_tokens', table),
-    check(
-      'agent_tokens_kind_project',
-      sql`(${table.kind} = 'project' and ${table.projectId} is not null) or (${table.kind} = 'personal' and ${table.projectId} is null)`,
+    unique('agent_tokens_creation_key_unique').on(
+      table.userId,
+      table.projectId,
+      table.idempotencyKey,
     ),
+    index('agent_tokens_project_idx').on(table.projectId),
+    inProject('agent_tokens', table),
   ],
 );
 
@@ -162,8 +151,6 @@ export const trackerMembers = pgTable(
     // A removed member keeps its row, because change requests and history still name it.
     removedAt: tz('removed_at'),
     createdAt: createdAt(),
-    // Only a seeded demo person, who has no user, keeps a photo here; a person's photo is on users.
-    avatarKey: text('avatar_key'),
   },
   (table) => [
     unique('tracker_members_project_id_unique').on(table.projectId, table.id),
@@ -355,8 +342,6 @@ export const trackerCrComments = pgTable(
     kind: text('kind').$type<CrCommentKind>().notNull(),
     body: text('body'),
     opIndex: integer('op_index'),
-    byAgent: boolean('by_agent').notNull().default(false),
-    viaKey: text('via_key'),
     createdAt: createdAt(),
   },
   (table) => [

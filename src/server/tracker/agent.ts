@@ -25,7 +25,6 @@ export const TrackerInputSchema = z.strictObject({ projectId: IdSchema });
 export const AddQueueEventInputSchema = z.strictObject({
   projectId: IdSchema,
   ...QueueEventFieldsSchema.shape,
-  by: QueueEventFieldsSchema.shape.by.optional(),
 });
 export const AddQueueItemInputSchema = z.strictObject({
   projectId: IdSchema,
@@ -86,15 +85,8 @@ function crSummary(cr: Cr, who: (id: string) => Who) {
     author: who(cr.author),
     editor: who(cr.editor),
     changeCount: cr.ops.length,
-    revision: cr.revision,
     updatedAt: cr.updatedAt,
   };
-}
-
-/** What a change request write answers: the change request as it is now, small enough for any page. */
-export function crBrief(payload: TrackerPayload, num: number) {
-  const cr = payload.crs.find((item) => item.num === num);
-  return { changeRequest: cr ? crSummary(cr, whoIn(payload)) : null };
 }
 
 const main = (payload: TrackerPayload) => mainState(payload.base, payload.queue, payload.commits);
@@ -113,7 +105,7 @@ function takePage<T>(entries: readonly T[], limit: number): { taken: T[]; more: 
   return { taken: entries.slice(0, end), more: end < entries.length };
 }
 
-/** A project's fixed clock (`asOf`: the tests, and demo copies made before round 23) decides the statuses, else now, as in the browser. */
+/** The demo clock decides statuses in a demo project, the same as in the browser. */
 export function trackerSummary(payload: TrackerPayload, now = new Date()) {
   const state = main(payload);
   const asOf = payload.project.asOf ?? now.toISOString();
@@ -275,6 +267,7 @@ export async function getChangeRequest(
   return {
     changeRequest: {
       ...crSummary(cr, who),
+      revision: cr.revision,
       createdAt: cr.createdAt,
       mergedRev: cr.mergedRev,
       mergedBy: maybe(cr.mergedBy),
@@ -285,8 +278,6 @@ export async function getChangeRequest(
         index,
         op: op.op,
         by: who(op.by),
-        agent: op.agent === true,
-        viaKey: op.via ?? null,
         description: op.d ?? null,
       })),
       resolutions: cr.resolutions,
@@ -300,8 +291,6 @@ export async function getChangeRequest(
         kind: comment.kind,
         body: comment.body,
         opIndex: comment.opIndex,
-        agent: comment.agent,
-        viaKey: comment.viaKey,
         createdAt: comment.createdAt,
       })),
     },

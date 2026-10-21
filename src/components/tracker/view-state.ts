@@ -120,34 +120,15 @@ export function writeNoticeOff(store: KeyValueStore | null, userId: string): voi
   }
 }
 
-const introKey = (userId: string) => `promise-graph:demo-intro-seen:v1:${userId}`;
-
-/** Without storage the intro stays away, so a blocked store does not bring it back on each load. */
-export function readIntroSeen(store: KeyValueStore | null, userId: string): boolean {
-  try {
-    return !store || store.getItem(introKey(userId)) === '1';
-  } catch {
-    return true;
-  }
-}
-
-export function writeIntroSeen(store: KeyValueStore | null, userId: string): void {
-  try {
-    store?.setItem(introKey(userId), '1');
-  } catch {
-    // Without storage the intro stays closed for this page view only.
-  }
-}
-
 export const densityKey = (userId: string) => `promise-graph:row-height:v1:${userId}`;
 const DENSITY_VALUES: readonly Density[] = ['comfortable', 'compact', 'dense'];
 
 export function readDensity(store: KeyValueStore | null, userId: string): Density {
   try {
     const raw = store?.getItem(densityKey(userId));
-    return DENSITY_VALUES.find((d) => d === raw) ?? 'comfortable';
+    return DENSITY_VALUES.find((d) => d === raw) ?? 'compact';
   } catch {
-    return 'comfortable';
+    return 'compact';
   }
 }
 
@@ -156,31 +137,6 @@ export function writeDensity(store: KeyValueStore | null, userId: string, densit
     store?.setItem(densityKey(userId), density);
   } catch {
     // Without storage the row height holds for this page view only.
-  }
-}
-
-export const legendKey = (userId: string) => `promise-graph:legend:v1:${userId}`;
-
-/** The stored choice wins; without one the legend opens on a desktop, as it would cover a phone. */
-export function readLegendOpen(
-  store: KeyValueStore | null,
-  userId: string,
-  { phone }: { phone: boolean },
-): boolean {
-  try {
-    const raw = store?.getItem(legendKey(userId));
-    if (raw === 'open' || raw === 'closed') return raw === 'open';
-  } catch {
-    // Without storage the width decides.
-  }
-  return !phone;
-}
-
-export function writeLegendOpen(store: KeyValueStore | null, userId: string, open: boolean): void {
-  try {
-    store?.setItem(legendKey(userId), open ? 'open' : 'closed');
-  } catch {
-    // Without storage the legend holds its state for this page view only.
   }
 }
 

@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { IdSchema } from '../../../../../contracts';
 import { TrackerScreen } from '../../../../../components/tracker/TrackerScreen';
-import { pageOnScreen, requireActor } from '../../../../../server/http/rsc';
-import { NoViewNotice, serverHour, trackerPayload } from '../tracker-load';
-import { Notice } from '../../../../../components/shell/Notice';
+import { getApp } from '../../../../../server/app';
+import { signedInAccount } from '../../../../../server/domain/account';
+import { requireActor } from '../../../../../server/http/rsc';
+import { NoViewNotice, serverMinute, trackerPayload } from '../tracker-load';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Graph · Promise Graph' };
@@ -22,22 +24,26 @@ export default async function GraphPage({
   if (typeof search.cr === 'string' && /^\d{1,9}$/.test(search.cr))
     redirect(`/projects/${id}/changes/${search.cr}`);
   const actor = await requireActor(`/projects/${id}/graph`);
-  const seen = await pageOnScreen(actor, id);
-  const payload = await trackerPayload(actor, id, seen.actAs);
+  const payload = await trackerPayload(actor, id, (await cookies()).get(`pg_act_${id}`)?.value);
   if (payload === 'no-view') return <NoViewNotice projectId={id} />;
   if (!payload)
     return (
-      <Notice role="status" title="This project has no tracker yet.">
-        Make a new project from the project menu to start an event tracker.
-      </Notice>
+      <div className="screen">
+        <div className="card pad" role="status">
+          <h1>This project has no tracker yet.</h1>
+          <p className="muted" style={{ marginTop: 6 }}>
+            Make a new project from the project menu to start an event tracker.
+          </p>
+        </div>
+      </div>
     );
   return (
     <TrackerScreen
       payload={payload}
       projectId={id}
       userId={actor.userId}
-      account={seen.account}
-      serverNow={serverHour(payload.project.timeZone)}
+      account={await signedInAccount(getApp().db, actor.userId)}
+      serverNow={serverMinute()}
     />
   );
 }

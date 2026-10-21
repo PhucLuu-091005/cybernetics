@@ -2,7 +2,7 @@ import type { TrackerEvent, TrackerState, WorkItem } from '../../src/tracker/mod
 import type { Op, OpName } from '../../src/tracker/ops';
 import {
   at,
-  LARKSPUR_STORY_NOW,
+  LARKSPUR_AS_OF,
   LARKSPUR_TIME_ZONE,
   larkspurBase,
   larkspurQueueRows,
@@ -11,7 +11,7 @@ import {
 
 export { at, larkspurBase, larkspurQueueRows, larkspurState };
 export const TIME_ZONE = LARKSPUR_TIME_ZONE;
-export const AS_OF = LARKSPUR_STORY_NOW;
+export const AS_OF = LARKSPUR_AS_OF;
 
 export function makeOp<N extends OpName>(
   op: N,

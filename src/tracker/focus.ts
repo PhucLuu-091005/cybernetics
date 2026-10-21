@@ -1,7 +1,7 @@
 import type { Team, TrackerState, WorkItem } from './model';
 
 export type FocusNode = { id: string; title: string; teamId: string; children: FocusNode[] };
-type FocusTree = { parent: WorkItem | null; root: FocusNode };
+export type FocusTree = { parent: WorkItem | null; root: FocusNode };
 
 /** Children by parent and by "leads from", so a focus follows the work into other teams. */
 function childrenOf(state: TrackerState): Map<string, WorkItem[]> {
@@ -52,7 +52,7 @@ export function focusTree(state: TrackerState, id: string): FocusTree | null {
   return { parent, root };
 }
 
-type TeamFocusTree = { team: Team; roots: FocusNode[] };
+export type TeamFocusTree = { team: Team; roots: FocusNode[] };
 
 /** A team row that comes from another row of the same team sits under that row, not at the top. */
 export function teamFocusTree(state: TrackerState, teamId: string): TeamFocusTree | null {

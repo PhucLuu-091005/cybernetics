@@ -13,40 +13,6 @@
   align-items: center;
   font-weight: 600;
 }
-/* Many clashes scroll in their own list, so the count and the pick-all buttons stay in sight. */
-.tk .res-box {
-  flex: none;
-}
-.tk .res-head {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--panel);
-  padding-bottom: 4px;
-}
-.tk .res-count {
-  margin-left: auto;
-  color: var(--ink-3);
-  font-size: var(--fs-xs);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
-.tk .res-all {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 8px;
-  margin-top: 8px;
-}
-.tk .res-list {
-  max-height: min(480px, 55vh);
-  overflow-y: auto;
-}
-.tk .conf-go {
-  font: inherit;
-  font-weight: 600;
-  text-align: left;
-}
 .tk .conf {
   display: block;
   grid-template-columns: none;

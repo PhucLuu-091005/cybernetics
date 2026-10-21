@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { IdSchema, type ActorContext, type Scope as TokenScope } from '../../contracts';
+import { IdSchema, type ActorContext } from '../../contracts';
 import {
   rightsOf,
   type CrPermission,
@@ -22,22 +22,16 @@ import {
 } from './store';
 
 /** The `pg_act_<projectId>` cookie value; anything that names no member is rejected later. */
-const ActAsSchema = z.string().max(200).nullish();
+export const ActAsSchema = z.string().max(200).nullish();
 export const ProjectScopeSchema = { projectId: IdSchema, actAs: ActAsSchema };
 
-function resolveActing(
+export function resolveActing(
   tracker: Pick<TrackerRow, 'demo'>,
   members: readonly Member[],
   ctx: ActorContext,
   actAs?: string | null,
   canSwitch = true,
 ): Member | null {
-  // A key made as a seeded person acts as that member, with their live rights, while the copy allows it.
-  if (ctx.kind === 'agent' && ctx.memberId)
-    return canSwitch
-      ? (members.find((item) => item.id === ctx.memberId && item.active && item.userId === null) ??
-          null)
-      : null;
   const own = members.find((item) => item.userId === ctx.userId && item.active) ?? null;
   // The cookie only switches a member to another member; it never makes a guest a member.
   if (!actAs || !own) return own;
@@ -62,8 +56,7 @@ async function canSwitchMember(
   project: ProjectRow,
   tracker: TrackerRow,
 ): Promise<boolean> {
-  if (!tracker.demo || (ctx.kind !== 'user' && !(ctx.kind === 'agent' && ctx.memberId)))
-    return false;
+  if (!tracker.demo || ctx.kind !== 'user') return false;
   const [row] = await db
     .select({ userId: workspaceMembers.userId })
     .from(workspaceMembers)
@@ -84,11 +77,10 @@ export async function actingMember(
   actAsCookie?: string | null,
 ): Promise<Member | null> {
   const project = await findProjectForActor(tx, ctx, projectId, false);
-  const members = await loadMembers(tx, project.id);
-  const tracker = await findTracker(tx, project.id, members);
+  const tracker = await findTracker(tx, project.id);
   return resolveActing(
     tracker,
-    members,
+    await loadMembers(tx, project.id),
     ctx,
     actAsCookie,
     await canSwitchMember(tx, ctx, project, tracker),
@@ -112,8 +104,8 @@ async function scopeOf(
   project: ProjectRow,
   actAs?: string | null,
 ): Promise<Scope> {
+  const tracker = await findTracker(db, project.id);
   const members = await loadMembers(db, project.id);
-  const tracker = await findTracker(db, project.id, members);
   const canSwitch = await canSwitchMember(db, ctx, project, tracker);
   const me = resolveActing(tracker, members, ctx, actAs, canSwitch);
   return {
@@ -123,11 +115,7 @@ async function scopeOf(
     me,
     canActAs: canSwitch && me !== null,
     userId: ctx.userId,
-    tenant: {
-      workspaceId: project.workspaceId,
-      projectId: project.id,
-      ...(ctx.kind === 'agent' ? { byAgent: true, viaKey: ctx.keyLabel } : {}),
-    },
+    tenant: { workspaceId: project.workspaceId, projectId: project.id },
   };
 }
 
@@ -171,32 +159,13 @@ const MISSING: Record<keyof Rights, string> = {
   manage: 'Only the project lead can do this',
 };
 
-/**
- * Each MCP tool checks its own scope first. This second check keeps a token away from a right that
- * none of its scopes uses, so a new caller of a use case cannot skip the scopes.
- */
-const AGENT_SCOPES: Record<keyof Rights, readonly TokenScope[]> = {
-  viewMain: ['crs:edit', 'crs:comment', 'crs:close'],
-  viewCrs: [],
-  create: ['queue:dismiss', 'crs:edit', 'crs:ready'],
-  merge: ['crs:merge'],
-  manage: ['members:manage', 'teams:manage'],
-};
-
-/** A token manages what its person manages today, inside its scopes. */
-export const mayManage = (
-  ctx: ActorContext,
-  scope: Pick<Scope, 'me' | 'tracker'>,
-  need: 'members:manage' | 'teams:manage',
-) => (ctx.kind === 'user' || ctx.scopes.includes(need)) && rightsOf(subjectOf(scope)).manage;
-
 export function requireRight(
   ctx: ActorContext,
   scope: Pick<Scope, 'me' | 'tracker'>,
   right: keyof Rights,
 ): Member {
-  if (ctx.kind === 'agent' && !AGENT_SCOPES[right].some((need) => ctx.scopes.includes(need)))
-    throw new AppError('FORBIDDEN', 'This token has no scope for that');
+  if (ctx.kind === 'agent')
+    throw new AppError('FORBIDDEN', 'An agent can only read and add to the Queue');
   if (!scope.me) throw notMember();
   if (!rightsOf(subjectOf(scope))[right]) throw new AppError('FORBIDDEN', MISSING[right]);
   return scope.me;

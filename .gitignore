@@ -1,5 +1,5 @@
 .DS_Store
-node_modules
+node_modules/
 .next/
 coverage/
 playwright-report/
@@ -9,5 +9,3 @@ test-results/
 .superpowers/
 .worktrees/
 *.tsbuildinfo
-# The local photo store (AVATAR_STORE=local) of development.
-.avatars/

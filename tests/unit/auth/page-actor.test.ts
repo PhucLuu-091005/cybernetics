@@ -15,17 +15,9 @@ const env: AuthEnvironment = {
   sessionSecret: secret,
   google: null,
 };
-const page = vi.hoisted(() => ({
-  cookie: '',
-  asked: null as string | null,
-  memos: [] as Map<string, unknown>[],
-}));
+const page = vi.hoisted(() => ({ cookie: '', memos: [] as Map<string, unknown>[] }));
 vi.mock('next/headers', () => ({
-  headers: async () =>
-    new Headers({
-      host: 'localhost:3000',
-      ...(page.asked ? { 'x-pg-return-path': page.asked } : {}),
-    }),
+  headers: async () => new Headers({ host: 'localhost:3000' }),
   cookies: async () => ({ getAll: () => [{ name: 'pg_session', value: page.cookie }] }),
 }));
 // React provides the request scope in a server render; this stand-in scopes the memo to one test, which plays one page render.
@@ -64,12 +56,11 @@ describe('page actor: one session resolution and one read charge per request', (
     });
     page.cookie = signSession({ userId, expiresAt: Date.now() + 60_000 }, secret);
     page.memos.forEach((memo) => memo.clear());
-    consume = vi.fn<RateLimiter['consume']>(() => true);
+    consume = vi.fn<RateLimiter['consume']>();
     (globalThis as { promiseRateLimiter?: RateLimiter }).promiseRateLimiter = { consume };
     configureApp({ db: {} as Db, identity: store, pool: {} as never });
   });
   afterEach(() => {
-    page.asked = null;
     vi.unstubAllEnvs();
     resetApp();
     delete (globalThis as { promiseRateLimiter?: RateLimiter }).promiseRateLimiter;
@@ -83,24 +74,6 @@ describe('page actor: one session resolution and one read charge per request', (
     expect(consume).toHaveBeenCalledWith(`user:${userId}:read`, 300, expect.any(Number));
     expect(layout).toMatchObject({ userId, projectId: null });
     expect(inbox).toMatchObject({ userId, projectId });
-  });
-  it('sends a signed-out person to sign-in with the link they asked for', async () => {
-    page.cookie = '';
-    const link = `/projects/${projectId}/changes/2`;
-    page.asked = link;
-    await expect(requireActor('/')).rejects.toMatchObject({
-      digest: expect.stringContaining(`/signin?next=${encodeURIComponent(link)};`),
-    });
-    page.asked = null;
-    await expect(requireActor(`/projects/${projectId}/graph`)).rejects.toMatchObject({
-      digest: expect.stringContaining(
-        `/signin?next=${encodeURIComponent(`/projects/${projectId}/graph`)};`,
-      ),
-    });
-    page.asked = '//evil.example/x';
-    await expect(requireActor('/')).rejects.toMatchObject({
-      digest: expect.stringContaining(';/signin;'),
-    });
   });
   it('a foreign project still answers 404 without a second charge', async () => {
     await requireActor('/');
@@ -116,7 +89,7 @@ describe('page actor: one session resolution and one read charge per request', (
 describe('browser actor split', () => {
   it('the session step charges the limit once and the project step never charges', async () => {
     const store = memoryStore(),
-      consume = vi.fn(() => true);
+      consume = vi.fn();
     const { userId } = await store.provisionUser({
       subject: 'local:dev',
       email: null,

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import '../../../../../../components/tracker/tracker.css';
 import { IdSchema } from '../../../../../../contracts';
@@ -8,13 +9,12 @@ import { TokenCreate } from '../../../../../../components/settings/TokenCreate';
 import { TokenList } from '../../../../../../components/settings/TokenList';
 import { PageHead } from '../../../../../../components/shell/PageHead';
 import { getApp, listAgentTokens } from '../../../../../../server/app';
-import { tokenCreator } from '../../../../../../server/domain/account';
+import { projectAccount } from '../../../../../../server/domain/account';
 import { readAuthEnvironment } from '../../../../../../server/env';
 import { getProject } from '../../../../../../server/domain/projects';
 import {
   notFoundOn,
   notFoundOnCursor,
-  pageOnScreen,
   requireActor,
   searchCursor,
 } from '../../../../../../server/http/rsc';
@@ -26,14 +26,12 @@ const DAY = 86_400_000;
 /** The request time belongs to the data load: token expiry and the expiry choices are read at the same instant. */
 async function loadTokens(projectId: string, cursor: string | null) {
   const actor = await requireActor(`/projects/${projectId}/settings/tokens`);
-  const db = getApp().db;
-  const [{ project, timeZone }, page, seen] = await Promise.all([
-    notFoundOn(getProject(db, actor, { projectId })),
+  const actAs = (await cookies()).get(`pg_act_${projectId}`)?.value;
+  const [{ project, timeZone }, page, account] = await Promise.all([
+    notFoundOn(getProject(getApp().db, actor, { projectId })),
     notFoundOnCursor(listAgentTokens(actor, { projectId, cursor }), cursor),
-    pageOnScreen(actor, projectId),
+    projectAccount(getApp().db, actor, projectId, actAs),
   ]);
-  const { account } = seen;
-  const creator = await tokenCreator(db, actor, projectId, seen.actAs);
   const now = Date.now();
   const expiryOptions = [30, 7].map((days) => ({
     days,
@@ -44,8 +42,6 @@ async function loadTokens(projectId: string, cursor: string | null) {
     timeZone,
     page,
     account,
-    creator,
-    actingAs: seen.seeded ? account.name : undefined,
     expiryOptions,
     now: new Date(now).toISOString(),
   };
@@ -61,31 +57,21 @@ export default async function AgentTokensPage({
   const [{ id }, search] = await Promise.all([params, searchParams]);
   const cursor = searchCursor(search.cursor);
   if (!IdSchema.safeParse(id).success) notFound();
-  const { project, timeZone, page, account, creator, actingAs, expiryOptions, now } =
-    await loadTokens(id, cursor);
+  const { project, timeZone, page, account, expiryOptions, now } = await loadTokens(id, cursor);
   const endpoint = `${readAuthEnvironment().appOrigin}/mcp`;
 
   return (
     <div className="tk pg">
       <PageHead title="Settings" project={project} account={account} />
       <div className="pg-body pg-split">
-        <div className="pg-main">
-          <section className="pg-sec" aria-labelledby="project-facts">
-            <h2 id="project-facts">Project</h2>
-            <dl className="pg-facts">
-              <dt>Name</dt>
-              <dd>{project.title}</dd>
-              <dt>Client</dt>
-              <dd>{project.clientName}</dd>
-              <dt>Time zone</dt>
-              <dd>
-                {timeZone}
-                <small>Dates and times of the project use it.</small>
-              </dd>
-            </dl>
-          </section>
+        <p className="pg-lede">
+          A token lets your own AI agent use this project through MCP. A token belongs to one
+          project and expires after 30 days by default. The app stores only a hash of the secret.
+          Project time zone: {timeZone}.
+        </p>
+        <div>
           <TokenList
-            api={`/api/v1/projects/${id}/agent-tokens`}
+            projectId={id}
             tokens={page.items}
             now={now}
             timeZone={timeZone}
@@ -93,17 +79,11 @@ export default async function AgentTokensPage({
             nextCursor={page.nextCursor}
             paged={cursor !== null}
           />
-          <TokenCreate
-            api={`/api/v1/projects/${id}/agent-tokens`}
-            endpoint={endpoint}
-            expiryOptions={expiryOptions}
-            creator={creator}
-            actingAs={actingAs}
-          />
+          <TokenCreate projectId={id} endpoint={endpoint} expiryOptions={expiryOptions} />
         </div>
-        <aside className="pg-aside">
+        <div className="pg-aside">
           <McpSnippet endpoint={endpoint} />
-        </aside>
+        </div>
       </div>
     </div>
   );

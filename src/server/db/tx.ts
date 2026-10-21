@@ -31,11 +31,6 @@ export function projectOpenTo(userId: string): SQL {
   const own = sql`select 1 from ${trackerMembers} where ${trackerMembers.projectId} = ${projects.id} and ${trackerMembers.userId} = ${userId}`;
   return sql`((exists (select 1 from ${workspaceMembers} where ${workspaceMembers.workspaceId} = ${projects.workspaceId} and ${workspaceMembers.userId} = ${userId}) and not exists (${own} and ${trackerMembers.removedAt} is not null)) or exists (${own} and ${trackerMembers.removedAt} is null))`;
 }
-/** A key that acts as a seeded demo member reaches only that member's project; other actors reach all. */
-export function keyReaches(ctx: ActorContext): SQL | undefined {
-  if (ctx.kind !== 'agent' || !ctx.memberId) return undefined;
-  return sql`${projects.id} in (select ${trackerMembers.projectId} from ${trackerMembers} where ${trackerMembers.id} = ${ctx.memberId})`;
-}
 /** Membership decides access; callers write with the returned row's workspaceId, never ctx.workspaceId. */
 export async function findProjectForActor(
   db: Db | Tx,
@@ -47,7 +42,7 @@ export async function findProjectForActor(
   const query = db
     .select()
     .from(projects)
-    .where(and(eq(projects.id, projectId), projectOpenTo(ctx.userId), keyReaches(ctx)))
+    .where(and(eq(projects.id, projectId), projectOpenTo(ctx.userId)))
     .limit(1);
   const rows = lock ? await query.for('update') : await query;
   if (

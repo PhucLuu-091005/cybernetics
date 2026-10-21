@@ -1,13 +1,12 @@
 import Link from 'next/link';
-import { Notice } from '../../../../components/shell/Notice';
 import type { ActorContext } from '../../../../contracts';
 import { getApp } from '../../../../server/app';
 import { AppError } from '../../../../server/errors';
 import { getTrackerPayload } from '../../../../server/tracker';
-import { hourFloor, type TrackerPayload } from '../../../../tracker';
+import type { TrackerPayload } from '../../../../tracker';
 
-// A function imported from the client module would be a client reference here, so the page rounds the hour.
-export const serverHour = (timeZone: string) => hourFloor(Date.now(), timeZone);
+// A function imported from the client module would be a client reference here, so the page rounds the minute.
+export const serverMinute = () => Math.floor(Date.now() / 60_000) * 60_000;
 
 /** The layout already proved the project exists, so NOT_FOUND here means it has no tracker row. */
 export async function trackerPayload(
@@ -32,26 +31,14 @@ export async function trackerPayload(
 
 export function NoViewNotice({ projectId }: { projectId: string }) {
   return (
-    <Notice role="status" title="You cannot see Main of this project yet.">
-      The project lead decides who sees Main. The{' '}
-      <Link href={`/projects/${projectId}/members`}>Members page</Link> names the project lead.
-    </Notice>
-  );
-}
-
-export function NoCrsNotice({ projectId }: { projectId: string }) {
-  return (
-    <Notice
-      role="status"
-      title="You cannot view change requests in this project."
-      actions={
-        <Link className="btn btn-ink" href={`/projects/${projectId}/graph`}>
-          Back to Main
-        </Link>
-      }
-    >
-      The project lead decides who has View change requests. The{' '}
-      <Link href={`/projects/${projectId}/members`}>Members page</Link> names the project lead.
-    </Notice>
+    <div className="screen">
+      <div className="card pad" role="status">
+        <h1>You cannot see Main of this project yet.</h1>
+        <p className="muted" style={{ marginTop: 6 }}>
+          The project lead decides who sees Main. The{' '}
+          <Link href={`/projects/${projectId}/members`}>Members page</Link> names the project lead.
+        </p>
+      </div>
+    </div>
   );
 }

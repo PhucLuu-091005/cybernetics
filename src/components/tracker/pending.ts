@@ -10,7 +10,7 @@ import {
 } from '../../tracker';
 import type { OpInput } from './api';
 
-type Current = { state: TrackerState; marks?: Marks };
+export type Current = { state: TrackerState; marks?: Marks };
 
 export function currentState(payload: TrackerPayload, cr: Cr | null): Current {
   const main = () => ({ state: mainState(payload.base, payload.queue, payload.commits) });

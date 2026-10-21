@@ -6,17 +6,15 @@ export function PageHead({
   account,
 }: {
   title: string;
-  project?: { title: string };
+  project: { title: string; clientName: string };
   account: Account;
 }) {
   return (
     <header className="p-head pg-head">
       <h1>{title}</h1>
-      {project && (
-        <span className="pg-proj" title={project.title}>
-          {project.title}
-        </span>
-      )}
+      <span className="pg-proj">
+        {project.clientName} · {project.title}
+      </span>
       <span className="sp" />
       <AccountMenu {...account} />
     </header>

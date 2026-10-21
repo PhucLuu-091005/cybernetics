@@ -39,8 +39,6 @@ else
   fi
   gate e2e env TEST_DATABASE_URL=$ADMIN E2E_PORT="$port" "$B/playwright" test
   grep -E '^ +[0-9]+ (passed|failed|flaky|skipped)' "$log/e2e.log" | sed 's/^ */           /'
-  gate e2e-demo env TEST_DATABASE_URL=$ADMIN E2E_PORT="$port" "$B/playwright" test -c playwright.demo.config.ts
-  grep -E '^ +[0-9]+ (passed|failed|flaky|skipped)' "$log/e2e-demo.log" | sed 's/^ */           /'
 fi
 
 if [ $fail -ne 0 ]; then echo "RESULT: FAIL (logs in $log)"; else echo "RESULT: PASS"; fi

@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import {
-  addDays,
   ALL_GRANTS,
   DEFAULT_TIME_ZONE,
   mainState,
@@ -24,16 +23,15 @@ import {
 } from '../db/schema';
 import type { Tx } from '../db/tx';
 import {
+  LARKSPUR_AS_OF,
   LARKSPUR_MEMBERS,
   LARKSPUR_OWNER,
   LARKSPUR_PROJECT,
   LARKSPUR_TEAM_PEOPLE,
   LARKSPUR_WINDOW_START,
+  larkspurBase,
   larkspurCrs,
-  larkspurHistory,
-  larkspurHistoryKeys,
   larkspurQueueRows,
-  larkspurShift,
 } from './seed/larkspur';
 import { addComment, insertTeams } from './store';
 
@@ -108,68 +106,33 @@ export async function createTrackerProject(
   return { ownerMemberId };
 }
 
-/**
- * The clock of a new demo copy: now, with no fixed `asOf`, so the T line and the statuses follow
- * the real time. Tests pin it with TRACKER_DEMO_AS_OF, which also fixes the project's clock there.
- */
-export function demoClock(values: Record<string, string | undefined> = process.env): {
-  now: Date;
-  asOf: string | null;
-} {
-  const pinned = values.TRACKER_DEMO_AS_OF;
-  if (!pinned) return { now: new Date(), asOf: null };
-  if (values.NODE_ENV === 'production') throw new Error('TRACKER_DEMO_AS_OF is for tests only');
-  const now = new Date(pinned);
-  if (Number.isNaN(now.getTime())) throw new Error('TRACKER_DEMO_AS_OF must be an ISO instant');
-  return { now, asOf: pinned };
-}
-
-/** A pin in production or a wrong one stops the server at start, so no visitor meets it as a 500. */
-export function assertDemoClock(values: Record<string, string | undefined> = process.env): void {
-  try {
-    demoClock(values);
-  } catch (error) {
-    console.error(
-      JSON.stringify({ event: 'demo_clock_invalid', message: (error as Error).message }),
-    );
-    process.exit(1);
-  }
-}
-
-/**
- * The project lead keeps the story name Minh Trần (spec 2.19), so it needs no user name.
- */
+/** The project lead keeps the story name Minh Trần (spec 2.19), so it needs no user name. */
 export async function seedTrackerDemo(
   tx: Tx,
-  input: { workspaceId: string; userId: string; now?: Date; asOf?: string | null },
+  input: { workspaceId: string; userId: string },
 ): Promise<{ projectId: string; ids: Record<string, string> }> {
-  const days = larkspurShift(input.now ?? new Date());
   const [project] = await tx
     .insert(projects)
     .values({ id: randomUUID(), workspaceId: input.workspaceId, ...LARKSPUR_PROJECT })
     .returning({ id: projects.id });
   const queueRows = larkspurQueueRows();
   const ids: Record<string, string> = Object.fromEntries(
-    [
-      ...LARKSPUR_MEMBERS.map((member) => member.key),
-      ...queueRows.map((row) => row.id),
-      ...larkspurHistoryKeys(),
-    ].map((key) => [key, randomUUID()]),
+    [...LARKSPUR_MEMBERS.map((member) => member.key), ...queueRows.map((row) => row.id)].map(
+      (key) => [key, randomUUID()],
+    ),
   );
   const id = (key: string) => ids[key] ?? key;
   const tenant = { workspaceId: input.workspaceId, projectId: project.id };
   const owner = LARKSPUR_MEMBERS.find((member) => member.key === LARKSPUR_OWNER)!;
-  // Main starts empty; the merged history change requests bring every team, item and event.
-  const history = larkspurHistory(id, days);
-  const base = history.base;
+  const base = larkspurBase(id);
   await createTrackerProject(tx, {
     ...tenant,
     userId: input.userId,
     userName: owner.name,
     teams: [],
     demo: true,
-    asOf: input.asOf ?? null,
-    windowStart: addDays(LARKSPUR_WINDOW_START, days),
+    asOf: LARKSPUR_AS_OF,
+    windowStart: LARKSPUR_WINDOW_START,
     base,
     ownerMemberId: id(owner.key),
   });
@@ -183,13 +146,6 @@ export async function seedTrackerDemo(
       ...member.grants,
     })),
   );
-  await insertTeams(
-    tx,
-    tenant,
-    history.crs[0].ops.flatMap((op) =>
-      op.op === 'addTeam' ? [{ id: op.a.id, name: op.a.name, leadId: null, memberIds: [] }] : [],
-    ),
-  );
   for (const [teamId, people] of Object.entries(LARKSPUR_TEAM_PEOPLE)) {
     const key = and(eq(trackerTeams.projectId, project.id), eq(trackerTeams.id, teamId));
     if (people.lead)
@@ -201,7 +157,7 @@ export async function seedTrackerDemo(
       .insert(trackerTeamMembers)
       .values(people.members.map((key) => ({ ...tenant, teamId, memberId: id(key) })));
   }
-  const rows = [...history.rows, ...larkspurQueueRows(id, days)];
+  const rows = larkspurQueueRows(id);
   await tx.insert(trackerQueue).values(
     rows.map((row) => ({
       ...tenant,
@@ -214,11 +170,7 @@ export async function seedTrackerDemo(
     })),
   );
   const commits: Commit[] = [];
-  const story = larkspurCrs(id, days).map((cr) => ({
-    ...cr,
-    ops: cr.ops.map((op) => ({ ...op, rev: op.rev + history.crs.length })),
-  }));
-  for (const [index, seed] of [...history.crs, ...story].entries()) {
+  for (const [index, seed] of larkspurCrs(id).entries()) {
     const num = index + 1;
     const ops: Op[] = replayOps(
       mainState(base, rows, commits, seed.ops[0].rev),
@@ -242,16 +194,14 @@ export async function seedTrackerDemo(
         ops,
         createdAt: seed.createdAt,
         updatedAt,
-        ...(merged
-          ? { mergedRev: merged.rev, mergedBy: seed.merger ?? id(owner.key), mergedAt: merged.at }
-          : {}),
+        ...(merged ? { mergedRev: merged.rev, mergedBy: id(owner.key), mergedAt: merged.at } : {}),
       })
       .returning({ id: trackerCrs.id });
     if (merged) {
       const commit = {
         rev: merged.rev,
         crId: cr.id,
-        mergedBy: seed.merger ?? id(owner.key),
+        mergedBy: id(owner.key),
         mergedAt: merged.at,
         ops,
         resolutions: [],

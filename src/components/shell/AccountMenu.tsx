@@ -1,14 +1,10 @@
 'use client';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useId, useRef } from 'react';
-import { useDemoIntro, useDemoMode } from './demo-mode';
+import { useId } from 'react';
 import { RailIcon } from './icons';
-import { PhotoOr } from './PhotoImg';
 import { useDismissibleDetails } from './Popover';
 import { THEME_LABEL, THEMES, useTheme } from './theme';
 
-export type Account = { name: string; detail?: string; color?: string; photo?: string | null };
+export type Account = { name: string; detail?: string; color?: string };
 
 const initials = (name: string) =>
   name
@@ -19,29 +15,20 @@ const initials = (name: string) =>
     .join('')
     .toUpperCase();
 
-export function AccountMenu({ name, detail, color, photo }: Account) {
+export function AccountMenu({ name, detail, color }: Account) {
   const ref = useDismissibleDetails();
-  const project = (usePathname() ?? '').match(/^\/projects\/([^/]+)/)?.[1];
   const [theme, setTheme] = useTheme();
   const themeLabel = useId();
-  const demo = useDemoMode();
-  const openIntro = useDemoIntro();
   const signOut = async () => {
     await fetch('/api/auth/session', { method: 'DELETE' });
-    // A full load drops every cached page, and replace keeps Back off the signed-in page. Plain /signin,
-    // so the next person who signs in does not land on this page.
-    window.location.replace('/signin');
+    // A full reload drops every cached page; the server then sends the signed-out person to sign in.
+    window.location.reload();
   };
   return (
     <details ref={ref} className="acct me">
-      <summary
-        aria-label={`${name}: profile, theme and ${demo ? 'start over' : 'sign out'}`}
-        title={name}
-      >
+      <summary aria-label={`${name}: theme and sign out`} title={name}>
         <span className="acct-av" style={color ? { background: color } : undefined}>
-          <PhotoOr src={photo} size={28}>
-            {initials(name)}
-          </PhotoOr>
+          {initials(name)}
         </span>
         <span className="acct-names">
           <b>{name}</b>
@@ -54,16 +41,7 @@ export function AccountMenu({ name, detail, color, photo }: Account) {
           {name}
           {detail && <small>{detail}</small>}
         </p>
-        {demo && <p className="acct-note">Your own demo copy. Nobody else sees your changes.</p>}
         <hr />
-        {project && (
-          <>
-            <Link className="acct-item" href={`/projects/${project}/profile`}>
-              <RailIcon name="user" /> Profile
-            </Link>
-            <hr />
-          </>
-        )}
         <p className="acct-label" id={themeLabel}>
           Theme
         </p>
@@ -81,67 +59,10 @@ export function AccountMenu({ name, detail, color, photo }: Account) {
           ))}
         </div>
         <hr />
-        {demo ? (
-          <>
-            {openIntro && (
-              <button
-                className="acct-item"
-                type="button"
-                onClick={() => {
-                  // The intro sits outside the menu, so the menu closes and its button takes the focus back.
-                  if (ref.current) ref.current.open = false;
-                  ref.current?.querySelector('summary')?.focus();
-                  openIntro();
-                }}
-              >
-                <RailIcon name="info" /> About this demo
-              </button>
-            )}
-            <StartOver />
-          </>
-        ) : (
-          <button className="acct-item" type="button" onClick={() => void signOut()}>
-            <RailIcon name="signOut" /> Sign out
-          </button>
-        )}
+        <button className="acct-item" type="button" onClick={() => void signOut()}>
+          <RailIcon name="signOut" /> Sign out
+        </button>
       </div>
     </details>
-  );
-}
-
-function StartOver() {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const opener = useRef<HTMLButtonElement>(null);
-  return (
-    <>
-      <button
-        ref={opener}
-        className="acct-item"
-        type="button"
-        onClick={() => dialog.current?.showModal()}
-      >
-        <RailIcon name="restart" /> Start over
-      </button>
-      <dialog
-        ref={dialog}
-        className="sheet-dialog"
-        aria-labelledby="start-over-title"
-        onClose={() => opener.current?.focus()}
-      >
-        {/* A form post, so the new cookie and the fresh sandbox arrive in one full page load. */}
-        <form action="/api/auth/demo" method="post">
-          <h2 id="start-over-title">Start over?</h2>
-          <p>Your changes in this demo copy are lost, and you get a fresh copy.</p>
-          <div className="sheet-dialog-actions">
-            <button className="btn big" type="button" onClick={() => dialog.current?.close()}>
-              Cancel
-            </button>
-            <button className="btn btn-stop big" type="submit">
-              Start over
-            </button>
-          </div>
-        </form>
-      </dialog>
-    </>
   );
 }

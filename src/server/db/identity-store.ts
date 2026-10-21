@@ -1,5 +1,5 @@
-import { and, asc, desc, eq, isNull, sql, type SQL } from 'drizzle-orm';
-import { knownScopes, type AgentToken } from '../../contracts';
+import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
+import type { AgentToken } from '../../contracts';
 import { AppError } from '../errors';
 import type { HttpIdentityStore, Membership, StoredToken } from '../http/identity-store';
 import {
@@ -102,23 +102,6 @@ async function linkInvites(
     }
   }
 }
-/** A project key belongs to its project and workspace; a personal key only to its person. */
-function ownedKeys(input: {
-  userId: string;
-  workspaceId: string;
-  projectId: string | null;
-}): SQL | null {
-  const t = agentTokens;
-  if (input.projectId === null)
-    return isId(input.userId) ? and(eq(t.userId, input.userId), eq(t.kind, 'personal'))! : null;
-  if (![input.userId, input.workspaceId, input.projectId].every(isId)) return null;
-  return and(
-    eq(t.userId, input.userId),
-    eq(t.workspaceId, input.workspaceId),
-    eq(t.projectId, input.projectId),
-    eq(t.kind, 'project'),
-  )!;
-}
 export class DbIdentityStore implements HttpIdentityStore {
   constructor(
     private readonly db: Db,
@@ -194,32 +177,19 @@ export class DbIdentityStore implements HttpIdentityStore {
     return row ? { workspaceId: row.workspaceId, projectId } : null;
   }
   async getTokenByHash(hash: string): Promise<StoredToken | null> {
-    const [found] = await this.db
-      .select({
-        token: agentTokens,
-        memberName: trackerMembers.name,
-        memberProjectId: trackerMembers.projectId,
-      })
+    const [row] = await this.db
+      .select()
       .from(agentTokens)
-      .leftJoin(trackerMembers, eq(trackerMembers.id, agentTokens.memberId))
       .where(eq(agentTokens.hash, hash))
       .limit(1);
-    if (!found) return null;
-    const row = found.token;
+    if (!row) return null;
     return {
-      ...(row.memberId && found.memberName && found.memberProjectId
-        ? {
-            actsAs: { memberId: row.memberId, name: found.memberName },
-            memberProjectId: found.memberProjectId,
-          }
-        : {}),
       id: row.id,
       userId: row.userId,
-      kind: row.kind,
       projectId: row.projectId,
       workspaceId: row.workspaceId,
       prefix: row.prefix,
-      scopes: knownScopes(row.scopes),
+      scopes: row.scopes,
       hash: row.hash,
       label: row.label,
       idempotencyKey: row.idempotencyKey,
@@ -236,7 +206,6 @@ export class DbIdentityStore implements HttpIdentityStore {
         id: token.id,
         workspaceId: token.workspaceId,
         projectId: token.projectId,
-        kind: token.kind,
         userId: token.userId,
         prefix: token.prefix,
         hash: token.hash,
@@ -248,7 +217,6 @@ export class DbIdentityStore implements HttpIdentityStore {
         expiresAt: token.expiresAt,
         revokedAt: token.revokedAt,
         lastUsedAt: token.lastUsedAt,
-        memberId: token.actsAs?.memberId ?? null,
       });
     } catch (error) {
       if (isUniqueViolation(error, 'agent_tokens_creation_key_unique'))
@@ -259,18 +227,16 @@ export class DbIdentityStore implements HttpIdentityStore {
   async listTokens(input: {
     userId: string;
     workspaceId: string;
-    projectId: string | null;
+    projectId: string;
     offset: number;
     limit: number;
   }): Promise<AgentToken[]> {
-    const where = ownedKeys(input);
-    if (!where) return [];
+    if (![input.userId, input.workspaceId, input.projectId].every(isId)) return [];
     const t = agentTokens;
     const rows = await this.db
       .select({
         id: t.id,
         userId: t.userId,
-        kind: t.kind,
         projectId: t.projectId,
         prefix: t.prefix,
         label: t.label,
@@ -279,19 +245,20 @@ export class DbIdentityStore implements HttpIdentityStore {
         expiresAt: t.expiresAt,
         revokedAt: t.revokedAt,
         lastUsedAt: t.lastUsedAt,
-        memberId: t.memberId,
-        memberName: trackerMembers.name,
       })
       .from(t)
-      .leftJoin(trackerMembers, eq(trackerMembers.id, t.memberId))
-      .where(where)
+      .where(
+        and(
+          eq(t.userId, input.userId),
+          eq(t.workspaceId, input.workspaceId),
+          eq(t.projectId, input.projectId),
+        ),
+      )
       .orderBy(desc(t.createdAt), desc(t.id))
       .limit(input.limit)
       .offset(input.offset);
-    return rows.map(({ memberId, memberName, ...row }) => ({
+    return rows.map((row) => ({
       ...row,
-      ...(memberId && memberName ? { actsAs: { memberId, name: memberName } } : {}),
-      scopes: knownScopes(row.scopes),
       createdAt: toIso(row.createdAt),
       expiresAt: toIso(row.expiresAt),
       revokedAt: row.revokedAt === null ? null : toIso(row.revokedAt),
@@ -304,20 +271,26 @@ export class DbIdentityStore implements HttpIdentityStore {
   async revokeToken(input: {
     userId: string;
     workspaceId: string;
-    projectId: string | null;
+    projectId: string;
     tokenId: string;
     revokedAt: string;
     idempotencyKey: string;
   }): Promise<string | null> {
-    const where = ownedKeys(input);
-    if (!where || !isId(input.tokenId)) return null;
+    if (![input.userId, input.workspaceId, input.projectId, input.tokenId].every(isId)) return null;
     const [row] = await this.db
       .update(agentTokens)
       .set({
         revokedAt: sql`coalesce(${agentTokens.revokedAt}, ${input.revokedAt}::timestamptz)`,
         revokeKey: sql`coalesce(${agentTokens.revokeKey}, ${input.idempotencyKey})`,
       })
-      .where(and(eq(agentTokens.id, input.tokenId), where))
+      .where(
+        and(
+          eq(agentTokens.id, input.tokenId),
+          eq(agentTokens.userId, input.userId),
+          eq(agentTokens.workspaceId, input.workspaceId),
+          eq(agentTokens.projectId, input.projectId),
+        ),
+      )
       .returning({ revokedAt: agentTokens.revokedAt });
     return row?.revokedAt ? toIso(row.revokedAt) : null;
   }

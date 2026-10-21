@@ -1,9 +1,7 @@
-import { ScopeSchema, type AgentToken, type Scope } from '../../contracts';
+import type { AgentToken, Scope } from '../../contracts';
 export type Membership = { userId: string; workspaceId: string };
 export type StoredToken = AgentToken & {
   workspaceId: string;
-  /** The project of the member the key acts as (`actsAs`). */
-  memberProjectId?: string;
   hash: string;
   idempotencyKey: string;
   requestDigest?: string;
@@ -28,11 +26,11 @@ export interface HttpIdentityStore {
   getTokenByHash(hash: string): Promise<StoredToken | null>;
   /** Atomically enforce unique(userId, projectId, idempotencyKey); duplicates throw CONFLICT. */
   insertToken(token: StoredToken): Promise<void>;
-  /** Newest first; never exposes hashes or creation keys. A null projectId lists the personal keys. */
+  /** Newest first; never exposes hashes or creation keys. */
   listTokens(input: {
     userId: string;
     workspaceId: string;
-    projectId: string | null;
+    projectId: string;
     offset: number;
     limit: number;
   }): Promise<AgentToken[]>;
@@ -41,11 +39,10 @@ export interface HttpIdentityStore {
   revokeToken(input: {
     userId: string;
     workspaceId: string;
-    projectId: string | null;
+    projectId: string;
     tokenId: string;
     revokedAt: string;
     idempotencyKey: string;
   }): Promise<string | null>;
 }
-/** A person in the browser holds every scope; their member rights decide what they can do. */
-export const browserScopes: Scope[] = [...ScopeSchema.options];
+export const browserScopes: Scope[] = ['project:read', 'queue:add'];

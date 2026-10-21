@@ -198,6 +198,7 @@ table.t td.mono { font: 12px var(--f-id); white-space: nowrap; }
 .tk .st-ontime { background: var(--proceed-bg); color: var(--proceed-ink); }
 .tk .st-late { background: var(--danger-bg); color: var(--danger-ink); }
 .tk .st-flate { background: var(--caution-bg); color: var(--caution-ink); }
+.tk .bot { display: inline-flex; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 500; padding: 0 6px; border-radius: 99px; background: var(--route-bg); color: var(--route-ink); }
 .tk .hid-pill { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 500; background: var(--gray-bg); color: var(--ink-2); border-radius: 99px; padding: 0 8px 0 10px; white-space: nowrap; cursor: pointer; min-height: 28px; border: 0; }
 .tk .hid-pill:hover { background: var(--rule); color: var(--ink); }
 .tk .fgroup { border: 0; margin: 0 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
@@ -316,21 +317,10 @@ table.t td.mono { font: 12px var(--f-id); white-space: nowrap; }
 .tk .zoombar button { display: grid; place-items: center; min-width: 26px; height: 24px; padding: 0 6px; border: 0; border-radius: 6px; background: none; color: var(--ink-2); font: 600 12px/1 var(--f-ui); cursor: pointer; }
 .tk .zoombar button:hover { background: var(--hover); color: var(--ink); }
 .tk .zoombar .full { margin-left: 2px; box-shadow: -1px 0 0 var(--rule); border-radius: 0 var(--r-ctl) var(--r-ctl) 0; }
-.tk .zoombar .lg-btn[aria-expanded='true'] { background: var(--hover); color: var(--ink); }
-.tk .legend-pop { position: relative; container-type: inline-size; width: min(600px, 100%); padding: 10px 14px 12px; background: var(--panel); border: 1px solid var(--rule); border-radius: var(--r-pop); box-shadow: var(--shadow); font-size: var(--fs-xs); color: var(--ink-2); }
-.tk .legend-pop .lg-x { position: absolute; top: 6px; right: 8px; border: 0; background: none; color: var(--ink-3); font-size: 20px; line-height: 1; padding: 0 2px; cursor: pointer; }
-.tk .lg-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 18px; }
-.tk .lg-sec { display: grid; gap: 5px; align-content: start; min-width: 0; }
-.tk .lg-ev { grid-column: span 2; }
-.tk .lg-ev-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
-.tk .lg-gl { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-3); margin: 0 0 1px; }
-.tk .lg-gl ~ .lg-gl { margin-top: 8px; }
-.tk .lg-it { display: flex; align-items: center; gap: 7px; min-width: 0; line-height: 18px; white-space: nowrap; }
-.tk .lg-it i.ln { flex: none; width: 16px; height: 2.5px; border-radius: 2px; }
-.tk .lg-it .ms-sw { flex: none; margin: 0 3px; }
-.tk .lg-it .chg { padding: 0 5px; border-radius: 4px; background: var(--change-bg); color: var(--change-text); font-style: normal; font-weight: 600; line-height: 16px; }
-.tk .lg-ring { flex: none; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid currentColor; background: color-mix(in srgb, currentColor var(--k-tint), var(--panel)); }
-@container (max-width: 520px) { .tk .lg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tk .legend2 { display: flex; gap: 6px 16px; flex-wrap: wrap; padding: 9px 14px; font-size: var(--fs-xs); color: var(--ink-2); align-items: center; }
+.tk .legend2 span { display: inline-flex; align-items: center; gap: 6px; }
+.tk .legend2 i.ln { display: inline-block; width: 16px; height: 2.5px; border-radius: 2px; }
+.tk .legend2 .chg { padding: 0 5px; border-radius: 4px; background: var(--change-bg); color: var(--change-text); font-style: normal; font-weight: 600; }
 .tk .ms-sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; }
 .tk .ms-sw.fill { background: currentColor; }
 .tk .bin { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--danger); border-radius: var(--r-pop); background: var(--panel); color: var(--danger-ink); font-size: var(--fs-xs); font-weight: 600; box-shadow: var(--shadow); }
@@ -447,7 +437,7 @@ svg.tg .note { font-size: 10px; fill: var(--ink-3); }
   </ol>
   <div class="stage flush tk" style="display:flex;min-width:0">
     <div class="qlist" style="flex:1;min-width:0;border-top:0">
-      <div class="qc" style="--kc:var(--k-message)"><span class="qk" id="qk1"></span><div class="qt"><b>Where is the root cause report for the sync outage?</b></div><div class="qf"><span class="who">Tom Becker</span> · 8 Oct, 14:20</div></div>
+      <div class="qc" style="--kc:var(--k-message)"><span class="qk" id="qk1"></span><div class="qt"><b>Where is the root cause report for the sync outage?</b></div><div class="qf"><span class="who">Tom Becker</span> · 8 Oct, 14:20 <span class="bot">Agent</span></div></div>
       <div class="qc" style="--kc:var(--k-meeting)"><span class="qk" id="qk2"></span><div class="qt"><b>Scope call with the Dynamics CRM team</b></div><div class="qf"><span class="who">Khoa Lê</span> · 9 Oct, 10:00</div></div>
       <div class="qc" style="--kc:var(--k-issue)"><span class="qk" id="qk3"></span><div class="qt"><b>PG-204 Tax ID format check fails on Cayman entities</b></div><div class="qf"><span class="who">Hà Đỗ</span> · 9 Oct, 16:45</div></div>
     </div>
@@ -468,36 +458,21 @@ svg.tg .note { font-size: 10px; fill: var(--ink-3); }
     <div class="row">
       <span class="badge st-planned">Planned</span><span class="badge st-early">Finished early</span><span class="badge st-ontime">Finished on time</span><span class="badge st-late">Late</span><span class="badge st-flate">Finished late</span>
     </div>
-    <div class="legend-pop" role="dialog" aria-label="Legend" style="margin-top:14px">
-      <button type="button" class="lg-x" aria-label="Close legend">×</button>
-      <div class="lg-grid">
-        <div class="lg-sec">
-          <p class="lg-gl">Line</p>
-          <span class="lg-it"><i class="ln" style="background:var(--route)"></i>Not finished</span>
-          <span class="lg-it"><i class="ln" style="background:var(--proceed)"></i>Done</span>
-          <span class="lg-it" title="Not finished after its planned finish"><i class="ln" style="background:var(--danger)"></i>Late part</span>
-          <span class="lg-it" title="Done after its planned finish"><i class="ln" style="background:var(--caution)"></i>Done late</span>
-          <span class="lg-it"><i class="ln" style="background:var(--isolated)"></i>Cancelled</span>
-          <p class="lg-gl">Change</p>
-          <span class="lg-it" title="Changed in this change request"><i class="chg">Name</i>Changed here</span>
-        </div>
-        <div class="lg-sec">
-          <p class="lg-gl">Milestone</p>
-          <span class="lg-it" title="Milestone deadline on its work items"><svg width="12" height="12" viewBox="-7 -7 14 14" aria-hidden="true"><path d="M0 -6 L6 0 L0 6 L-6 0 Z" fill="var(--ink-3)" stroke="var(--ink-3)" stroke-width="1.5"/></svg>Deadline</span>
-          <span class="lg-it"><i class="ms-sw" style="color:var(--ink-3)"></i>Planned</span>
-          <span class="lg-it" title="Finished early"><i class="ms-sw fill" style="color:var(--teal)"></i>Early</span>
-          <span class="lg-it" title="Finished on time"><i class="ms-sw fill" style="color:var(--proceed)"></i>On time</span>
-          <span class="lg-it"><i class="ms-sw fill" style="color:var(--danger)"></i>Late</span>
-          <span class="lg-it"><i class="ms-sw fill" style="color:var(--caution)"></i>Finished late</span>
-        </div>
-        <div class="lg-sec lg-ev" role="group" aria-label="Event kinds">
-          <p class="lg-gl">Event</p>
-          <div class="lg-ev-cols"><div class="lg-sec" id="lg-ev1"></div><div class="lg-sec" id="lg-ev2"></div></div>
-        </div>
-      </div>
+    <div class="legend2" style="padding:12px 0 0">
+      <span><i class="ln" style="background:var(--route)"></i>Not finished</span>
+      <span><i class="ln" style="background:var(--proceed)"></i>Done</span>
+      <span><i class="ln" style="background:var(--danger)"></i>Not finished after its planned finish</span>
+      <span><i class="ln" style="background:var(--caution)"></i>Done after its planned finish</span>
+      <span><svg width="12" height="12" viewBox="-7 -7 14 14" aria-hidden="true"><path d="M0 -6 L6 0 L0 6 L-6 0 Z" fill="var(--ink-3)" stroke="var(--ink-3)" stroke-width="1.5"/></svg>Milestone deadline on its work items</span>
+      <span style="color:var(--ink-3)"><i class="ms-sw"></i><span style="color:var(--ink-2)">Planned</span></span>
+      <span style="color:var(--teal)"><i class="ms-sw fill"></i><span style="color:var(--ink-2)">Finished early</span></span>
+      <span style="color:var(--proceed)"><i class="ms-sw fill"></i><span style="color:var(--ink-2)">Finished on time</span></span>
+      <span style="color:var(--danger)"><i class="ms-sw fill"></i><span style="color:var(--ink-2)">Late</span></span>
+      <span style="color:var(--caution)"><i class="ms-sw fill"></i><span style="color:var(--ink-2)">Finished late</span></span>
+      <span><i class="chg">Name</i>Changed in this change request</span>
     </div>
   </div>
-  <p class="cap">The Legend popover above the zoom bar (LegendBody in TrackerGraph.tsx). It opens by default until the person closes it; 2 columns on a phone.</p>
+  <p class="cap">The real legend below the graph (Legend in TrackerGraph.tsx).</p>
 
   <h3>Change mark: C2 yellow highlighter</h3>
   <div class="swgrid" id="sw-change"></div>
@@ -604,7 +579,7 @@ svg.tg .note { font-size: 10px; fill: var(--ink-3); }
     <div class="stage">
       <div class="row">
         <span class="chipx">Draft</span><span class="chipx route">Ready</span><span class="chipx ok">Merged</span><span class="chipx warn">1 clash</span><span class="chipx pen">Changed</span>
-        <span class="badge st-late">Late</span><span class="cnt">12</span>
+        <span class="badge st-late">Late</span><span class="cnt">12</span><span class="bot" id="bot-chip">Agent</span>
         <button class="hid-pill" type="button" id="hid-pill">3 hidden</button>
       </div>
     </div>
@@ -717,7 +692,7 @@ Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fiel
     <div class="stage">
       <div class="row" style="gap:18px">
         <div class="toast">Event placed on Sync incident report <button type="button" id="toast-undo">Undo</button></div>
-        <div class="zoombar"><button type="button" class="lg-btn" aria-label="Legend" title="Legend" aria-expanded="true" id="zb-legend"></button><button type="button" aria-label="Zoom out">−</button><button type="button" aria-label="Zoom in">+</button><button type="button">Fit</button><button type="button" class="full" aria-pressed="false" aria-label="Full view" id="zb-full"></button></div>
+        <div class="zoombar"><button type="button" aria-label="Zoom out">−</button><button type="button" aria-label="Zoom in">+</button><button type="button">Fit</button><button type="button" class="full" aria-pressed="false" aria-label="Full view" id="zb-full"></button></div>
         <div class="bin" id="bin">Drop here to hide</div>
       </div>
     </div>
@@ -909,6 +884,7 @@ Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fiel
   put('qk2', svg(KIND.meeting, 13) + 'Meeting');
   put('qk3', svg(KIND.issue, 13) + 'Issue');
   put('ib-undo', svg(UI.undo, 16));
+  prepend('bot-chip', svg(UI.bot, 11));
   prepend('hid-pill', svg(UI.eyeoff, 13));
   put('ic-search', svg(UI.search, 14));
   put('ic-search2', svg(UI.search, 14));
@@ -919,11 +895,6 @@ Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fiel
   put('sk2', svg(KIND.message, 13));
   prepend('toast-undo', svg(UI.undo, 13));
   put('zb-full', svg(UI.maximize, 14));
-  put('zb-legend', svg([S, '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 8h2"/><path d="M12 8h5"/><path d="M7 12h2"/><path d="M12 12h5"/><path d="M7 16h2"/><path d="M12 16h5"/>'], 14));
-  var LEGEND_KINDS = ['idea', 'message', 'issue', 'task', 'meeting', 'decision', 'delivery', 'handoff', 'done', 'cancelled'];
-  function legendKind(k) { return '<span class="lg-it"><span class="lg-ring" style="color:var(--k-' + k + ')">' + svg(KIND[k], 11) + '</span>' + KIND_LABEL[k] + '</span>'; }
-  put('lg-ev1', LEGEND_KINDS.slice(0, 5).map(legendKind).join(''));
-  put('lg-ev2', LEGEND_KINDS.slice(5).map(legendKind).join(''));
   prepend('bin', svg(UI.trash, 14));
   prepend('rail-graph', railSvg('graph'));
   prepend('rail-settings', railSvg('settings'));
@@ -953,7 +924,7 @@ Handed over to Digitization · received in PG-202 DealCloud mapping for CRS fiel
     ['--page', '#f0f0f3', '#0d0d0f', 'Defined, not used today.'],
     ['--mark', '#ffe770', '#524202', 'Defined, not used. Use --change-bg.'],
     ['--stripe', '#f9f9fb', '#111113', 'Defined, not used today.'],
-    ['--isolated', '#8b8d98', '#696e77', 'Line and status dot of a cancelled work item.']
+    ['--isolated', '#8b8d98', '#696e77', 'Tailwind colour; one use in old code.']
   ];
   put('sw-base', BASE.map(function (r) { return swatch.apply(null, r); }).join(''));
   put('sw-change', [

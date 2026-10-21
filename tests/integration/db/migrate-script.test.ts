@@ -1,8 +1,11 @@
-import { spawn, spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { testDatabaseUrl } from '../../support/db';
 
@@ -53,67 +56,29 @@ const columnsOf = async (pool: Pool, table: string) =>
   ).rows
     .map((row) => row.name)
     .sort();
-const scriptEnv = (databaseUrl: string | undefined, migrateUrl?: string) => {
+const run = (databaseUrl: string | undefined) => {
   const env: NodeJS.ProcessEnv = { PATH: process.env.PATH, NODE_ENV: 'production' };
   if (databaseUrl) env.DATABASE_URL = databaseUrl;
-  if (migrateUrl) env.MIGRATE_DATABASE_URL = migrateUrl;
-  return env;
-};
-const run = (databaseUrl: string | undefined, migrateUrl?: string) =>
-  spawnSync(process.execPath, [script], {
-    encoding: 'utf8',
-    env: scriptEnv(databaseUrl, migrateUrl),
-    timeout: 30_000,
-  });
-type Started = { status: Promise<number | null>; stdout: () => string; stderr: () => string };
-const start = (databaseUrl: string): Started => {
-  const child = spawn(process.execPath, [script], { env: scriptEnv(databaseUrl) });
-  let stdout = '';
-  let stderr = '';
-  child.stdout.on('data', (chunk) => (stdout += chunk));
-  child.stderr.on('data', (chunk) => (stderr += chunk));
-  return {
-    status: new Promise((resolve) => child.on('close', resolve)),
-    stdout: () => stdout,
-    stderr: () => stderr,
-  };
-};
-const LOCK = "hashtextextended('promise-graph:migrations', 0)";
-const POOLED =
-  'postgresql://neondb_owner:not-a-real-password@ep-quiet-lake-a1b2c3d4-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=verify-full';
-const freshDatabase = async (admin: Pool) => {
-  const name = `pg_test_${randomUUID().replaceAll('-', '')}`;
-  await admin.query(`CREATE DATABASE ${name}`);
-  return { name, url: testDatabaseUrl(process.env.TEST_DATABASE_URL!, name) };
-};
-const appliedIn = async (url: string) => {
-  const pool = new Pool({ connectionString: url, max: 1 });
-  try {
-    const { rows } = await pool.query<{ applied: number }>(
-      'select count(*)::int as applied from drizzle.__drizzle_migrations',
-    );
-    return rows[0].applied;
-  } finally {
-    await pool.end();
-  }
+  return spawnSync(process.execPath, [script], { encoding: 'utf8', env, timeout: 30_000 });
 };
 
 describe.skipIf(!process.env.TEST_DATABASE_URL)('container migration script', () => {
-  const name = `pg_test_${randomUUID().replaceAll('-', '')}`;
+  const name = `pg_test_${randomUUID().replaceAll('-', '')}`,
+    upgraded = `pg_test_${randomUUID().replaceAll('-', '')}`;
   let admin: Pool, url: string;
   beforeAll(async () => {
     admin = new Pool({ connectionString: process.env.TEST_DATABASE_URL, max: 1 });
     await admin.query(`CREATE DATABASE ${name}`);
+    await admin.query(`CREATE DATABASE ${upgraded}`);
     url = testDatabaseUrl(process.env.TEST_DATABASE_URL!, name);
   });
-  const extra: string[] = [];
   afterAll(async () => {
-    for (const db of [name, ...extra])
-      await admin?.query(`DROP DATABASE IF EXISTS ${db} WITH (FORCE)`);
+    await admin?.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
+    await admin?.query(`DROP DATABASE IF EXISTS ${upgraded} WITH (FORCE)`);
     await admin?.end();
   });
 
-  it('applies the baseline and the later migrations to an empty database, then a second start applies nothing and still succeeds', async () => {
+  it('applies every migration to an empty database, then a second start applies nothing and still succeeds', async () => {
     const first = run(url);
     expect(first.stderr).toBe('');
     expect(first.status).toBe(0);
@@ -125,14 +90,9 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('container migration script', ()
       const { rows } = await pool.query<{ applied: number }>(
         'select count(*)::int as applied from drizzle.__drizzle_migrations',
       );
-      expect(journal.entries.map((entry) => entry.tag)).toEqual([
-        '0000_baseline',
-        '0001_personal_keys_and_photos',
-        '0002_member_photos',
-      ]);
+      expect(journal.entries.length).toBeGreaterThan(0);
       expect(rows[0].applied).toBe(journal.entries.length);
       expect(await tablesOf(pool)).toEqual(TABLES);
-      for (const table of PROMISE_TABLES) expect(await tablesOf(pool)).not.toContain(table);
       expect(await columnsOf(pool, 'projects')).toEqual([
         'client_name',
         'created_at',
@@ -142,6 +102,53 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('container migration script', ()
       ]);
     } finally {
       await pool.end();
+    }
+  });
+  it('drops the promise tables and columns from a database that holds promise rows, and keeps the project and its token', async () => {
+    const before = mkdtempSync(join(tmpdir(), 'pg-migrations-'));
+    const upgradedUrl = testDatabaseUrl(process.env.TEST_DATABASE_URL!, upgraded);
+    const pool = new Pool({ connectionString: upgradedUrl, max: 1 });
+    try {
+      cpSync(migrations, before, { recursive: true });
+      const cut = journal.entries.findIndex((entry) => entry.tag === '0005_drop_promise');
+      expect(cut).toBeGreaterThan(0);
+      writeFileSync(
+        join(before, 'meta/_journal.json'),
+        JSON.stringify({ ...journal, entries: journal.entries.slice(0, cut) }),
+      );
+      await migrate(drizzle(pool), { migrationsFolder: before });
+      const [user, workspace, project, commit, token] = Array.from({ length: 5 }, randomUUID);
+      await pool.query(`
+        insert into users (id, subject, name) values ('${user}', 'google:${user}', 'Old user');
+        insert into workspaces (id, name) values ('${workspace}', 'Personal workspace');
+        insert into workspace_members (workspace_id, user_id) values ('${workspace}', '${user}');
+        insert into projects (id, workspace_id, title, client_name, evidence_revision)
+          values ('${project}', '${workspace}', 'Old graph', 'Client', 3);
+        insert into graph_commits (id, workspace_id, project_id, sequence, snapshot, snapshot_hash, actor, message, kind, reviewed_evidence_revision)
+          values ('${commit}', '${workspace}', '${project}', 0, '{}', 'h', '{}', 'Initial graph', 'initial', 0);
+        update projects set main_commit_id = '${commit}' where id = '${project}';
+        insert into graph_proposals (workspace_id, project_id, base_commit_id, candidate, revision, author, title, rationale, evidence_revision, status)
+          values ('${workspace}', '${project}', '${commit}', '{}', 0, '{}', 'Draft', '', 3, 'draft');
+        insert into records (workspace_id, project_id, source) values ('${workspace}', '${project}', 'paste');
+        insert into mutation_receipts (project_id, actor_key, operation, idempotency_key, request_hash, result)
+          values ('${project}', 'user:${user}', 'merge', 'k', 'h', '{}');
+        insert into agent_tokens (id, workspace_id, project_id, user_id, prefix, hash, label, scopes, idempotency_key, expires_at)
+          values ('${token}', '${workspace}', '${project}', '${user}', 'inv_abcd', 'hash-${token}', 'Agent',
+            '{project:read,records:import,graph:propose,graph:merge,queue:add}', 'k', now() + interval '1 day');
+      `);
+      const result = run(upgradedUrl);
+      expect(result.stderr).toBe('');
+      expect(result.status).toBe(0);
+      expect(await tablesOf(pool)).toEqual(TABLES);
+      for (const table of PROMISE_TABLES) expect(await tablesOf(pool)).not.toContain(table);
+      expect(await columnsOf(pool, 'projects')).not.toContain('main_commit_id');
+      const { rows } = await pool.query(
+        `select p.title, t.scopes from projects p join agent_tokens t on t.project_id = p.id where p.id = '${project}'`,
+      );
+      expect(rows).toEqual([{ title: 'Old graph', scopes: ['project:read', 'queue:add'] }]);
+    } finally {
+      await pool.end();
+      rmSync(before, { recursive: true, force: true });
     }
   });
   it('fails the start without DATABASE_URL or with an unreachable database, and never prints the password', () => {
@@ -155,61 +162,5 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('container migration script', ()
     expect(unreachable.stderr).toContain('"event":"migrations_failed"');
     const password = new URL(process.env.TEST_DATABASE_URL!).password;
     if (password) expect(unreachable.stderr + unreachable.stdout).not.toContain(password);
-  });
-
-  it('lets two containers that start at once both succeed, and applies each migration once', async () => {
-    const db = await freshDatabase(admin);
-    extra.push(db.name);
-    const [a, b] = [start(db.url), start(db.url)];
-    expect([await a.status, await b.status]).toEqual([0, 0]);
-    expect(a.stderr() + b.stderr()).toBe('');
-    expect(a.stdout()).toContain('"event":"migrations_applied"');
-    expect(b.stdout()).toContain('"event":"migrations_applied"');
-    expect(await appliedIn(db.url)).toBe(journal.entries.length);
-  });
-  it('waits while another session holds the migration lock, then migrates', async () => {
-    const db = await freshDatabase(admin);
-    extra.push(db.name);
-    const holder = new Pool({ connectionString: db.url, max: 1 });
-    const session = await holder.connect();
-    try {
-      await session.query(`select pg_advisory_lock(${LOCK})`);
-      const waiting = start(db.url);
-      await expect
-        .poll(waiting.stdout, { timeout: 10_000 })
-        .toContain('"event":"migrations_waiting"');
-      let done = false;
-      void waiting.status.then(() => (done = true));
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      expect(done).toBe(false);
-      await session.query(`select pg_advisory_unlock(${LOCK})`);
-      expect(await waiting.status).toBe(0);
-      expect(waiting.stdout()).toContain('"event":"migrations_applied"');
-    } finally {
-      session.release();
-      await holder.end();
-    }
-    expect(await appliedIn(db.url)).toBe(journal.entries.length);
-  });
-  it('sets UTC as the default time zone of its role, since a pooled connection takes no startup options', async () => {
-    expect(run(url).status).toBe(0);
-    const { rows } = await admin.query<{ config: string[] | null }>(
-      'select setconfig as config from pg_db_role_setting where setrole = (select oid from pg_roles where rolname = current_user) and setdatabase = 0',
-    );
-    expect(rows[0]?.config).toContain('TimeZone=UTC');
-  });
-  it('refuses a pooled DATABASE_URL without MIGRATE_DATABASE_URL and a pooled MIGRATE_DATABASE_URL, names the one it read, and migrates through MIGRATE_DATABASE_URL when it is set', () => {
-    const pooled = run(POOLED);
-    expect(pooled.status).not.toBe(0);
-    expect(pooled.stderr).toContain('DATABASE_URL is a pooled');
-    expect(pooled.stderr).toContain('set MIGRATE_DATABASE_URL');
-    expect(pooled.stderr + pooled.stdout).not.toContain('not-a-real-password');
-    const pooledMigrate = run(url, POOLED);
-    expect(pooledMigrate.status).not.toBe(0);
-    expect(pooledMigrate.stderr).toContain('MIGRATE_DATABASE_URL is a pooled');
-    const direct = run(POOLED, url);
-    expect(direct.stderr).toBe('');
-    expect(direct.status).toBe(0);
-    expect(direct.stdout).toContain('"event":"migrations_applied"');
   });
 });

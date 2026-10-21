@@ -2,19 +2,15 @@ import { cookies, headers } from 'next/headers';
 import { cache } from 'react';
 import { notFound, redirect } from 'next/navigation';
 import type { ActorContext } from '../../contracts';
-import { browserProjectActor, browserSession, getApp } from '../app';
-import { personOnScreen, type OnScreen } from '../domain/account';
+import { browserProjectActor, browserSession } from '../app';
 import { readAuthEnvironment } from '../env';
 import { AppError } from '../errors';
-import { actAsCookieName } from './act-as';
 import { projectInPath } from './actors';
-import { demoEntryPath } from './demo';
-import { RETURN_PATH_HEADER, returnPath, signinPath } from './return-path';
 
-const RATE_LIMITED_DIGEST = 'RATE_LIMITED';
+export const RATE_LIMITED_DIGEST = 'RATE_LIMITED';
 
 /** Server components have no Request, so this rebuilds the GET that the browser session check reads for routes. */
-async function pageRequest(path: string): Promise<Request> {
+export async function pageRequest(path: string): Promise<Request> {
   const [headerList, cookieStore] = await Promise.all([headers(), cookies()]);
   const host = headerList.get('host');
   if (!host) throw new AppError('UNAUTHENTICATED', 'Host header required');
@@ -52,17 +48,8 @@ export async function optionalActor(path: string): Promise<ActorContext | null> 
 
 export async function requireActor(path: string): Promise<ActorContext> {
   const actor = await optionalActor(path);
-  if (!actor) {
-    const next = returnPath((await headers()).get(RETURN_PATH_HEADER) ?? path);
-    redirect(readAuthEnvironment().mode === 'demo' ? demoEntryPath(next) : signinPath(next));
-  }
+  if (!actor) redirect('/signin');
   return actor;
-}
-
-/** The person a project page shows as "me"; pages never read the act-as cookie or the user for that. */
-export async function pageOnScreen(actor: ActorContext, projectId: string): Promise<OnScreen> {
-  const cookie = (await cookies()).get(actAsCookieName(projectId))?.value;
-  return personOnScreen(getApp().db, actor, projectId, cookie);
 }
 
 /** Domain reads answer NOT_FOUND for foreign or missing rows; a page shows the same 404 for both. */

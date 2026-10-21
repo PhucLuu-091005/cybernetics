@@ -4,22 +4,17 @@ import { z } from 'zod';
 import { RevisionSchema, type ActorContext } from '../../contracts';
 import {
   applyOp,
-  applyingCount,
   clashesOf,
   clashLabel,
-  crState,
   crVersionApplies,
-  goneNamed,
   liveOps,
   mainState,
-  atMost,
   noNul,
   onlyMainNote,
   LoopError,
   OpError,
   OpSchema,
   replayOps,
-  secondMilestone,
   type Commit,
   type Member,
   type Op,
@@ -43,7 +38,6 @@ import {
   loadShares,
   OPEN,
   ProjectScopeSchema,
-  readScope,
   requireEditor,
   requireRight,
   requireStatus,
@@ -58,8 +52,7 @@ import { addComment, loadCommits, loadQueue, lockCr, mainRevision, type CrRow } 
 
 const MAX_OPS = 500;
 const MISSING_CRS = 'You cannot see the change requests of this project';
-const Text = (max: number) =>
-  noNul(z.string().trim().min(1, 'Must not be empty').max(max, atMost(max)));
+const Text = (max: number) => noNul(z.string().trim().min(1, 'Must not be empty').max(max));
 const RouteNumber = z
   .union([
     z.number(),
@@ -127,17 +120,13 @@ const parse = <S extends z.ZodType>(schema: S, raw: unknown, what: string): z.in
 };
 
 /** The server owns rev, by and d, and records who moved a date and when. */
-function candidate(raw: unknown, rev: number, by: string, via: string | null): Op {
+function candidate(raw: unknown, rev: number, by: string): Op {
   const value = (raw ?? {}) as { op?: unknown; a?: unknown };
   const a =
     (value.op === 'due' || value.op === 'msDate') && value.a && typeof value.a === 'object'
       ? { ...value.a, by, at: new Date().toISOString() }
       : value.a;
-  return parse(
-    OpSchema,
-    { op: value.op, a, rev, by, ...(via ? { agent: true, via } : {}) },
-    'Invalid change',
-  );
+  return parse(OpSchema, { op: value.op, a, rev, by }, 'Invalid change');
 }
 
 function stillApplying(state: TrackerState, ops: readonly Op[], tz: string): Op[] {
@@ -159,24 +148,12 @@ function stillApplying(state: TrackerState, ops: readonly Op[], tz: string): Op[
   return kept;
 }
 
-type Main = {
-  base: Scope['tracker']['base'];
-  queue: QueueRow[];
-  commits: Commit[];
-  members: Scope['members'];
-  via: string | null;
-};
+type Main = { base: Scope['tracker']['base']; queue: QueueRow[]; commits: Commit[] };
 
 async function loadMain(tx: Tx, scope: Scope): Promise<Main> {
   const queue = await loadQueue(tx, scope.project.id);
   const commits = await loadCommits(tx, scope.project.id);
-  return {
-    base: scope.tracker.base,
-    queue,
-    commits,
-    members: scope.members,
-    via: scope.tenant.viaKey ?? null,
-  };
+  return { base: scope.tracker.base, queue, commits };
 }
 
 /** Each new op must apply on the latest Main plus the live ops before it. */
@@ -194,19 +171,9 @@ function admit(
     tz,
   ).state;
   return raws.map((raw) => {
-    const op = candidate(raw, rev, by, main.via);
+    const op = candidate(raw, rev, by);
     if (op.op === 'addTeam' && state.teams.some((team) => team.id === op.a.id))
       throw new AppError('VALIDATION', `The change does not fit: team ${op.a.id} already exists`);
-    const gone = goneNamed(state, main.members, op).map(
-      (id) => main.members.find((m) => m.id === id)?.name ?? id,
-    );
-    if (gone.length)
-      throw new AppError(
-        'VALIDATION',
-        `The change does not fit: ${gone.join(' and ')} ${gone.length > 1 ? 'are' : 'is'} no longer in this project`,
-      );
-    const taken = secondMilestone(state, op);
-    if (taken) throw new AppError('VALIDATION', `The change does not fit: ${taken}`);
     try {
       const applied = applyOp(state, op, tz);
       state = applied.state;
@@ -372,12 +339,6 @@ async function ready(run: Run) {
   requireSeen(run);
   if (!cr.ops.length)
     throw new AppError('VALIDATION', 'Add at least one change before you mark it as ready');
-  const main = await loadMain(tx, scope);
-  if (!applyingCount(crState(main.base, main.queue, main.commits, cr, scope.tracker.timeZone)))
-    throw new AppError(
-      'VALIDATION',
-      'Add at least one change that applies before you mark it as ready',
-    );
   await updateCr(tx, cr, { status: 'ready' });
   await addComment(tx, scope.tenant, { crId: cr.id, memberId: me.id, kind: 'ready' });
 }
@@ -624,17 +585,10 @@ async function requestChanges(run: Run, note: string) {
 async function close(run: Run, reason: string) {
   const { tx, ctx, scope, cr } = run;
   const me = requireRight(ctx, scope, 'viewMain');
-  const own = [cr.author, cr.editor].includes(me.id);
-  if (!own && !rightsIn(scope, me).merge)
+  if (![cr.author, cr.editor].includes(me.id) && !rightsIn(scope, me).merge)
     throw new AppError(
       'FORBIDDEN',
       `Only the author, the person who edits #${cr.num} or a person who can merge can cancel it`,
-    );
-  // Cancelling someone else's change request is a merger's decision, so the token needs that scope too.
-  if (!own && ctx.kind === 'agent' && !ctx.scopes.includes('crs:merge'))
-    throw new AppError(
-      'FORBIDDEN',
-      'Scope crs:merge is also required to cancel this change request',
     );
   requireStatus(cr, OPEN);
   requireSeen(run);
@@ -691,9 +645,6 @@ export async function crAction(
     const scope = await writeScope(tx, ctx, input.projectId, input.actAs);
     const cr = await lockCr(tx, scope.project.id, input.num);
     await run({ tx, ctx, scope, cr, expectedRevision: input.expectedRevision }, input);
-    // A merge can add a team, and the project part of the version must see it.
-    const after =
-      input.action === 'merge' ? await readScope(tx, ctx, input.projectId, input.actAs) : scope;
-    return buildPayload(tx, after);
+    return buildPayload(tx, scope);
   });
 }

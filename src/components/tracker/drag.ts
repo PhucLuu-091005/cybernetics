@@ -118,12 +118,6 @@ export function dropAction(
         };
       const item = state.workItems.find((w) => w.id === source.id);
       if (!item || item.milestoneId === target.id) return NONE;
-      const now = state.milestones.find((m) => m.id === item.milestoneId);
-      if (now)
-        return {
-          kind: 'hint',
-          text: `${item.title} is in ${now.name} already. Change its milestone in its details.`,
-        };
       return {
         kind: 'op',
         op: { op: 'msAdd', a: { workItemId: source.id, milestoneId: target.id } },

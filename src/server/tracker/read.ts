@@ -6,7 +6,6 @@ import { invalidInput } from '../errors';
 import { requireScope } from '../http/scopes';
 import { ProjectScopeSchema, readScope, requireView, subjectOf, type Scope } from './access';
 import { loadCommits, loadCrs, loadQueue, type Reader } from './store';
-import { versionOf } from './version';
 
 const GetTrackerInputSchema = z.strictObject(ProjectScopeSchema);
 
@@ -35,7 +34,6 @@ export async function buildPayload(db: Reader, scope: Scope): Promise<TrackerPay
     queue: queueFromRows(queue),
     commits,
     crs,
-    version: (await versionOf(db, scope)).version,
   };
 }
 

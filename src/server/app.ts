@@ -4,26 +4,23 @@ import { createDatabase } from './db/client';
 import { DbIdentityStore, type UserCreatedHook } from './db/identity-store';
 import type { Db } from './db/tx';
 import type { HttpIdentityStore } from './http/identity-store';
-import type { BrowserSession, LimitBucket } from './http/actors';
+import type { BrowserSession } from './http/actors';
 import {
   configureHttpIdentityStore,
-  createPersonalKey,
   createToken,
   getBrowserActor,
   getBrowserProjectActor,
   getBrowserSession,
   getTokenActor,
-  listPersonalKeys,
   listTokens,
-  revokePersonalKey,
   revokeToken,
 } from './http/runtime';
-type App = { db: Db; identity: HttpIdentityStore; pool: Pool };
+export type App = { db: Db; identity: HttpIdentityStore; pool: Pool };
 const state = globalThis as typeof globalThis & { promiseApp?: App };
 /** Loaded on first sign-in only, so routes do not carry the demo seed. */
 export const seedOnUserCreated: UserCreatedHook = async (tx, { userId, workspaceId }) => {
-  const { demoClock, seedTrackerDemo } = await import('./tracker');
-  await seedTrackerDemo(tx, { workspaceId, userId, ...demoClock() });
+  const { seedTrackerDemo } = await import('./tracker');
+  await seedTrackerDemo(tx, { workspaceId, userId });
 };
 const identityStore = (db: Db) => new DbIdentityStore(db, { onUserCreated: seedOnUserCreated });
 export function getApp(): App {
@@ -50,9 +47,9 @@ export function resetApp(): void {
   delete state.promiseApp;
 }
 // Routes and adapters resolve actors here so the database identity store is installed before runtime.ts reads it.
-export function browserActor(request: Request, bucket?: LimitBucket): Promise<ActorContext> {
+export function browserActor(request: Request): Promise<ActorContext> {
   getApp();
-  return getBrowserActor(request, bucket);
+  return getBrowserActor(request);
 }
 export function browserSession(request: Request): Promise<BrowserSession> {
   getApp();
@@ -86,22 +83,4 @@ export function listAgentTokens(
 ): ReturnType<typeof listTokens> {
   getApp();
   return listTokens(...args);
-}
-export function createUserKey(
-  ...args: Parameters<typeof createPersonalKey>
-): ReturnType<typeof createPersonalKey> {
-  getApp();
-  return createPersonalKey(...args);
-}
-export function revokeUserKey(
-  ...args: Parameters<typeof revokePersonalKey>
-): ReturnType<typeof revokePersonalKey> {
-  getApp();
-  return revokePersonalKey(...args);
-}
-export function listUserKeys(
-  ...args: Parameters<typeof listPersonalKeys>
-): ReturnType<typeof listPersonalKeys> {
-  getApp();
-  return listPersonalKeys(...args);
 }

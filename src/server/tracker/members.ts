@@ -24,13 +24,10 @@ import {
   trackerTeams,
   users,
 } from '../db/schema';
-import { photosOn } from '../avatars/config';
-import { memberPhotoUrl } from '../avatars/store';
 import { isUniqueViolation, withTransaction, type Db, type Tx } from '../db/tx';
 import { AppError, invalidInput } from '../errors';
 import { requireScope } from '../http/scopes';
 import {
-  mayManage,
   ProjectScopeSchema,
   readScope,
   requireRight,
@@ -59,7 +56,6 @@ export type ProjectMember = {
   /** An invite that waits until a person signs in with this email. */
   pending: boolean;
   color: string;
-  photo: string | null;
   /** The acting member, so the demo marks the person you work as. */
   you: boolean;
   projectLead: boolean;
@@ -80,13 +76,12 @@ export type ProjectTeam = {
 
 export type MembersPayload = {
   canManage: boolean;
-  canManageTeams: boolean;
   leadId: string;
   members: ProjectMember[];
   teams: ProjectTeam[];
 };
 
-export const GrantsSchema = z.strictObject({
+const GrantsSchema = z.strictObject({
   viewMain: z.boolean(),
   viewCrs: z.boolean(),
   createCrs: z.boolean(),
@@ -97,7 +92,7 @@ const TeamNameSchema = noNul(
   z.string().trim().min(1, 'Give the team a name').max(200, 'Keep the team name to 200 characters'),
 );
 const ListMembersInputSchema = z.strictObject(ProjectScopeSchema);
-export const InviteMemberInputSchema = z.strictObject({
+const InviteMemberInputSchema = z.strictObject({
   ...ProjectScopeSchema,
   email: EmailSchema,
   grants: GrantsSchema.optional(),
@@ -106,44 +101,31 @@ const UpdateMemberInputSchema = z.union([
   z.strictObject({ ...ProjectScopeSchema, memberId: IdSchema, grants: GrantsSchema }),
   z.strictObject({ ...ProjectScopeSchema, memberId: IdSchema, projectLead: z.literal(true) }),
 ]);
-export const RemoveMemberInputSchema = z.strictObject({
-  ...ProjectScopeSchema,
-  memberId: IdSchema,
-});
+const RemoveMemberInputSchema = z.strictObject({ ...ProjectScopeSchema, memberId: IdSchema });
 const TeamIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,100}$/);
-export const AddTeamInputSchema = z.strictObject({ ...ProjectScopeSchema, name: TeamNameSchema });
-export const UpdateTeamInputSchema = z.strictObject({
+const AddTeamInputSchema = z.strictObject({ ...ProjectScopeSchema, name: TeamNameSchema });
+const UpdateTeamInputSchema = z.strictObject({
   ...ProjectScopeSchema,
   teamId: TeamIdSchema,
   name: TeamNameSchema.optional(),
   leadId: IdSchema.nullable().optional(),
   memberIds: z.array(IdSchema).max(500).optional(),
 });
-export const DeleteTeamInputSchema = z.strictObject({
-  ...ProjectScopeSchema,
-  teamId: TeamIdSchema,
-});
+const DeleteTeamInputSchema = z.strictObject({ ...ProjectScopeSchema, teamId: TeamIdSchema });
 
 const UNIQUE = ['tracker_members_project_email_unique', 'tracker_members_project_user_unique'];
 const COLORS = ['#2563eb', '#0f766e', '#d97706', '#0891b2', '#65a30d', '#dc2626', '#4f46e5'];
 
-type Row = typeof trackerMembers.$inferSelect & {
-  userEmail: string | null;
-  userAvatarKey: string | null;
-};
+type Row = typeof trackerMembers.$inferSelect & { userEmail: string | null };
 
 async function memberRows(db: Reader, projectId: string): Promise<Row[]> {
   const rows = await db
-    .select({ member: trackerMembers, userEmail: users.email, userAvatarKey: users.avatarKey })
+    .select({ member: trackerMembers, userEmail: users.email })
     .from(trackerMembers)
     .leftJoin(users, eq(users.id, trackerMembers.userId))
     .where(eq(trackerMembers.projectId, projectId))
     .orderBy(asc(trackerMembers.seq));
-  return rows.map(({ member, userEmail, userAvatarKey }) => ({
-    ...member,
-    userEmail,
-    userAvatarKey,
-  }));
+  return rows.map(({ member, userEmail }) => ({ ...member, userEmail }));
 }
 
 const teamOf = (op: Op): string | null => {
@@ -185,10 +167,8 @@ async function toPayload(db: Reader, ctx: ActorContext, scope: Scope): Promise<M
   const teams = await loadTeams(db, scope.project.id);
   const use = await teamUse(db, scope, teams);
   const live = rows.filter((row) => row.removedAt === null);
-  const photos = photosOn();
   return {
-    canManage: mayManage(ctx, scope, 'members:manage'),
-    canManageTeams: mayManage(ctx, scope, 'teams:manage'),
+    canManage: ctx.kind === 'user' && !!scope.me && scope.me.id === lead,
     leadId: lead,
     members: live.map((row) => {
       const grants = grantsOf(row);
@@ -199,7 +179,6 @@ async function toPayload(db: Reader, ctx: ActorContext, scope: Scope): Promise<M
         email: row.email ?? row.userEmail?.toLowerCase() ?? null,
         pending: isInvite(row),
         color: row.color,
-        photo: photos ? memberPhotoUrl(row, row.userAvatarKey) : null,
         you: row.id === scope.me?.id,
         projectLead: row.id === lead,
         grants,
@@ -369,11 +348,6 @@ export async function updateMember(
       await set(target.id, closeGrants(input.grants));
       return;
     }
-    if (ctx.kind === 'agent')
-      throw new AppError(
-        'FORBIDDEN',
-        'Only a person in the browser can hand over the project lead',
-      );
     if (target.id === lead) return;
     if (isInvite(target)) throw new AppError('VALIDATION', `${target.email} has not signed in yet`);
     await tx

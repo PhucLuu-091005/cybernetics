@@ -11,5 +11,3 @@ playwright-report
 tsconfig.tsbuildinfo
 *.log
 .DS_Store
-# google-github-actions/auth writes this credentials file into the workspace.
-gha-creds-*.json

@@ -12,11 +12,9 @@ import {
   type Grant,
 } from '../../tracker/permissions';
 import type { Account } from '../shell/AccountMenu';
-import { errorText, send, type ApiError } from '../shell/api';
+import { send, type ApiError } from '../shell/api';
 import { useHydrated } from '../shell/hydrated';
 import { PageHead } from '../shell/PageHead';
-import { PhotoOr } from '../shell/PhotoImg';
-import { Checkbox } from '../tracker/Checkbox';
 import { Icon } from '../tracker/icons';
 import { ModalFrame } from '../tracker/Modals';
 import { Toast, type ToastState } from '../tracker/Toast';
@@ -50,9 +48,7 @@ function Face({ member, sm }: { member: ProjectMember; sm?: boolean }) {
       title={sm ? member.name : undefined}
       aria-hidden="true"
     >
-      <PhotoOr src={member.photo} size={sm ? 22 : 28}>
-        {initials(member.name)}
-      </PhotoOr>
+      {initials(member.name)}
     </span>
   );
 }
@@ -205,7 +201,7 @@ export function MembersScreen({
           </p>
           {failure && (
             <p className="pg-error" role="alert">
-              {errorText(failure)}
+              {failure.message.replace(/\.?$/, '.')}
             </p>
           )}
           <div className="mb-table" role="table" aria-label="People">
@@ -276,11 +272,12 @@ export function MembersScreen({
                         key={grant}
                         title={why ?? undefined}
                       >
-                        <Checkbox
+                        <input
+                          type="checkbox"
                           checked={checked}
                           disabled={!manage || off || why !== null}
                           aria-label={`${GRANT_LABEL[grant]}: ${member.name}`}
-                          onChange={(on) => toggle(member, grant, on)}
+                          onChange={(event) => toggle(member, grant, event.target.checked)}
                         />
                         <span className="mb-grant-name">{SHORT[grant]}</span>
                       </label>
@@ -293,7 +290,6 @@ export function MembersScreen({
                           <button
                             className="btn sm"
                             type="button"
-                            aria-label={`Make project lead: ${member.name}`}
                             disabled={off}
                             onClick={() => setConfirm({ kind: 'lead', member })}
                           >
@@ -508,7 +504,11 @@ function TeamEditor({
               return (
                 <li key={member.id}>
                   <label className="mb-pick-who">
-                    <Checkbox checked={inTeam} onChange={(on) => pick(member.id, on)} />
+                    <input
+                      type="checkbox"
+                      checked={inTeam}
+                      onChange={(event) => pick(member.id, event.target.checked)}
+                    />
                     <Face member={member} sm />
                     <span>
                       {member.pending ? member.email : member.name}
@@ -544,7 +544,7 @@ function TeamEditor({
         <p className="tip">The lead is always in the team and can always create change requests.</p>
         {failure && (
           <p className="pg-error" role="alert">
-            {errorText(failure)}
+            {failure.message.replace(/\.?$/, '.')}
           </p>
         )}
         {team.keep && <p className="tip">{team.keep}</p>}
